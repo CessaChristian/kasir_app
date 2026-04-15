@@ -43,7 +43,7 @@ flutter doctor
 ### 1. Clone repository
 
 ```bash
-git clone https://github.com/<username>/kasir_app.git
+git clone https://github.com/CessaChristian/kasir_app.git
 cd kasir_app
 ```
 
