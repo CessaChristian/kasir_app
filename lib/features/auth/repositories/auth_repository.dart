@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/crypto_utils.dart';
@@ -55,11 +56,17 @@ class AuthRepository {
       isActive: const Value(true),
     );
 
+    // Jika insert throw → data TIDAK masuk DB, error valid
     await _db.into(_db.users).insert(ownerCompanion);
 
-    // 6. Get and return the created user
-    return await (_db.select(_db.users)..where((u) => u.id.equals(userId)))
-        .getSingle();
+    // Jika getSingleOrNull null → insert BERHASIL tapi gagal baca kembali (sangat jarang)
+    // Data sudah ada di DB — user bisa langsung login
+    final created = await (_db.select(_db.users)..where((u) => u.id.equals(userId)))
+        .getSingleOrNull();
+    if (created == null) {
+      throw StateError('Akun berhasil dibuat. Silakan login dengan username dan PIN yang baru dibuat.');
+    }
+    return created;
   }
 
   /// Login with username and PIN
@@ -69,36 +76,67 @@ class AuthRepository {
     required String username,
     required String pin,
   }) async {
-    // 1. Find user by username
-    final users = await (_db.select(_db.users)
-          ..where((u) => u.username.equals(username)))
-        .get();
+    // 1. Find user by username — getSingleOrNull lebih efisien dari .get().first
+    final user = await (_db.select(_db.users)
+          ..where((u) => u.username.equals(username))
+          ..limit(1))
+        .getSingleOrNull();
 
-    if (users.isEmpty) {
-      return null; // User not found
-    }
-
-    final user = users.first;
+    if (user == null) return null;
 
     // 2. Check if user is active
     if (!user.isActive) {
       throw StateError('User account is deactivated');
     }
 
+    // 2b. S5: Cek apakah akun sedang ter-lock karena terlalu banyak gagal login.
+    if (user.loginLockedUntil != null &&
+        user.loginLockedUntil!.isAfter(DateTime.now())) {
+      final remaining = user.loginLockedUntil!.difference(DateTime.now());
+      throw StateError(
+          'Akun terkunci. Coba lagi dalam ${_formatLockDuration(remaining)}.');
+    }
+
     // 3. Verify PIN
     final isValid = CryptoUtils.verifyPin(pin, user.salt, user.pinHash);
     if (!isValid) {
-      return null; // Invalid PIN
+      // S5: Increment login attempts + lockout dengan exponential backoff.
+      await _incrementLoginAttempts(user.id);
+      return null;
     }
 
-    // 4. Start a new shift
-    final shiftId = await _startShift(user.id);
+    // S5: PIN benar → reset login attempts + clear lock.
+    if (user.loginAttempts > 0 || user.loginLockedUntil != null) {
+      await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
+          .write(const UsersCompanion(
+        loginAttempts: Value(0),
+        loginLockedUntil: Value(null),
+      ));
+    }
+
+    // 3b. Migrasi transparan: kalau hash masih format lama (SHA-256),
+    // re-hash dengan PBKDF2 dan update DB.
+    if (CryptoUtils.needsRehash(user.pinHash)) {
+      final newHash = CryptoUtils.hashPin(pin, user.salt);
+      await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
+          .write(UsersCompanion(pinHash: Value(newHash)));
+    }
+
+    // 4. Start a new shift — I4: bungkus dengan pesan error spesifik
+    // agar user tahu PIN sudah benar tapi gagal di langkah shift.
+    final String shiftId;
+    try {
+      shiftId = await _startShift(user.id);
+    } catch (e) {
+      throw StateError(
+          'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
+    }
 
     // 5. Get user permissions
     final permissions = await _getUserPermissions(user.id, user.role);
 
-    // 6. Create and return session
-    return AuthSession(
+    // 6. Create and return session (default expire: 12 jam)
+    return AuthSession.create(
       userId: user.id,
       username: user.username,
       role: user.role,
@@ -120,25 +158,28 @@ class AuthRepository {
     );
   }
 
-  /// Get user by ID
-  Future<User?> getUserById(String userId) async {
-    final users =
-        await (_db.select(_db.users)..where((u) => u.id.equals(userId))).get();
-    return users.isNotEmpty ? users.first : null;
+  Future<User?> getUserById(String userId) {
+    return (_db.select(_db.users)..where((u) => u.id.equals(userId)))
+        .getSingleOrNull();
   }
 
-  /// Start a new shift for a user
-  /// Returns the shift ID
+  /// Start a new shift for a user, atau gunakan shift aktif yang sudah ada.
   Future<String> _startShift(String userId) async {
-    final shiftId = _generateShiftId();
+    final existing = await (_db.select(_db.shifts)
+          ..where((s) => s.userId.equals(userId))
+          ..where((s) => s.endAt.isNull())
+          ..limit(1))
+        .getSingleOrNull();
 
+    if (existing != null) return existing.id;
+
+    final shiftId = _generateShiftId();
     await _db.into(_db.shifts).insert(
           ShiftsCompanion.insert(
             id: shiftId,
             userId: userId,
           ),
         );
-
     return shiftId;
   }
 
@@ -162,24 +203,29 @@ class AuthRepository {
     return userPerms.map((up) => up.permissionCode).toList();
   }
 
-  /// Generate unique user ID
-  String _generateUserId() {
-    return 'user_${DateTime.now().millisecondsSinceEpoch}';
-  }
-
-  /// Generate unique shift ID
-  String _generateShiftId() {
-    return 'shift_${DateTime.now().millisecondsSinceEpoch}';
-  }
-
-  /// Get all active usernames (for login dropdown)
+  /// Get all active usernames untuk dropdown login.
+  /// Aman karena dilindungi rate limit (S5) dan session anti-tamper (S6).
   Future<List<String>> getAllActiveUsernames() async {
     final users = await (_db.select(_db.users)
           ..where((u) => u.isActive.equals(true))
           ..orderBy([(u) => OrderingTerm.asc(u.username)]))
         .get();
-    
     return users.map((u) => u.username).toList();
+  }
+
+  // S10: Random.secure() suffix mencegah ID prediksi/collision.
+  static final _secureRandom = Random.secure();
+
+  String _generateUserId() {
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
+    return 'user_${ts}_$r';
+  }
+
+  String _generateShiftId() {
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
+    return 'shift_${ts}_$r';
   }
 
   // ============================================================================
@@ -279,64 +325,100 @@ class AuthRepository {
       return RecoveryResult.invalidCode();
     }
 
+    // Migrasi transparan: kalau recovery hash masih format lama (SHA-256),
+    // re-hash dengan PBKDF2 dan update DB.
+    if (HashUtils.needsRehash(owner.recoveryHash!)) {
+      final newHash = _hashRecoveryCode(normalized, owner.recoverySalt!);
+      await (_db.update(_db.users)..where((u) => u.id.equals(owner.id)))
+          .write(UsersCompanion(recoveryHash: Value(newHash)));
+    }
+
     // Valid - reset attempts
     await _resetRecoveryAttempts(owner.id);
     return RecoveryResult.success();
   }
 
   /// Reset owner PIN using valid recovery code
-  /// 
-  /// Auto-generates new recovery code after successful reset
-  /// Returns RecoveryResult with new recovery code if successful
+  ///
+  /// Auto-generates new recovery code after successful reset.
+  ///
+  /// M-B: SELURUH flow (lock check, verify recovery, update PIN, reset
+  /// attempts) dijalankan dalam satu transaksi DB. Tanpa ini, ada window
+  /// dimana recovery code sudah ditandai "used" (recoveryUsedAt + attempts
+  /// reset) tapi update PIN gagal — owner terkunci permanen karena recovery
+  /// dianggap terpakai padahal PIN tidak berubah.
   Future<RecoveryResult> resetOwnerPinWithRecoveryCode({
     required String recoveryCode,
     required String newPin,
   }) async {
-    // 1. Verify recovery code
-    final verifyResult = await verifyOwnerRecoveryCode(recoveryCode);
-    if (!verifyResult.isSuccess) {
-      return verifyResult;
-    }
-
-    // 2. Validate new PIN format
+    // Validasi format PIN dilakukan di luar transaksi — kalau format salah,
+    // jangan sentuh DB sama sekali (tidak boleh menghitung sebagai attempt).
     if (!CryptoUtils.isValidPinFormat(newPin)) {
       return RecoveryResult.invalidCode(
         message: 'New PIN must be 4-6 digits',
       );
     }
 
-    final owner = await _getOwner();
-    if (owner == null) {
-      return RecoveryResult.ownerNotFound();
-    }
+    return await _db.transaction<RecoveryResult>(() async {
+      final owner = await _getOwner();
+      if (owner == null) {
+        return RecoveryResult.ownerNotFound();
+      }
 
-    // 3. Generate new PIN hash
-    final newSalt = CryptoUtils.generateSalt();
-    final newPinHash = CryptoUtils.hashPin(newPin, newSalt);
+      // Lock check di dalam transaksi
+      final lockUntil = owner.recoveryLockedUntil;
+      if (lockUntil != null && DateTime.now().isBefore(lockUntil)) {
+        final remaining = lockUntil.difference(DateTime.now()).inSeconds;
+        return RecoveryResult.locked(seconds: remaining);
+      }
 
-    // 4. Generate new recovery code (old one is compromised)
-    final newRecoveryCode = _generateRecoveryCode();
-    final newRecoverySalt = _generateRecoverySalt();
-    final newRecoveryHash = _hashRecoveryCode(newRecoveryCode, newRecoverySalt);
+      if (owner.recoveryHash == null || owner.recoverySalt == null) {
+        return RecoveryResult.invalidCode(
+          message: 'No recovery code set up for this account',
+        );
+      }
 
-    // 5. Update owner
-    await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
-      UsersCompanion(
-        pinHash: Value(newPinHash),
-        salt: Value(newSalt),
-        recoveryHash: Value(newRecoveryHash),
-        recoverySalt: Value(newRecoverySalt),
-        recoveryCreatedAt: Value(DateTime.now()),
-        recoveryUsedAt: Value(DateTime.now()),
-        recoveryAttempts: const Value(0),
-        recoveryLockedUntil: const Value(null),
-      ),
-    );
+      // Verifikasi recovery code (PBKDF2 + constant-time)
+      final normalized = _normalizeRecoveryCode(recoveryCode);
+      final isValid = _verifyRecoveryCode(
+        normalized,
+        owner.recoverySalt!,
+        owner.recoveryHash!,
+      );
 
-    return RecoveryResult.success(
-      newRecoveryCode: newRecoveryCode,
-      message: 'PIN reset successful',
-    );
+      if (!isValid) {
+        await _incrementRecoveryAttempts(owner.id);
+        return RecoveryResult.invalidCode();
+      }
+
+      // Verifikasi lulus → generate kredensial baru dan TULIS SEKALI.
+      // Kalau write gagal (storage penuh, dll), seluruh transaksi rollback —
+      // owner tetap bisa pakai recovery code yang sama.
+      final newSalt = CryptoUtils.generateSalt();
+      final newPinHash = CryptoUtils.hashPin(newPin, newSalt);
+      final newRecoveryCode = _generateRecoveryCode();
+      final newRecoverySalt = _generateRecoverySalt();
+      final newRecoveryHash =
+          _hashRecoveryCode(newRecoveryCode, newRecoverySalt);
+
+      await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
+        UsersCompanion(
+          pinHash: Value(newPinHash),
+          salt: Value(newSalt),
+          recoveryHash: Value(newRecoveryHash),
+          recoverySalt: Value(newRecoverySalt),
+          recoveryCreatedAt: Value(DateTime.now()),
+          recoveryUsedAt: Value(DateTime.now()),
+          recoveryAttempts: const Value(0),
+          recoveryLockedUntil: const Value(null),
+        ),
+      );
+
+      return RecoveryResult.success(
+        newRecoveryCode: newRecoveryCode,
+        message: 'PIN reset successful',
+      );
+    });
   }
 
   /// Regenerate owner recovery code (requires current PIN)
@@ -402,28 +484,81 @@ class AuthRepository {
     return HashUtils.verifyWithSalt(code, salt, hash);
   }
 
-  /// Increment recovery attempts and lock if >= 5
-  Future<void> _incrementRecoveryAttempts(String userId) async {
+  /// S5: Increment login attempts dan lock dengan exponential backoff yang sama
+  /// dengan recovery (cycle 1=60s, 2=5min, 3=30min, 4=1h, 5+=24h).
+  /// Pakai atomic SQL agar aman dari race condition.
+  Future<void> _incrementLoginAttempts(String userId) async {
+    await _db.customUpdate(
+      'UPDATE users SET login_attempts = login_attempts + 1 WHERE id = ?',
+      variables: [Variable.withString(userId)],
+      updates: {_db.users},
+    );
+
     final user = await getUserById(userId);
     if (user == null) return;
 
-    final newAttempts = user.recoveryAttempts + 1;
+    if (user.loginAttempts > 0 && user.loginAttempts % 5 == 0) {
+      final cycle = user.loginAttempts ~/ 5;
+      final lockSeconds = _calculateLockSeconds(cycle);
+      final lockUntil = DateTime.now().add(Duration(seconds: lockSeconds));
+      await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
+        UsersCompanion(loginLockedUntil: Value(lockUntil)),
+      );
+    }
+  }
 
-    if (newAttempts >= 5) {
-      // Lock for 60 seconds
-      final lockUntil = DateTime.now().add(const Duration(seconds: 60));
+  /// Format durasi lock untuk pesan error yang user-friendly.
+  String _formatLockDuration(Duration d) {
+    if (d.inHours >= 1) return '${d.inHours} jam';
+    if (d.inMinutes >= 1) return '${d.inMinutes} menit';
+    return '${d.inSeconds} detik';
+  }
+
+  /// Increment recovery attempts dan lock dengan exponential backoff.
+  ///
+  /// Setiap kelipatan 5 percobaan → lockout dengan durasi yang bertambah:
+  /// - cycle 1 (attempts 5): 60 detik
+  /// - cycle 2 (attempts 10): 5 menit
+  /// - cycle 3 (attempts 15): 30 menit
+  /// - cycle 4 (attempts 20): 1 jam
+  /// - cycle 5+ (attempts 25+): 24 jam
+  ///
+  /// Increment pakai atomic SQL untuk fix race condition I2 (audit umum).
+  Future<void> _incrementRecoveryAttempts(String userId) async {
+    // Atomic increment — kalau 2 request paralel, keduanya tetap ke-count.
+    await _db.customUpdate(
+      'UPDATE users SET recovery_attempts = recovery_attempts + 1 WHERE id = ?',
+      variables: [Variable.withString(userId)],
+      updates: {_db.users},
+    );
+
+    final user = await getUserById(userId);
+    if (user == null) return;
+
+    // Setiap kelipatan 5 → lockout
+    if (user.recoveryAttempts > 0 && user.recoveryAttempts % 5 == 0) {
+      final cycle = user.recoveryAttempts ~/ 5;
+      final lockSeconds = _calculateLockSeconds(cycle);
+      final lockUntil = DateTime.now().add(Duration(seconds: lockSeconds));
       await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
-        UsersCompanion(
-          recoveryAttempts: Value(newAttempts),
-          recoveryLockedUntil: Value(lockUntil),
-        ),
+        UsersCompanion(recoveryLockedUntil: Value(lockUntil)),
       );
-    } else {
-      await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
-        UsersCompanion(
-          recoveryAttempts: Value(newAttempts),
-        ),
-      );
+    }
+  }
+
+  /// Exponential backoff durasi lock berdasarkan cycle ke-berapa.
+  int _calculateLockSeconds(int cycle) {
+    switch (cycle) {
+      case 1:
+        return 60; // 1 menit
+      case 2:
+        return 300; // 5 menit
+      case 3:
+        return 1800; // 30 menit
+      case 4:
+        return 3600; // 1 jam
+      default:
+        return 86400; // 24 jam
     }
   }
 
@@ -437,13 +572,13 @@ class AuthRepository {
     );
   }
 
-  /// Reset recovery lock
+  /// Reset recovery lock (saat lock expire).
+  ///
+  /// HANYA clear lockedUntil — JANGAN reset attempts.
+  /// Counter attempts tetap dipertahankan untuk exponential backoff.
   Future<void> _resetRecoveryLock(String userId) async {
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
-      const UsersCompanion(
-        recoveryAttempts: Value(0),
-        recoveryLockedUntil: Value(null),
-      ),
+      const UsersCompanion(recoveryLockedUntil: Value(null)),
     );
   }
 }

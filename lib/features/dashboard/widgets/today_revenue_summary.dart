@@ -1,9 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
 
-/// Widget untuk menampilkan ringkasan pendapatan hari ini
-/// dengan UI modern dan animasi interaktif
 class TodayRevenueSummary extends StatefulWidget {
   const TodayRevenueSummary({super.key});
 
@@ -11,262 +10,254 @@ class TodayRevenueSummary extends StatefulWidget {
   State<TodayRevenueSummary> createState() => _TodayRevenueSummaryState();
 }
 
-class _TodayRevenueSummaryState extends State<TodayRevenueSummary>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _slideAnimation;
-  late Animation<double> _scaleAnimation;
-
+class _TodayRevenueSummaryState extends State<TodayRevenueSummary> {
   int _todayRevenue = 0;
+  int _yesterdayRevenue = 0;
   int _transactionCount = 0;
   bool _isLoading = true;
-  bool _isPressed = false;
+  StreamSubscription? _txSub;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    _slideAnimation = Tween<double>(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
-      ),
-    );
-
     _loadTodayRevenue();
+    // LOW-1: Re-load setiap kali ada perubahan di tabel transactions
+    // (insert dari createSale, update, dll) — badge "LIVE" jadi benar.
+    _txSub = db.watchTransactions().listen((_) {
+      if (mounted) _loadTodayRevenue();
+    });
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _txSub?.cancel();
     super.dispose();
   }
 
   Future<void> _loadTodayRevenue() async {
     try {
-      // Get today's date range
       final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final todayEnd = todayStart.add(const Duration(days: 1));
+      final yesterdayStart = todayStart.subtract(const Duration(days: 1));
 
-      // Query transactions for today using existing method
-      final transactions = await db.getTransactionsByDateRange(startOfDay, endOfDay);
+      final todayTx =
+          await db.getTransactionsByDateRange(todayStart, todayEnd);
+      final yesterdayTx =
+          await db.getTransactionsByDateRange(yesterdayStart, todayStart);
 
       if (mounted) {
         setState(() {
-          _todayRevenue = transactions.fold<int>(0, (sum, tx) => sum + tx.total);
-          _transactionCount = transactions.length;
+          _todayRevenue = todayTx.fold<int>(0, (s, tx) => s + tx.total);
+          _yesterdayRevenue =
+              yesterdayTx.fold<int>(0, (s, tx) => s + tx.total);
+          _transactionCount = todayTx.length;
           _isLoading = false;
         });
-        _animationController.forward();
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    } catch (e, stack) {
+      // I3: Hanya log di debug build — production tetap silent (no leak).
+      assert(() {
+        debugPrint('TodayRevenueSummary error: $e\n$stack');
+        return true;
+      }());
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String _formatCurrency(int amount) {
-    final formatter = NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp ',
-      decimalDigits: 0,
+  Widget _buildTrendBadge() {
+    if (_yesterdayRevenue == 0 && _todayRevenue == 0) return const SizedBox.shrink();
+
+    if (_yesterdayRevenue == 0) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.fiber_new_rounded, size: 13, color: Colors.blue.shade400),
+          const SizedBox(width: 3),
+          Text(
+            'Hari baru',
+            style: TextStyle(fontSize: 10, color: Colors.blue.shade400, fontWeight: FontWeight.w600),
+          ),
+        ],
+      );
+    }
+
+    final diff = _todayRevenue - _yesterdayRevenue;
+    final percent = (diff / _yesterdayRevenue * 100).abs().toStringAsFixed(0);
+    final isUp = diff >= 0;
+    final color = isUp ? Colors.green.shade600 : Colors.red.shade500;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+          size: 11,
+          color: color,
+        ),
+        const SizedBox(width: 2),
+        Text(
+          '$percent% dari kemarin',
+          style: TextStyle(
+            fontSize: 10,
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
-    return formatter.format(amount);
+  }
+
+  String _formatCurrency(int amount) {
+    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(amount);
   }
 
   void _showDetailSheet() {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
+            // Handle
             Container(
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: colorScheme.outlineVariant,
+                color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 24),
-            // Title
+            const SizedBox(height: 20),
+
+            // Title row
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colorScheme.primary,
-                        colorScheme.secondary,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(
-                    Icons.trending_up_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: Icon(Icons.trending_up_rounded, color: Colors.green.shade600, size: 24),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pendapatan Hari Ini',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      Text(
-                        DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Pendapatan Hari Ini',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                    ),
+                    Text(
+                      DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()),
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            // Stats Grid
+            const SizedBox(height: 20),
+
+            // Stats row
             Row(
               children: [
                 Expanded(
                   child: _buildStatCard(
-                    context,
                     icon: Icons.payments_rounded,
                     label: 'Total Pendapatan',
                     value: _formatCurrency(_todayRevenue),
-                    color: Colors.green,
+                    color: Colors.green.shade600,
+                    bgColor: Colors.green.shade50,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStatCard(
-                    context,
                     icon: Icons.receipt_long_rounded,
-                    label: 'Transaksi',
+                    label: 'Jumlah Transaksi',
                     value: '$_transactionCount',
                     color: colorScheme.primary,
+                    bgColor: colorScheme.primary.withValues(alpha: 0.06),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            // Average per transaction
+            const SizedBox(height: 12),
+
+            // Average
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
+                color: const Color(0xFFF8F5F0),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.analytics_outlined,
-                    color: colorScheme.primary,
-                  ),
+                  Icon(Icons.analytics_outlined, color: colorScheme.primary, size: 20),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Rata-rata per Transaksi',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         _transactionCount > 0
                             ? _formatCurrency(_todayRevenue ~/ _transactionCount)
                             : 'Rp 0',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(
-    BuildContext context, {
+  Widget _buildStatCard({
     required IconData icon,
     required String label,
     required String value,
     required Color color,
+    required Color bgColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha:0.2),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 24),
+          Icon(icon, color: color, size: 20),
           const SizedBox(height: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
+          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-          ),
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
         ],
       ),
     );
@@ -276,197 +267,141 @@ class _TodayRevenueSummaryState extends State<TodayRevenueSummary>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _slideAnimation.value),
-          child: Opacity(
-            opacity: _fadeAnimation.value,
-            child: Transform.scale(
-              scale: _scaleAnimation.value,
-              child: child,
+    return GestureDetector(
+      onTap: _showDetailSheet,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-        );
-      },
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapUp: (_) => setState(() => _isPressed = false),
-        onTapCancel: () => setState(() => _isPressed = false),
-        onTap: _showDetailSheet,
-        child: AnimatedScale(
-          scale: _isPressed ? 0.98 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primary.withValues(alpha:0.15),
-                  colorScheme.secondary.withValues(alpha:0.1),
-                ],
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.green.shade100),
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha:0.2),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha:0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              child: Icon(Icons.trending_up_rounded, color: Colors.green.shade600, size: 26),
             ),
-            child: Row(
-              children: [
-                // Icon dengan animasi pulse
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.9, end: 1.0),
-                  duration: const Duration(seconds: 2),
-                  curve: Curves.easeInOut,
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.green.shade400,
-                          Colors.green.shade600,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withValues(alpha:0.4),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.trending_up_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 14),
+
+            // Revenue info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Pendapatan Hari Ini',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      Flexible(
+                        child: Text(
+                          'Pendapatan Hari Ini',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade600,
                           ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha:0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'LIVE',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      _isLoading
-                          ? SizedBox(
-                              height: 24,
-                              width: 100,
-                              child: LinearProgressIndicator(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            )
-                          : TweenAnimationBuilder<int>(
-                              tween: IntTween(begin: 0, end: _todayRevenue),
-                              duration: const Duration(milliseconds: 1200),
-                              curve: Curves.easeOutCubic,
-                              builder: (context, value, child) {
-                                return Text(
-                                  _formatCurrency(value),
-                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green.shade700,
-                                      ),
-                                );
-                              },
-                            ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green.shade100),
+                        ),
+                        child: Text(
+                          'LIVE',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                // Transaction count badge
-                if (!_isLoading)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.receipt_outlined,
-                          size: 14,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$_transactionCount',
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 4),
+                  _isLoading
+                      ? Container(
+                          height: 22,
+                          width: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TweenAnimationBuilder<int>(
+                              tween: IntTween(begin: 0, end: _todayRevenue),
+                              duration: const Duration(milliseconds: 1000),
+                              curve: Curves.easeOutCubic,
+                              builder: (_, v, child) => Text(
+                                _formatCurrency(v),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            _buildTrendBadge(),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                // Arrow icon
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+
+            // Transaction count badge — kompak tanpa label teks
+            if (!_isLoading)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.12)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.receipt_long_rounded, size: 14, color: colorScheme.primary),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$_transactionCount',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 18),
+          ],
         ),
       ),
     );

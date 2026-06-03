@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../shared/widgets/app_toast.dart';
 import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/products/pages/products_page.dart';
 import '../features/sales/sales_page.dart';
 import '../features/history/history_page.dart';
 import '../features/report/report_page.dart';
 import '../features/owner/pages/manage_cashiers_page.dart';
+import '../features/expenses/expenses_page.dart';
 import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
@@ -14,8 +16,7 @@ import '../shared/auth/session_manager.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
-  
-  // Global key for accessing AppShell state
+
   static final GlobalKey<AppShellState> globalKey = GlobalKey<AppShellState>();
 
   @override
@@ -23,21 +24,23 @@ class AppShell extends StatefulWidget {
 }
 
 class AppShellState extends State<AppShell> {
-  int _selectedIndex = 0; // Will be updated based on available pages
-  
-  /// Navigate to a specific page by index
+  int _selectedIndex = 0;
+
   void navigateToPage(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
-  // All possible menu items with their permission requirements
+  // Navigasi berdasarkan label agar aman saat menu di-filter per permission.
+  void navigateToPageByLabel(String label) {
+    final idx = _availableMenuItems.indexWhere((item) => item['label'] == label);
+    if (idx >= 0) setState(() => _selectedIndex = idx);
+  }
+
   final _allMenuItems = const [
     {
       'icon': Icons.dashboard_rounded,
       'label': 'Dashboard',
-      'permission': 'all', // Dashboard accessible to all users
+      'permission': 'all',
       'page': DashboardPage(),
     },
     {
@@ -64,13 +67,17 @@ class AppShellState extends State<AppShell> {
       'permission': 'view_report',
       'page': ReportPage(),
     },
+    {
+      'icon': Icons.account_balance_wallet_rounded,
+      'label': 'Pengeluaran',
+      'permission': 'all',
+      'page': ExpensesPage(),
+    },
   ];
 
-  // Filtered menu items based on permissions
   List<Map<String, dynamic>> get _availableMenuItems {
     return _allMenuItems.where((item) {
       final permission = item['permission'] as String;
-      // 'all' permission means accessible to everyone
       if (permission == 'all') return true;
       return SessionManager.instance.hasPermission(permission);
     }).toList();
@@ -78,17 +85,16 @@ class AppShellState extends State<AppShell> {
 
   void _navigateTo(int index) {
     setState(() => _selectedIndex = index);
-    Navigator.pop(context); // Close drawer
+    Navigator.pop(context);
   }
 
   Future<void> _logout() async {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
-    // Confirm logout
+    Navigator.pop(context); // Close drawer first
+
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
@@ -96,50 +102,32 @@ class AppShellState extends State<AppShell> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon
               Container(
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha:0.1),
+                  color: Colors.red.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  color: primaryColor,
-                  size: 32,
-                ),
+                child: Icon(Icons.logout_rounded, color: Colors.red.shade400, size: 32),
               ),
               const SizedBox(height: 20),
-              
-              // Title
               const Text(
-                'Akhiri Shift?',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                ),
+                'Keluar dari Sistem?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
               ),
               const SizedBox(height: 8),
-              
-              // Subtitle
               Text(
-                'Anda akan mengakhiri shift dan keluar dari sistem',
+                'Anda akan mengakhiri sesi dan keluar dari aplikasi',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
               ),
               const SizedBox(height: 24),
-              
-              // Buttons
               Row(
                 children: [
                   Expanded(
                     child: TextButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(ctx, false),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.grey.shade700,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -148,29 +136,21 @@ class AppShellState extends State<AppShell> {
                           side: BorderSide(color: Colors.grey.shade300),
                         ),
                       ),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
+                      child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
+                        backgroundColor: Colors.red.shade400,
                         foregroundColor: Colors.white,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text(
-                        'Keluar',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
+                      child: const Text('Keluar', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
@@ -183,36 +163,28 @@ class AppShellState extends State<AppShell> {
 
     if (confirmed != true) return;
 
-    // End shift and clear session
     try {
       final session = SessionManager.instance.currentSession;
       if (session != null) {
         final authRepo = AuthRepository(db);
-        await authRepo.logout(
-          userId: session.userId,
-          shiftId: session.shiftId,
-        );
+        await authRepo.logout(userId: session.userId, shiftId: session.shiftId);
       }
 
       await SessionManager.instance.clearSession();
 
       if (!mounted) return;
 
-      // Navigate to login page
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginPage()),
         (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error logging out: $e')),
-      );
+      AppToast.error(context, 'Gagal keluar: $e');
     }
   }
-  
-  Widget _buildMenuItem(
+
+  Widget _buildDrawerMenuItem(
     BuildContext context, {
     required IconData icon,
     required String label,
@@ -220,47 +192,59 @@ class AppShellState extends State<AppShell> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: isSelected ? primaryColor.withValues(alpha:0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        color: isSelected ? colorScheme.primary.withValues(alpha: 0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  size: 22,
-                  color: isDestructive 
-                      ? Colors.red 
-                      : (isSelected ? primaryColor : Colors.grey.shade600),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isDestructive
+                        ? Colors.red.shade50
+                        : (isSelected
+                            ? colorScheme.primary.withValues(alpha: 0.12)
+                            : Colors.grey.shade100),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 19,
+                    color: isDestructive
+                        ? Colors.red.shade400
+                        : (isSelected ? colorScheme.primary : Colors.grey.shade600),
+                  ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: isDestructive 
-                          ? Colors.red 
-                          : (isSelected ? primaryColor : const Color(0xFF1A1A1A)),
+                      color: isDestructive
+                          ? Colors.red.shade400
+                          : (isSelected ? colorScheme.primary : const Color(0xFF2A2A2A)),
                     ),
                   ),
                 ),
                 if (isSelected)
                   Container(
-                    width: 4,
-                    height: 20,
+                    width: 5,
+                    height: 5,
                     decoration: BoxDecoration(
-                      color: primaryColor,
-                      borderRadius: BorderRadius.circular(2),
+                      color: colorScheme.primary,
+                      shape: BoxShape.circle,
                     ),
                   ),
               ],
@@ -277,119 +261,235 @@ class AppShellState extends State<AppShell> {
     final session = SessionManager.instance.currentSession;
     final availableItems = _availableMenuItems;
 
-    // Ensure selected index is valid
     if (_selectedIndex >= availableItems.length) {
-      _selectedIndex = availableItems.isNotEmpty ? 0 : 0;
+      _selectedIndex = 0;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          availableItems.isNotEmpty
-              ? availableItems[_selectedIndex]['label'] as String
-              : 'POS App',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            tooltip: 'Menu',
-          ),
-        ),
-      ),
+    // Dashboard (index 0) tidak butuh AppBar — DashboardPage punya headernya sendiri
+    final isDashboard = _selectedIndex == 0;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Jika tidak di dashboard, kembali ke dashboard
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
+        // Jika sudah di dashboard, tidak lakukan apa-apa (jangan keluar app)
+      },
+      child: Scaffold(
+      backgroundColor: const Color(0xFFF8F5F0),
+      appBar: isDashboard
+          ? null
+          : AppBar(
+              title: Text(
+                availableItems.isNotEmpty
+                    ? availableItems[_selectedIndex]['label'] as String
+                    : 'Kasir App',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              centerTitle: true,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              shadowColor: Colors.black.withValues(alpha: 0.06),
+              scrolledUnderElevation: 1,
+              leading: Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  color: Colors.grey.shade700,
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              ),
+            ),
+
+      // ── Drawer ──
       drawer: Drawer(
         backgroundColor: Colors.white,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header with user info
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        session?.isOwner == true ? Icons.admin_panel_settings : Icons.person,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(right: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // ── Drawer Header ──
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(bottomRight: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Logo + Store Name
+                      Row(
                         children: [
-                          Text(
-                            session?.username ?? 'User',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            width: 52,
+                            height: 52,
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(4),
+                              color: colorScheme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            child: Text(
-                              session?.isOwner == true ? 'Owner' : 'Kasir',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey.shade600,
+                            padding: const EdgeInsets.all(6),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                'assets/images/Logo Teras Inn.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, e, s) => Icon(
+                                  Icons.restaurant_rounded,
+                                  size: 28,
+                                  color: colorScheme.primary,
+                                ),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppConstants.storeName,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              Text(
+                                'POS Sistem',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                  letterSpacing: 2.0,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
-                    ),
-                  ],
+
+                      const SizedBox(height: 16),
+                      Divider(color: Colors.grey.shade100, height: 1),
+                      const SizedBox(height: 16),
+
+                      // User info card
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8F5F0),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                session?.isOwner == true
+                                    ? Icons.admin_panel_settings_rounded
+                                    : Icons.person_rounded,
+                                color: colorScheme.primary,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    session?.username ?? 'User',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      session?.isOwner == true ? 'Owner' : 'Kasir',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              
-              Divider(color: Colors.grey.shade200, height: 1),
-              const SizedBox(height: 8),
-              
-              // Menu Items
-              Expanded(
+            ),
+
+            // ── Menu Items ──
+            Expanded(
+              child: Container(
+                color: const Color(0xFFF8F5F0),
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                   children: [
-                    // Main menu items
+                    Text(
+                      'MENU',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade400,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
                     for (int i = 0; i < availableItems.length; i++)
-                      _buildMenuItem(
+                      _buildDrawerMenuItem(
                         context,
                         icon: availableItems[i]['icon'] as IconData,
                         label: availableItems[i]['label'] as String,
                         isSelected: i == _selectedIndex,
                         onTap: () => _navigateTo(i),
                       ),
-                    
-                    // Manage Cashiers (Owner only)
+
+                    // Owner-only section
                     if (SessionManager.instance.hasPermission('manage_cashiers')) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Divider(color: Colors.grey.shade200),
+                      const SizedBox(height: 12),
+                      Divider(color: Colors.grey.shade300, height: 1),
+                      const SizedBox(height: 12),
+                      Text(
+                        'MANAJEMEN',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade400,
+                          letterSpacing: 1.5,
+                        ),
                       ),
-                      _buildMenuItem(
+                      const SizedBox(height: 8),
+                      _buildDrawerMenuItem(
                         context,
                         icon: Icons.people_rounded,
                         label: 'Kelola Kasir',
@@ -398,52 +498,46 @@ class AppShellState extends State<AppShell> {
                           Navigator.pop(context);
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => const ManageCashiersPage(),
-                            ),
+                            MaterialPageRoute(builder: (_) => const ManageCashiersPage()),
                           );
                         },
                       ),
                     ],
-                    
+
                     const SizedBox(height: 8),
-                    
-                    // Low Stock Warning
+
+                    // Low stock warning
                     if (SessionManager.instance.hasPermission('manage_products'))
                       StreamBuilder<List<Product>>(
                         stream: db.watchProducts(),
                         builder: (context, snapshot) {
+                          if (snapshot.hasError) return const SizedBox.shrink();
                           final products = snapshot.data ?? [];
                           final lowStockCount = products
                               .where((p) =>
                                   p.trackStock && (p.stock ?? 0) <= AppConstants.lowStockThreshold)
                               .length;
-
                           if (lowStockCount == 0) return const SizedBox.shrink();
-
                           return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
+                            margin: const EdgeInsets.only(top: 8),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.red.shade100),
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: Colors.red.shade400,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
+                                Icon(Icons.warning_amber_rounded,
+                                    color: Colors.orange.shade400, size: 18),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     '$lowStockCount produk stok menipis',
                                     style: TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.red.shade700,
+                                      color: Colors.orange.shade800,
                                     ),
                                   ),
                                 ),
@@ -455,29 +549,35 @@ class AppShellState extends State<AppShell> {
                   ],
                 ),
               ),
-              
-              // Logout button at bottom
-              Divider(color: Colors.grey.shade200, height: 1),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: _buildMenuItem(
-                  context,
-                  icon: Icons.logout_rounded,
-                  label: 'Logout',
-                  isSelected: false,
-                  isDestructive: true,
-                  onTap: _logout,
-                ),
+            ),
+
+            // ── Logout ──
+            Container(
+              color: const Color(0xFFF8F5F0),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+              child: Column(
+                children: [
+                  Divider(color: Colors.grey.shade300, height: 1),
+                  const SizedBox(height: 8),
+                  _buildDrawerMenuItem(
+                    context,
+                    icon: Icons.logout_rounded,
+                    label: 'Keluar',
+                    isSelected: false,
+                    isDestructive: true,
+                    onTap: _logout,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+
       body: availableItems.isNotEmpty
           ? availableItems[_selectedIndex]['page'] as Widget
-          : const Center(
-              child: Text('No permissions assigned'),
-            ),
+          : const Center(child: Text('Tidak ada akses')),
+      ),
     );
   }
 }

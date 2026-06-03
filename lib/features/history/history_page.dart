@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/error_state_widget.dart';
+import '../../../shared/widgets/watermark_background.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
-import '../../shared/constants/app_constants.dart';
-import '../../shared/widgets/dashed_divider.dart';
+import '../../shared/widgets/transaction_detail_sheet.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -19,29 +20,34 @@ class _HistoryPageState extends State<HistoryPage> {
   bool _initialized = false;
   
   // Month filter - null means show all
-  DateTime? _selectedMonth;
+  DateTime? _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: StreamBuilder<List<Transaction>>(
+      backgroundColor: const Color(0xFFF8F5F0),
+      body: WatermarkBackground(child: StreamBuilder<List<Transaction>>(
         stream: db.watchTransactions(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return ErrorStateWidget(
+              title: 'Gagal memuat riwayat',
+              message: 'Terjadi kesalahan saat mengambil data transaksi.',
+              onRetry: () => setState(() {}),
+            );
+          }
+
           if (!snapshot.hasData) {
             return Center(child: CircularProgressIndicator(color: primaryColor));
           }
 
-          final allTransactions = snapshot.data!;
+          final allTransactions = snapshot.data ?? [];
 
           if (allTransactions.isEmpty) {
             return _buildEmptyState();
           }
-          
-          // Get available months from transactions
-          final availableMonths = _getAvailableMonths(allTransactions);
           
           // Filter transactions by selected month
           final transactions = _selectedMonth == null
@@ -59,20 +65,20 @@ class _HistoryPageState extends State<HistoryPage> {
           }
 
           final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
-          
+
           // Initialize: expand today's section by default
           if (!_initialized && sortedKeys.isNotEmpty) {
             _expandedDates.add(sortedKeys.first);
             _initialized = true;
           }
-          
+
           // Calculate monthly total
           final monthlyTotal = transactions.fold<int>(0, (sum, tx) => sum + tx.total);
 
           return Column(
             children: [
               // Month filter
-              _buildMonthFilter(availableMonths, monthlyTotal, transactions.length),
+              _buildMonthFilter(monthlyTotal, transactions.length),
               
               // Transactions list
               Expanded(
@@ -104,137 +110,305 @@ class _HistoryPageState extends State<HistoryPage> {
             ],
           );
         },
-      ),
+      )),
     );
   }
-  
-  List<DateTime> _getAvailableMonths(List<Transaction> transactions) {
-    final months = <String, DateTime>{};
-    for (final tx in transactions) {
-      final key = '${tx.createdAt.year}-${tx.createdAt.month.toString().padLeft(2, '0')}';
-      months.putIfAbsent(key, () => DateTime(tx.createdAt.year, tx.createdAt.month));
+
+  String _formatMonthDisplay() {
+    if (_selectedMonth == null) return 'Semua Waktu';
+    final now = DateTime.now();
+    if (_selectedMonth!.year == now.year && _selectedMonth!.month == now.month) {
+      return 'Bulan Ini';
     }
-    final sortedMonths = months.values.toList()..sort((a, b) => b.compareTo(a));
-    return sortedMonths;
+    return DateFormat('MMMM yyyy', 'id_ID').format(_selectedMonth!);
   }
-  
-  Widget _buildMonthFilter(List<DateTime> availableMonths, int totalAmount, int transactionCount) {
+
+  void _showMonthPicker() {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Month chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                // "Semua" chip
-                _buildMonthChip(
-                  label: 'Semua',
-                  isSelected: _selectedMonth == null,
-                  onTap: () => setState(() => _selectedMonth = null),
-                ),
-                const SizedBox(width: 8),
-                // Month chips
-                ...availableMonths.map((month) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _buildMonthChip(
-                    label: DateFormat('MMM yyyy', 'id_ID').format(month),
-                    isSelected: _selectedMonth?.year == month.year && 
-                                _selectedMonth?.month == month.month,
-                    onTap: () => setState(() => _selectedMonth = month),
+    int tempYear = _selectedMonth?.year ?? DateTime.now().year;
+    int tempMonth = _selectedMonth?.month ?? DateTime.now().month;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final months = [
+              'Januari', 'Februari', 'Maret', 'April',
+              'Mei', 'Juni', 'Juli', 'Agustus',
+              'September', 'Oktober', 'November', 'Desember',
+            ];
+            final now = DateTime.now();
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                )),
-              ],
+                  // Year selector
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () => setModalState(() => tempYear--),
+                          icon: const Icon(Icons.chevron_left_rounded),
+                          style: IconButton.styleFrom(backgroundColor: Colors.grey.shade100),
+                        ),
+                        Text(
+                          '$tempYear',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          onPressed: tempYear < now.year
+                              ? () => setModalState(() => tempYear++)
+                              : null,
+                          icon: const Icon(Icons.chevron_right_rounded),
+                          style: IconButton.styleFrom(backgroundColor: Colors.grey.shade100),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Month grid
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 2.4,
+                      ),
+                      itemCount: 12,
+                      itemBuilder: (context, index) {
+                        final monthNum = index + 1;
+                        final isSelected = tempMonth == monthNum;
+                        final isFuture = tempYear == now.year && monthNum > now.month;
+
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: isFuture
+                                ? null
+                                : () => setModalState(() => tempMonth = monthNum),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primaryColor
+                                    : isFuture
+                                        ? Colors.grey.shade50
+                                        : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                months[index],
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : isFuture
+                                          ? Colors.grey.shade400
+                                          : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  // Buttons
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    child: Row(
+                      children: [
+                        // Semua Waktu button
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              setState(() => _selectedMonth = null);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Semua Waktu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Pilih Periode button
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              setState(() => _selectedMonth = DateTime(tempYear, tempMonth));
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Pilih Periode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMonthFilter(int totalAmount, int transactionCount) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        children: [
+          // Period picker button
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _showMonthPicker,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.date_range_rounded, color: primaryColor, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Periode Riwayat',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatMonthDisplay(),
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade500),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          
-          // Summary row
+
+          // Summary card
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha:0.08),
-              borderRadius: BorderRadius.circular(10),
+              color: const Color(0xFFF8F5F0),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Row(
               children: [
-                Icon(Icons.insights_rounded, size: 18, color: primaryColor),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(Icons.insights_rounded, size: 17, color: primaryColor),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    _selectedMonth == null 
+                    _selectedMonth == null
                         ? 'Total Semua Waktu'
                         : 'Total ${DateFormat('MMMM yyyy', 'id_ID').format(_selectedMonth!)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade700,
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Rp ${formatRupiah(totalAmount)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
                     ),
-                  ),
-                ),
-                Text(
-                  'Rp ${formatRupiah(totalAmount)}',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-                Text(
-                  ' • $transactionCount txn',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                    Text(
+                      '$transactionCount transaksi',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-  
-  Widget _buildMonthChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? primaryColor : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? primaryColor : Colors.grey.shade300,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: primaryColor.withValues(alpha:0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected ? Colors.white : Colors.grey.shade700,
-          ),
-        ),
       ),
     );
   }
@@ -578,348 +752,8 @@ class _TransactionCard extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _TransactionDetailSheet(transaction: transaction),
+      builder: (_) => TransactionDetailSheet(transaction: transaction),
     );
   }
 }
 
-class _TransactionDetailSheet extends StatefulWidget {
-  final Transaction transaction;
-
-  const _TransactionDetailSheet({required this.transaction});
-
-  @override
-  State<_TransactionDetailSheet> createState() => _TransactionDetailSheetState();
-}
-
-class _TransactionDetailSheetState extends State<_TransactionDetailSheet> {
-  List<TransactionItem>? _items;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadItems();
-  }
-
-  Future<void> _loadItems() async {
-    final items = await db.getTransactionItems(widget.transaction.id);
-    if (mounted) {
-      setState(() {
-        _items = items;
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final tx = widget.transaction;
-    final isCash = tx.paymentMethod == 'cash';
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.receipt_long_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Detail Transaksi',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      Text(
-                        '#${tx.id.substring(0, 8).toUpperCase()}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          Divider(color: Colors.grey.shade200, height: 1),
-          
-          // Receipt Content
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    // Store header
-                    Icon(
-                      Icons.storefront_rounded,
-                      size: 36,
-                      color: primaryColor,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      AppConstants.storeName,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    Text(
-                      AppConstants.storeAddress,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const DashedDivider(),
-                    const SizedBox(height: 12),
-                    
-                    // Transaction Info
-                    _buildInfoRow('Tanggal', DateFormat('dd/MM/yyyy HH:mm').format(tx.createdAt)),
-                    const SizedBox(height: 6),
-                    _buildInfoRow('No. Transaksi', '#${tx.id.substring(0, 8).toUpperCase()}'),
-                    const SizedBox(height: 12),
-                    const DashedDivider(),
-                    const SizedBox(height: 12),
-                    
-                    // Items
-                    if (_loading)
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: CircularProgressIndicator(color: primaryColor),
-                      )
-                    else if (_items != null && _items!.isNotEmpty)
-                      Column(
-                        children: [
-                          for (final item in _items!)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.productName,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF1A1A1A),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        '${item.qty} x Rp ${formatRupiah(item.priceAtSale)}',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Rp ${formatRupiah(item.subtotal)}',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF1A1A1A),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      Text(
-                        'Tidak ada item',
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                    
-                    const SizedBox(height: 8),
-                    const DashedDivider(),
-                    const SizedBox(height: 12),
-                    
-                    // Total Section
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha:0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'TOTAL',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          Text(
-                            'Rp ${formatRupiah(tx.total)}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    if (isCash && tx.cashReceived != null) ...[
-                      const SizedBox(height: 12),
-                      _buildInfoRow('Bayar (Cash)', 'Rp ${formatRupiah(tx.cashReceived!)}'),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Kembalian',
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                          ),
-                          Text(
-                            'Rp ${formatRupiah(tx.change ?? 0)}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Metode Pembayaran',
-                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha:0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'QRIS',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    
-                    const SizedBox(height: 16),
-                    const DashedDivider(),
-                    const SizedBox(height: 16),
-                    
-                    // Footer
-                    const Text(
-                      'Terima Kasih!',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Selamat menikmati',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF1A1A1A),
-          ),
-        ),
-      ],
-    );
-  }
-}

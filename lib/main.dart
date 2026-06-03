@@ -91,12 +91,35 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
     return FutureBuilder<AuthState>(
       future: _authFuture,
       builder: (context, snapshot) {
-        // Loading
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Terjadi kesalahan saat memulai aplikasi',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _authFuture = _checkAuthState();
+                    }),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         if (!snapshot.hasData) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 

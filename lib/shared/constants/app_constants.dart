@@ -4,7 +4,7 @@ class AppConstants {
 
   // Store Information
   static const String storeName = 'TERAS INN';
-  static const String storeAddress = 'Jl. Contoh Alamat No. 123';
+  static const String storeAddress = 'Jl. Kemiri Candi, Salatiga';
   static const String storeTagline = 'Selamat menikmati';
 
   // Thresholds

@@ -7,8 +7,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../data/models/sale_line.dart';
 import '../data/models/top_product.dart';
+import '../shared/auth/session_manager.dart';
 
 part 'app_database.g.dart';
+part 'models/report_models.dart';
 
 /// =======================
 /// TABLE: CATEGORIES
@@ -16,6 +18,7 @@ part 'app_database.g.dart';
 class Categories extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
+  IntColumn get iconCodepoint => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -27,7 +30,7 @@ class Categories extends Table {
 class Products extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
-  IntColumn get price => integer()(); // simpan rupiah sebagai int
+  IntColumn get price => integer()();
   TextColumn get barcode => text().nullable()();
 
   // Added in v4
@@ -41,47 +44,58 @@ class Products extends Table {
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
+  // Added in v7
+  BoolColumn get hasSpicyOption =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get imagePath => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
 
-// =======================
-/// TABLE: Transaction
+/// =======================
+/// TABLE: TRANSACTIONS
 /// =======================
 class Transactions extends Table {
   TextColumn get id => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
-  IntColumn get total => integer()(); // total rupiah
-  TextColumn get paymentMethod => text()(); // 'cash' atau 'qris'
+  IntColumn get total => integer()();
+  TextColumn get paymentMethod => text()();
   IntColumn get cashReceived => integer().nullable()();
   IntColumn get change => integer().nullable()();
 
-  // Auth & shift tracking (added in v5)
+  // Added in v5
   TextColumn get cashierUserId => text().nullable()();
   TextColumn get shiftId => text().nullable()();
+
+  // Added in v7: 'dine_in' | 'take_away' | 'delivery'
+  TextColumn get orderType =>
+      text().withDefault(const Constant('dine_in'))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
+/// =======================
+/// TABLE: TRANSACTION_ITEMS
+/// =======================
 class TransactionItems extends Table {
   TextColumn get id => text()();
-
   TextColumn get transactionId => text()();
   TextColumn get productId => text()();
-  // Snapshot nama produk saat transaksi - dengan default untuk migration
   TextColumn get productName => text().withDefault(const Constant(''))();
 
   IntColumn get qty => integer()();
-  IntColumn get priceAtSale => integer()(); // snapshot harga saat jual
+  IntColumn get priceAtSale => integer()();
   IntColumn get subtotal => integer()();
+
+  // Added in v7: catatan keterangan per item (e.g., 'Pedas', 'Extra Pedas')
+  TextColumn get notes => text().nullable()();
 
   @override
   List<String> get customConstraints => [
         'FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE',
-        // Tidak ada foreign key ke products karena produk bisa dihapus
-        // tapi riwayat tetap harus bisa menampilkan nama produk
       ];
 
   @override
@@ -94,14 +108,13 @@ class TransactionItems extends Table {
 class Users extends Table {
   TextColumn get id => text()();
   TextColumn get username => text().unique()();
-  TextColumn get pinHash => text()(); // SHA-256(PIN + salt)
-  TextColumn get salt => text()(); // Random salt for hashing
-  TextColumn get role => text()(); // 'owner' or 'cashier'
+  TextColumn get pinHash => text()();
+  TextColumn get salt => text()();
+  TextColumn get role => text()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
-  // Recovery code fields (for owner PIN recovery)
   TextColumn get recoveryHash => text().nullable()();
   TextColumn get recoverySalt => text().nullable()();
   DateTimeColumn get recoveryCreatedAt => dateTime().nullable()();
@@ -109,6 +122,11 @@ class Users extends Table {
   IntColumn get recoveryAttempts =>
       integer().withDefault(const Constant(0))();
   DateTimeColumn get recoveryLockedUntil => dateTime().nullable()();
+
+  // Login rate limiting (S5): mirror dari recovery, dengan exponential backoff.
+  IntColumn get loginAttempts =>
+      integer().withDefault(const Constant(0))();
+  DateTimeColumn get loginLockedUntil => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -132,8 +150,8 @@ class Shifts extends Table {
 /// TABLE: PERMISSIONS
 /// =======================
 class Permissions extends Table {
-  TextColumn get code => text()(); // e.g., 'manage_products'
-  TextColumn get name => text()(); // e.g., 'Manage Products'
+  TextColumn get code => text()();
+  TextColumn get name => text()();
   TextColumn get description => text()();
 
   @override
@@ -158,6 +176,21 @@ class UserPermissions extends Table {
   Set<Column> get primaryKey => {userId, permissionCode};
 }
 
+/// =======================
+/// TABLE: EXPENSES (new in v7)
+/// =======================
+class Expenses extends Table {
+  TextColumn get id => text()();
+  TextColumn get shiftId => text().references(Shifts, #id)();
+  TextColumn get userId => text().references(Users, #id)();
+  TextColumn get description => text()();
+  IntColumn get amount => integer()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
 
 /// =======================
 /// DATABASE
@@ -171,80 +204,94 @@ class UserPermissions extends Table {
   Shifts,
   Permissions,
   UserPermissions,
+  Expenses,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  // Constructor untuk testing dengan custom executor
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) async {
-      await m.createAll();
-    },
-    onUpgrade: (m, from, to) async {
-      // Migration dari versi 1 ke 2
-      if (from < 2) {
-        await m.createTable(transactions);
-        await m.createTable(transactionItems);
-      }
-      // Migration dari versi 2 ke 3: tambah kolom productName
-      if (from < 3) {
-        await m.addColumn(transactionItems, transactionItems.productName);
-        // Update data lama: isi productName dari products table jika ada
-        await customStatement('''
-          UPDATE transaction_items
-          SET product_name = COALESCE(
-            (SELECT name FROM products WHERE products.id = transaction_items.product_id),
-            'Produk tidak diketahui'
-          )
-        ''');
-      }
-      // Migration dari versi 3 ke 4: tambah table categories dan kolom categoryId di products
-      if (from < 4) {
-        await m.createTable(categories);
-        await m.addColumn(products, products.categoryId);
-      }
-      // Migration dari versi 4 ke 5: authentication & shift system
-      if (from < 5) {
-        // 1. Create auth tables
-        await m.createTable(users);
-        await m.createTable(shifts);
-        await m.createTable(permissions);
-        await m.createTable(userPermissions);
-
-        // 2. Add columns to transactions for shift tracking
-        await m.addColumn(transactions, transactions.cashierUserId);
-        await m.addColumn(transactions, transactions.shiftId);
-
-        // 3. Seed permissions
-        await _seedPermissions();
-      }
-      // Migration dari versi 5 ke 6: add recovery columns for owner PIN recovery
-      if (from < 6) {
-        await m.addColumn(users, users.recoveryHash);
-        await m.addColumn(users, users.recoverySalt);
-        await m.addColumn(users, users.recoveryCreatedAt);
-        await m.addColumn(users, users.recoveryUsedAt);
-        await m.addColumn(users, users.recoveryAttempts);
-        await m.addColumn(users, users.recoveryLockedUntil);
-      }
-    },
-    beforeOpen: (details) async {
-      if (details.hadUpgrade || details.wasCreated) {
-        // Ensure permissions are seeded after create or upgrade
-        if (details.wasCreated || details.versionBefore! < 5) {
+        onCreate: (m) async {
+          await m.createAll();
           await _seedPermissions();
-        }
-      }
-    },
-  );
+        },
+        onUpgrade: (m, from, to) async {
+          // C2: Setiap blok migrasi pakai lower bound `from < N && to >= N`
+          // agar tidak double-addColumn ketika upgrade lompat banyak versi
+          // (mis. v1 ke v9). `createTable` selalu pakai schema terkini, jadi
+          // kolom yang ditambahkan di versi >N akan ikut terbuat — addColumn
+          // berikutnya pada kolom yang sama akan throw "duplicate column".
+          if (from < 2 && to >= 2) {
+            await m.createTable(transactions);
+            await m.createTable(transactionItems);
+          }
+          if (from < 3 && from >= 2 && to >= 3) {
+            await m.addColumn(transactionItems, transactionItems.productName);
+            await customStatement('''
+              UPDATE transaction_items
+              SET product_name = COALESCE(
+                (SELECT name FROM products WHERE products.id = transaction_items.product_id),
+                'Produk tidak diketahui'
+              )
+            ''');
+          }
+          if (from < 4 && to >= 4) {
+            await m.createTable(categories);
+            if (from >= 3) {
+              await m.addColumn(products, products.categoryId);
+            }
+          }
+          if (from < 5 && to >= 5) {
+            await m.createTable(users);
+            await m.createTable(shifts);
+            await m.createTable(permissions);
+            await m.createTable(userPermissions);
+            if (from >= 2) {
+              await m.addColumn(transactions, transactions.cashierUserId);
+              await m.addColumn(transactions, transactions.shiftId);
+            }
+            await _seedPermissions();
+          }
+          if (from < 6 && from >= 5 && to >= 6) {
+            await m.addColumn(users, users.recoveryHash);
+            await m.addColumn(users, users.recoverySalt);
+            await m.addColumn(users, users.recoveryCreatedAt);
+            await m.addColumn(users, users.recoveryUsedAt);
+            await m.addColumn(users, users.recoveryAttempts);
+            await m.addColumn(users, users.recoveryLockedUntil);
+          }
+          if (from < 7 && to >= 7) {
+            if (from >= 1) {
+              await m.addColumn(products, products.hasSpicyOption);
+              await m.addColumn(products, products.imagePath);
+            }
+            if (from >= 2) {
+              await m.addColumn(transactionItems, transactionItems.notes);
+              await m.addColumn(transactions, transactions.orderType);
+            }
+            await m.createTable(expenses);
+          }
+          if (from < 8 && from >= 4 && to >= 8) {
+            await m.addColumn(categories, categories.iconCodepoint);
+          }
+          if (from < 9 && from >= 5 && to >= 9) {
+            // S5: Login rate limiting
+            await m.addColumn(users, users.loginAttempts);
+            await m.addColumn(users, users.loginLockedUntil);
+          }
+        },
+        beforeOpen: (details) async {
+          if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
+            await _seedPermissions();
+          }
+        },
+      );
 
-  /// Seed permissions data
   Future<void> _seedPermissions() async {
     const permissionsData = [
       {
@@ -290,7 +337,6 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  /// Reset database - hapus semua data dan mulai fresh
   Future<void> resetDatabase() async {
     await transaction(() async {
       await delete(transactionItems).go();
@@ -300,36 +346,40 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// ---- CATEGORIES ----
-  
+  // ---- CATEGORIES ----
+
   Stream<List<Category>> watchCategories() {
-    return (select(categories)..orderBy([(t) => OrderingTerm.asc(t.name)])).watch();
+    return (select(categories)
+          ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+        .watch();
   }
 
   Future<void> upsertCategory({
     required String id,
     required String name,
+    int? iconCodepoint,
   }) async {
+    SessionManager.instance.requirePermission('manage_products');
     await into(categories).insertOnConflictUpdate(
       CategoriesCompanion(
         id: Value(id),
         name: Value(name),
+        iconCodepoint: Value(iconCodepoint),
       ),
     );
   }
 
   Future<void> deleteCategory(String id) async {
-    // Set produk yang punya kategori ini jadi null dulu (optional, but safer)
-    await (update(products)..where((p) => p.categoryId.equals(id)))
-        .write(const ProductsCompanion(categoryId: Value(null)));
-        
-    await (delete(categories)..where((t) => t.id.equals(id))).go();
+    SessionManager.instance.requirePermission('manage_products');
+    await transaction(() async {
+      await (update(products)..where((p) => p.categoryId.equals(id)))
+          .write(const ProductsCompanion(categoryId: Value(null)));
+      await (delete(categories)..where((t) => t.id.equals(id))).go();
+    });
   }
 
-  /// ---- PRODUCTS ----
+  // ---- PRODUCTS ----
 
-  // Update query to join with categories if needed, but for now just simple select is fine
-  // or simple stream
   Stream<List<Product>> watchProducts() {
     return select(products).watch();
   }
@@ -342,7 +392,10 @@ class AppDatabase extends _$AppDatabase {
     String? categoryId,
     required bool trackStock,
     int? stock,
+    required bool hasSpicyOption,
+    String? imagePath,
   }) async {
+    SessionManager.instance.requirePermission('manage_products');
     final data = ProductsCompanion(
       id: Value(id),
       name: Value(name),
@@ -351,37 +404,36 @@ class AppDatabase extends _$AppDatabase {
       categoryId: Value(categoryId),
       trackStock: Value(trackStock),
       stock: Value(trackStock ? stock : null),
+      hasSpicyOption: Value(hasSpicyOption),
+      imagePath: Value(imagePath),
     );
-
     await into(products).insertOnConflictUpdate(data);
   }
 
   Future<void> deleteProduct(String id) async {
+    SessionManager.instance.requirePermission('manage_products');
     await (delete(products)..where((t) => t.id.equals(id))).go();
   }
 
-  /// ---- SALES ----
-  ///
-  /// Unified method untuk membuat transaksi (cash atau qris)
-  /// [paymentMethod] - 'cash' atau 'qris'
-  /// [cashReceived] - wajib jika cash, null jika qris
-  /// [cashierUserId] - optional: ID of cashier who performed the transaction
-  /// [shiftId] - optional: ID of shift when transaction was made
+  // ---- SALES ----
+
   Future<void> createSale({
     required String transactionId,
     required List<SaleLine> lines,
     required String paymentMethod,
+    required String orderType,
     int? cashReceived,
     String? cashierUserId,
     String? shiftId,
   }) async {
-    if (lines.isEmpty) {
-      throw ArgumentError('Cart kosong');
-    }
+    // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
+    // DB layer juga reject jika permission tidak ada.
+    SessionManager.instance.requirePermission('create_transaction');
+
+    if (lines.isEmpty) throw ArgumentError('Cart kosong');
 
     final total = lines.fold<int>(0, (s, l) => s + l.subtotal);
 
-    // Validasi untuk cash payment
     if (paymentMethod == 'cash') {
       if (cashReceived == null) {
         throw ArgumentError('Cash received wajib diisi untuk pembayaran cash');
@@ -391,13 +443,12 @@ class AppDatabase extends _$AppDatabase {
       }
     }
 
-    final changeAmount = paymentMethod == 'cash' ? (cashReceived! - total) : null;
+    final changeAmount =
+        paymentMethod == 'cash' ? (cashReceived! - total) : null;
 
     await transaction(() async {
-      // 1) Validasi stok
-      await _validateStock(lines);
+      await _validateAndUpdateStock(lines);
 
-      // 2) Insert transaksi
       await into(transactions).insert(
         TransactionsCompanion(
           id: Value(transactionId),
@@ -407,40 +458,52 @@ class AppDatabase extends _$AppDatabase {
           change: Value(changeAmount),
           cashierUserId: Value(cashierUserId),
           shiftId: Value(shiftId),
+          orderType: Value(orderType),
         ),
       );
 
-      // 3) Insert items dengan unique ID dan snapshot nama produk
       await _insertTransactionItems(transactionId, lines);
-
-      // 4) Update stok
-      await _updateStock(lines);
     });
   }
 
-  /// Validasi ketersediaan stok untuk semua item
-  Future<void> _validateStock(List<SaleLine> lines) async {
+  // Validate + update stock atomically per produk menggunakan single UPDATE statement.
+  // rowsAffected == 0 berarti stok tidak cukup (concurrent update atau stok NULL).
+  Future<void> _validateAndUpdateStock(List<SaleLine> lines) async {
     for (final line in lines) {
       if (!line.trackStock) continue;
 
       final product = await (select(products)
             ..where((t) => t.id.equals(line.productId)))
-          .getSingle();
-      final currentStock = product.stock ?? 0;
+          .getSingleOrNull();
 
-      if (currentStock < line.qty) {
+      if (product == null) {
+        throw StateError(
+          '"${line.productName}" sudah tidak tersedia. '
+          'Hapus produk ini dari keranjang sebelum melanjutkan.',
+        );
+      }
+
+      final updated = await customUpdate(
+        'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+        variables: [
+          Variable.withInt(line.qty),
+          Variable.withString(line.productId),
+          Variable.withInt(line.qty),
+        ],
+        updates: {products},
+      );
+
+      if (updated == 0) {
         throw StateError('Stok tidak cukup untuk "${product.name}"');
       }
     }
   }
 
-  /// Insert item transaksi dengan unique ID dan snapshot nama produk
   Future<void> _insertTransactionItems(
     String transactionId,
     List<SaleLine> lines,
   ) async {
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
+    for (final line in lines) {
       final itemId = _generateUniqueId();
 
       await into(transactionItems).insert(
@@ -448,32 +511,17 @@ class AppDatabase extends _$AppDatabase {
           id: Value(itemId),
           transactionId: Value(transactionId),
           productId: Value(line.productId),
-          productName: Value(line.productName), // Snapshot nama produk
+          productName: Value(line.productName),
           qty: Value(line.qty),
           priceAtSale: Value(line.priceAtSale),
           subtotal: Value(line.subtotal),
+          notes: Value(line.notes),
         ),
       );
     }
   }
 
-  /// Update stok setelah penjualan
-  Future<void> _updateStock(List<SaleLine> lines) async {
-    for (final line in lines) {
-      if (!line.trackStock) continue;
-
-      final product = await (select(products)
-            ..where((t) => t.id.equals(line.productId)))
-          .getSingle();
-      final currentStock = product.stock ?? 0;
-      final newStock = currentStock - line.qty;
-
-      await (update(products)..where((t) => t.id.equals(line.productId)))
-          .write(ProductsCompanion(stock: Value(newStock)));
-    }
-  }
-
-  /// ---- TRANSACTIONS / HISTORY ----
+  // ---- TRANSACTIONS / HISTORY ----
 
   Stream<List<Transaction>> watchTransactions() {
     return (select(transactions)
@@ -481,16 +529,116 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// Get transaction items - langsung pakai snapshot nama dari database
-  Future<List<TransactionItem>> getTransactionItems(String transactionId) async {
+  Future<List<TransactionItem>> getTransactionItems(
+      String transactionId) async {
     return (select(transactionItems)
           ..where((t) => t.transactionId.equals(transactionId)))
         .get();
   }
 
-  /// ---- REPORTS ----
+  /// C1: Batch fetch — hindari N+1 query saat export laporan.
+  /// Return Map keyed by transactionId untuk lookup in-memory.
+  Future<Map<String, List<TransactionItem>>> getTransactionItemsForIds(
+      List<String> transactionIds) async {
+    if (transactionIds.isEmpty) return {};
 
-  /// Get transactions for a specific date range
+    final items = await (select(transactionItems)
+          ..where((t) => t.transactionId.isIn(transactionIds)))
+        .get();
+
+    final result = <String, List<TransactionItem>>{};
+    for (final id in transactionIds) {
+      result[id] = [];
+    }
+    for (final item in items) {
+      result.putIfAbsent(item.transactionId, () => []).add(item);
+    }
+    return result;
+  }
+
+  // ---- EXPENSES ----
+
+  Stream<List<Expense>> watchExpensesByShift(String shiftId) {
+    return (select(expenses)
+          ..where((e) => e.shiftId.equals(shiftId))
+          ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
+        .watch();
+  }
+
+  Future<void> addExpense({
+    required String shiftId,
+    required String userId,
+    required String description,
+    required int amount,
+  }) async {
+    await into(expenses).insert(
+      ExpensesCompanion.insert(
+        id: _generateUniqueId(),
+        shiftId: shiftId,
+        userId: userId,
+        description: description,
+        amount: amount,
+      ),
+    );
+  }
+
+  Future<void> deleteExpense(String id) async {
+    await (delete(expenses)..where((e) => e.id.equals(id))).go();
+  }
+
+  /// Shifts milik seorang user, terurut terbaru di atas
+  Future<List<Shift>> getShiftsByUser(String userId) async {
+    return (select(shifts)
+          ..where((s) => s.userId.equals(userId))
+          ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
+        .get();
+  }
+
+  Future<List<Expense>> getExpensesByShift(String shiftId) async {
+    return (select(expenses)
+          ..where((e) => e.shiftId.equals(shiftId))
+          ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
+        .get();
+  }
+
+  /// Semua pengeluaran dengan info user — untuk halaman owner
+  Future<List<ExpenseEntry>> getAllExpensesForOwner({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final query = select(expenses).join([
+      innerJoin(users, users.id.equalsExp(expenses.userId)),
+    ]);
+
+    if (startDate != null) {
+      query.where(expenses.createdAt.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where(expenses.createdAt.isSmallerThanValue(endDate));
+    }
+    query.orderBy([OrderingTerm.desc(expenses.createdAt)]);
+
+    final rows = await query.get();
+    return rows.map((row) {
+      return ExpenseEntry(
+        expense: row.readTable(expenses),
+        username: row.readTable(users).username,
+      );
+    }).toList();
+  }
+
+  Future<int> _getTotalExpensesByDateRange(
+      DateTime startDate, DateTime endDate) async {
+    final result = await (select(expenses)
+          ..where((e) =>
+              e.createdAt.isBiggerOrEqualValue(startDate) &
+              e.createdAt.isSmallerThanValue(endDate)))
+        .get();
+    return result.fold<int>(0, (sum, e) => sum + e.amount);
+  }
+
+  // ---- REPORTS ----
+
   Future<List<Transaction>> getTransactionsByDateRange(
     DateTime startDate,
     DateTime endDate,
@@ -503,56 +651,67 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
-  /// Get report summary for a specific date
   Future<ReportSummary> getReportSummary(DateTime date) async {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    final dayTransactions = await getTransactionsByDateRange(startOfDay, endOfDay);
+    final dayTransactions =
+        await getTransactionsByDateRange(startOfDay, endOfDay);
+    final totalExpenses =
+        await _getTotalExpensesByDateRange(startOfDay, endOfDay);
 
     final totalOrders = dayTransactions.length;
-    final totalIncome = dayTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
+    final totalIncome =
+        dayTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
 
-    // Breakdown by payment method
-    final cashTransactions = dayTransactions.where((tx) => tx.paymentMethod == 'cash').toList();
-    final qrisTransactions = dayTransactions.where((tx) => tx.paymentMethod == 'qris').toList();
+    final cashTx =
+        dayTransactions.where((tx) => tx.paymentMethod == 'cash').toList();
+    final qrisTx =
+        dayTransactions.where((tx) => tx.paymentMethod == 'qris').toList();
 
-    final cashTotal = cashTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
-    final qrisTotal = qrisTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
+    final dineInOrders = dayTransactions
+        .where((tx) => tx.orderType == 'dine_in')
+        .length;
+    final takeAwayOrders = dayTransactions
+        .where((tx) => tx.orderType == 'take_away')
+        .length;
+    final deliveryOrders = dayTransactions
+        .where((tx) => tx.orderType == 'delivery')
+        .length;
 
-    // Get top selling products
-    final topProducts = await getTopSellingProducts(startOfDay, endOfDay);
+    final topProducts =
+        await getTopSellingProducts(startOfDay, endOfDay);
 
     return ReportSummary(
       date: date,
       totalOrders: totalOrders,
       totalIncome: totalIncome,
-      cashOrders: cashTransactions.length,
-      cashTotal: cashTotal,
-      qrisOrders: qrisTransactions.length,
-      qrisTotal: qrisTotal,
+      totalExpenses: totalExpenses,
+      cashOrders: cashTx.length,
+      cashTotal: cashTx.fold<int>(0, (sum, tx) => sum + tx.total),
+      qrisOrders: qrisTx.length,
+      qrisTotal: qrisTx.fold<int>(0, (sum, tx) => sum + tx.total),
+      dineInOrders: dineInOrders,
+      takeAwayOrders: takeAwayOrders,
+      deliveryOrders: deliveryOrders,
       transactions: dayTransactions,
       topProducts: topProducts,
     );
   }
 
-  /// Get top selling products within a date range
   Future<List<TopProduct>> getTopSellingProducts(
     DateTime startDate,
     DateTime endDate, {
     int limit = 5,
   }) async {
-    // Unix timestamp for SQLite comparison if needed, but Drift handles DateTime well usually.
-    // Making sure we are using the same timezone logic as other queries.
-    // However, raw SQL in Drift uses epoch seconds for DateTime.
     final startEpoch = startDate.millisecondsSinceEpoch ~/ 1000;
     final endEpoch = endDate.millisecondsSinceEpoch ~/ 1000;
 
     final result = await customSelect(
       '''
-      SELECT 
-        ti.product_name, 
-        SUM(ti.qty) as total_qty, 
+      SELECT
+        ti.product_name,
+        SUM(ti.qty) as total_qty,
         SUM(ti.subtotal) as total_sales
       FROM transaction_items ti
       JOIN transactions t ON t.id = ti.transaction_id
@@ -578,340 +737,289 @@ class AppDatabase extends _$AppDatabase {
     }).toList();
   }
 
-  /// Get employee report summary for a specific date
-  Future<List<EmployeeReportSummary>> getEmployeeReportSummary(DateTime date) async {
+  Future<List<EmployeeReportSummary>> getEmployeeReportSummary(
+      DateTime date) async {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
-    
-    // Get all transactions for the day
-    final dayTransactions = await getTransactionsByDateRange(startOfDay, endOfDay);
-    
-    // Get unique user IDs
+
+    final dayTransactions =
+        await getTransactionsByDateRange(startOfDay, endOfDay);
+
     final userIds = dayTransactions
         .where((tx) => tx.cashierUserId != null)
         .map((tx) => tx.cashierUserId!)
-        .toSet();
-    
-    final List<EmployeeReportSummary> employeeReports = [];
-    
-    for (final userId in userIds) {
-      // Get user info
-      final user = await (select(users)..where((u) => u.id.equals(userId))).getSingleOrNull();
-      if (user == null) continue;
-      
-      // Get user's transactions for the day
-      final userTransactions = dayTransactions
-          .where((tx) => tx.cashierUserId == userId)
-          .toList();
-      
-      // Calculate totals
-      final totalIncome = userTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
-      final cashTx = userTransactions.where((tx) => tx.paymentMethod == 'cash').toList();
-      final qrisTx = userTransactions.where((tx) => tx.paymentMethod == 'qris').toList();
-      final cashTotal = cashTx.fold<int>(0, (sum, tx) => sum + tx.total);
-      final qrisTotal = qrisTx.fold<int>(0, (sum, tx) => sum + tx.total);
-      
-      // Get shift IDs for this user on this day
-      final shiftIds = userTransactions
-          .where((tx) => tx.shiftId != null)
-          .map((tx) => tx.shiftId!)
-          .toSet();
-      
-      // Get shift info
-      final List<ShiftInfo> shiftInfos = [];
-      for (final shiftId in shiftIds) {
-        final shift = await (select(shifts)..where((s) => s.id.equals(shiftId))).getSingleOrNull();
-        if (shift != null) {
-          final shiftTx = userTransactions.where((tx) => tx.shiftId == shiftId).toList();
-          shiftInfos.add(ShiftInfo(
-            shiftId: shiftId,
-            startAt: shift.startAt,
-            endAt: shift.endAt,
-            transactionCount: shiftTx.length,
-            totalIncome: shiftTx.fold<int>(0, (sum, tx) => sum + tx.total),
-          ));
-        }
-      }
-      
-      // Sort shifts by start time
-      shiftInfos.sort((a, b) => a.startAt.compareTo(b.startAt));
-      
-      // Calculate top products for this employee
-      final topProducts = await _getTopProductsForTransactions(userTransactions);
-      
-      employeeReports.add(EmployeeReportSummary(
-        userId: userId,
-        username: user.username,
-        totalTransactions: userTransactions.length,
-        totalIncome: totalIncome,
-        cashOrders: cashTx.length,
-        cashTotal: cashTotal,
-        qrisOrders: qrisTx.length,
-        qrisTotal: qrisTotal,
-        shifts: shiftInfos,
-        transactions: userTransactions,
-        topProducts: topProducts,
-      ));
-    }
-    
-    // Sort by total income descending
-    employeeReports.sort((a, b) => b.totalIncome.compareTo(a.totalIncome));
-    
-    return employeeReports;
-  }
-  
-  /// Get top products for a list of transactions
-  Future<List<TopProduct>> _getTopProductsForTransactions(List<Transaction> txList, {int limit = 5}) async {
-    if (txList.isEmpty) return [];
-    
-    // Get all transaction items for these transactions
-    final Map<String, TopProduct> productMap = {};
-    
-    for (final tx in txList) {
-      final items = await getTransactionItems(tx.id);
-      for (final item in items) {
-        final existingProduct = productMap[item.productName];
-        if (existingProduct != null) {
-          productMap[item.productName] = TopProduct(
-            productName: item.productName,
-            totalQty: existingProduct.totalQty + item.qty,
-            totalSales: existingProduct.totalSales + item.subtotal,
-          );
-        } else {
-          productMap[item.productName] = TopProduct(
-            productName: item.productName,
-            totalQty: item.qty,
-            totalSales: item.subtotal,
-          );
-        }
-      }
-    }
-    
-    final sortedProducts = productMap.values.toList()
-      ..sort((a, b) => b.totalQty.compareTo(a.totalQty));
-    
-    return sortedProducts.take(limit).toList();
+        .toSet()
+        .toList();
+
+    if (userIds.isEmpty) return [];
+
+    return _buildEmployeeReports(
+      txList: dayTransactions,
+      userIds: userIds,
+      expenseStartDate: startOfDay,
+      expenseEndDate: endOfDay,
+      shiftStartDate: startOfDay,
+      shiftEndDate: endOfDay,
+    );
   }
 
-  /// Get report summary for a month
+  // Helper yang bekerja dengan items yang sudah di-fetch (tidak async)
+  List<TopProduct> _aggregateTopProducts(
+      List<TransactionItem> items, {int limit = 5}) {
+    final Map<String, TopProduct> productMap = {};
+    for (final item in items) {
+      final existing = productMap[item.productName];
+      if (existing != null) {
+        productMap[item.productName] = TopProduct(
+          productName: item.productName,
+          totalQty: existing.totalQty + item.qty,
+          totalSales: existing.totalSales + item.subtotal,
+        );
+      } else {
+        productMap[item.productName] = TopProduct(
+          productName: item.productName,
+          totalQty: item.qty,
+          totalSales: item.subtotal,
+        );
+      }
+    }
+    return (productMap.values.toList()
+          ..sort((a, b) => b.totalQty.compareTo(a.totalQty)))
+        .take(limit)
+        .toList();
+  }
+
   Future<ReportSummary> getMonthlyReportSummary(int year, int month) async {
     final startOfMonth = DateTime(year, month, 1);
     final endOfMonth = DateTime(year, month + 1, 1);
 
-    final monthTransactions = await getTransactionsByDateRange(startOfMonth, endOfMonth);
+    final monthTx = await getTransactionsByDateRange(startOfMonth, endOfMonth);
+    final totalExpenses =
+        await _getTotalExpensesByDateRange(startOfMonth, endOfMonth);
 
-    final totalOrders = monthTransactions.length;
-    final totalIncome = monthTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
+    final cashTx =
+        monthTx.where((tx) => tx.paymentMethod == 'cash').toList();
+    final qrisTx =
+        monthTx.where((tx) => tx.paymentMethod == 'qris').toList();
 
-    final cashTransactions = monthTransactions.where((tx) => tx.paymentMethod == 'cash').toList();
-    final qrisTransactions = monthTransactions.where((tx) => tx.paymentMethod == 'qris').toList();
+    final dineInOrders =
+        monthTx.where((tx) => tx.orderType == 'dine_in').length;
+    final takeAwayOrders =
+        monthTx.where((tx) => tx.orderType == 'take_away').length;
+    final deliveryOrders =
+        monthTx.where((tx) => tx.orderType == 'delivery').length;
 
-    final cashTotal = cashTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
-    final qrisTotal = qrisTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
-
-    final topProducts = await getTopSellingProducts(startOfMonth, endOfMonth);
+    final topProducts =
+        await getTopSellingProducts(startOfMonth, endOfMonth);
 
     return ReportSummary(
       date: startOfMonth,
-      totalOrders: totalOrders,
-      totalIncome: totalIncome,
-      cashOrders: cashTransactions.length,
-      cashTotal: cashTotal,
-      qrisOrders: qrisTransactions.length,
-      qrisTotal: qrisTotal,
-      transactions: monthTransactions,
+      totalOrders: monthTx.length,
+      totalIncome: monthTx.fold<int>(0, (sum, tx) => sum + tx.total),
+      totalExpenses: totalExpenses,
+      cashOrders: cashTx.length,
+      cashTotal: cashTx.fold<int>(0, (sum, tx) => sum + tx.total),
+      qrisOrders: qrisTx.length,
+      qrisTotal: qrisTx.fold<int>(0, (sum, tx) => sum + tx.total),
+      dineInOrders: dineInOrders,
+      takeAwayOrders: takeAwayOrders,
+      deliveryOrders: deliveryOrders,
+      transactions: monthTx,
       topProducts: topProducts,
     );
   }
 
-  /// Get daily trends for a month (income & orders per day)
   Future<List<DailyTrend>> getDailyTrends(int year, int month) async {
     final startOfMonth = DateTime(year, month, 1);
     final endOfMonth = DateTime(year, month + 1, 1);
     final daysInMonth = endOfMonth.difference(startOfMonth).inDays;
 
-    final monthTransactions = await getTransactionsByDateRange(startOfMonth, endOfMonth);
+    final monthTx =
+        await getTransactionsByDateRange(startOfMonth, endOfMonth);
 
     final List<DailyTrend> trends = [];
     for (int day = 1; day <= daysInMonth; day++) {
-      final date = DateTime(year, month, day);
-      final dayTx = monthTransactions.where((tx) {
-        return tx.createdAt.year == year && tx.createdAt.month == month && tx.createdAt.day == day;
+      final dayTx = monthTx.where((tx) {
+        return tx.createdAt.year == year &&
+            tx.createdAt.month == month &&
+            tx.createdAt.day == day;
       }).toList();
 
       trends.add(DailyTrend(
-        date: date,
+        date: DateTime(year, month, day),
         orders: dayTx.length,
         income: dayTx.fold<int>(0, (sum, tx) => sum + tx.total),
       ));
     }
-
     return trends;
   }
 
-  /// Get employee report summary for a date range
-  Future<List<EmployeeReportSummary>> getEmployeeReportSummaryForRange(DateTime startDate, DateTime endDate) async {
+  Future<List<EmployeeReportSummary>> getEmployeeReportSummaryForRange(
+      DateTime startDate, DateTime endDate) async {
     final rangeTx = await getTransactionsByDateRange(startDate, endDate);
-    
+
     final userIds = rangeTx
         .where((tx) => tx.cashierUserId != null)
         .map((tx) => tx.cashierUserId!)
-        .toSet();
-    
-    final List<EmployeeReportSummary> employeeReports = [];
-    
-    for (final userId in userIds) {
-      final user = await (select(users)..where((u) => u.id.equals(userId))).getSingleOrNull();
-      if (user == null) continue;
-      
-      final userTransactions = rangeTx
-          .where((tx) => tx.cashierUserId == userId)
-          .toList();
-      
-      final totalIncome = userTransactions.fold<int>(0, (sum, tx) => sum + tx.total);
-      final cashTx = userTransactions.where((tx) => tx.paymentMethod == 'cash').toList();
-      final qrisTx = userTransactions.where((tx) => tx.paymentMethod == 'qris').toList();
-      
-      // Get shifts for this user in the range
-      final userShifts = await (select(shifts)
-        ..where((s) => s.userId.equals(userId) &
-            s.startAt.isBiggerOrEqualValue(startDate) &
-            s.startAt.isSmallerThanValue(endDate))
-        ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
+        .toSet()
+        .toList();
+
+    if (userIds.isEmpty) return [];
+
+    return _buildEmployeeReports(
+      txList: rangeTx,
+      userIds: userIds,
+      expenseStartDate: startDate,
+      expenseEndDate: endDate,
+      shiftStartDate: startDate,
+      shiftEndDate: endDate,
+    );
+  }
+
+  /// Core builder: 5 queries total untuk semua user (bukan N queries per user)
+  Future<List<EmployeeReportSummary>> _buildEmployeeReports({
+    required List<Transaction> txList,
+    required List<String> userIds,
+    required DateTime expenseStartDate,
+    required DateTime expenseEndDate,
+    required DateTime shiftStartDate,
+    required DateTime shiftEndDate,
+  }) async {
+    // Query 1: Semua user sekaligus
+    final allUsers = await (select(users)
+          ..where((u) => u.id.isIn(userIds)))
         .get();
-      
-      final shiftInfoList = <ShiftInfo>[];
-      for (final shift in userShifts) {
-        final shiftTx = userTransactions.where((tx) => tx.shiftId == shift.id).toList();
-        shiftInfoList.add(ShiftInfo(
-          shiftId: shift.id,
+    final userMap = {for (final u in allUsers) u.id: u};
+
+    // Query 2: Semua shift sekaligus
+    final allShifts = await (select(shifts)
+          ..where((s) =>
+              s.userId.isIn(userIds) &
+              s.startAt.isBiggerOrEqualValue(shiftStartDate) &
+              s.startAt.isSmallerThanValue(shiftEndDate))
+          ..orderBy([(s) => OrderingTerm.asc(s.startAt)]))
+        .get();
+    final shiftMap = {for (final s in allShifts) s.id: s};
+    final shiftsByUser = <String, List<Shift>>{};
+    for (final s in allShifts) {
+      shiftsByUser.putIfAbsent(s.userId, () => []).add(s);
+    }
+
+    // Query 3: Semua expenses per shift sekaligus
+    final allShiftIds = allShifts.map((s) => s.id).toList();
+    final allShiftExpenses = allShiftIds.isNotEmpty
+        ? await (select(expenses)
+              ..where((e) => e.shiftId.isIn(allShiftIds)))
+            .get()
+        : <Expense>[];
+    final expensesByShift = <String, List<Expense>>{};
+    for (final e in allShiftExpenses) {
+      expensesByShift.putIfAbsent(e.shiftId, () => []).add(e);
+    }
+
+    // Query 4: Semua expenses per user sekaligus (untuk total)
+    final allUserExpenses = await (select(expenses)
+          ..where((e) =>
+              e.userId.isIn(userIds) &
+              e.createdAt.isBiggerOrEqualValue(expenseStartDate) &
+              e.createdAt.isSmallerThanValue(expenseEndDate)))
+        .get();
+    final totalExpensesByUser = <String, int>{};
+    for (final e in allUserExpenses) {
+      totalExpensesByUser[e.userId] =
+          (totalExpensesByUser[e.userId] ?? 0) + e.amount;
+    }
+
+    // Query 5: Semua transaction items sekaligus (untuk top products)
+    final txIds = txList.map((tx) => tx.id).toList();
+    final allItems = txIds.isNotEmpty
+        ? await (select(transactionItems)
+              ..where((ti) => ti.transactionId.isIn(txIds)))
+            .get()
+        : <TransactionItem>[];
+    final itemsByTxId = <String, List<TransactionItem>>{};
+    for (final item in allItems) {
+      itemsByTxId.putIfAbsent(item.transactionId, () => []).add(item);
+    }
+
+    // Build reports in-memory — tidak ada query lagi di sini
+    final reports = <EmployeeReportSummary>[];
+
+    for (final userId in userIds) {
+      final user = userMap[userId];
+      if (user == null) continue;
+
+      final userTx =
+          txList.where((tx) => tx.cashierUserId == userId).toList();
+      final cashTx =
+          userTx.where((tx) => tx.paymentMethod == 'cash').toList();
+      final qrisTx =
+          userTx.where((tx) => tx.paymentMethod == 'qris').toList();
+      final totalExpenses = totalExpensesByUser[userId] ?? 0;
+
+      final userShiftIds = userTx
+          .where((tx) => tx.shiftId != null)
+          .map((tx) => tx.shiftId!)
+          .toSet();
+
+      final shiftInfos = <ShiftInfo>[];
+      for (final shiftId in userShiftIds) {
+        final shift = shiftMap[shiftId];
+        if (shift == null) continue;
+        final shiftTx = userTx.where((tx) => tx.shiftId == shiftId).toList();
+        final shiftExpTotal = (expensesByShift[shiftId] ?? [])
+            .fold<int>(0, (s, e) => s + e.amount);
+        shiftInfos.add(ShiftInfo(
+          shiftId: shiftId,
           startAt: shift.startAt,
           endAt: shift.endAt,
           transactionCount: shiftTx.length,
-          totalIncome: shiftTx.fold<int>(0, (sum, tx) => sum + tx.total),
+          totalIncome: shiftTx.fold<int>(0, (s, tx) => s + tx.total),
+          totalExpenses: shiftExpTotal,
         ));
       }
-      
-      final topProducts = await _getTopProductsForTransactions(userTransactions);
-      
-      employeeReports.add(EmployeeReportSummary(
+      shiftInfos.sort((a, b) => a.startAt.compareTo(b.startAt));
+
+      // Hitung top products dari pre-fetched items
+      final userItems = userTx
+          .expand((tx) => itemsByTxId[tx.id] ?? <TransactionItem>[])
+          .toList();
+      final topProducts = _aggregateTopProducts(userItems);
+
+      reports.add(EmployeeReportSummary(
         userId: userId,
         username: user.username,
-        totalTransactions: userTransactions.length,
-        totalIncome: totalIncome,
+        totalTransactions: userTx.length,
+        totalIncome: userTx.fold<int>(0, (s, tx) => s + tx.total),
+        totalExpenses: totalExpenses,
         cashOrders: cashTx.length,
-        cashTotal: cashTx.fold<int>(0, (sum, tx) => sum + tx.total),
+        cashTotal: cashTx.fold<int>(0, (s, tx) => s + tx.total),
         qrisOrders: qrisTx.length,
-        qrisTotal: qrisTx.fold<int>(0, (sum, tx) => sum + tx.total),
-        shifts: shiftInfoList,
-        transactions: userTransactions,
+        qrisTotal: qrisTx.fold<int>(0, (s, tx) => s + tx.total),
+        shifts: shiftInfos,
+        transactions: userTx,
         topProducts: topProducts,
       ));
     }
-    
-    employeeReports.sort((a, b) => b.totalIncome.compareTo(a.totalIncome));
-    return employeeReports;
+
+    reports.sort((a, b) => b.totalIncome.compareTo(a.totalIncome));
+    return reports;
   }
 }
 
-/// Model untuk summary laporan
-class ReportSummary {
-  final DateTime date;
-  final int totalOrders;
-  final int totalIncome;
-  final int cashOrders;
-  final int cashTotal;
-  final int qrisOrders;
-  final int qrisTotal;
-  final List<Transaction> transactions;
-  final List<TopProduct> topProducts;
+// ---- UTILITY ----
 
-  ReportSummary({
-    required this.date,
-    required this.totalOrders,
-    required this.totalIncome,
-    required this.cashOrders,
-    required this.cashTotal,
-    required this.qrisOrders,
-    required this.qrisTotal,
-    required this.transactions,
-    required this.topProducts,
-  });
-}
+// S10: pakai Random.secure() agar ID tidak dapat diprediksi.
+final _secureRandom = Random.secure();
 
-/// Model untuk summary laporan per karyawan
-class EmployeeReportSummary {
-  final String userId;
-  final String username;
-  final int totalTransactions;
-  final int totalIncome;
-  final int cashOrders;
-  final int cashTotal;
-  final int qrisOrders;
-  final int qrisTotal;
-  final List<ShiftInfo> shifts;
-  final List<Transaction> transactions;
-  final List<TopProduct> topProducts;
-
-  EmployeeReportSummary({
-    required this.userId,
-    required this.username,
-    required this.totalTransactions,
-    required this.totalIncome,
-    required this.cashOrders,
-    required this.cashTotal,
-    required this.qrisOrders,
-    required this.qrisTotal,
-    required this.shifts,
-    required this.transactions,
-    required this.topProducts,
-  });
-}
-
-/// Model untuk informasi shift
-class ShiftInfo {
-  final String shiftId;
-  final DateTime startAt;
-  final DateTime? endAt;
-  final int transactionCount;
-  final int totalIncome;
-
-  ShiftInfo({
-    required this.shiftId,
-    required this.startAt,
-    this.endAt,
-    required this.transactionCount,
-    required this.totalIncome,
-  });
-}
-
-/// Model untuk tren harian (grafik bulanan)
-class DailyTrend {
-  final DateTime date;
-  final int orders;
-  final int income;
-
-  DailyTrend({
-    required this.date,
-    required this.orders,
-    required this.income,
-  });
-}
-
-/// =======================
-/// UTILITY
-/// =======================
-
-/// Generate unique ID dengan timestamp + random
 String _generateUniqueId() {
   final timestamp = DateTime.now().microsecondsSinceEpoch;
-  final random = Random().nextInt(99999).toString().padLeft(5, '0');
+  final random = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
   return '${timestamp}_$random';
 }
 
-/// =======================
-/// DB CONNECTION
-/// =======================
+// ---- DB CONNECTION ----
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -920,7 +1028,6 @@ LazyDatabase _openConnection() {
   });
 }
 
-/// Hapus file database untuk reset total
 Future<void> deleteDatabaseFile() async {
   final dir = await getApplicationDocumentsDirectory();
   final file = File(p.join(dir.path, 'kasir_app.sqlite'));

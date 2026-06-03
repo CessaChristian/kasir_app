@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/currency_formatter.dart';
@@ -52,20 +53,8 @@ class ProductTile extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                // Product Icon
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: primaryColor,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.inventory_2_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
+                // Product Image / Icon
+                _buildThumbnail(primaryColor),
                 const SizedBox(width: 14),
                 // Product info
                 Expanded(
@@ -107,6 +96,12 @@ class ProductTile extends StatelessWidget {
                             _buildBadge(
                               icon: Icons.qr_code_rounded,
                               label: product.barcode!,
+                            ),
+                          // Spicy Badge
+                          if (product.hasSpicyOption)
+                            _buildBadge(
+                              icon: Icons.local_fire_department_rounded,
+                              label: 'Ada pilihan pedas',
                             ),
                         ],
                       ),
@@ -157,6 +152,37 @@ class ProductTile extends StatelessWidget {
     );
   }
   
+  Widget _buildThumbnail(Color primaryColor) {
+    final path = product.imagePath;
+    final hasImage = path != null && path.isNotEmpty && File(path).existsSync();
+
+    if (hasImage) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.file(
+          File(path),
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (context, err, stack) => _defaultIcon(primaryColor),
+        ),
+      );
+    }
+    return _defaultIcon(primaryColor);
+  }
+
+  Widget _defaultIcon(Color primaryColor) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 24),
+    );
+  }
+
   Widget _buildBadge({required IconData icon, required String label}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

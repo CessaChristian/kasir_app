@@ -5,10 +5,8 @@ import '../repositories/auth_repository.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../recovery/pages/owner_recovery_page.dart';
 import '../../../app/app_shell.dart';
+import '../../../shared/widgets/app_toast.dart';
 
-/// Login page for owner and cashiers
-/// 
-/// Authenticates with username and PIN
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -20,12 +18,10 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _pinController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscurePin = true;
-  bool _useDropdown = false; // Toggle antara manual/dropdown
-  List<String> _availableUsernames = []; // List username dari DB
-  String? _selectedUsername; // Username yang dipilih dari dropdown
+  List<String> _availableUsernames = [];
 
   @override
   void initState() {
@@ -44,27 +40,86 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final authRepo = AuthRepository(db);
       final usernames = await authRepo.getAllActiveUsernames();
-      setState(() {
-        _availableUsernames = usernames;
-      });
-    } catch (e) {
-      // Silently fail - user can still input manually
+      if (!mounted) return;
+      setState(() => _availableUsernames = usernames);
+    } catch (_) {
+      // Silent fail — user tetap bisa input manual
+    }
+  }
+
+  Future<void> _pickUsername() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Pilih Akun',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade100),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.4,
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _availableUsernames.length,
+                itemBuilder: (_, i) {
+                  final username = _availableUsernames[i];
+                  return ListTile(
+                    leading: Icon(Icons.person_outline_rounded,
+                        color: Colors.grey.shade600),
+                    title: Text(username,
+                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                    onTap: () => Navigator.pop(ctx, username),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null && mounted) {
+      setState(() => _usernameController.text = selected);
     }
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
 
     try {
       final authRepo = AuthRepository(db);
-      
-      // Get username from dropdown or text input
-      final username = _useDropdown 
-          ? (_selectedUsername ?? '') 
-          : _usernameController.text.trim();
-      
+      final username = _usernameController.text.trim();
+
       final session = await authRepo.login(
         username: username,
         pin: _pinController.text,
@@ -72,49 +127,24 @@ class _LoginPageState extends State<LoginPage> {
 
       if (session == null) {
         if (!mounted) return;
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid username or PIN'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        
+        AppToast.error(context, 'Username atau PIN salah');
         setState(() => _isLoading = false);
         return;
       }
 
-      // Save session
       await SessionManager.instance.setSession(session);
-
       if (!mounted) return;
 
-      // Navigate to main app
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => AppShell(key: AppShell.globalKey)),
       );
-      
     } on StateError catch (e) {
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      
+      AppToast.warning(context, e.message);
       setState(() => _isLoading = false);
     } catch (e) {
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      
+      AppToast.error(context, 'Terjadi kesalahan: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -122,197 +152,299 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final viewInsets = MediaQuery.of(context).viewInsets;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F5F0),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // App Icon/Logo
-                  Icon(
-                    Icons.store,
-                    size: 80,
-                    color: colorScheme.primary,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(bottom: viewInsets.bottom),
+          child: Column(
+            children: [
+              // ── Header / Logo ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 52, 24, 40),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(32),
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Title
-                  Text(
-                    'POS System',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  Text(
-                    'Login to continue',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Username field - conditional between dropdown and manual
-                  _useDropdown
-                      ? DropdownButtonFormField<String>(
-                          initialValue: _selectedUsername,
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            prefixIcon: const Icon(Icons.person_outline),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.keyboard),
-                              tooltip: 'Switch to manual input',
-                              onPressed: () {
-                                setState(() {
-                                  _useDropdown = false;
-                                  if (_selectedUsername != null) {
-                                    _usernameController.text = _selectedUsername!;
-                                  }
-                                });
-                              },
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          hint: const Text('Select username'),
-                          items: _availableUsernames.map((username) {
-                            return DropdownMenuItem<String>(
-                              value: username,
-                              child: Text(username),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedUsername = value;
-                            });
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a username';
-                            }
-                            return null;
-                          },
-                        )
-                      : TextFormField(
-                          controller: _usernameController,
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            prefixIcon: const Icon(Icons.person_outline),
-                            suffixIcon: _availableUsernames.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.arrow_drop_down),
-                                    tooltip: 'Select from list',
-                                    onPressed: () {
-                                      setState(() {
-                                        _useDropdown = true;
-                                        if (_usernameController.text.isNotEmpty) {
-                                          _selectedUsername = _usernameController.text;
-                                        }
-                                      });
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          textInputAction: TextInputAction.next,
-                          autofocus: true,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Username is required';
-                            }
-                            return null;
-                          },
-                        ),
-                  const SizedBox(height: 16),
-
-                  // PIN field
-                  TextFormField(
-                    controller: _pinController,
-                    obscureText: _obscurePin,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(6),
-                    ],
-                    decoration: InputDecoration(
-                      labelText: 'PIN',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePin ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setState(() => _obscurePin = !_obscurePin),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      padding: const EdgeInsets.all(10),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.asset(
+                          'assets/images/Logo Teras Inn.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, err, stack) => Icon(
+                            Icons.restaurant_rounded,
+                            size: 56,
+                            color: colorScheme.primary,
+                          ),
+                        ),
                       ),
                     ),
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _login(),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'PIN is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Login button
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: _isLoading ? null : _login,
-                      style: FilledButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Teras Inn',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                        letterSpacing: 0.5,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Forgot PIN link
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const OwnerRecoveryPage(),
-                        ),
-                      );
-                    },
-                    child: const Text('Forgot Owner PIN?'),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'POS Sistem',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 2.0,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+
+              // ── Form Section ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Masuk ke akun Anda',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Masukkan username dan PIN untuk melanjutkan',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ── Username ──
+                      _buildLabel('Username'),
+                      const SizedBox(height: 8),
+                      _buildUsernameTextField(),
+
+                      const SizedBox(height: 20),
+
+                      // ── PIN ──
+                      _buildLabel('PIN'),
+                      const SizedBox(height: 8),
+                      _buildPinField(),
+
+                      const SizedBox(height: 10),
+
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const OwnerRecoveryPage(),
+                            ),
+                          ),
+                          child: Text(
+                            'Lupa PIN Owner?',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // ── Tombol Login ──
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Masuk',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey.shade700,
+      ),
+    );
+  }
+
+  Widget _buildUsernameTextField() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return TextFormField(
+      controller: _usernameController,
+      textInputAction: TextInputAction.next,
+      autofocus: true,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        hintText: 'Masukkan username',
+        hintStyle: TextStyle(color: Colors.grey.shade400),
+        prefixIcon: Icon(
+          Icons.person_outline_rounded,
+          color: Colors.grey.shade500,
+        ),
+        suffixIcon: _availableUsernames.isNotEmpty
+            ? IconButton(
+                icon: Icon(
+                  Icons.expand_more_rounded,
+                  color: Colors.grey.shade500,
+                ),
+                tooltip: 'Pilih dari daftar',
+                onPressed: _pickUsername,
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: (v) =>
+          v == null || v.trim().isEmpty ? 'Username wajib diisi' : null,
+    );
+  }
+
+
+  Widget _buildPinField() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return TextFormField(
+      controller: _pinController,
+      obscureText: _obscurePin,
+      keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) => _login(),
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(6),
+      ],
+      style: const TextStyle(fontSize: 20, letterSpacing: 8),
+      decoration: InputDecoration(
+        hintText: '• • • • • •',
+        hintStyle: TextStyle(
+          color: Colors.grey.shade300,
+          fontSize: 16,
+          letterSpacing: 4,
+        ),
+        prefixIcon: Icon(
+          Icons.lock_outline_rounded,
+          color: Colors.grey.shade500,
+        ),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscurePin
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+            color: Colors.grey.shade500,
+          ),
+          onPressed: () => setState(() => _obscurePin = !_obscurePin),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+      validator: (v) => v == null || v.isEmpty ? 'PIN wajib diisi' : null,
     );
   }
 }

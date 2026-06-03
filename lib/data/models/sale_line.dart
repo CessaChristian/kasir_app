@@ -4,6 +4,7 @@ class SaleLine {
   final int qty;
   final int priceAtSale;
   final bool trackStock;
+  final String? notes;
 
   SaleLine({
     required this.productId,
@@ -11,6 +12,7 @@ class SaleLine {
     required this.qty,
     required this.priceAtSale,
     required this.trackStock,
+    this.notes,
   });
 
   int get subtotal => qty * priceAtSale;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
+import '../../shared/widgets/error_state_widget.dart';
+import '../../shared/widgets/app_toast.dart';
 
 class CategoryManager extends StatefulWidget {
   const CategoryManager({super.key});
@@ -22,6 +24,44 @@ class CategoryManager extends StatefulWidget {
 class _CategoryManagerState extends State<CategoryManager> {
   final _nameC = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  int? _selectedIconCodepoint;
+
+  static const _availableIcons = <(IconData, String)>[
+    (Icons.restaurant_rounded, 'Restoran'),
+    (Icons.rice_bowl, 'Nasi'),
+    (Icons.ramen_dining, 'Mie/Ramen'),
+    (Icons.fastfood, 'Fast Food'),
+    (Icons.lunch_dining, 'Makan Siang'),
+    (Icons.dinner_dining, 'Makan Malam'),
+    (Icons.breakfast_dining, 'Sarapan'),
+    (Icons.local_pizza, 'Pizza'),
+    (Icons.kebab_dining, 'Kebab'),
+    (Icons.bakery_dining, 'Roti/Bakery'),
+    (Icons.set_meal, 'Set Meal'),
+    (Icons.soup_kitchen, 'Sup'),
+    (Icons.tapas, 'Tapas'),
+    (Icons.local_cafe_rounded, 'Kafe'),
+    (Icons.coffee_rounded, 'Kopi'),
+    (Icons.emoji_food_beverage, 'Minuman Hangat'),
+    (Icons.local_bar_rounded, 'Bar'),
+    (Icons.sports_bar_rounded, 'Minuman Segar'),
+    (Icons.water_drop_rounded, 'Air'),
+    (Icons.blender, 'Jus'),
+    (Icons.cake_rounded, 'Kue'),
+    (Icons.icecream, 'Es Krim'),
+    (Icons.cookie, 'Snack'),
+    (Icons.storefront_rounded, 'Toko'),
+    (Icons.sell_rounded, 'Promo'),
+    (Icons.label_rounded, 'Label'),
+    (Icons.star_rounded, 'Favorit'),
+    (Icons.local_offer_rounded, 'Penawaran'),
+    (Icons.category_rounded, 'Umum'),
+  ];
+
+  IconData _iconFromCodepoint(int? codepoint) {
+    if (codepoint == null) return Icons.category_rounded;
+    return IconData(codepoint, fontFamily: 'MaterialIcons');
+  }
 
   @override
   void dispose() {
@@ -36,25 +76,18 @@ class _CategoryManagerState extends State<CategoryManager> {
     final name = _toTitleCase(_nameC.text.trim());
     final id = DateTime.now().millisecondsSinceEpoch.toString();
 
-    await db.upsertCategory(id: id, name: name);
+    await db.upsertCategory(
+      id: id,
+      name: name,
+      iconCodepoint:
+          _selectedIconCodepoint ?? Icons.category_rounded.codePoint,
+    );
     _nameC.clear();
+    setState(() {
+      _selectedIconCodepoint = null;
+    });
     
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              const Text('Kategori berhasil ditambahkan'),
-            ],
-          ),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
+    if (mounted) AppToast.success(context, 'Kategori berhasil ditambahkan');
   }
   
   String _toTitleCase(String text) {
@@ -220,6 +253,66 @@ class _CategoryManagerState extends State<CategoryManager> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Icon picker
+                  Text(
+                    'Pilih Icon',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _availableIcons.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 6),
+                      itemBuilder: (context, i) {
+                        final (iconData, label) = _availableIcons[i];
+                        final isSelected =
+                            _selectedIconCodepoint == iconData.codePoint;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedIconCodepoint = iconData.codePoint;
+                            });
+                          },
+                          child: Tooltip(
+                            message: label,
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.orange
+                                    : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(10),
+                                border: isSelected
+                                    ? Border.all(
+                                        color: Colors.orange.shade700,
+                                        width: 2,
+                                      )
+                                    : Border.all(
+                                        color: Colors.grey.shade200,
+                                      ),
+                              ),
+                              child: Icon(
+                                iconData,
+                                size: 22,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Text field row
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -230,7 +323,14 @@ class _CategoryManagerState extends State<CategoryManager> {
                           decoration: InputDecoration(
                             hintText: 'Nama kategori baru...',
                             hintStyle: TextStyle(color: Colors.grey.shade400),
-                            prefixIcon: Icon(Icons.add_rounded, color: primaryColor),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Icon(
+                                _iconFromCodepoint(_selectedIconCodepoint),
+                                color: primaryColor,
+                                size: 22,
+                              ),
+                            ),
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -256,8 +356,8 @@ class _CategoryManagerState extends State<CategoryManager> {
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             errorStyle: const TextStyle(fontSize: 12),
                           ),
-                          validator: (v) => v == null || v.trim().isEmpty 
-                              ? 'Nama kategori wajib diisi' 
+                          validator: (v) => v == null || v.trim().isEmpty
+                              ? 'Nama kategori wajib diisi'
                               : null,
                         ),
                       ),
@@ -289,14 +389,21 @@ class _CategoryManagerState extends State<CategoryManager> {
             StreamBuilder<List<Category>>(
               stream: db.watchCategories(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return ErrorStateWidget(
+                    title: 'Gagal memuat kategori',
+                    onRetry: () => setState(() {}),
+                  );
+                }
+
                 if (!snapshot.hasData) {
                   return Padding(
                     padding: const EdgeInsets.all(32),
                     child: CircularProgressIndicator(color: primaryColor),
                   );
                 }
-                
-                final items = snapshot.data!;
+
+                final items = snapshot.data ?? [];
                 
                 if (items.isEmpty) {
                   return Padding(
@@ -350,11 +457,11 @@ class _CategoryManagerState extends State<CategoryManager> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha:0.1),
+                              color: primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
-                              Icons.folder_rounded,
+                              _iconFromCodepoint(item.iconCodepoint),
                               color: primaryColor,
                               size: 18,
                             ),

@@ -77,6 +77,10 @@ class ReportExportService {
     _addHeader(transaksi, 'Daftar Transaksi', 0);
     _addTableHeader(transaksi, ['No', 'Waktu', 'Metode', 'Produk', 'Qty', 'Harga', 'Subtotal', 'Total Transaksi']);
 
+    // C1: Batch fetch semua items sekali — hindari N+1 query.
+    final allTxIds = report.transactions.map((t) => t.id).toList();
+    final itemsByTx = await db.getTransactionItemsForIds(allTxIds);
+
     if (isMonthly) {
       // Group transactions by day for monthly report
       final Map<String, List<Transaction>> grouped = {};
@@ -109,7 +113,7 @@ class ReportExportService {
         for (int i = 0; i < dayTxList.length; i++) {
           txNo++;
           final tx = dayTxList[i];
-          final items = await db.getTransactionItems(tx.id);
+          final items = itemsByTx[tx.id] ?? const [];
           final timeStr = DateFormat('HH:mm').format(tx.createdAt);
           final methodStr = tx.paymentMethod == 'cash' ? 'Cash' : 'QRIS';
 
@@ -155,7 +159,7 @@ class ReportExportService {
       // Daily report — flat list
       for (int i = 0; i < report.transactions.length; i++) {
         final tx = report.transactions[i];
-        final items = await db.getTransactionItems(tx.id);
+        final items = itemsByTx[tx.id] ?? const [];
         final timeStr = DateFormat('HH:mm').format(tx.createdAt);
         final methodStr = tx.paymentMethod == 'cash' ? 'Cash' : 'QRIS';
 

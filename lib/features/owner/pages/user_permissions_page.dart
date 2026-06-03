@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
 import '../../auth/repositories/permission_repository.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 /// Page to manage permissions for a specific user (cashier)
 class UserPermissionsPage extends StatefulWidget {
@@ -46,9 +47,7 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
       setState(() => _isLoading = false);
       
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading permissions: $e')),
-      );
+      AppToast.error(context, 'Gagal memuat data: $e');
     }
   }
 
@@ -63,20 +62,12 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
 
       if (!mounted) return;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permissions updated successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      AppToast.success(context, 'Akses kasir berhasil diperbarui');
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving: $e')),
-      );
+      AppToast.error(context, 'Gagal menyimpan: $e');
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

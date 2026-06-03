@@ -38,7 +38,7 @@ class EmployeeDetailSheet extends StatelessWidget {
             children: [
               // Handle bar
               Container(
-                margin: const EdgeInsets.only(top: 12),
+                margin: const EdgeInsets.fromLTRB(0, 12, 0, 8),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(

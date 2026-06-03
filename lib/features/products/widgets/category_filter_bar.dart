@@ -40,6 +40,10 @@ class CategoryFilterBar extends StatelessWidget {
           // Category chips
           ...categories.map((c) {
             final isSelected = selectedCategoryId == c.id;
+            final catIcon = IconData(
+              c.iconCodepoint ?? Icons.category_rounded.codePoint,
+              fontFamily: 'MaterialIcons',
+            );
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
@@ -48,7 +52,7 @@ class CategoryFilterBar extends StatelessWidget {
                 onSelected: (_) => onCategorySelected(c.id),
                 avatar: isSelected
                     ? const Icon(Icons.check, size: 18)
-                    : const Icon(Icons.category_outlined, size: 18),
+                    : Icon(catIcon, size: 18),
               ),
             );
           }),

@@ -91,6 +91,16 @@ class _EmployeeCardState extends State<EmployeeCard> {
                           color: primaryColor,
                         ),
                       ),
+                      if (e.totalExpenses > 0)
+                        Text(
+                          'Laba: Rp ${formatRupiah(e.netIncome)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: e.netIncome >= 0
+                                ? Colors.green.shade600
+                                : Colors.red,
+                          ),
+                        ),
                       Icon(
                         _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                         color: Colors.grey.shade400,
@@ -135,6 +145,37 @@ class _EmployeeCardState extends State<EmployeeCard> {
                       ),
                     ],
                   ),
+                  if (e.totalExpenses > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.red.shade100),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.trending_down_rounded,
+                              size: 16, color: Colors.red.shade600),
+                          const SizedBox(width: 8),
+                          Text('Pengeluaran',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.red.shade700)),
+                          const Spacer(),
+                          Text(
+                            'Rp ${formatRupiah(e.totalExpenses)}',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   
                   // Shifts
@@ -247,14 +288,19 @@ class _ShiftItem extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
           const Spacer(),
-          Text(
-            '${shift.transactionCount} txn',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Rp ${formatRupiah(shift.totalIncome)}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primaryColor),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${shift.transactionCount} txn · Rp ${formatRupiah(shift.totalIncome)}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: primaryColor),
+              ),
+              if (shift.totalExpenses > 0)
+                Text(
+                  'Keluar: Rp ${formatRupiah(shift.totalExpenses)}',
+                  style: TextStyle(fontSize: 10, color: Colors.red.shade500),
+                ),
+            ],
           ),
         ],
       ),

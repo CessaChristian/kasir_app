@@ -135,9 +135,24 @@ class ProductLegendItem extends StatelessWidget {
           Expanded(
             child: Text(name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
           ),
-          Text('$qty terjual', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          SizedBox(
+            width: 72,
+            child: Text(
+              '$qty terjual',
+              textAlign: TextAlign.end,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ),
           const SizedBox(width: 8),
-          Text('Rp ${formatRupiah(total)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 80,
+            child: Text(
+              'Rp ${formatRupiah(total)}',
+              textAlign: TextAlign.start,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,8 @@
+import 'dart:math';
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/crypto_utils.dart';
+import '../../../shared/auth/session_manager.dart';
 
 /// Repository for managing cashier accounts
 class CashierRepository {
@@ -17,10 +19,17 @@ class CashierRepository {
   /// - view_report: false
   /// - manage_products: false
   /// - manage_cashiers: false
+  /// S11: All mutating methods require manage_cashiers permission.
+  void _requireManageCashiers() {
+    SessionManager.instance.requirePermission('manage_cashiers');
+  }
+
   Future<User> createCashier({
     required String username,
     required String pin,
   }) async {
+    _requireManageCashiers();
+
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(pin)) {
       throw ArgumentError('PIN must be 4-6 digits');
@@ -42,24 +51,32 @@ class CashierRepository {
     // 4. Generate unique ID
     final userId = _generateUserId();
 
-    // 5. Create cashier account
-    await _db.into(_db.users).insert(
-          UsersCompanion.insert(
-            id: userId,
-            username: username,
-            pinHash: pinHash,
-            salt: salt,
-            role: 'cashier',
-            isActive: const Value(true),
-          ),
-        );
+    // I1: Bungkus insert user + set permissions dalam satu transaksi.
+    // Kalau permissions gagal di-set, user juga di-rollback agar tidak
+    // ada akun "zombie" tanpa permission.
+    return await _db.transaction<User>(() async {
+      await _db.into(_db.users).insert(
+            UsersCompanion.insert(
+              id: userId,
+              username: username,
+              pinHash: pinHash,
+              salt: salt,
+              role: 'cashier',
+              isActive: const Value(true),
+            ),
+          );
 
-    // 6. Set default permissions
-    await _setDefaultCashierPermissions(userId);
+      await _setDefaultCashierPermissions(userId);
 
-    // 7. Get and return the created user
-    return await (_db.select(_db.users)..where((u) => u.id.equals(userId)))
-        .getSingle();
+      final created = await (_db.select(_db.users)
+            ..where((u) => u.id.equals(userId)))
+          .getSingleOrNull();
+      if (created == null) {
+        throw StateError(
+            'Akun kasir berhasil dibuat. Kasir dapat login menggunakan username dan PIN yang baru.');
+      }
+      return created;
+    });
   }
 
   /// Get all cashiers
@@ -72,6 +89,7 @@ class CashierRepository {
 
   /// Toggle cashier active status
   Future<void> toggleCashierStatus(String userId, bool isActive) async {
+    _requireManageCashiers();
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
       UsersCompanion(
         isActive: Value(isActive),
@@ -81,6 +99,8 @@ class CashierRepository {
 
   /// Reset cashier PIN
   Future<void> resetCashierPin(String userId, String newPin) async {
+    _requireManageCashiers();
+
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(newPin)) {
       throw ArgumentError('PIN must be 4-6 digits');
@@ -121,8 +141,13 @@ class CashierRepository {
     }
   }
 
-  /// Generate unique user ID
+  /// Generate unique user ID — S10: pakai Random.secure() suffix
+  /// untuk mencegah collision dan prediksi ID.
+  static final _secureRandom = Random.secure();
+
   String _generateUserId() {
-    return 'cashier_${DateTime.now().millisecondsSinceEpoch}';
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
+    return 'cashier_${ts}_$r';
   }
 }

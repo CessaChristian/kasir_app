@@ -10,12 +10,16 @@ class MonthlyReportTab extends StatelessWidget {
   final ReportSummary? report;
   final List<DailyTrend> dailyTrends;
   final String emptyMessage;
+  final Widget? expenseSection;
+  final void Function(String orderType)? onOrderTypeTap;
 
   const MonthlyReportTab({
     super.key,
     required this.report,
     required this.dailyTrends,
     required this.emptyMessage,
+    this.expenseSection,
+    this.onOrderTypeTap,
   });
 
   @override
@@ -72,6 +76,34 @@ class MonthlyReportTab extends StatelessWidget {
             const SizedBox(height: 24),
           ],
 
+          // Expense & Net Income
+          if (r.totalExpenses > 0) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                children: [
+                  _finRow(Icons.trending_up_rounded, Colors.green.shade700,
+                      Colors.green.shade50, 'Pemasukan', r.totalIncome, true),
+                  Divider(height: 1, color: Colors.grey.shade200),
+                  _finRow(Icons.trending_down_rounded, Colors.red.shade600,
+                      Colors.red.shade50, 'Pengeluaran', r.totalExpenses, false),
+                  Divider(height: 1, color: Colors.grey.shade200),
+                  _finRow(Icons.account_balance_rounded, colorScheme.primary,
+                      colorScheme.primary.withValues(alpha: 0.1),
+                      'Laba Bersih', r.netIncome, r.netIncome >= 0,
+                      isBold: true),
+                  // Toggle detail pengeluaran per kasir (disisipkan dari parent)
+                  if (expenseSection != null) expenseSection!,
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+
           // Payment method breakdown
           const ReportSectionTitle('Metode Pembayaran'),
           const SizedBox(height: 8),
@@ -102,6 +134,32 @@ class MonthlyReportTab extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 20),
+
+          // Order type breakdown
+          const ReportSectionTitle('Tipe Pesanan'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _orderTypeCard(
+                  Icons.restaurant_rounded, 'Dine In', r.dineInOrders,
+                  colorScheme.primary,
+                  onTap: r.dineInOrders > 0 && onOrderTypeTap != null
+                      ? () => onOrderTypeTap!('dine_in') : null)),
+              const SizedBox(width: 8),
+              Expanded(child: _orderTypeCard(
+                  Icons.shopping_bag_rounded, 'Take Away', r.takeAwayOrders,
+                  Colors.orange,
+                  onTap: r.takeAwayOrders > 0 && onOrderTypeTap != null
+                      ? () => onOrderTypeTap!('take_away') : null)),
+              const SizedBox(width: 8),
+              Expanded(child: _orderTypeCard(
+                  Icons.delivery_dining_rounded, 'Delivery', r.deliveryOrders,
+                  Colors.green.shade600,
+                  onTap: r.deliveryOrders > 0 && onOrderTypeTap != null
+                      ? () => onOrderTypeTap!('delivery') : null)),
+            ],
           ),
           const SizedBox(height: 24),
 
@@ -174,6 +232,80 @@ class MonthlyReportTab extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _finRow(IconData icon, Color iconColor, Color iconBg, String label,
+      int value, bool isPositive,
+      {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+                color: iconBg, borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isBold ? FontWeight.bold : FontWeight.w500)),
+          ),
+          Text(
+            '${isPositive ? '' : '- '}Rp ${formatRupiah(value.abs())}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: isPositive ? Colors.green.shade700 : Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _orderTypeCard(IconData icon, String label, int count, Color color,
+      {VoidCallback? onTap}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            child: Column(
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(height: 6),
+                Text('$count',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                if (onTap != null) ...[
+                  const SizedBox(height: 4),
+                  Icon(Icons.keyboard_arrow_down_rounded,
+                      size: 14, color: Colors.grey.shade400),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

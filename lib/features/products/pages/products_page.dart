@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/auth/session_manager.dart';
+import '../../../shared/widgets/watermark_background.dart';
 import '../widgets/product_search_bar.dart';
 import '../widgets/category_filter_bar.dart';
 import '../widgets/product_tile.dart';
 import '../sheets/product_form_sheet.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
+import '../../../shared/widgets/error_state_widget.dart';
+import '../../../shared/widgets/empty_state_widget.dart';
 
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
@@ -17,19 +23,32 @@ class _ProductsPageState extends State<ProductsPage> {
   String _searchQuery = '';
   String? _selectedCategoryId;
 
-  Future<void> _openForm(BuildContext context, {Product? editing}) async {
+  @override
+  void initState() {
+    super.initState();
+    // S12: Defense-in-depth — block direct navigation tanpa permission.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        SessionManager.instance.requirePermission('manage_products');
+      } on StateError {
+        if (mounted) Navigator.of(context).pop();
+      }
+    });
+  }
+
+  Future<void> _openForm(BuildContext ctx, {Product? editing}) async {
+    final screenHeight = MediaQuery.of(ctx).size.height;
     final result = await showModalBottomSheet<FormResult>(
-      context: context,
+      context: ctx,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
       builder: (_) => ProductFormSheet(editing: editing),
     );
 
     if (result == null) return;
     if (!mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final productId =
@@ -43,129 +62,26 @@ class _ProductsPageState extends State<ProductsPage> {
         categoryId: result.categoryId,
         trackStock: result.trackStock,
         stock: result.stock,
+        hasSpicyOption: result.hasSpicyOption,
+        imagePath: result.imagePath,
       );
 
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            editing == null
-                ? 'Produk berhasil ditambahkan'
-                : 'Produk berhasil diperbarui',
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      AppToast.success(context,
+          editing == null ? 'Produk berhasil ditambahkan' : 'Produk berhasil diperbarui');
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Gagal: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppToast.error(context, 'Gagal: $e');
     }
   }
 
-  Future<void> _delete(BuildContext context, Product p) async {
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _delete(BuildContext ctx, Product p) async {
     final confirmed = await showDialog<bool>(
-      context: context,
+      context: ctx,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Warning Icon
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.red,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Title
-              const Text(
-                'Hapus Produk?',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Message
-              Text(
-                'Produk "${p.name}" akan dihapus permanen dan tidak dapat dikembalikan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                      ),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        'Hapus',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => ConfirmDeleteDialog(
+        title: 'Hapus Produk?',
+        message: 'Produk "${p.name}" akan dihapus permanen dan tidak dapat dikembalikan.',
       ),
     );
 
@@ -174,23 +90,10 @@ class _ProductsPageState extends State<ProductsPage> {
     try {
       await db.deleteProduct(p.id);
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('Produk berhasil dihapus'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      AppToast.success(context, 'Produk berhasil dihapus');
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Gagal menghapus: $e'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppToast.error(context, 'Gagal menghapus: $e');
     }
   }
 
@@ -199,14 +102,14 @@ class _ProductsPageState extends State<ProductsPage> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(0xFFF8F5F0),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openForm(context),
         backgroundColor: primaryColor,
         elevation: 2,
         child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
-      body: Column(
+      body: WatermarkBackground(child: Column(
         children: [
           // Search Bar
           ProductSearchBar(
@@ -237,6 +140,13 @@ class _ProductsPageState extends State<ProductsPage> {
                 return StreamBuilder<List<Product>>(
                   stream: db.watchProducts(),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return ErrorStateWidget(
+                        title: 'Gagal memuat produk',
+                        onRetry: () => setState(() {}),
+                      );
+                    }
+
                     if (!snapshot.hasData) {
                       return Center(
                         child: CircularProgressIndicator(
@@ -246,7 +156,7 @@ class _ProductsPageState extends State<ProductsPage> {
                       );
                     }
 
-                    var items = snapshot.data!;
+                    var items = snapshot.data ?? [];
 
                     // Filter by category
                     if (_selectedCategoryId != null) {
@@ -294,48 +204,18 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.inventory_2_outlined,
-              size: 40,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _searchQuery.isNotEmpty || _selectedCategoryId != null
-                ? 'Tidak ada produk'
-                : 'Belum ada produk',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty || _selectedCategoryId != null
-                ? 'Coba ubah filter pencarian'
-                : 'Tap tombol + untuk menambah produk',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
+    final hasFilter = _searchQuery.isNotEmpty || _selectedCategoryId != null;
+    return EmptyStateWidget(
+      icon: Icons.inventory_2_outlined,
+      title: hasFilter ? 'Tidak ada produk' : 'Belum ada produk',
+      subtitle: hasFilter
+          ? 'Coba ubah filter pencarian'
+          : 'Tap tombol + untuk menambah produk',
     );
   }
 }
