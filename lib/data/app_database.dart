@@ -8,32 +8,92 @@ import 'package:path_provider/path_provider.dart';
 import '../data/models/sale_line.dart';
 import '../data/models/top_product.dart';
 import '../shared/auth/session_manager.dart';
+import 'uuid_helper.dart';
 
 part 'app_database.g.dart';
 part 'models/report_models.dart';
 
 /// =======================
-/// TABLE: CATEGORIES
+/// TABLE: BUSINESSES (new in v10)
 /// =======================
-class Categories extends Table {
-  TextColumn get id => text()();
+class Businesses extends Table {
+  TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get name => text()();
-  IntColumn get iconCodepoint => integer().nullable()();
+  TextColumn get type => text()(); // 'restaurant_dinein' | 'beverage_grabandgo'
+  TextColumn get logoPath => text().nullable()();
+  TextColumn get address => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  BoolColumn get isActive =>
+      boolean().withDefault(const Constant(true))();
+
+  // Sync-friendly columns (per spec §5.1.6)
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
 /// =======================
-/// TABLE: PRODUCTS
+/// TABLE: USER_BUSINESS_ROLES (many-to-many, new in v10)
+/// =======================
+class UserBusinessRoles extends Table {
+  TextColumn get userId => text().references(Users, #id)();
+  TextColumn get businessId => text().references(Businesses, #id)();
+  TextColumn get role => text()(); // 'owner' | 'cashier' (extendable)
+  DateTimeColumn get assignedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  // Sync-friendly
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
+
+  @override
+  Set<Column> get primaryKey => {userId, businessId};
+}
+
+/// =======================
+/// TABLE: CATEGORIES (modified in v10 — add business_id + sync fields)
+/// =======================
+class Categories extends Table {
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10
+  TextColumn get name => text()();
+  IntColumn get iconCodepoint => integer().nullable()();
+
+  // Sync-friendly (NEW in v10)
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// =======================
+/// TABLE: PRODUCTS (modified in v10 — add business_id + sync fields)
 /// =======================
 class Products extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get name => text()();
   IntColumn get price => integer()();
   TextColumn get barcode => text().nullable()();
 
-  // Added in v4
   TextColumn get categoryId =>
       text().nullable().references(Categories, #id)();
 
@@ -41,47 +101,62 @@ class Products extends Table {
       boolean().withDefault(const Constant(false))();
   IntColumn get stock => integer().nullable()();
 
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
-
-  // Added in v7
   BoolColumn get hasSpicyOption =>
       boolean().withDefault(const Constant(false))();
   TextColumn get imagePath => text().nullable()();
+
+  // Sync-friendly (NEW in v10 — note: existing createdAt renamed agar konsisten)
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
 /// =======================
-/// TABLE: TRANSACTIONS
+/// TABLE: TRANSACTIONS (modified in v10 — add business_id + sync fields)
 /// =======================
 class Transactions extends Table {
-  TextColumn get id => text()();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
 
   IntColumn get total => integer()();
   TextColumn get paymentMethod => text()();
   IntColumn get cashReceived => integer().nullable()();
   IntColumn get change => integer().nullable()();
 
-  // Added in v5
   TextColumn get cashierUserId => text().nullable()();
   TextColumn get shiftId => text().nullable()();
 
-  // Added in v7: 'dine_in' | 'take_away' | 'delivery'
   TextColumn get orderType =>
       text().withDefault(const Constant('dine_in'))();
+
+  // Sync-friendly (NEW in v10)
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
 /// =======================
-/// TABLE: TRANSACTION_ITEMS
+/// TABLE: TRANSACTION_ITEMS (modified in v10 — add business_id + sync fields)
 /// =======================
 class TransactionItems extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10 (denormalized untuk performa)
   TextColumn get transactionId => text()();
   TextColumn get productId => text()();
   TextColumn get productName => text().withDefault(const Constant(''))();
@@ -90,8 +165,16 @@ class TransactionItems extends Table {
   IntColumn get priceAtSale => integer()();
   IntColumn get subtotal => integer()();
 
-  // Added in v7: catatan keterangan per item (e.g., 'Pedas', 'Extra Pedas')
   TextColumn get notes => text().nullable()();
+
+  // Sync-friendly (NEW in v10)
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   List<String> get customConstraints => [
@@ -103,10 +186,10 @@ class TransactionItems extends Table {
 }
 
 /// =======================
-/// TABLE: USERS
+/// TABLE: USERS (modified in v10 — add sync fields. NO business_id karena global)
 /// =======================
 class Users extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get username => text().unique()();
   TextColumn get pinHash => text()();
   TextColumn get salt => text()();
@@ -123,24 +206,39 @@ class Users extends Table {
       integer().withDefault(const Constant(0))();
   DateTimeColumn get recoveryLockedUntil => dateTime().nullable()();
 
-  // Login rate limiting (S5): mirror dari recovery, dengan exponential backoff.
   IntColumn get loginAttempts =>
       integer().withDefault(const Constant(0))();
   DateTimeColumn get loginLockedUntil => dateTime().nullable()();
+
+  // Sync-friendly (NEW in v10 — siap untuk Phase 2 sync)
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
 /// =======================
-/// TABLE: SHIFTS
+/// TABLE: SHIFTS (modified in v10 — add business_id + sync fields)
 /// =======================
 class Shifts extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get userId => text().references(Users, #id)();
   DateTimeColumn get startAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get endAt => dateTime().nullable()();
+
+  // Sync-friendly (NEW in v10)
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -177,16 +275,29 @@ class UserPermissions extends Table {
 }
 
 /// =======================
-/// TABLE: EXPENSES (new in v7)
+/// TABLE: EXPENSES (modified in v10 — add business_id + sync fields + updated_by_user_id)
 /// =======================
 class Expenses extends Table {
-  TextColumn get id => text()();
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get businessId =>
+      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get shiftId => text().references(Shifts, #id)();
-  TextColumn get userId => text().references(Users, #id)();
+  @ReferenceName('createdExpensesRefs')
+  TextColumn get userId => text().references(Users, #id)(); // creator
+  @ReferenceName('updatedExpensesRefs')
+  TextColumn get updatedByUserId =>
+      text().nullable().references(Users, #id)(); // NEW in v10 — track edit
   TextColumn get description => text()();
   IntColumn get amount => integer()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  // Sync-friendly (NEW in v10)
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -205,6 +316,8 @@ class Expenses extends Table {
   Permissions,
   UserPermissions,
   Expenses,
+  Businesses,           // NEW in v10
+  UserBusinessRoles,    // NEW in v10
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -212,7 +325,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -283,6 +396,30 @@ class AppDatabase extends _$AppDatabase {
             // S5: Login rate limiting
             await m.addColumn(users, users.loginAttempts);
             await m.addColumn(users, users.loginLockedUntil);
+          }
+          if (from < 10 && to >= 10) {
+            // v10 — multi-business architecture migration (FRESH START per spec §5.4)
+            // Karena data sekarang dummy (D13), drop semua tables lama + recreate
+            // dengan schema multi-business.
+            //
+            // WARNING: ini DESTRUCTIVE. Setelah Phase 1 deploy ke client dengan data
+            // real, pattern fresh-start TIDAK boleh dipakai lagi — Phase 2 wajib
+            // preserve data.
+
+            // Drop semua tables lama (urutan reverse FK)
+            await m.deleteTable('expenses');
+            await m.deleteTable('user_permissions');
+            await m.deleteTable('permissions');
+            await m.deleteTable('shifts');
+            await m.deleteTable('users');
+            await m.deleteTable('transaction_items');
+            await m.deleteTable('transactions');
+            await m.deleteTable('products');
+            await m.deleteTable('categories');
+
+            // Recreate semua (termasuk Businesses + UserBusinessRoles)
+            await m.createAll();
+            await _seedPermissions();
           }
         },
         beforeOpen: (details) async {
@@ -571,13 +708,14 @@ class AppDatabase extends _$AppDatabase {
     required String description,
     required int amount,
   }) async {
+    // TODO(Sub-Phase 1.3): tambah businessId dari BusinessContext.instance.activeBusinessId
     await into(expenses).insert(
-      ExpensesCompanion.insert(
-        id: _generateUniqueId(),
-        shiftId: shiftId,
-        userId: userId,
-        description: description,
-        amount: amount,
+      ExpensesCompanion(
+        id: Value(_generateUniqueId()),
+        shiftId: Value(shiftId),
+        userId: Value(userId),
+        description: Value(description),
+        amount: Value(amount),
       ),
     );
   }
