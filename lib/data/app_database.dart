@@ -461,6 +461,46 @@ class AppDatabase extends _$AppDatabase {
         'name': 'Manage Cashiers',
         'description': 'Ability to add, edit, and manage cashier accounts'
       },
+      {
+        'code': 'edit_own_expense',
+        'name': 'Edit Own Expense',
+        'description': 'Ability to edit expenses created by self'
+      },
+      {
+        'code': 'edit_any_expense',
+        'name': 'Edit Any Expense',
+        'description': 'Ability to edit any expense (owner override)'
+      },
+      {
+        'code': 'delete_own_transaction',
+        'name': 'Delete Own Transaction',
+        'description': 'Ability to soft-delete transactions created by self'
+      },
+      {
+        'code': 'delete_any_transaction',
+        'name': 'Delete Any Transaction',
+        'description': 'Ability to soft-delete any transaction (owner override)'
+      },
+      {
+        'code': 'view_shift_reports',
+        'name': 'View Shift Reports',
+        'description': 'Ability to view shift reports page'
+      },
+      {
+        'code': 'view_all_shifts',
+        'name': 'View All Shifts',
+        'description': 'Ability to view shift data from all users'
+      },
+      {
+        'code': 'manage_business',
+        'name': 'Manage Business',
+        'description': 'Ability to create or edit business settings'
+      },
+      {
+        'code': 'switch_business',
+        'name': 'Switch Business',
+        'description': 'Ability to switch active business from UI'
+      },
     ];
 
     for (final perm in permissionsData) {
