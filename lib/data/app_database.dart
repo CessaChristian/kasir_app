@@ -533,6 +533,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> upsertCategory({
     required String id,
+    required String businessId,
     required String name,
     int? iconCodepoint,
   }) async {
@@ -540,6 +541,7 @@ class AppDatabase extends _$AppDatabase {
     await into(categories).insertOnConflictUpdate(
       CategoriesCompanion(
         id: Value(id),
+        businessId: Value(businessId),
         name: Value(name),
         iconCodepoint: Value(iconCodepoint),
       ),
@@ -563,6 +565,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> upsertProduct({
     required String id,
+    required String businessId,
     required String name,
     required int price,
     String? barcode,
@@ -575,6 +578,7 @@ class AppDatabase extends _$AppDatabase {
     SessionManager.instance.requirePermission('manage_products');
     final data = ProductsCompanion(
       id: Value(id),
+      businessId: Value(businessId),
       name: Value(name),
       price: Value(price),
       barcode: Value(barcode),
@@ -596,6 +600,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> createSale({
     required String transactionId,
+    required String businessId,
     required List<SaleLine> lines,
     required String paymentMethod,
     required String orderType,
@@ -629,6 +634,7 @@ class AppDatabase extends _$AppDatabase {
       await into(transactions).insert(
         TransactionsCompanion(
           id: Value(transactionId),
+          businessId: Value(businessId),
           total: Value(total),
           paymentMethod: Value(paymentMethod),
           cashReceived: Value(cashReceived),
@@ -639,7 +645,7 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      await _insertTransactionItems(transactionId, lines);
+      await _insertTransactionItems(transactionId, businessId, lines);
     });
   }
 
@@ -678,6 +684,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _insertTransactionItems(
     String transactionId,
+    String businessId,
     List<SaleLine> lines,
   ) async {
     for (final line in lines) {
@@ -686,6 +693,7 @@ class AppDatabase extends _$AppDatabase {
       await into(transactionItems).insert(
         TransactionItemsCompanion(
           id: Value(itemId),
+          businessId: Value(businessId),
           transactionId: Value(transactionId),
           productId: Value(line.productId),
           productName: Value(line.productName),
@@ -744,14 +752,15 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> addExpense({
     required String shiftId,
+    required String businessId,
     required String userId,
     required String description,
     required int amount,
   }) async {
-    // TODO(Sub-Phase 1.3): tambah businessId dari BusinessContext.instance.activeBusinessId
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(_generateUniqueId()),
+        businessId: Value(businessId),
         shiftId: Value(shiftId),
         userId: Value(userId),
         description: Value(description),
