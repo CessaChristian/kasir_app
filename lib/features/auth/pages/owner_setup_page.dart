@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../data/business_context.dart';
 import '../../../data/db.dart';
 import '../repositories/auth_repository.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -54,6 +55,7 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
 
       if (session != null) {
         await SessionManager.instance.setSession(session);
+        await BusinessContext.instance.loadInitial(userId: session.userId);
         if (!mounted) return;
 
         await Navigator.push(

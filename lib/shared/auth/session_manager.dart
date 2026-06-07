@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/business_context.dart';
 import '../../data/db.dart';
 import '../../features/auth/models/auth_session.dart';
 
@@ -31,6 +32,7 @@ class SessionManager {
     _currentSession = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
+    BusinessContext.instance.clear();
   }
 
   /// Restore session dari storage.
