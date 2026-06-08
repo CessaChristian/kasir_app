@@ -87,6 +87,15 @@ class SessionManager {
 
       // Sinkronkan storage agar konsisten dengan DB
       await prefs.setString(_sessionKey, json.encode(_currentSession!.toJson()));
+
+      // Multi-business: re-populate BusinessContext + role cache
+      try {
+        await BusinessContext.instance.loadInitial(userId: user.id);
+        await refreshRoleCache();
+      } catch (_) {
+        // Tidak clear session — biarkan session restore, hanya warn
+        // (BusinessContext null akan di-handle di UI layer)
+      }
     } catch (_) {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();
@@ -151,7 +160,7 @@ class SessionManager {
       'view_all_expenses', 'edit_own_expense', 'edit_any_expense',
       'delete_own_transaction', 'delete_any_transaction',
       'view_shift_reports', 'view_all_shifts',
-      'manage_business', 'manage_users', 'switch_business',
+      'manage_business', 'manage_cashiers', 'switch_business',
       // Existing permissions (backward compat)
       'open_close_shift', 'create_transaction', 'view_history', 'view_report',
     },
