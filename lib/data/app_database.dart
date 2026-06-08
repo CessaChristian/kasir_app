@@ -13,6 +13,17 @@ import 'uuid_helper.dart';
 part 'app_database.g.dart';
 part 'models/report_models.dart';
 
+/// Hook yang di-set dari luar (db.dart) untuk menghindari circular import.
+/// BusinessContext imports app_database.dart, sehingga app_database.dart
+/// tidak boleh import business_context.dart secara langsung.
+///
+/// Usage dari db.dart:
+///   AppDatabase.activeBusinessIdProvider = () => BusinessContext.instance.activeBusinessId;
+///
+/// Usage dari tests:
+///   AppDatabase.activeBusinessIdProvider = () => testBusinessId;
+String? Function()? _activeBusinessIdProvider;
+
 /// =======================
 /// TABLE: BUSINESSES (new in v10)
 /// =======================
@@ -324,6 +335,40 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.forTesting(super.executor);
 
+  // ---- BusinessContext bridge (no circular import) ----
+
+  /// Set dari db.dart setelah BusinessContext tersedia.
+  /// Atau di-override dalam tests:
+  ///   AppDatabase.activeBusinessIdProvider = () => 'test-biz-id';
+  static set activeBusinessIdProvider(String? Function()? fn) {
+    _activeBusinessIdProvider = fn;
+  }
+
+  /// Ambil active business ID. Throws [StateError] jika provider belum di-set
+  /// atau tidak ada active business.
+  static String _requireActiveBusinessId() {
+    final provider = _activeBusinessIdProvider;
+    if (provider == null) {
+      throw StateError(
+        'AppDatabase.activeBusinessIdProvider belum di-set. '
+        'Pastikan db.dart sudah wired BusinessContext.',
+      );
+    }
+    final id = provider();
+    if (id == null) {
+      throw StateError(
+        'Tidak ada active business. Login dan pilih business terlebih dahulu.',
+      );
+    }
+    return id;
+  }
+
+  /// Versi nullable — untuk watch/query yang boleh return empty stream
+  /// ketika belum ada active business.
+  static String? _getActiveBusinessId() {
+    return _activeBusinessIdProvider?.call();
+  }
+
   @override
   int get schemaVersion => 10;
 
@@ -526,17 +571,21 @@ class AppDatabase extends _$AppDatabase {
   // ---- CATEGORIES ----
 
   Stream<List<Category>> watchCategories() {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return Stream.value([]);
     return (select(categories)
+          ..where((t) =>
+              t.businessId.equals(businessId) & t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.asc(t.name)]))
         .watch();
   }
 
   Future<void> upsertCategory({
     required String id,
-    required String businessId,
     required String name,
     int? iconCodepoint,
   }) async {
+    final businessId = _requireActiveBusinessId();
     SessionManager.instance.requirePermission('manage_products');
     await into(categories).insertOnConflictUpdate(
       CategoriesCompanion(
@@ -544,6 +593,8 @@ class AppDatabase extends _$AppDatabase {
         businessId: Value(businessId),
         name: Value(name),
         iconCodepoint: Value(iconCodepoint),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
       ),
     );
   }
@@ -560,12 +611,16 @@ class AppDatabase extends _$AppDatabase {
   // ---- PRODUCTS ----
 
   Stream<List<Product>> watchProducts() {
-    return select(products).watch();
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return Stream.value([]);
+    return (select(products)
+          ..where((p) =>
+              p.businessId.equals(businessId) & p.deletedAt.isNull()))
+        .watch();
   }
 
   Future<void> upsertProduct({
     required String id,
-    required String businessId,
     required String name,
     required int price,
     String? barcode,
@@ -575,6 +630,7 @@ class AppDatabase extends _$AppDatabase {
     required bool hasSpicyOption,
     String? imagePath,
   }) async {
+    final businessId = _requireActiveBusinessId();
     SessionManager.instance.requirePermission('manage_products');
     final data = ProductsCompanion(
       id: Value(id),
@@ -587,6 +643,8 @@ class AppDatabase extends _$AppDatabase {
       stock: Value(trackStock ? stock : null),
       hasSpicyOption: Value(hasSpicyOption),
       imagePath: Value(imagePath),
+      updatedAt: Value(DateTime.now()),
+      syncStatus: const Value('pending'),
     );
     await into(products).insertOnConflictUpdate(data);
   }
@@ -600,7 +658,6 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> createSale({
     required String transactionId,
-    required String businessId,
     required List<SaleLine> lines,
     required String paymentMethod,
     required String orderType,
@@ -608,6 +665,7 @@ class AppDatabase extends _$AppDatabase {
     String? cashierUserId,
     String? shiftId,
   }) async {
+    final businessId = _requireActiveBusinessId();
     // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
     // DB layer juga reject jika permission tidak ada.
     SessionManager.instance.requirePermission('create_transaction');
@@ -642,6 +700,7 @@ class AppDatabase extends _$AppDatabase {
           cashierUserId: Value(cashierUserId),
           shiftId: Value(shiftId),
           orderType: Value(orderType),
+          syncStatus: const Value('pending'),
         ),
       );
 
@@ -684,7 +743,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _insertTransactionItems(
     String transactionId,
-    String businessId,
+    String businessId, // already fetched from BusinessContext by createSale
     List<SaleLine> lines,
   ) async {
     for (final line in lines) {
@@ -701,6 +760,7 @@ class AppDatabase extends _$AppDatabase {
           priceAtSale: Value(line.priceAtSale),
           subtotal: Value(line.subtotal),
           notes: Value(line.notes),
+          syncStatus: const Value('pending'),
         ),
       );
     }
@@ -709,15 +769,24 @@ class AppDatabase extends _$AppDatabase {
   // ---- TRANSACTIONS / HISTORY ----
 
   Stream<List<Transaction>> watchTransactions() {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return Stream.value([]);
     return (select(transactions)
+          ..where((t) =>
+              t.businessId.equals(businessId) & t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
   }
 
   Future<List<TransactionItem>> getTransactionItems(
       String transactionId) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
     return (select(transactionItems)
-          ..where((t) => t.transactionId.equals(transactionId)))
+          ..where((t) =>
+              t.transactionId.equals(transactionId) &
+              t.businessId.equals(businessId) &
+              t.deletedAt.isNull()))
         .get();
   }
 
@@ -727,8 +796,14 @@ class AppDatabase extends _$AppDatabase {
       List<String> transactionIds) async {
     if (transactionIds.isEmpty) return {};
 
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return {};
+
     final items = await (select(transactionItems)
-          ..where((t) => t.transactionId.isIn(transactionIds)))
+          ..where((t) =>
+              t.transactionId.isIn(transactionIds) &
+              t.businessId.equals(businessId) &
+              t.deletedAt.isNull()))
         .get();
 
     final result = <String, List<TransactionItem>>{};
@@ -744,19 +819,24 @@ class AppDatabase extends _$AppDatabase {
   // ---- EXPENSES ----
 
   Stream<List<Expense>> watchExpensesByShift(String shiftId) {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return Stream.value([]);
     return (select(expenses)
-          ..where((e) => e.shiftId.equals(shiftId))
+          ..where((e) =>
+              e.shiftId.equals(shiftId) &
+              e.businessId.equals(businessId) &
+              e.deletedAt.isNull())
           ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
         .watch();
   }
 
   Future<void> addExpense({
     required String shiftId,
-    required String businessId,
     required String userId,
     required String description,
     required int amount,
   }) async {
+    final businessId = _requireActiveBusinessId();
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(_generateUniqueId()),
@@ -765,6 +845,7 @@ class AppDatabase extends _$AppDatabase {
         userId: Value(userId),
         description: Value(description),
         amount: Value(amount),
+        syncStatus: const Value('pending'),
       ),
     );
   }
@@ -773,29 +854,45 @@ class AppDatabase extends _$AppDatabase {
     await (delete(expenses)..where((e) => e.id.equals(id))).go();
   }
 
-  /// Shifts milik seorang user, terurut terbaru di atas
+  /// Shifts milik seorang user di active business, terurut terbaru di atas
   Future<List<Shift>> getShiftsByUser(String userId) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
     return (select(shifts)
-          ..where((s) => s.userId.equals(userId))
+          ..where((s) =>
+              s.userId.equals(userId) &
+              s.businessId.equals(businessId) &
+              s.deletedAt.isNull())
           ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
         .get();
   }
 
   Future<List<Expense>> getExpensesByShift(String shiftId) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
     return (select(expenses)
-          ..where((e) => e.shiftId.equals(shiftId))
+          ..where((e) =>
+              e.shiftId.equals(shiftId) &
+              e.businessId.equals(businessId) &
+              e.deletedAt.isNull())
           ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
         .get();
   }
 
-  /// Semua pengeluaran dengan info user — untuk halaman owner
+  /// Semua pengeluaran dengan info user — untuk halaman owner, di-scope ke active business
   Future<List<ExpenseEntry>> getAllExpensesForOwner({
     DateTime? startDate,
     DateTime? endDate,
   }) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
+
     final query = select(expenses).join([
       innerJoin(users, users.id.equalsExp(expenses.userId)),
     ]);
+
+    query.where(expenses.businessId.equals(businessId));
+    query.where(expenses.deletedAt.isNull());
 
     if (startDate != null) {
       query.where(expenses.createdAt.isBiggerOrEqualValue(startDate));
@@ -816,8 +913,12 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> _getTotalExpensesByDateRange(
       DateTime startDate, DateTime endDate) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return 0;
     final result = await (select(expenses)
           ..where((e) =>
+              e.businessId.equals(businessId) &
+              e.deletedAt.isNull() &
               e.createdAt.isBiggerOrEqualValue(startDate) &
               e.createdAt.isSmallerThanValue(endDate)))
         .get();
@@ -830,8 +931,12 @@ class AppDatabase extends _$AppDatabase {
     DateTime startDate,
     DateTime endDate,
   ) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
     return (select(transactions)
           ..where((t) =>
+              t.businessId.equals(businessId) &
+              t.deletedAt.isNull() &
               t.createdAt.isBiggerOrEqualValue(startDate) &
               t.createdAt.isSmallerThanValue(endDate))
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
@@ -891,6 +996,9 @@ class AppDatabase extends _$AppDatabase {
     DateTime endDate, {
     int limit = 5,
   }) async {
+    final businessId = _getActiveBusinessId();
+    if (businessId == null) return [];
+
     final startEpoch = startDate.millisecondsSinceEpoch ~/ 1000;
     final endEpoch = endDate.millisecondsSinceEpoch ~/ 1000;
 
@@ -903,6 +1011,9 @@ class AppDatabase extends _$AppDatabase {
       FROM transaction_items ti
       JOIN transactions t ON t.id = ti.transaction_id
       WHERE t.created_at BETWEEN ? AND ?
+        AND t.business_id = ?
+        AND t.deleted_at IS NULL
+        AND ti.deleted_at IS NULL
       GROUP BY ti.product_name
       ORDER BY total_qty DESC
       LIMIT ?
@@ -910,6 +1021,7 @@ class AppDatabase extends _$AppDatabase {
       variables: [
         Variable.withInt(startEpoch),
         Variable.withInt(endEpoch),
+        Variable.withString(businessId),
         Variable.withInt(limit)
       ],
       readsFrom: {transactionItems, transactions},

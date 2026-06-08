@@ -48,7 +48,7 @@ class AuthRepository {
 
     // 5. Create owner account
     final ownerCompanion = UsersCompanion.insert(
-      id: userId,
+      id: Value(userId),
       username: username,
       pinHash: pinHash,
       salt: salt,
@@ -124,9 +124,14 @@ class AuthRepository {
 
     // 4. Start a new shift — I4: bungkus dengan pesan error spesifik
     // agar user tahu PIN sudah benar tapi gagal di langkah shift.
+    //
+    // businessId: login terjadi sebelum BusinessContext.loadInitial, jadi
+    // kita query langsung dari userBusinessRoles.
+    final businessId = await _getFirstBusinessId(user.id);
+
     final String shiftId;
     try {
-      shiftId = await _startShift(user.id);
+      shiftId = await _startShift(user.id, businessId: businessId);
     } catch (e) {
       throw StateError(
           'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
@@ -163,8 +168,32 @@ class AuthRepository {
         .getSingleOrNull();
   }
 
-  /// Start a new shift for a user, atau gunakan shift aktif yang sudah ada.
-  Future<String> _startShift(String userId) async {
+  /// Ambil businessId pertama yang dimiliki user (untuk _startShift saat login,
+  /// sebelum BusinessContext.loadInitial dipanggil).
+  Future<String> _getFirstBusinessId(String userId) async {
+    final roles = await (_db.select(_db.userBusinessRoles)
+          ..where((r) =>
+              r.userId.equals(userId) & r.deletedAt.isNull())
+          ..limit(1))
+        .get();
+    if (roles.isNotEmpty) return roles.first.businessId;
+
+    // Fallback: kalau user belum punya role (misal owner baru),
+    // ambil business pertama dari tabel businesses.
+    final businesses = await (_db.select(_db.businesses)
+          ..where((b) => b.deletedAt.isNull())
+          ..limit(1))
+        .get();
+    if (businesses.isNotEmpty) return businesses.first.id;
+
+    // Edge case: tidak ada business sama sekali (fresh install sebelum onboarding).
+    // Return string kosong — shift akan gagal FK constraint, yang memang benar
+    // karena onboarding belum selesai.
+    return '';
+  }
+
+  /// Start a new shift for a user di active business, atau gunakan shift aktif yang sudah ada.
+  Future<String> _startShift(String userId, {required String businessId}) async {
     final existing = await (_db.select(_db.shifts)
           ..where((s) => s.userId.equals(userId))
           ..where((s) => s.endAt.isNull())
@@ -176,7 +205,8 @@ class AuthRepository {
     final shiftId = _generateShiftId();
     await _db.into(_db.shifts).insert(
           ShiftsCompanion.insert(
-            id: shiftId,
+            id: Value(shiftId),
+            businessId: businessId,
             userId: userId,
           ),
         );
