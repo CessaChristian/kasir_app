@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/business_context.dart';
 import '../../data/db.dart';
 import '../../features/auth/models/auth_session.dart';
 
@@ -31,6 +32,7 @@ class SessionManager {
     _currentSession = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
+    BusinessContext.instance.clear();
   }
 
   /// Restore session dari storage.
@@ -85,6 +87,15 @@ class SessionManager {
 
       // Sinkronkan storage agar konsisten dengan DB
       await prefs.setString(_sessionKey, json.encode(_currentSession!.toJson()));
+
+      // Multi-business: re-populate BusinessContext + role cache
+      try {
+        await BusinessContext.instance.loadInitial(userId: user.id);
+        await refreshRoleCache();
+      } catch (_) {
+        // Tidak clear session — biarkan session restore, hanya warn
+        // (BusinessContext null akan di-handle di UI layer)
+      }
     } catch (_) {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();
@@ -136,4 +147,92 @@ class SessionManager {
   String? get currentUserId => _currentSession?.userId;
   String? get currentShiftId => _currentSession?.shiftId;
   String? get currentUsername => _currentSession?.username;
+
+  // =====================================
+  // Context-aware permission (Phase 1 multi-business)
+  // =====================================
+
+  /// Hardcoded permission matrix per role (sesuai spec §5.3.2).
+  /// Future: pindahkan ke DB kalau butuh runtime override per-user.
+  static const _rolePermissions = <String, Set<String>>{
+    'owner': {
+      'view_dashboard', 'manage_products', 'manage_categories',
+      'view_all_expenses', 'edit_own_expense', 'edit_any_expense',
+      'delete_own_transaction', 'delete_any_transaction',
+      'view_shift_reports', 'view_all_shifts',
+      'manage_business', 'manage_cashiers', 'switch_business',
+      // Existing permissions (backward compat)
+      'open_close_shift', 'create_transaction', 'view_history', 'view_report',
+    },
+    'cashier': {
+      'view_dashboard',
+      'edit_own_expense',
+      'delete_own_transaction',
+      // Existing permissions (backward compat)
+      'open_close_shift', 'create_transaction', 'view_history',
+    },
+  };
+
+  /// In-memory cache role per business untuk current user.
+  /// Di-populate via [refreshRoleCache] setelah login + setelah switch business.
+  final Map<String, String> _roleCache = {};
+
+  /// Check permission di context BusinessContext.instance.activeBusinessId.
+  /// Return false kalau no active business atau user tidak punya role.
+  bool hasCurrentPermission(String permission) {
+    if (_currentSession == null) return false;
+
+    final businessId = BusinessContext.instance.activeBusinessId;
+    if (businessId == null) return false;
+
+    // Sync read role dari _roleCache (populated by refreshRoleCache setelah login)
+    final role = _roleCache[businessId];
+    if (role == null) return false; // belum di-cache, panggil refreshRoleCache dulu
+
+    return _rolePermissions[role]?.contains(permission) ?? false;
+  }
+
+  /// Throw kalau no permission. Pakai ini di UI handler.
+  void requireCurrentPermission(String permission) {
+    if (!hasCurrentPermission(permission)) {
+      throw StateError('Permission required (current business): $permission');
+    }
+  }
+
+  /// Refresh role cache untuk current user dari DB.
+  /// Wajib dipanggil setelah:
+  /// - Login sukses
+  /// - BusinessContext.switchTo (business baru)
+  /// - Add/remove user_business_role (jarang, biasanya saat onboarding)
+  Future<void> refreshRoleCache() async {
+    _roleCache.clear();
+    if (_currentSession == null) return;
+
+    final userId = _currentSession!.userId;
+    final roles = await (db.select(db.userBusinessRoles)
+          ..where((r) => r.userId.equals(userId))
+          ..where((r) => r.deletedAt.isNull()))
+        .get();
+
+    for (final role in roles) {
+      _roleCache[role.businessId] = role.role;
+    }
+  }
+
+  /// Helper untuk dual check pattern (edit/delete own data).
+  /// Return true kalau:
+  /// - User punya permission `*_any_*` (owner override), ATAU
+  /// - User punya permission `*_own_*` AND recordOwnerId == currentUserId
+  bool canPerformActionOnRecord({
+    required String anyPermission,
+    required String ownPermission,
+    required String? recordOwnerId,
+  }) {
+    if (hasCurrentPermission(anyPermission)) return true;
+    if (hasCurrentPermission(ownPermission) &&
+        recordOwnerId == _currentSession?.userId) {
+      return true;
+    }
+    return false;
+  }
 }

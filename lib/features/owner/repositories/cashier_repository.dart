@@ -57,7 +57,7 @@ class CashierRepository {
     return await _db.transaction<User>(() async {
       await _db.into(_db.users).insert(
             UsersCompanion.insert(
-              id: userId,
+              id: Value(userId),
               username: username,
               pinHash: pinHash,
               salt: salt,

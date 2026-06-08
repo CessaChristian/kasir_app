@@ -6,6 +6,8 @@ import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'features/auth/pages/owner_setup_page.dart';
 import 'features/auth/pages/login_page.dart';
+import 'features/onboarding/repositories/onboarding_repository.dart';
+import 'features/onboarding/pages/onboarding_page.dart';
 import 'shared/auth/session_manager.dart';
 
 void main() async {
@@ -76,11 +78,19 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
   }
 
   Future<AuthState> _checkAuthState() async {
+    final onboardingRepo = OnboardingRepository();
+    final hasUser = await onboardingRepo.hasAnyUser();
+
+    if (!hasUser) {
+      return AuthState(hasUser: false, hasOwner: false, isLoggedIn: false);
+    }
+
     final authRepo = AuthRepository(db);
     final hasOwner = await authRepo.hasOwner();
     final isLoggedIn = SessionManager.instance.isLoggedIn;
 
     return AuthState(
+      hasUser: true,
       hasOwner: hasOwner,
       isLoggedIn: isLoggedIn,
     );
@@ -125,7 +135,18 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 
         final state = snapshot.data!;
 
-        // No owner exists -> show owner setup
+        // No user at all (fresh install) -> show onboarding
+        if (!state.hasUser) {
+          return OnboardingPage(
+            onComplete: (_) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+          );
+        }
+
+        // No owner exists -> show owner setup (legacy path, kept for safety)
         if (!state.hasOwner) {
           return const OwnerSetupPage();
         }
@@ -144,10 +165,12 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 
 /// Simple model for auth state
 class AuthState {
+  final bool hasUser;
   final bool hasOwner;
   final bool isLoggedIn;
 
   AuthState({
+    required this.hasUser,
     required this.hasOwner,
     required this.isLoggedIn,
   });

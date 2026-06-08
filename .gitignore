@@ -44,5 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-/test
+# /test — allow test files (tests should be tracked)
 /testing
+!test/**/*.dart
