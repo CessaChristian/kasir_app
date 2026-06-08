@@ -135,6 +135,7 @@ class _LoginPageState extends State<LoginPage> {
 
       await SessionManager.instance.setSession(session);
       await BusinessContext.instance.loadInitial(userId: session.userId);
+      await SessionManager.instance.refreshRoleCache();
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(

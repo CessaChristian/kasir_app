@@ -56,6 +56,7 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
       if (session != null) {
         await SessionManager.instance.setSession(session);
         await BusinessContext.instance.loadInitial(userId: session.userId);
+        await SessionManager.instance.refreshRoleCache();
         if (!mounted) return;
 
         await Navigator.push(
