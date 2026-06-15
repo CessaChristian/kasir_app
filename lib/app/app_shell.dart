@@ -13,6 +13,7 @@ import '../data/db.dart';
 import '../data/app_database.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
+import '../shared/widgets/business_switcher.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -283,12 +284,7 @@ class AppShellState extends State<AppShell> {
       appBar: isDashboard
           ? null
           : AppBar(
-              title: Text(
-                availableItems.isNotEmpty
-                    ? availableItems[_selectedIndex]['label'] as String
-                    : 'Kasir App',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
+              title: const BusinessSwitcher(),
               centerTitle: true,
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
