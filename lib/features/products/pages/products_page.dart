@@ -3,7 +3,6 @@ import '../../../data/db.dart';
 import '../../../data/app_database.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/auth/session_manager.dart';
-import '../../../shared/widgets/watermark_background.dart';
 import '../widgets/product_search_bar.dart';
 import '../widgets/category_filter_bar.dart';
 import '../widgets/product_tile.dart';
@@ -109,7 +108,7 @@ class _ProductsPageState extends State<ProductsPage> {
         elevation: 2,
         child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
-      body: WatermarkBackground(child: Column(
+      body: Column(
         children: [
           // Search Bar
           ProductSearchBar(
@@ -204,7 +203,7 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
           ),
         ],
-      )),
+      ),
     );
   }
 

@@ -13,6 +13,9 @@ import '../data/db.dart';
 import '../data/app_database.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
+import '../shared/widgets/business_switcher.dart';
+import '../features/settings/pages/device_mode_page.dart';
+import '../features/reports/pages/shift_reports_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -283,12 +286,7 @@ class AppShellState extends State<AppShell> {
       appBar: isDashboard
           ? null
           : AppBar(
-              title: Text(
-                availableItems.isNotEmpty
-                    ? availableItems[_selectedIndex]['label'] as String
-                    : 'Kasir App',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
+              title: const BusinessSwitcher(),
               centerTitle: true,
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
@@ -502,6 +500,36 @@ class AppShellState extends State<AppShell> {
                           );
                         },
                       ),
+                      if (SessionManager.instance.hasCurrentPermission('manage_business'))
+                        _buildDrawerMenuItem(
+                          context,
+                          icon: Icons.devices_rounded,
+                          label: 'Mode Device',
+                          isSelected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const DeviceModePage()),
+                            );
+                          },
+                        ),
+                      if (SessionManager.instance.hasCurrentPermission('view_shift_reports'))
+                        _buildDrawerMenuItem(
+                          context,
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Laporan Shift',
+                          isSelected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ShiftReportsPage()),
+                            );
+                          },
+                        ),
                     ],
 
                     const SizedBox(height: 8),

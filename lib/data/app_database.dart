@@ -854,6 +854,73 @@ class AppDatabase extends _$AppDatabase {
     await (delete(expenses)..where((e) => e.id.equals(id))).go();
   }
 
+  /// Update expense. Hanya update amount + description.
+  /// Caller bertanggung jawab validasi permission sebelum call ini.
+  Future<void> updateExpense({
+    required String id,
+    required int amount,
+    required String description,
+  }) async {
+    final businessId = _requireActiveBusinessId();
+    await (update(expenses)..where((e) =>
+      e.id.equals(id) & e.businessId.equals(businessId)
+    )).write(ExpensesCompanion(
+      amount: Value(amount),
+      description: Value(description),
+      updatedByUserId: Value(SessionManager.instance.currentUserId),
+      updatedAt: Value(DateTime.now()),
+      syncStatus: const Value('pending'),
+    ));
+  }
+
+  /// Soft-delete transaksi + reverse stok (transactional).
+  /// Caller WAJIB validasi permission sebelum call.
+  Future<void> softDeleteTransaction(String transactionId) async {
+    final businessId = _requireActiveBusinessId();
+
+    await transaction(() async {
+      // 1. Soft delete transaction header
+      await (update(transactions)..where((t) =>
+        t.id.equals(transactionId) & t.businessId.equals(businessId)
+      )).write(TransactionsCompanion(
+        deletedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
+      ));
+
+      // 2. Soft delete transaction items
+      await (update(transactionItems)..where((ti) =>
+        ti.transactionId.equals(transactionId) & ti.businessId.equals(businessId)
+      )).write(TransactionItemsCompanion(
+        deletedAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
+      ));
+
+      // 3. Fetch items (WITHOUT deleted filter — we just set deletedAt above)
+      final items = await (select(transactionItems)..where((ti) =>
+        ti.transactionId.equals(transactionId)
+      )).get();
+
+      // 4. Reverse stock movements (kembalikan stok produk)
+      for (final item in items) {
+        final prod = await (select(products)
+          ..where((p) => p.id.equals(item.productId) & p.deletedAt.isNull())
+          ..limit(1)).getSingleOrNull();
+
+        if (prod != null && prod.trackStock && prod.stock != null) {
+          await (update(products)..where((p) => p.id.equals(item.productId))).write(
+            ProductsCompanion(
+              stock: Value(prod.stock! + item.qty),
+              updatedAt: Value(DateTime.now()),
+              syncStatus: const Value('pending'),
+            ),
+          );
+        }
+      }
+    });
+  }
+
   /// Shifts milik seorang user di active business, terurut terbaru di atas
   Future<List<Shift>> getShiftsByUser(String userId) async {
     final businessId = _getActiveBusinessId();

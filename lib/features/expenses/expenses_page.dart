@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../../shared/widgets/watermark_background.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
 import '../../shared/auth/session_manager.dart';
+import '../../shared/widgets/app_toast.dart';
 
 class ExpensesPage extends StatefulWidget {
   const ExpensesPage({super.key});
@@ -168,7 +168,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
           : null,
-      body: WatermarkBackground(child: ListView(
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           // ---- Shift Aktif ----
@@ -188,7 +188,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     if (expenses.isEmpty)
                       _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
                     for (final e in expenses)
-                      _buildExpenseCard(e, canDelete: true),
+                      _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.canPerformActionOnRecord(
+                        anyPermission: 'edit_any_expense',
+                        ownPermission: 'edit_own_expense',
+                        recordOwnerId: e.userId,
+                      )),
                     if (expenses.isNotEmpty)
                       _buildTotalCard(total, primaryColor),
                   ],
@@ -232,7 +236,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
             for (final shift in _pastShifts)
               _ShiftHistoryCard(shift: shift),
         ],
-      )),
+      ),
     );
   }
 
@@ -312,7 +316,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Widget _buildExpenseCard(Expense e, {required bool canDelete}) {
+  Widget _buildExpenseCard(Expense e, {required bool canDelete, bool canEdit = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -360,8 +364,17 @@ class _ExpensesPageState extends State<ExpensesPage> {
               color: Colors.red,
             ),
           ),
+          if (canEdit) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: () => _showEditExpenseDialog(e),
+              icon: Icon(Icons.edit_outlined,
+                  size: 18, color: Colors.blue.shade400),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
           if (canDelete) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             IconButton(
               onPressed: () => _deleteExpense(e.id),
               icon: Icon(Icons.delete_outline_rounded,
@@ -372,6 +385,79 @@ class _ExpensesPageState extends State<ExpensesPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showEditExpenseDialog(Expense expense) async {
+    final amountC = TextEditingController(text: expense.amount.toString());
+    final descC = TextEditingController(text: expense.description);
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Pengeluaran'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: descC,
+                decoration: const InputDecoration(
+                  labelText: 'Keterangan',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: amountC,
+                decoration: const InputDecoration(
+                  labelText: 'Jumlah (Rp)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Wajib diisi';
+                  if (int.tryParse(v) == null || int.parse(v) <= 0) {
+                    return 'Masukkan angka valid';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await db.updateExpense(
+        id: expense.id,
+        amount: int.parse(amountC.text),
+        description: descC.text.trim(),
+      );
+      if (mounted) AppToast.success(context, 'Pengeluaran berhasil diupdate');
+    } catch (e) {
+      if (mounted) AppToast.error(context, 'Gagal update: $e');
+    }
   }
 
   Widget _buildTotalCard(int total, Color primaryColor) {

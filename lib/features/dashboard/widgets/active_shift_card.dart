@@ -16,6 +16,8 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
   Shift? _shift;
   int _shiftRevenue = 0;
   int _shiftTxCount = 0;
+  int _cashCount = 0;
+  int _qrisCount = 0;
   bool _loading = true;
   Timer? _timer;
   StreamSubscription? _txSub;
@@ -55,11 +57,16 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
           ..where((t) => t.shiftId.equals(session.shiftId)))
         .get();
 
+    final cashTxs = transactions.where((t) => t.paymentMethod == 'cash').length;
+    final qrisTxs = transactions.where((t) => t.paymentMethod == 'qris').length;
+
     if (mounted) {
       setState(() {
         _shift = shifts.isNotEmpty ? shifts.first : null;
         _shiftRevenue = transactions.fold(0, (s, tx) => s + tx.total);
         _shiftTxCount = transactions.length;
+        _cashCount = cashTxs;
+        _qrisCount = qrisTxs;
         _loading = false;
       });
     }
@@ -207,6 +214,40 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
                 ),
               ],
             ),
+          ),
+
+          const SizedBox(height: 14),
+          Divider(height: 1, color: Colors.grey.shade100),
+          const SizedBox(height: 12),
+
+          // Cash vs QRIS row
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.payments_outlined, size: 14, color: Colors.green),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Cash: $_cashCount transaksi',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_rounded, size: 14, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    Text(
+                      'QRIS: $_qrisCount transaksi',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
