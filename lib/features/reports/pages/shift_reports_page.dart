@@ -16,8 +16,13 @@ class ShiftReportsPage extends StatefulWidget {
 class _ShiftReportsPageState extends State<ShiftReportsPage> {
   final _repo = ShiftReportRepository();
 
-  // Default period: 7 hari terakhir
-  DateTime _start = DateTime.now().subtract(const Duration(days: 6));
+  // Default period: 7 hari terakhir (normalized ke midnight, bukan jam saat ini)
+  static DateTime get _today {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  DateTime _start = _ShiftReportsPageState._today.subtract(const Duration(days: 6));
   DateTime _end = DateTime.now();
 
   List<ShiftSummary>? _summaries;

@@ -54,7 +54,8 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
         .get();
 
     final transactions = await (db.select(db.transactions)
-          ..where((t) => t.shiftId.equals(session.shiftId)))
+          ..where((t) => t.shiftId.equals(session.shiftId))
+          ..where((t) => t.deletedAt.isNull()))
         .get();
 
     final cashTxs = transactions.where((t) => t.paymentMethod == 'cash').length;
