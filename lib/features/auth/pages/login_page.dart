@@ -405,11 +405,11 @@ class _LoginPageState extends State<LoginPage> {
       onFieldSubmitted: (_) => _login(),
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(6),
+        LengthLimitingTextInputFormatter(4),
       ],
       style: const TextStyle(fontSize: 20, letterSpacing: 8),
       decoration: InputDecoration(
-        hintText: '• • • • • •',
+        hintText: '• • • •',
         hintStyle: TextStyle(
           color: Colors.grey.shade300,
           fontSize: 16,

@@ -11,11 +11,14 @@ import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
 import '../data/app_database.dart';
+import '../data/business_context.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
 import '../features/settings/pages/device_mode_page.dart';
 import '../features/reports/pages/shift_reports_page.dart';
+import '../features/onboarding/widgets/business_setup_step.dart';
+import '../features/onboarding/repositories/onboarding_repository.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -28,6 +31,27 @@ class AppShell extends StatefulWidget {
 
 class AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
+
+  // Cache stream agar tidak dibuat ulang setiap build() dipanggil.
+  // Diperbarui saat BusinessContext ganti business aktif.
+  Stream<List<Product>> _productStream = const Stream.empty();
+
+  @override
+  void initState() {
+    super.initState();
+    _productStream = db.watchProducts();
+    BusinessContext.instance.addListener(_onBusinessChanged);
+  }
+
+  void _onBusinessChanged() {
+    setState(() => _productStream = db.watchProducts());
+  }
+
+  @override
+  void dispose() {
+    BusinessContext.instance.removeListener(_onBusinessChanged);
+    super.dispose();
+  }
 
   void navigateToPage(int index) {
     setState(() => _selectedIndex = index);
@@ -185,6 +209,49 @@ class AppShellState extends State<AppShell> {
       if (!mounted) return;
       AppToast.error(context, 'Gagal keluar: $e');
     }
+  }
+
+  Future<void> _showAddBusinessSheet(BuildContext ctx) async {
+    await showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: BusinessSetupStep(
+          onBack: () => Navigator.pop(ctx),
+          onSubmit: ({required name, required type, address, phone}) async {
+            Navigator.pop(ctx);
+            try {
+              final userId = SessionManager.instance.currentUserId!;
+              final repo = OnboardingRepository();
+              final bizId = await repo.addBusinessToOwner(
+                userId: userId,
+                businessName: name,
+                businessType: type,
+                businessAddress: address,
+                businessPhone: phone,
+              );
+              // Switch ke business baru
+              await BusinessContext.instance.switchTo(bizId, userId: userId);
+              await SessionManager.instance.refreshRoleCache();
+              if (mounted) {
+                AppToast.success(context, 'Business "$name" berhasil dibuat');
+              }
+            } catch (e) {
+              if (mounted) {
+                AppToast.error(context, 'Gagal membuat business: $e');
+              }
+            }
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildDrawerMenuItem(
@@ -349,28 +416,32 @@ class AppShellState extends State<AppShell> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppConstants.storeName,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.primary,
-                                  letterSpacing: 0.3,
+                          ListenableBuilder(
+                            listenable: BusinessContext.instance,
+                            builder: (_, _) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  BusinessContext.instance.activeBusiness?.name ??
+                                      AppConstants.storeName,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                    letterSpacing: 0.3,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                'POS Sistem',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey.shade500,
-                                  letterSpacing: 2.0,
-                                  fontWeight: FontWeight.w500,
+                                Text(
+                                  'POS Sistem',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade500,
+                                    letterSpacing: 2.0,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -500,7 +571,17 @@ class AppShellState extends State<AppShell> {
                           );
                         },
                       ),
-                      if (SessionManager.instance.hasCurrentPermission('manage_business'))
+                      if (SessionManager.instance.hasCurrentPermission('manage_business')) ...[
+                        _buildDrawerMenuItem(
+                          context,
+                          icon: Icons.add_business_rounded,
+                          label: 'Tambah Business',
+                          isSelected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showAddBusinessSheet(context);
+                          },
+                        ),
                         _buildDrawerMenuItem(
                           context,
                           icon: Icons.devices_rounded,
@@ -515,6 +596,7 @@ class AppShellState extends State<AppShell> {
                             );
                           },
                         ),
+                      ],
                       if (SessionManager.instance.hasCurrentPermission('view_shift_reports'))
                         _buildDrawerMenuItem(
                           context,
@@ -537,7 +619,7 @@ class AppShellState extends State<AppShell> {
                     // Low stock warning
                     if (SessionManager.instance.hasPermission('manage_products'))
                       StreamBuilder<List<Product>>(
-                        stream: db.watchProducts(),
+                        stream: _productStream,
                         builder: (context, snapshot) {
                           if (snapshot.hasError) return const SizedBox.shrink();
                           final products = snapshot.data ?? [];

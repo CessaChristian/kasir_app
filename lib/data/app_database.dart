@@ -572,7 +572,7 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Category>> watchCategories() {
     final businessId = _getActiveBusinessId();
-    if (businessId == null) return Stream.value([]);
+    if (businessId == null) return const Stream.empty();
     return (select(categories)
           ..where((t) =>
               t.businessId.equals(businessId) & t.deletedAt.isNull())
@@ -612,7 +612,7 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Product>> watchProducts() {
     final businessId = _getActiveBusinessId();
-    if (businessId == null) return Stream.value([]);
+    if (businessId == null) return const Stream.empty();
     return (select(products)
           ..where((p) =>
               p.businessId.equals(businessId) & p.deletedAt.isNull()))
@@ -770,7 +770,7 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Transaction>> watchTransactions() {
     final businessId = _getActiveBusinessId();
-    if (businessId == null) return Stream.value([]);
+    if (businessId == null) return const Stream.empty();
     return (select(transactions)
           ..where((t) =>
               t.businessId.equals(businessId) & t.deletedAt.isNull())
@@ -820,7 +820,7 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Expense>> watchExpensesByShift(String shiftId) {
     final businessId = _getActiveBusinessId();
-    if (businessId == null) return Stream.value([]);
+    if (businessId == null) return const Stream.empty();
     return (select(expenses)
           ..where((e) =>
               e.shiftId.equals(shiftId) &

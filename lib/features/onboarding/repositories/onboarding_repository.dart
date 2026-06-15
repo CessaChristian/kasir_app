@@ -60,6 +60,38 @@ class OnboardingRepository {
     });
   }
 
+  /// Tambah business baru untuk owner yang sudah ada.
+  /// Assigns userId sebagai owner dari business baru.
+  Future<String> addBusinessToOwner({
+    required String userId,
+    required String businessName,
+    required String businessType,
+    String? businessAddress,
+    String? businessPhone,
+  }) async {
+    return await db.transaction(() async {
+      final business = await db.into(db.businesses).insertReturning(
+            BusinessesCompanion.insert(
+              id: Value(newUuid()),
+              name: businessName,
+              type: businessType,
+              address: Value(businessAddress),
+              phone: Value(businessPhone),
+            ),
+          );
+
+      await db.into(db.userBusinessRoles).insert(
+            UserBusinessRolesCompanion.insert(
+              userId: userId,
+              businessId: business.id,
+              role: 'owner',
+            ),
+          );
+
+      return business.id;
+    });
+  }
+
   /// Check apakah ada business sama sekali di DB.
   /// Dipakai untuk detect "first launch" state.
   Future<bool> hasAnyBusiness() async {
