@@ -7,11 +7,8 @@ import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
-import '../widgets/today_revenue_summary.dart';
 import '../widgets/active_shift_card.dart';
 import '../widgets/low_stock_banner.dart';
-import '../widgets/payment_breakdown_card.dart';
-import '../widgets/top_products_card.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -516,23 +513,6 @@ class DashboardPage extends StatelessWidget {
 
                       // Shift aktif
                       const ActiveShiftCard(),
-                      const SizedBox(height: 12),
-
-                      // Revenue summary
-                      const TodayRevenueSummary(),
-                      const SizedBox(height: 12),
-
-                      // Pembayaran & Terlaris — side by side
-                      IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: const [
-                            Expanded(child: PaymentBreakdownCard()),
-                            SizedBox(width: 12),
-                            Expanded(child: TopProductsCard()),
-                          ],
-                        ),
-                      ),
                       const SizedBox(height: 20),
 
                       // Quick access
