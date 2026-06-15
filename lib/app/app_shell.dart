@@ -14,6 +14,7 @@ import '../data/app_database.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
+import '../features/settings/pages/device_mode_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -498,6 +499,21 @@ class AppShellState extends State<AppShell> {
                           );
                         },
                       ),
+                      if (SessionManager.instance.hasCurrentPermission('manage_business'))
+                        _buildDrawerMenuItem(
+                          context,
+                          icon: Icons.devices_rounded,
+                          label: 'Mode Device',
+                          isSelected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const DeviceModePage()),
+                            );
+                          },
+                        ),
                     ],
 
                     const SizedBox(height: 8),
