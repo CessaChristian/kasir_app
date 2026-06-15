@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../../shared/widgets/watermark_background.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
@@ -168,7 +167,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
           : null,
-      body: WatermarkBackground(child: ListView(
+      body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           // ---- Shift Aktif ----
@@ -232,7 +231,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
             for (final shift in _pastShifts)
               _ShiftHistoryCard(shift: shift),
         ],
-      )),
+      ),
     );
   }
 

@@ -505,24 +505,7 @@ class DashboardPage extends StatelessWidget {
           Expanded(
             child: Stack(
               children: [
-                // Layer 2: neon box watermark — fixed, di belakang konten
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: 0.50,
-                    child: Center(
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/Neon Box 40x40cm (1).png',
-                          width: 320,
-                          height: 320,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Layer 3: konten scroll di atas watermark
+                // Layer 1: konten scroll
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                   child: Column(

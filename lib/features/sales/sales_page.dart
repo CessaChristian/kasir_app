@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../../shared/widgets/watermark_background.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
@@ -389,7 +388,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5F0),
-      body: WatermarkBackground(child: Column(
+      body: Column(
         children: [
           // Search Bar
           Padding(
@@ -569,7 +568,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
             ),
           ),
         ],
-      )),
+      ),
       bottomNavigationBar: _buildCartBar(),
     );
   }

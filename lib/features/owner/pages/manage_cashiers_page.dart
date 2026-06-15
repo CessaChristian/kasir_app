@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/db.dart';
-import '../../../shared/widgets/watermark_background.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/app_database.dart';
 import '../../auth/repositories/auth_repository.dart';
@@ -650,7 +649,7 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
         icon: const Icon(Icons.person_add_rounded, size: 20),
         label: const Text('Tambah Kasir', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
-      body: WatermarkBackground(child: _isLoading
+      body: _isLoading
           ? Center(child: CircularProgressIndicator(color: colorScheme.primary, strokeWidth: 2))
           : _cashiers.isEmpty
               ? _buildEmptyState(colorScheme)
@@ -661,7 +660,6 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
                     return _buildCashierCard(_cashiers[index], colorScheme);
                   },
                 ),
-      ),
     );
   }
 

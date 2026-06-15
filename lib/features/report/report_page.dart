@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
-import '../../shared/widgets/watermark_background.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
@@ -400,7 +399,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    return WatermarkBackground(child: Column(
+    return Column(
       children: [
         // Collapsible filter: period toggle + date picker
         AnimatedSize(
@@ -659,7 +658,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
                 ),
         ),
       ],
-    ));
+    );
   }
 
   Widget _buildErrorState() {

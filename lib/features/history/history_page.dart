@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/error_state_widget.dart';
-import '../../../shared/widgets/watermark_background.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
@@ -28,7 +27,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5F0),
-      body: WatermarkBackground(child: StreamBuilder<List<Transaction>>(
+      body: StreamBuilder<List<Transaction>>(
         stream: db.watchTransactions(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -110,7 +109,7 @@ class _HistoryPageState extends State<HistoryPage> {
             ],
           );
         },
-      )),
+      ),
     );
   }
 
