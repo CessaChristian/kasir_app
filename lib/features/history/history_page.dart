@@ -5,6 +5,8 @@ import '../../data/db.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
+import '../../shared/auth/session_manager.dart';
+import '../../shared/widgets/app_toast.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -492,6 +494,49 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
   
+  Future<void> _confirmDeleteTransaction(Transaction tx) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Transaksi?'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tindakan ini akan:'),
+            SizedBox(height: 8),
+            Text('• Mengembalikan produk ke stok'),
+            Text('• Mengurangi total penjualan'),
+            Text('• Mengubah laporan shift'),
+            SizedBox(height: 8),
+            Text('Tidak dapat di-undo.',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus Transaksi'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await db.softDeleteTransaction(tx.id);
+      if (mounted) AppToast.success(context, 'Transaksi berhasil dihapus');
+    } catch (e) {
+      if (mounted) AppToast.error(context, 'Gagal hapus: $e');
+    }
+  }
+
   Widget _buildDaySection({
     required DateTime date,
     required String dateKey,
@@ -602,7 +647,17 @@ class _HistoryPageState extends State<HistoryPage> {
           crossFadeState: isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
           firstChild: Column(
             children: [
-              ...transactions.map((tx) => _TransactionCard(transaction: tx)),
+              ...transactions.map((tx) {
+                final canDelete = SessionManager.instance.canPerformActionOnRecord(
+                  anyPermission: 'delete_any_transaction',
+                  ownPermission: 'delete_own_transaction',
+                  recordOwnerId: tx.cashierUserId,
+                );
+                return _TransactionCard(
+                  transaction: tx,
+                  onDelete: canDelete ? () => _confirmDeleteTransaction(tx) : null,
+                );
+              }),
               const SizedBox(height: 8),
             ],
           ),
@@ -632,8 +687,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
 class _TransactionCard extends StatelessWidget {
   final Transaction transaction;
+  final VoidCallback? onDelete;
 
-  const _TransactionCard({required this.transaction});
+  const _TransactionCard({required this.transaction, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -733,9 +789,21 @@ class _TransactionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: Colors.grey.shade400,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onDelete != null)
+                      IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            size: 18, color: Colors.red.shade400),
+                        onPressed: onDelete,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.grey.shade400,
+                    ),
+                  ],
                 ),
               ],
             ),
