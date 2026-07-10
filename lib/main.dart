@@ -139,8 +139,11 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         if (!state.hasUser) {
           return OnboardingPage(
             onComplete: (_) {
-              Navigator.of(context).pushReplacement(
+              // pushAndRemoveUntil — bersihkan OnboardingPage + SaveRecoveryCodePage
+              // dari stack supaya back button tidak balik ke onboarding.
+              Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
               );
             },
           );

@@ -12,8 +12,9 @@ class OnboardingRepository {
   /// Setup owner account + business pertama dalam 1 transaksi.
   ///
   /// Throw kalau username sudah ada, atau ada DB error.
-  /// Return: id business yang baru dibuat.
-  Future<String> setupFirstOwnerAndBusiness({
+  /// Return: userId + businessId yang baru dibuat (userId dibutuhkan caller
+  /// untuk generate recovery code).
+  Future<({String userId, String businessId})> setupFirstOwnerAndBusiness({
     required String username,
     required String pinHash,
     required String salt,
@@ -56,7 +57,7 @@ class OnboardingRepository {
             ),
           );
 
-      return business.id;
+      return (userId: user.id, businessId: business.id);
     });
   }
 

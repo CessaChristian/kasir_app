@@ -41,7 +41,7 @@ class BusinessSwitcher extends StatelessWidget {
 
         // Multi-business + owner → tappable
         return InkWell(
-          onTap: () => _showSwitcherSheet(context),
+          onTap: () => showSwitcherSheet(context),
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -65,7 +65,9 @@ class BusinessSwitcher extends StatelessWidget {
     );
   }
 
-  void _showSwitcherSheet(BuildContext context) {
+  /// Buka bottom sheet pilih business. Static supaya bisa dipanggil dari
+  /// page lain (misal dashboard header) tanpa harus render widget switcher.
+  static void showSwitcherSheet(BuildContext context) {
     final ctx = BusinessContext.instance;
     final session = SessionManager.instance;
 
