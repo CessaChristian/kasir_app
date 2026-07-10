@@ -3,6 +3,9 @@ import '../repositories/onboarding_repository.dart';
 import '../widgets/owner_setup_step.dart';
 import '../widgets/business_setup_step.dart';
 import '../../../utils/crypto_utils.dart';
+import '../../../data/db.dart';
+import '../../auth/repositories/auth_repository.dart';
+import '../../auth/recovery/pages/save_recovery_code_page.dart';
 
 class OnboardingPage extends StatefulWidget {
   /// Callback dipanggil setelah onboarding sukses dengan businessId baru.
@@ -58,7 +61,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       final salt = CryptoUtils.generateSalt();
       final pinHash = CryptoUtils.hashPin(_pin!, salt);
 
-      final businessId = await _repo.setupFirstOwnerAndBusiness(
+      final result = await _repo.setupFirstOwnerAndBusiness(
         username: _username!,
         pinHash: pinHash,
         salt: salt,
@@ -68,8 +71,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
         businessPhone: phone,
       );
 
+      // Recovery code WAJIB ditampilkan sekali di sini — tanpa ini,
+      // owner yang lupa PIN tidak akan pernah bisa akses datanya lagi.
+      final authRepo = AuthRepository(db);
+      final recoveryCode =
+          await authRepo.generateAndStoreRecoveryCodeForOwner(result.userId);
+
       if (!mounted) return;
-      widget.onComplete(businessId);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SaveRecoveryCodePage(
+            recoveryCode: recoveryCode,
+            // ctx milik SaveRecoveryCodePage — selalu valid saat dipanggil
+            onComplete: (_) => widget.onComplete(result.businessId),
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

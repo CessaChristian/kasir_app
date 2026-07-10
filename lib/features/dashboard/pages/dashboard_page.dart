@@ -5,8 +5,10 @@ import '../../../shared/auth/session_manager.dart';
 import '../../../shared/constants/app_constants.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
+import '../../../data/business_context.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
+import '../../../shared/widgets/business_switcher.dart';
 import '../widgets/active_shift_card.dart';
 import '../widgets/low_stock_banner.dart';
 
@@ -353,32 +355,67 @@ class DashboardPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppConstants.storeName,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.primary,
-                                  letterSpacing: 0.2,
+                          child: ListenableBuilder(
+                            listenable: BusinessContext.instance,
+                            builder: (context, _) {
+                              final bizCtx = BusinessContext.instance;
+                              final bizName = bizCtx.activeBusiness?.name ??
+                                  AppConstants.storeName;
+                              final canSwitch = SessionManager.instance
+                                      .hasCurrentPermission(
+                                          'switch_business') &&
+                                  bizCtx.hasMultipleBusinesses;
+
+                              return InkWell(
+                                onTap: canSwitch
+                                    ? () =>
+                                        BusinessSwitcher.showSwitcherSheet(
+                                            context)
+                                    : null,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            bizName,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.primary,
+                                              letterSpacing: 0.2,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (canSwitch)
+                                          Icon(
+                                            Icons.arrow_drop_down_rounded,
+                                            size: 20,
+                                            color: colorScheme.primary,
+                                          ),
+                                      ],
+                                    ),
+                                    Text(
+                                      'POS Sistem',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.grey.shade400,
+                                        letterSpacing: 1.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'POS Sistem',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey.shade400,
-                                  letterSpacing: 1.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                              );
+                            },
                           ),
                         ),
 
