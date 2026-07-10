@@ -12,6 +12,7 @@ import 'widgets/employee_card.dart';
 import 'monthly/monthly_report_tab.dart';
 import 'services/report_export_service.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
+import '../reports/pages/shift_reports_page.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
@@ -46,10 +47,16 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
   bool get _isOwner =>
       SessionManager.instance.hasPermission('manage_cashiers');
 
+  // Tab "Shift" hanya untuk user dengan permission view_shift_reports
+  // (menggantikan menu "Laporan Shift" terpisah yang membingungkan).
+  bool get _canViewShiftReports =>
+      SessionManager.instance.hasCurrentPermission('view_shift_reports');
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController =
+        TabController(length: _canViewShiftReports ? 3 : 2, vsync: this);
     _loadReport();
   }
 
@@ -607,9 +614,10 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
                     labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                     unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                     padding: const EdgeInsets.all(4),
-                    tabs: const [
-                      Tab(text: 'Keseluruhan'),
-                      Tab(text: 'Per Karyawan'),
+                    tabs: [
+                      const Tab(text: 'Keseluruhan'),
+                      const Tab(text: 'Per Karyawan'),
+                      if (_canViewShiftReports) const Tab(text: 'Shift'),
                     ],
                   ),
                 ),
@@ -654,6 +662,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
                   children: [
                     _isMonthly ? _buildMonthlyOverall() : _buildDailyOverall(),
                     _buildEmployeeReport(),
+                    if (_canViewShiftReports) const ShiftReportsView(),
                   ],
                 ),
         ),

@@ -3,6 +3,7 @@ import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/app_toast.dart';
 import 'models/cart_item.dart';
 import 'sheets/cash_payment_sheet.dart';
+import 'widgets/payment_success_dialog.dart';
 
 enum PaymentMethod { cash, qris }
 
@@ -157,16 +158,19 @@ class _CartPageState extends State<CartPage> {
 
       if (!mounted) return;
 
-      String message = 'Transaksi berhasil!';
-      if (isCash && cashReceived != null) {
-        final change = cashReceived - checkoutTotal;
-        if (change > 0) {
-          message = 'Transaksi berhasil! Kembalian: Rp ${formatRupiah(change)}';
-        }
-      }
+      // Layar sukses dengan kembalian BESAR — kasir harus tap "Selesai"
+      // setelah menyerahkan kembalian (tidak bisa dismiss tap di luar).
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PaymentSuccessDialog(
+          total: checkoutTotal,
+          cashReceived: isCash ? cashReceived : null,
+          orderType: _orderType.value,
+        ),
+      );
 
-      AppToast.success(context, message);
-
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;

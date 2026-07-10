@@ -74,6 +74,22 @@ class BusinessContext extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-fetch data business aktif dari DB (dipanggil setelah edit profil
+  /// business, misal ganti nama). Refresh juga daftar available businesses.
+  Future<void> refreshActiveBusiness({required String userId}) async {
+    final activeId = _activeBusiness?.id;
+    _availableBusinesses = await _loadBusinessesForUser(userId);
+    if (activeId != null) {
+      _activeBusiness = _availableBusinesses.firstWhere(
+        (b) => b.id == activeId,
+        orElse: () => _availableBusinesses.isNotEmpty
+            ? _availableBusinesses.first
+            : _activeBusiness!,
+      );
+    }
+    notifyListeners();
+  }
+
   /// Clear saat logout
   void clear() {
     _activeBusiness = null;
