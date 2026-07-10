@@ -16,7 +16,7 @@ import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
 import '../features/settings/pages/device_mode_page.dart';
-import '../features/reports/pages/shift_reports_page.dart';
+import '../features/settings/pages/business_settings_page.dart';
 import '../features/onboarding/widgets/business_setup_step.dart';
 import '../features/onboarding/repositories/onboarding_repository.dart';
 
@@ -574,6 +574,21 @@ class AppShellState extends State<AppShell> {
                       if (SessionManager.instance.hasCurrentPermission('manage_business')) ...[
                         _buildDrawerMenuItem(
                           context,
+                          icon: Icons.storefront_rounded,
+                          label: 'Pengaturan Business',
+                          isSelected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const BusinessSettingsPage()),
+                            );
+                          },
+                        ),
+                        _buildDrawerMenuItem(
+                          context,
                           icon: Icons.add_business_rounded,
                           label: 'Tambah Business',
                           isSelected: false,
@@ -597,21 +612,8 @@ class AppShellState extends State<AppShell> {
                           },
                         ),
                       ],
-                      if (SessionManager.instance.hasCurrentPermission('view_shift_reports'))
-                        _buildDrawerMenuItem(
-                          context,
-                          icon: Icons.bar_chart_rounded,
-                          label: 'Laporan Shift',
-                          isSelected: false,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const ShiftReportsPage()),
-                            );
-                          },
-                        ),
+                      // "Laporan Shift" dipindah jadi tab "Shift" di halaman
+                      // Laporan — menghilangkan kebingungan dua menu laporan.
                     ],
 
                     const SizedBox(height: 8),

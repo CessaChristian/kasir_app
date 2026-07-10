@@ -23,11 +23,28 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePin = true;
   List<String> _availableUsernames = [];
+  String _brandName = 'POS Sistem'; // diganti nama business dari DB
 
   @override
   void initState() {
     super.initState();
     _loadUsernames();
+    _loadBrandName();
+  }
+
+  /// Nama di login page diambil dari business pertama di DB — bukan
+  /// hard-coded, supaya konsisten saat owner ganti nama / multi-business.
+  Future<void> _loadBrandName() async {
+    try {
+      final businesses = await (db.select(db.businesses)
+            ..where((b) => b.deletedAt.isNull())
+            ..limit(1))
+          .get();
+      if (!mounted || businesses.isEmpty) return;
+      setState(() => _brandName = businesses.first.name);
+    } catch (_) {
+      // Silent fail — fallback tetap 'POS Sistem'
+    }
   }
 
   @override
@@ -206,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Teras Inn',
+                      _brandName,
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,

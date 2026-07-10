@@ -873,6 +873,24 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
+  /// Update profil business aktif (nama, alamat, telepon).
+  /// Caller WAJIB validasi permission manage_business sebelum call.
+  Future<void> updateActiveBusiness({
+    required String name,
+    String? address,
+    String? phone,
+  }) async {
+    final businessId = _requireActiveBusinessId();
+    await (update(businesses)..where((b) => b.id.equals(businessId)))
+        .write(BusinessesCompanion(
+      name: Value(name),
+      address: Value(address),
+      phone: Value(phone),
+      updatedAt: Value(DateTime.now()),
+      syncStatus: const Value('pending'),
+    ));
+  }
+
   /// Soft-delete transaksi + reverse stok (transactional).
   /// Caller WAJIB validasi permission sebelum call.
   Future<void> softDeleteTransaction(String transactionId) async {
