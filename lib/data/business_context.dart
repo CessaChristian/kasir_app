@@ -18,6 +18,10 @@ class BusinessContext extends ChangeNotifier {
   static final BusinessContext instance = BusinessContext._();
   BusinessContext._();
 
+  /// Override DB untuk unit test. JANGAN dipakai di production code.
+  static AppDatabase? dbOverride;
+  AppDatabase get _dbx => dbOverride ?? db;
+
   static const String _activeBusinessKey = 'active_business_id';
 
   BusinessesData? _activeBusiness;
@@ -42,7 +46,7 @@ class BusinessContext extends ChangeNotifier {
       );
     }
 
-    final business = await (db.select(db.businesses)
+    final business = await (_dbx.select(_dbx.businesses)
           ..where((b) => b.id.equals(businessId) & b.deletedAt.isNull()))
         .getSingleOrNull();
 
@@ -51,7 +55,27 @@ class BusinessContext extends ChangeNotifier {
     }
 
     _activeBusiness = business;
+    // Reload daftar juga — tanpa ini business yang dibuat setelah login
+    // tidak muncul di daftar sampai app restart (bug switcher basi).
+    _availableBusinesses = await _loadBusinessesForUser(userId);
     await _persistChoice(businessId);
+    notifyListeners();
+  }
+
+  /// Dipanggil main() SEBELUM ada session: siapkan branding (warna/logo/nama)
+  /// untuk halaman login dari business aktif terakhir yang dipersist.
+  /// No-op kalau active business sudah terisi (mis. oleh restoreSession).
+  Future<void> loadPersistedForBranding() async {
+    if (_activeBusiness != null) return;
+    final lastUsedId = await _loadPersistedChoice();
+    final all = await (_dbx.select(_dbx.businesses)
+          ..where((b) => b.deletedAt.isNull() & b.isActive.equals(true)))
+        .get();
+    if (all.isEmpty) return;
+    _activeBusiness = all.firstWhere(
+      (b) => b.id == lastUsedId,
+      orElse: () => all.first,
+    );
     notifyListeners();
   }
 
@@ -100,23 +124,23 @@ class BusinessContext extends ChangeNotifier {
   // ============ Private helpers ============
 
   Future<List<BusinessesData>> _loadBusinessesForUser(String userId) async {
-    final query = db.select(db.businesses).join([
+    final query = _dbx.select(_dbx.businesses).join([
       innerJoin(
-        db.userBusinessRoles,
-        db.userBusinessRoles.businessId.equalsExp(db.businesses.id) &
-            db.userBusinessRoles.userId.equals(userId) &
-            db.userBusinessRoles.deletedAt.isNull(),
+        _dbx.userBusinessRoles,
+        _dbx.userBusinessRoles.businessId.equalsExp(_dbx.businesses.id) &
+            _dbx.userBusinessRoles.userId.equals(userId) &
+            _dbx.userBusinessRoles.deletedAt.isNull(),
       ),
     ])
-      ..where(db.businesses.deletedAt.isNull() & db.businesses.isActive.equals(true));
+      ..where(_dbx.businesses.deletedAt.isNull() & _dbx.businesses.isActive.equals(true));
 
     final rows = await query.get();
-    return rows.map((row) => row.readTable(db.businesses)).toList();
+    return rows.map((row) => row.readTable(_dbx.businesses)).toList();
   }
 
   Future<bool> _userHasAccessToBusiness(
       String userId, String businessId) async {
-    final result = await (db.select(db.userBusinessRoles)
+    final result = await (_dbx.select(_dbx.userBusinessRoles)
           ..where((r) =>
               r.userId.equals(userId) &
               r.businessId.equals(businessId) &
