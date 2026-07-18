@@ -18,8 +18,6 @@ import '../shared/widgets/business_switcher.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
 import '../features/settings/pages/business_settings_page.dart';
-import '../features/onboarding/widgets/business_setup_step.dart';
-import '../features/onboarding/repositories/onboarding_repository.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -210,49 +208,6 @@ class AppShellState extends State<AppShell> {
       if (!mounted) return;
       AppToast.error(context, 'Gagal keluar: $e');
     }
-  }
-
-  Future<void> _showAddBusinessSheet(BuildContext ctx) async {
-    await showModalBottomSheet(
-      context: ctx,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: BusinessSetupStep(
-          onBack: () => Navigator.pop(ctx),
-          onSubmit: ({required name, required type, address, phone}) async {
-            Navigator.pop(ctx);
-            try {
-              final userId = SessionManager.instance.currentUserId!;
-              final repo = OnboardingRepository();
-              final bizId = await repo.addBusinessToOwner(
-                userId: userId,
-                businessName: name,
-                businessType: type,
-                businessAddress: address,
-                businessPhone: phone,
-              );
-              // Switch ke business baru
-              await BusinessContext.instance.switchTo(bizId, userId: userId);
-              await SessionManager.instance.refreshRoleCache();
-              if (mounted) {
-                AppToast.success(context, 'Business "$name" berhasil dibuat');
-              }
-            } catch (e) {
-              if (mounted) {
-                AppToast.error(context, 'Gagal membuat business: $e');
-              }
-            }
-          },
-        ),
-      ),
-    );
   }
 
   Widget _buildDrawerMenuItem(
@@ -580,16 +535,6 @@ class AppShellState extends State<AppShell> {
                                   builder: (_) =>
                                       const BusinessSettingsPage()),
                             );
-                          },
-                        ),
-                        _buildDrawerMenuItem(
-                          context,
-                          icon: Icons.add_business_rounded,
-                          label: 'Tambah Business',
-                          isSelected: false,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showAddBusinessSheet(context);
                           },
                         ),
                         _buildDrawerMenuItem(
