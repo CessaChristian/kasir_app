@@ -42,6 +42,10 @@ class _ProductsPageState extends State<ProductsPage> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
+      // Cegah form tertutup tanpa sengaja (tap luar / drag) — input user
+      // bisa hilang. Menutup hanya lewat back + dialog konfirmasi.
+      isDismissible: false,
+      enableDrag: false,
       constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
       builder: (_) => ProductFormSheet(editing: editing),
     );

@@ -86,12 +86,24 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   int? _int(String s) => int.tryParse(s.trim());
 
+  // Ada input yang akan hilang kalau sheet ditutup?
+  bool get _isDirty =>
+      _nameC.text.trim().isNotEmpty ||
+      _priceC.text.trim().isNotEmpty ||
+      _barcodeC.text.trim().isNotEmpty ||
+      _stockC.text.trim().isNotEmpty ||
+      _selectedCategory != null;
+
+  // True saat pop berasal dari submit sukses — lewati dialog konfirmasi.
+  bool _saving = false;
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
     final price = parseRupiah(_priceC.text);
     if (price == null || price <= 0) return;
 
+    _saving = true;
     Navigator.pop(
       context,
       FormResult(
@@ -189,7 +201,34 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final isEditing = widget.editing != null;
 
-    return Container(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (_saving || !_isDirty) {
+          Navigator.of(context).pop();
+          return;
+        }
+        final keluar = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Buang perubahan?'),
+            content: const Text('Data produk yang sudah diisi akan hilang.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Lanjut Mengisi'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Buang', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        );
+        if (keluar == true && context.mounted) Navigator.of(context).pop();
+      },
+      child: Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -541,6 +580,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -605,6 +645,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
               onTap: () {
                 setState(() => _selectedCategory = null);
                 Navigator.pop(context);
+                // Cegah keyboard muncul lagi (fokus balik ke field teks).
+                FocusManager.instance.primaryFocus?.unfocus();
               },
             ),
             Divider(height: 1, color: Colors.grey.shade100),
@@ -631,6 +673,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                     onTap: () {
                       setState(() => _selectedCategory = c);
                       Navigator.pop(context);
+                      // Cegah keyboard muncul lagi (fokus balik ke field teks).
+                      FocusManager.instance.primaryFocus?.unfocus();
                     },
                   );
                 },
