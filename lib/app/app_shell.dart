@@ -520,7 +520,9 @@ class AppShellState extends State<AppShell> {
             Expanded(
               child: Container(
                 color: const Color(0xFFF8F5F0),
-                child: ListView(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: ListView(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                   children: [
                     Text(
@@ -659,6 +661,7 @@ class AppShellState extends State<AppShell> {
                         },
                       ),
                   ],
+                  ),
                 ),
               ),
             ),

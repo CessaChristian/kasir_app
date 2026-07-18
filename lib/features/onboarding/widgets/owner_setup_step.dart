@@ -107,6 +107,7 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
               keyboardType: TextInputType.number,
               maxLength: 4,
               validator: (v) {
+                if (v == null || v.isEmpty) return 'Konfirmasi PIN wajib diisi';
                 if (v != _pinC.text) return 'PIN tidak cocok';
                 return null;
               },
