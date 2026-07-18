@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
+import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'features/auth/pages/owner_setup_page.dart';
@@ -40,21 +41,7 @@ class MyApp extends StatelessWidget {
         Locale('en', 'US'),
       ],
       locale: const Locale('id', 'ID'),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color.fromRGBO(240, 151, 63, 1),
-          primary: const Color.fromRGBO(238, 138, 52, 1),
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
-          elevation: 0,
-          scrolledUnderElevation: 1,
-        ),
-      ),
+      theme: buildAppTheme(kSeedDineIn),
       home: const AuthFlowHandler(),
     );
   }
