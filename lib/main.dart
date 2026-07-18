@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
 import 'app/app_theme.dart';
+import 'data/business_context.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'features/auth/pages/owner_setup_page.dart';
@@ -20,6 +21,10 @@ void main() async {
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
 
+  // Branding halaman login (nama/logo/warna) dari business aktif terakhir —
+  // no-op kalau restoreSession sudah mengisi BusinessContext.
+  await BusinessContext.instance.loadPersistedForBranding();
+
   runApp(const MyApp());
 }
 
@@ -28,21 +33,30 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Kasir App',
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('id', 'ID'),
-        Locale('en', 'US'),
-      ],
-      locale: const Locale('id', 'ID'),
-      theme: buildAppTheme(kSeedDineIn),
-      home: const AuthFlowHandler(),
+    // Tema + key mengikuti business aktif. Ganti key = seluruh widget tree
+    // dibangun ulang dari nol ("soft restart") — dipakai saat ganti business.
+    return ListenableBuilder(
+      listenable: BusinessContext.instance,
+      builder: (context, _) {
+        final biz = BusinessContext.instance.activeBusiness;
+        return MaterialApp(
+          key: ValueKey('app-${biz?.id ?? 'default'}'),
+          title: 'Kasir App',
+          debugShowCheckedModeBanner: false,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('id', 'ID'),
+            Locale('en', 'US'),
+          ],
+          locale: const Locale('id', 'ID'),
+          theme: buildAppTheme(seedForBusinessType(biz?.type)),
+          home: const AuthFlowHandler(),
+        );
+      },
     );
   }
 }

@@ -103,7 +103,7 @@ class DashboardPage extends StatelessWidget {
                   horizontal: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F5F0),
+                  color: Theme.of(context).scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.grey.shade200),
                 ),
@@ -291,7 +291,7 @@ class DashboardPage extends StatelessWidget {
     // DashboardPage tidak pakai Scaffold sendiri — cukup pakai AppShell punya
     // Builder diperlukan agar Scaffold.of(context) menemukan AppShell Scaffold
     return Container(
-      color: const Color(0xFFF8F5F0),
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
           // ── Header Card ──
@@ -493,7 +493,7 @@ class DashboardPage extends StatelessWidget {
                                 vertical: 7,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8F5F0),
+                                color: Theme.of(context).scaffoldBackgroundColor,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(color: Colors.grey.shade200),
                               ),

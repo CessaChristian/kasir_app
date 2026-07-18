@@ -67,7 +67,7 @@ class _DeviceModePageState extends State<DeviceModePage> {
         : null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Mode Device'),
         backgroundColor: Colors.white,

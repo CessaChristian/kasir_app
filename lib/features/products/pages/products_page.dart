@@ -105,7 +105,7 @@ class _ProductsPageState extends State<ProductsPage> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openForm(context),
         backgroundColor: primaryColor,

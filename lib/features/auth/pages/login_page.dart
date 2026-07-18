@@ -175,7 +175,7 @@ class _LoginPageState extends State<LoginPage> {
     final viewInsets = MediaQuery.of(context).viewInsets;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.only(bottom: viewInsets.bottom),

@@ -349,7 +349,7 @@ class AppShellState extends State<AppShell> {
         // Jika sudah di dashboard, tidak lakukan apa-apa (jangan keluar app)
       },
       child: Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: isDashboard
           ? null
           : AppBar(
@@ -454,7 +454,7 @@ class AppShellState extends State<AppShell> {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8F5F0),
+                          color: Theme.of(context).scaffoldBackgroundColor,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: Colors.grey.shade200),
                         ),
@@ -519,7 +519,7 @@ class AppShellState extends State<AppShell> {
             // ── Menu Items ──
             Expanded(
               child: Container(
-                color: const Color(0xFFF8F5F0),
+                color: Theme.of(context).scaffoldBackgroundColor,
                 child: Scrollbar(
                   thumbVisibility: true,
                   child: ListView(
@@ -668,7 +668,7 @@ class AppShellState extends State<AppShell> {
 
             // ── Logout ──
             Container(
-              color: const Color(0xFFF8F5F0),
+              color: Theme.of(context).scaffoldBackgroundColor,
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
               child: Column(
                 children: [

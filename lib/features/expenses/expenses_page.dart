@@ -160,7 +160,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     final hasActiveShift = _activeShiftId != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: hasActiveShift
           ? FloatingActionButton(
               onPressed: _showAddExpenseDialog,

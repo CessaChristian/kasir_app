@@ -28,7 +28,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: StreamBuilder<List<Transaction>>(
         stream: db.watchTransactions(),
         builder: (context, snapshot) {
@@ -362,7 +362,7 @@ class _HistoryPageState extends State<HistoryPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8F5F0),
+              color: Theme.of(context).scaffoldBackgroundColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade200),
             ),

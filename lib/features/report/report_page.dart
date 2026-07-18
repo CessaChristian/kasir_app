@@ -1289,9 +1289,9 @@ class _ExpenseDetailSheetState extends State<_ExpenseDetailSheet> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8F5F0),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1667,9 +1667,9 @@ class _OrderTypeSheetState extends State<_OrderTypeSheet> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8F5F0),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -168,7 +168,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Material(
-                    color: const Color(0xFFF8F5F0),
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
@@ -387,7 +387,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F5F0),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // Search Bar

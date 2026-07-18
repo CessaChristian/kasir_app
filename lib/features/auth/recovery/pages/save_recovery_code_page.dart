@@ -49,7 +49,7 @@ class _SaveRecoveryCodePageState extends State<SaveRecoveryCodePage> {
     return PopScope(
       canPop: false, // Prevent back button
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F5F0),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: SingleChildScrollView(
             child: Column(
