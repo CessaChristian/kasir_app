@@ -344,6 +344,11 @@ class AppDatabase extends _$AppDatabase {
     _activeBusinessIdProvider = fn;
   }
 
+  /// True jika provider sudah di-wire (dipakai test untuk memastikan
+  /// mengakses `db` otomatis melakukan wiring).
+  static bool get hasActiveBusinessProvider =>
+      _activeBusinessIdProvider != null;
+
   /// Ambil active business ID. Throws [StateError] jika provider belum di-set
   /// atau tidak ada active business.
   static String _requireActiveBusinessId() {
