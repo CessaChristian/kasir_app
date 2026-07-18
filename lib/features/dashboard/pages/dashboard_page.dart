@@ -9,7 +9,6 @@ import '../../../data/db.dart';
 import '../../../data/business_context.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
-import '../../../shared/widgets/business_switcher.dart';
 import '../widgets/active_shift_card.dart';
 import '../widgets/low_stock_banner.dart';
 
@@ -354,19 +353,10 @@ class DashboardPage extends StatelessWidget {
                               final bizCtx = BusinessContext.instance;
                               final bizName = bizCtx.activeBusiness?.name ??
                                   AppConstants.storeName;
-                              final canSwitch = SessionManager.instance
-                                      .hasCurrentPermission(
-                                          'switch_business') &&
-                                  bizCtx.hasMultipleBusinesses;
 
-                              return InkWell(
-                                onTap: canSwitch
-                                    ? () =>
-                                        BusinessSwitcher.showSwitcherSheet(
-                                            context)
-                                    : null,
-                                borderRadius: BorderRadius.circular(8),
-                                child: Column(
+                              // Nama business statis — ganti business hanya
+                              // lewat page Business (spec REVISI 2, D6).
+                              return Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
                                   children: [
@@ -386,12 +376,6 @@ class DashboardPage extends StatelessWidget {
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        if (canSwitch)
-                                          Icon(
-                                            Icons.arrow_drop_down_rounded,
-                                            size: 20,
-                                            color: colorScheme.primary,
-                                          ),
                                       ],
                                     ),
                                     Text(
@@ -406,8 +390,7 @@ class DashboardPage extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
-                                ),
-                              );
+                                );
                             },
                           ),
                         ),

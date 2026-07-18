@@ -17,7 +17,7 @@ import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
-import '../features/settings/pages/business_settings_page.dart';
+import '../features/business/pages/business_list_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -525,7 +525,7 @@ class AppShellState extends State<AppShell> {
                         _buildDrawerMenuItem(
                           context,
                           icon: Icons.storefront_rounded,
-                          label: 'Pengaturan Business',
+                          label: 'Business',
                           isSelected: false,
                           onTap: () {
                             Navigator.pop(context);
@@ -533,7 +533,7 @@ class AppShellState extends State<AppShell> {
                               context,
                               MaterialPageRoute(
                                   builder: (_) =>
-                                      const BusinessSettingsPage()),
+                                      const BusinessListPage()),
                             );
                           },
                         ),

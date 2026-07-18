@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
+import '../../../data/business_context.dart';
 import '../../../shared/auth/session_manager.dart';
 
 class ActiveShiftCard extends StatefulWidget {
@@ -61,9 +62,17 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
     final cashTxs = transactions.where((t) => t.paymentMethod == 'cash').length;
     final qrisTxs = transactions.where((t) => t.paymentMethod == 'qris').length;
 
+    // Defense: hanya tampilkan shift yang masih AKTIF dan milik business
+    // aktif — session bisa memegang shiftId business lain sesaat setelah
+    // ganti business.
+    final s = shifts.isNotEmpty ? shifts.first : null;
+    final activeBizId = BusinessContext.instance.activeBusinessId;
+    final visible =
+        s != null && s.endAt == null && s.businessId == activeBizId;
+
     if (mounted) {
       setState(() {
-        _shift = shifts.isNotEmpty ? shifts.first : null;
+        _shift = visible ? s : null;
         _shiftRevenue = transactions.fold(0, (s, tx) => s + tx.total);
         _shiftTxCount = transactions.length;
         _cashCount = cashTxs;

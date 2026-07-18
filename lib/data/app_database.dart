@@ -880,17 +880,23 @@ class AppDatabase extends _$AppDatabase {
 
   /// Update profil business aktif (nama, alamat, telepon).
   /// Caller WAJIB validasi permission manage_business sebelum call.
-  Future<void> updateActiveBusiness({
-    required String name,
+  /// Update profil business (aktif maupun tidak) — dipakai page Business.
+  /// Nama business TIDAK bisa diubah (hardcode dari kode, spec REVISI 2 D5).
+  /// Field null = tidak diubah; `logoPathSet: true` + `logoPath: null`
+  /// artinya hapus logo.
+  Future<void> updateBusiness({
+    required String id,
     String? address,
     String? phone,
+    String? logoPath,
+    bool logoPathSet = false,
   }) async {
-    final businessId = _requireActiveBusinessId();
-    await (update(businesses)..where((b) => b.id.equals(businessId)))
+    SessionManager.instance.requireCurrentPermission('manage_business');
+    await (update(businesses)..where((b) => b.id.equals(id)))
         .write(BusinessesCompanion(
-      name: Value(name),
-      address: Value(address),
-      phone: Value(phone),
+      address: address != null ? Value(address) : const Value.absent(),
+      phone: phone != null ? Value(phone) : const Value.absent(),
+      logoPath: logoPathSet ? Value(logoPath) : const Value.absent(),
       updatedAt: Value(DateTime.now()),
       syncStatus: const Value('pending'),
     ));
