@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
 import '../../../../shared/widgets/app_toast.dart';
 
@@ -83,15 +84,7 @@ class _SaveRecoveryCodePageState extends State<SaveRecoveryCodePage> {
                         padding: const EdgeInsets.all(10),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(18),
-                          child: Image.asset(
-                            'assets/images/Logo Teras Inn.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, err, stack) => Icon(
-                              Icons.restaurant_rounded,
-                              size: 56,
-                              color: colorScheme.primary,
-                            ),
-                          ),
+                          child: const BusinessLogo(size: 90),
                         ),
                       ),
                       const SizedBox(height: 20),

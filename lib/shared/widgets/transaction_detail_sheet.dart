@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
+import '../../data/business_context.dart';
+import 'business_logo.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/constants/app_constants.dart';
 import '../../shared/widgets/dashed_divider.dart';
@@ -122,27 +124,30 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                 ),
                 child: Column(
                   children: [
-                    // Store header
-                    Image.asset(
-                      'assets/images/Logo Teras Inn.png',
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.contain,
-                    ),
+                    // Store header — identitas dari business aktif
+                    // (bukan hardcode) supaya benar di semua business.
+                    const BusinessLogo(size: 64),
                     const SizedBox(height: 8),
-                    const Text(
-                      AppConstants.storeName,
-                      style: TextStyle(
+                    Text(
+                      (BusinessContext.instance.activeBusiness?.name ??
+                              AppConstants.storeName)
+                          .toUpperCase(),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1A1A1A),
                         letterSpacing: 1,
                       ),
                     ),
-                    Text(
-                      AppConstants.storeAddress,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
+                    if ((BusinessContext.instance.activeBusiness?.address ??
+                            '')
+                        .trim()
+                        .isNotEmpty)
+                      Text(
+                        BusinessContext.instance.activeBusiness!.address!,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
                     const SizedBox(height: 16),
                     const DashedDivider(),
                     const SizedBox(height: 12),

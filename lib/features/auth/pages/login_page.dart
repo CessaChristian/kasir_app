@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
 import '../../../data/business_context.dart';
 import '../../../data/db.dart';
@@ -23,28 +24,16 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePin = true;
   List<String> _availableUsernames = [];
-  String _brandName = 'POS Sistem'; // diganti nama business dari DB
+
+  /// Branding dari business aktif terakhir (di-set loadPersistedForBranding
+  /// di main()) — nama, logo, dan warna login mengikuti business itu.
+  String get _brandName =>
+      BusinessContext.instance.activeBusiness?.name ?? 'POS Sistem';
 
   @override
   void initState() {
     super.initState();
     _loadUsernames();
-    _loadBrandName();
-  }
-
-  /// Nama di login page diambil dari business pertama di DB — bukan
-  /// hard-coded, supaya konsisten saat owner ganti nama / multi-business.
-  Future<void> _loadBrandName() async {
-    try {
-      final businesses = await (db.select(db.businesses)
-            ..where((b) => b.deletedAt.isNull())
-            ..limit(1))
-          .get();
-      if (!mounted || businesses.isEmpty) return;
-      setState(() => _brandName = businesses.first.name);
-    } catch (_) {
-      // Silent fail — fallback tetap 'POS Sistem'
-    }
   }
 
   @override
@@ -210,15 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                       padding: const EdgeInsets.all(10),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(18),
-                        child: Image.asset(
-                          'assets/images/Logo Teras Inn.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, err, stack) => Icon(
-                            Icons.restaurant_rounded,
-                            size: 56,
-                            color: colorScheme.primary,
-                          ),
-                        ),
+                        child: const BusinessLogo(size: 80),
                       ),
                     ),
                     const SizedBox(height: 20),

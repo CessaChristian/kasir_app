@@ -8,7 +8,7 @@ const Color kSeedDineIn = Color(0xFFEE8A34);
 const Color kSeedGrabGo = Color(0xFF212121);
 
 Color seedForBusinessType(String? type) =>
-    type == 'beverage_grabgo' ? kSeedGrabGo : kSeedDineIn;
+    type == 'beverage_grabandgo' ? kSeedGrabGo : kSeedDineIn;
 
 /// Satu-satunya tempat definisi ThemeData aplikasi.
 /// Semua turunan warna dihitung dari [seed] supaya ganti business cukup

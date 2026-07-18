@@ -44,7 +44,7 @@ void main() {
     expect(BusinessContext.instance.availableBusinesses.length, 1);
 
     // Business kedua dibuat SETELAH loadInitial — daftar lama pasti belum memuatnya.
-    await _makeBusiness(dbTest, 'biz-b', 'Thai Tea', 'beverage_grabgo', userId);
+    await _makeBusiness(dbTest, 'biz-b', 'Thai Tea', 'beverage_grabandgo', userId);
     await BusinessContext.instance.switchTo('biz-b', userId: userId);
 
     expect(BusinessContext.instance.activeBusinessId, 'biz-b');
@@ -64,7 +64,7 @@ void main() {
     BusinessContext.instance.clear();
 
     await _makeBusiness(dbTest, 'biz-a', 'Teras Inn', 'restaurant_dinein', 'u');
-    await _makeBusiness(dbTest, 'biz-b', 'Thai Tea', 'beverage_grabgo', 'u');
+    await _makeBusiness(dbTest, 'biz-b', 'Thai Tea', 'beverage_grabandgo', 'u');
 
     await BusinessContext.instance.loadPersistedForBranding();
     expect(BusinessContext.instance.activeBusinessId, 'biz-b');

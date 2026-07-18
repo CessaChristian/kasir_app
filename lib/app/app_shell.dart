@@ -15,6 +15,7 @@ import '../data/business_context.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
+import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
 import '../features/settings/pages/business_settings_page.dart';
 import '../features/onboarding/widgets/business_setup_step.dart';
@@ -404,15 +405,7 @@ class AppShellState extends State<AppShell> {
                             padding: const EdgeInsets.all(6),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                'assets/images/Logo Teras Inn.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, e, s) => Icon(
-                                  Icons.restaurant_rounded,
-                                  size: 28,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
+                              child: const BusinessLogo(size: 40),
                             ),
                           ),
                           const SizedBox(width: 12),

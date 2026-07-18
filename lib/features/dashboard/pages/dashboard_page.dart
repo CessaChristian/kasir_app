@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/business_logo.dart';
 import 'package:intl/intl.dart';
 import '../../../app/app_shell.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -342,15 +343,7 @@ class DashboardPage extends StatelessWidget {
                           padding: const EdgeInsets.all(5),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(6),
-                            child: Image.asset(
-                              'assets/images/Logo Teras Inn.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, e, s) => Icon(
-                                Icons.restaurant_rounded,
-                                size: 20,
-                                color: colorScheme.primary,
-                              ),
-                            ),
+                            child: const BusinessLogo(size: 28),
                           ),
                         ),
                         const SizedBox(width: 8),
