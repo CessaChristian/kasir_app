@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/app_database.dart';
 import '../../data/business_context.dart';
 import '../../data/db.dart';
 import '../../features/auth/models/auth_session.dart';
@@ -15,6 +16,10 @@ import '../../features/auth/models/auth_session.dart';
 class SessionManager {
   static final SessionManager instance = SessionManager._();
   SessionManager._();
+
+  /// Override DB untuk unit test. JANGAN dipakai di production code.
+  static AppDatabase? dbOverride;
+  AppDatabase get _dbx => dbOverride ?? db;
 
   static const String _sessionKey = 'auth_session';
 
@@ -209,7 +214,7 @@ class SessionManager {
     if (_currentSession == null) return;
 
     final userId = _currentSession!.userId;
-    final roles = await (db.select(db.userBusinessRoles)
+    final roles = await (_dbx.select(_dbx.userBusinessRoles)
           ..where((r) => r.userId.equals(userId))
           ..where((r) => r.deletedAt.isNull()))
         .get();

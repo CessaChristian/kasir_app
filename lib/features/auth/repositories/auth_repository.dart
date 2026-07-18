@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:drift/drift.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
@@ -168,9 +169,24 @@ class AuthRepository {
         .getSingleOrNull();
   }
 
-  /// Ambil businessId pertama yang dimiliki user (untuk _startShift saat login,
-  /// sebelum BusinessContext.loadInitial dipanggil).
+  /// Ambil businessId untuk _startShift saat login (sebelum
+  /// BusinessContext.loadInitial dipanggil).
+  /// Prioritas: business aktif terakhir yang dipersist — supaya shift login
+  /// dibuka di business yang sama dengan tampilan app setelah login.
   Future<String> _getFirstBusinessId(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final persistedId = prefs.getString('active_business_id');
+    if (persistedId != null) {
+      final persisted = await (_db.select(_db.userBusinessRoles)
+            ..where((r) =>
+                r.userId.equals(userId) &
+                r.businessId.equals(persistedId) &
+                r.deletedAt.isNull())
+            ..limit(1))
+          .get();
+      if (persisted.isNotEmpty) return persistedId;
+    }
+
     final roles = await (_db.select(_db.userBusinessRoles)
           ..where((r) =>
               r.userId.equals(userId) & r.deletedAt.isNull())
@@ -196,6 +212,8 @@ class AuthRepository {
   Future<String> _startShift(String userId, {required String businessId}) async {
     final existing = await (_db.select(_db.shifts)
           ..where((s) => s.userId.equals(userId))
+          // Shift bersifat per business — jangan reuse shift business lain.
+          ..where((s) => s.businessId.equals(businessId))
           ..where((s) => s.endAt.isNull())
           ..limit(1))
         .getSingleOrNull();

@@ -53,12 +53,13 @@ class AuthSession {
   AuthSession copyWith({
     String? role,
     List<String>? permissions,
+    String? shiftId,
   }) {
     return AuthSession(
       userId: userId,
       username: username,
       role: role ?? this.role,
-      shiftId: shiftId,
+      shiftId: shiftId ?? this.shiftId,
       permissions: permissions ?? this.permissions,
       createdAt: createdAt,
       expiresAt: expiresAt,
