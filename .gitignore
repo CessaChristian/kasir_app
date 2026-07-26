@@ -47,3 +47,7 @@ app.*.map.json
 # /test — allow test files (tests should be tracked)
 /testing
 !test/**/*.dart
+
+# Instruksi & dokumen kerja internal — jangan masuk repo GitHub
+CLAUDE.md
+docs/superpowers/
