@@ -45,17 +45,19 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
 
   Future<void> _load() async {
     final session = SessionManager.instance.currentSession;
-    if (session == null) {
+    final shiftId = session?.shiftId;
+    if (session == null || shiftId == null) {
+      // Owner tidak menjalankan shift → tidak ada kartu shift aktif.
       if (mounted) setState(() => _loading = false);
       return;
     }
 
     final shifts = await (db.select(db.shifts)
-          ..where((s) => s.id.equals(session.shiftId)))
+          ..where((s) => s.id.equals(shiftId)))
         .get();
 
     final transactions = await (db.select(db.transactions)
-          ..where((t) => t.shiftId.equals(session.shiftId))
+          ..where((t) => t.shiftId.equals(shiftId))
           ..where((t) => t.deletedAt.isNull()))
         .get();
 

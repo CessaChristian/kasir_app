@@ -44,26 +44,32 @@ class BusinessSwitchService {
           'User $userId tidak punya akses ke business $targetBusinessId');
     }
 
-    // 1. Tutup shift aktif (kalau masih terbuka).
-    await (_dbx.update(_dbx.shifts)
-          ..where((s) => s.id.equals(session.shiftId) & s.endAt.isNull()))
-        .write(ShiftsCompanion(endAt: Value(DateTime.now())));
+    // Owner TIDAK menjalankan shift (shiftId null) — cukup ganti context tanpa
+    // menyentuh shift. Hanya cashier yang punya siklus tutup-buka shift.
+    final isCashierWithShift = session.shiftId != null;
 
-    // 2. Buka shift baru di business target (invariant login: session selalu
-    // punya shift aktif — tanpa ini transaksi berikutnya menempel ke shift
-    // business lama).
-    final ts = DateTime.now().microsecondsSinceEpoch;
-    final r = _random.nextInt(99999).toString().padLeft(5, '0');
-    final newShiftId = 'shift_${ts}_$r';
-    await _dbx.into(_dbx.shifts).insert(ShiftsCompanion.insert(
-          id: Value(newShiftId),
-          businessId: targetBusinessId,
-          userId: userId,
-        ));
+    if (isCashierWithShift) {
+      // 1. Tutup shift aktif (kalau masih terbuka).
+      await (_dbx.update(_dbx.shifts)
+            ..where((s) => s.id.equals(session.shiftId!) & s.endAt.isNull()))
+          .write(ShiftsCompanion(endAt: Value(DateTime.now())));
 
-    // 3. Session menunjuk shift baru.
-    await SessionManager.instance
-        .setSession(session.copyWith(shiftId: newShiftId));
+      // 2. Buka shift baru di business target (invariant: cashier selalu punya
+      // shift aktif — tanpa ini transaksi berikutnya menempel ke shift
+      // business lama).
+      final ts = DateTime.now().microsecondsSinceEpoch;
+      final r = _random.nextInt(99999).toString().padLeft(5, '0');
+      final newShiftId = 'shift_${ts}_$r';
+      await _dbx.into(_dbx.shifts).insert(ShiftsCompanion.insert(
+            id: Value(newShiftId),
+            businessId: targetBusinessId,
+            userId: userId,
+          ));
+
+      // 3. Session menunjuk shift baru.
+      await SessionManager.instance
+          .setSession(session.copyWith(shiftId: newShiftId));
+    }
 
     // 4. Switch context — memicu rebuild root (soft restart).
     await BusinessContext.instance

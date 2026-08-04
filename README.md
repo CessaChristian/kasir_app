@@ -1,122 +1,116 @@
-# Kasir App — POS untuk Rumah Makan
+# Kasir App — Aplikasi POS Multi-Business
 
-Aplikasi Point of Sale (POS) berbasis Flutter untuk rumah makan kecil. Dibangun dengan database lokal (SQLite via Drift), tanpa ketergantungan server atau internet.
+Aplikasi **Point of Sale (POS)** berbasis **Flutter** untuk usaha F&B kecil.
+Berjalan **local-first** (semua data di perangkat, tanpa server/internet) dan
+dirancang menangani **beberapa usaha dalam satu aplikasi** — saat ini
+**Teras Inn** (rumah makan / dine-in) dan **Thai Tea** (minuman / grab-and-go).
 
-## Fitur Utama
+> **Status:** Phase 1 (local-only) aktif. Arsitektur sudah disiapkan untuk
+> Phase 2 (sinkronisasi cloud) namun sync-nya belum dikerjakan.
+> `flutter analyze` bersih, **41 test lulus**.
 
-- **Autentikasi dua peran** — Owner dan Kasir dengan PIN terenkripsi, sistem recovery code, dan rate limiting login
-- **Manajemen produk** — Tambah/edit/hapus produk, kategori, barcode, dan pelacakan stok
-- **Transaksi kasir** — Keranjang belanja, pembayaran Cash dan QRIS, animasi add-to-cart
-- **Riwayat transaksi** — Filter per bulan, detail item per transaksi
-- **Laporan harian & bulanan** — Grafik tren pendapatan, produk terlaris (pie chart), performa per karyawan
-- **Export Excel** — Laporan dalam format `.xlsx` dengan 4 sheet: Ringkasan, Produk Terlaris, Daftar Transaksi, Per Karyawan
-- **Manajemen karyawan** — Tambah/nonaktifkan kasir, atur izin akses, ganti PIN
+---
 
-## Tech Stack
+## ✨ Fitur Utama
+
+- **Multi-business** — satu aplikasi menangani 2 usaha; owner bisa berpindah usaha, data terpisah otomatis per usaha.
+- **Autentikasi 2 peran** — Owner & Kasir dengan **PIN** (di-hash PBKDF2), *recovery code* untuk owner, dan *rate limiting* login.
+- **Onboarding** — wizard setup akun owner pertama + seed 2 usaha otomatis.
+- **Manajemen produk** — produk, kategori, barcode, pelacakan stok, opsi level pedas, foto produk.
+- **Kasir (POS)** — keranjang, pembayaran **Cash & QRIS**, tipe pesanan (dine-in / take away / delivery), struk.
+- **Shift** — kasir otomatis membuka shift saat login & menutupnya saat logout; owner memantau lewat halaman **Pantau Shift**.
+- **Riwayat transaksi** — filter, detail item, hapus transaksi (soft-delete + kembalikan stok).
+- **Laporan** — harian & bulanan, grafik tren, produk terlaris, performa per kasir, **export Excel**.
+- **Pengeluaran** — catat pengeluaran per shift.
+- **Manajemen usaha & kasir** — kelola kasir + izin akses, profil usaha, mode device.
+
+## 🧰 Tech Stack
 
 | Komponen | Teknologi |
-|----------|-----------|
-| Framework | Flutter (Dart) |
-| Database lokal | [Drift](https://drift.simonbinder.eu/) (SQLite ORM) |
+|---|---|
+| Framework | Flutter (Dart, SDK `^3.10.7`) |
+| Database lokal | [drift](https://drift.simonbinder.eu/) `^2.22` (SQLite ORM) + `sqlite3_flutter_libs` |
+| ID & format | `uuid`, `intl` (locale `id_ID`) |
 | Grafik | [fl_chart](https://pub.dev/packages/fl_chart) |
-| Export Excel | [excel](https://pub.dev/packages/excel) |
-| Share file | [share_plus](https://pub.dev/packages/share_plus) |
-| Keamanan PIN | [crypto](https://pub.dev/packages/crypto) (SHA-256 + salt) |
-| Preferensi lokal | [shared_preferences](https://pub.dev/packages/shared_preferences) |
+| Keamanan PIN | `crypto` (PBKDF2-HMAC-SHA256 + salt) |
+| Preferensi lokal | `shared_preferences` |
+| Export / share | `excel`, `share_plus` |
+| Gambar | `image_picker` |
+| Codegen (dev) | `drift_dev`, `build_runner`, `flutter_lints`, `flutter_launcher_icons` |
 
-## Prasyarat
+## 📱 Platform
 
-Pastikan sudah terinstall:
+Target utama **Android** (dan iOS). Folder `web/`, `linux/`, `macos/`,
+`windows/` masih berupa *scaffolding* bawaan Flutter dan belum jadi fokus.
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) versi `^3.10.7`
-- Dart SDK `^3.10.7` (sudah termasuk dalam Flutter)
-- Android Studio / VS Code dengan Flutter extension
-- Perangkat fisik atau emulator Android/iOS
+---
 
-Cek instalasi Flutter:
-```bash
-flutter doctor
-```
+## 🚀 Quick Start
 
-## Cara Clone dan Menjalankan
-
-### 1. Clone repository
+Butuh [Flutter SDK](https://docs.flutter.dev/get-started/install) `^3.10.7`.
+Cek dulu: `flutter doctor`.
 
 ```bash
+# 1. Clone
 git clone https://github.com/CessaChristian/kasir_app.git
 cd kasir_app
-```
 
-### 2. Install dependencies
-
-```bash
+# 2. Install dependencies
 flutter pub get
-```
 
-### 3. Generate kode Drift (database)
-
-File `app_database.g.dart` perlu di-generate sebelum bisa menjalankan aplikasi:
-
-```bash
+# 3. Generate kode database (Drift) — WAJIB sebelum run pertama kali
 dart run build_runner build --delete-conflicting-outputs
-```
 
-> Jika ada perubahan pada schema database, jalankan perintah ini lagi.
-
-### 4. Jalankan aplikasi
-
-```bash
+# 4. Jalankan (pastikan ada emulator/device aktif)
 flutter run
 ```
 
-Untuk build release APK:
+> ℹ️ Langkah **build_runner** membuat file `lib/data/app_database.g.dart`
+> (kode Drift). Ulangi perintah tersebut setiap kali skema database di
+> `lib/data/app_database.dart` berubah.
+
+Panduan setup lengkap + akun pertama ada di
+**[docs/getting-started.md](docs/getting-started.md)**.
+
+## ✅ Verifikasi (wajib sebelum menyatakan "selesai")
+
 ```bash
-flutter build apk --release
+flutter analyze   # harus: No issues found!
+flutter test      # harus: All tests passed!
 ```
 
-## Struktur Folder
+---
+
+## 🗂️ Struktur Folder (ringkas)
 
 ```
 lib/
-├── app/
-│   └── app_shell.dart          # Navigasi utama (bottom nav)
-├── data/
-│   ├── app_database.dart       # Schema & query database (Drift)
-│   ├── app_database.g.dart     # Kode generated Drift (jangan diedit manual)
-│   ├── db.dart                 # Singleton instance database
-│   └── models/                 # Model data tambahan
-├── features/
-│   ├── auth/                   # Login, setup owner, recovery code
-│   ├── dashboard/              # Halaman utama & ringkasan pendapatan hari ini
-│   ├── history/                # Riwayat transaksi
-│   ├── owner/                  # Manajemen karyawan & izin
-│   ├── products/               # Manajemen produk & kategori
-│   ├── report/                 # Laporan & export Excel
-│   └── sales/                  # Halaman kasir & keranjang
-├── shared/
-│   ├── auth/session_manager.dart   # Manajemen sesi login
-│   ├── constants/app_constants.dart
-│   └── widgets/                # Widget reusable
-├── utils/                      # Formatter, enkripsi
-└── main.dart
+├── app/            # AppShell (navigasi) + AppTheme (tema per usaha)
+├── data/           # Database (Drift): schema, query, BusinessContext, wiring db
+├── features/       # Fitur per modul: auth, business, dashboard, products,
+│                   #   sales, history, report, reports, shift, expenses,
+│                   #   owner, onboarding, settings
+├── shared/         # Widget/konstanta/auth (SessionManager) yang dipakai lintas fitur
+├── utils/          # Formatter, kripto (PBKDF2), helper
+└── main.dart       # Entry point + routing berdasarkan status login
+test/               # Unit & integration test (41 test)
+docs/               # Dokumentasi project (baca di bawah)
 ```
 
-## Setup Pertama Kali
+## 📚 Dokumentasi Lengkap
 
-Saat aplikasi pertama dijalankan:
+Mulai dari sini kalau kamu baru bergabung — baca berurutan:
 
-1. Aplikasi akan mendeteksi belum ada akun **Owner**
-2. Tampil halaman **Setup Owner** — isi username dan PIN (4–6 digit)
-3. Simpan **recovery code** yang ditampilkan di tempat aman (digunakan jika lupa PIN)
-4. Login dengan akun Owner
-5. Tambah produk dan karyawan sesuai kebutuhan
+1. **[docs/getting-started.md](docs/getting-started.md)** — instalasi, run, akun pertama, troubleshooting.
+2. **[docs/architecture.md](docs/architecture.md)** — peta arsitektur & pola-pola kunci.
+3. **[docs/database-schema.md](docs/database-schema.md)** — tabel, relasi, dan migrasi database.
+4. **[docs/features-overview.md](docs/features-overview.md)** — apa saja fitur yang sudah dibangun.
+5. **[docs/code-style.md](docs/code-style.md)** — konvensi kode & penamaan.
+6. **[docs/contributing.md](docs/contributing.md)** — cara kerja tim, commit, & menambah fitur.
 
-## Catatan Pengembangan
+Indeks lengkap: **[docs/README.md](docs/README.md)**.
 
-- **Database lokal** — Semua data tersimpan di perangkat. Tidak ada sinkronisasi cloud. Backup manual disarankan.
-- **Migrasi schema** — Perubahan struktur database dikelola secara incremental di `app_database.dart` (lihat fungsi `migration`).
-- **Kode generated** — File `*.g.dart` di-generate oleh `build_runner` dan tidak perlu di-commit jika menggunakan CI/CD (tambahkan ke `.gitignore` sesuai kebutuhan).
+## 📄 Lisensi
 
-## Lisensi
-
-MIT License — bebas digunakan dan dimodifikasi.
+**Proprietary / privat.** Hak cipta pemilik project. Kode ini **tidak** untuk
+didistribusikan atau digunakan ulang secara publik tanpa izin.

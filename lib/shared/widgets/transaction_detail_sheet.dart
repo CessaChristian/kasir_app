@@ -360,15 +360,23 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
 
   Widget _infoRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-        Text(value,
+        const SizedBox(width: 12),
+        // Expanded + rata kanan: nilai panjang (mis. ID transaksi berformat
+        // UUID) turun baris alih-alih overflow.
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
             style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFF1A1A1A))),
+                color: Color(0xFF1A1A1A)),
+          ),
+        ),
       ],
     );
   }

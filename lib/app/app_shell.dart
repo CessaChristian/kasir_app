@@ -18,6 +18,7 @@ import '../shared/widgets/business_switcher.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
 import '../features/business/pages/business_list_page.dart';
+import '../features/shift/pages/shift_monitor_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -491,6 +492,25 @@ class AppShellState extends State<AppShell> {
                         label: availableItems[i]['label'] as String,
                         isSelected: i == _selectedIndex,
                         onTap: () => _navigateTo(i),
+                      ),
+
+                    // Halaman Pantau Shift — gated permission view_shift_reports
+                    // (owner selalu punya; bisa diberikan ke kasir).
+                    if (SessionManager.instance
+                        .hasCurrentPermission('view_shift_reports'))
+                      _buildDrawerMenuItem(
+                        context,
+                        icon: Icons.monitor_heart_outlined,
+                        label: 'Pantau Shift',
+                        isSelected: false,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ShiftMonitorPage()),
+                          );
+                        },
                       ),
 
                     // Owner-only section

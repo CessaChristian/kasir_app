@@ -63,22 +63,46 @@ class ShiftReportRepository {
   }
 
   /// Query shifts dalam periode tertentu, compute summary untuk masing-masing.
+  ///
+  /// [onlyUserId] — jika di-set, hanya shift milik user tsb yang diambil
+  /// (dipakai untuk user tanpa permission `view_all_shifts` yang hanya boleh
+  /// melihat shift sendiri). Null = semua shift di business aktif.
   Future<List<ShiftSummary>> getShiftsForPeriod(
-      DateTime start, DateTime end) async {
+      DateTime start, DateTime end, {String? onlyUserId}) async {
     final businessId = BusinessContext.instance.activeBusinessId;
     if (businessId == null) return [];
 
+    final startOfDay = DateTime(start.year, start.month, start.day);
     final endOfDay = DateTime(end.year, end.month, end.day, 23, 59, 59);
 
     final shifts = await (db.select(db.shifts)
-          ..where((s) =>
-              s.businessId.equals(businessId) &
-              s.deletedAt.isNull() &
-              s.startAt.isBetweenValues(start, endOfDay))
+          ..where((s) {
+            var cond = s.businessId.equals(businessId) &
+                s.deletedAt.isNull() &
+                s.startAt.isBetweenValues(startOfDay, endOfDay);
+            if (onlyUserId != null) {
+              cond = cond & s.userId.equals(onlyUserId);
+            }
+            return cond;
+          })
           ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
         .get();
 
     return Future.wait(shifts.map(computeSummary));
+  }
+
+  /// Semua transaksi (belum dihapus) pada sebuah shift, terurut waktu naik.
+  /// Dipakai halaman detail shift untuk menampilkan daftar transaksi.
+  Future<List<Transaction>> getTransactionsForShift(String shiftId) async {
+    final businessId = BusinessContext.instance.activeBusinessId;
+    if (businessId == null) return [];
+    return (db.select(db.transactions)
+          ..where((t) =>
+              t.shiftId.equals(shiftId) &
+              t.businessId.equals(businessId) &
+              t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .get();
   }
 
   /// Total revenue untuk semua shifts dalam periode.

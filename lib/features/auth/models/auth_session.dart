@@ -9,7 +9,11 @@ class AuthSession {
   final String userId;
   final String username;
   final String role; // 'owner' atau 'cashier'
-  final String shiftId;
+
+  /// ID shift aktif. NULL untuk owner — owner memantau dari device sendiri
+  /// dan TIDAK menjalankan shift (lihat login flow). Hanya cashier yang
+  /// otomatis membuka shift saat login.
+  final String? shiftId;
   final List<String> permissions;
   final DateTime createdAt;
   final DateTime expiresAt;
@@ -29,7 +33,7 @@ class AuthSession {
     required String userId,
     required String username,
     required String role,
-    required String shiftId,
+    required String? shiftId,
     required List<String> permissions,
   }) {
     final now = DateTime.now();
@@ -83,7 +87,7 @@ class AuthSession {
       userId: json['userId'] as String,
       username: json['username'] as String,
       role: json['role'] as String,
-      shiftId: json['shiftId'] as String,
+      shiftId: json['shiftId'] as String?,
       permissions: List<String>.from(json['permissions'] as List),
       createdAt: DateTime.parse(json['createdAt'] as String),
       expiresAt: DateTime.parse(json['expiresAt'] as String),

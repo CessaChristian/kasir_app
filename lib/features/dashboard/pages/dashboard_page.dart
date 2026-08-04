@@ -10,6 +10,7 @@ import '../../../data/business_context.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../widgets/active_shift_card.dart';
+import '../widgets/owner_shift_shortcut_card.dart';
 import '../widgets/low_stock_banner.dart';
 
 class DashboardPage extends StatelessWidget {
@@ -34,7 +35,11 @@ class DashboardPage extends StatelessWidget {
     final session = SessionManager.instance.currentSession;
     if (session == null) return;
 
-    final revenue = await _getShiftRevenue(session.shiftId);
+    // Owner tidak menjalankan shift (shiftId null) → ini murni "Keluar".
+    final shiftId = session.shiftId;
+    final hasShift = shiftId != null;
+
+    final revenue = hasShift ? await _getShiftRevenue(shiftId) : 0;
     final formatter = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
@@ -77,9 +82,9 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Akhiri Shift?',
-                style: TextStyle(
+              Text(
+                hasShift ? 'Akhiri Shift?' : 'Keluar dari Sistem?',
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1A1A1A),
@@ -87,7 +92,9 @@ class DashboardPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Anda akan mengakhiri shift dan keluar dari sistem',
+                hasShift
+                    ? 'Anda akan mengakhiri shift dan keluar dari sistem'
+                    : 'Anda akan keluar dari aplikasi',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
@@ -96,7 +103,7 @@ class DashboardPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Container(
+              if (hasShift) Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                   vertical: 18,
@@ -178,14 +185,15 @@ class DashboardPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.logout_rounded, size: 16),
-                          SizedBox(width: 6),
+                          const Icon(Icons.logout_rounded, size: 16),
+                          const SizedBox(width: 6),
                           Text(
-                            'Akhiri',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                            hasShift ? 'Akhiri' : 'Keluar',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -205,16 +213,16 @@ class DashboardPage extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
+      builder: (_) => Center(
         child: Card(
           child: Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Mengakhiri shift...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(hasShift ? 'Mengakhiri shift...' : 'Keluar...'),
               ],
             ),
           ),
@@ -224,7 +232,7 @@ class DashboardPage extends StatelessWidget {
 
     try {
       final authRepo = AuthRepository(db);
-      await authRepo.logout(userId: session.userId, shiftId: session.shiftId);
+      await authRepo.logout(userId: session.userId, shiftId: shiftId);
       await SessionManager.instance.clearSession();
 
       if (!context.mounted) return;
@@ -485,7 +493,9 @@ class DashboardPage extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    'Akhiri Shift',
+                                    session?.shiftId == null
+                                        ? 'Keluar'
+                                        : 'Akhiri Shift',
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: colorScheme.primary,
@@ -524,8 +534,12 @@ class DashboardPage extends StatelessWidget {
                       // Low stock alert — hanya muncul jika ada stok kritis
                       const LowStockBanner(),
 
-                      // Shift aktif
-                      const ActiveShiftCard(),
+                      // Owner: pintasan pantau shift kasir (owner tidak punya
+                      // shift). Cashier: kartu shift aktif miliknya.
+                      if (isOwner)
+                        const OwnerShiftShortcutCard()
+                      else
+                        const ActiveShiftCard(),
                       const SizedBox(height: 20),
 
                       // Quick access

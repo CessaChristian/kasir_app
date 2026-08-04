@@ -123,19 +123,22 @@ class AuthRepository {
           .write(UsersCompanion(pinHash: Value(newHash)));
     }
 
-    // 4. Start a new shift — I4: bungkus dengan pesan error spesifik
-    // agar user tahu PIN sudah benar tapi gagal di langkah shift.
+    // 4. Start a new shift — HANYA untuk non-owner (cashier).
+    // Owner memantau dari device sendiri dan TIDAK menjalankan shift, jadi
+    // shiftId owner = null (spec: shift page monitoring). I4: bungkus dengan
+    // pesan error spesifik agar user tahu PIN sudah benar tapi gagal di shift.
     //
     // businessId: login terjadi sebelum BusinessContext.loadInitial, jadi
     // kita query langsung dari userBusinessRoles.
-    final businessId = await _getFirstBusinessId(user.id);
-
-    final String shiftId;
-    try {
-      shiftId = await _startShift(user.id, businessId: businessId);
-    } catch (e) {
-      throw StateError(
-          'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
+    String? shiftId;
+    if (user.role != 'owner') {
+      final businessId = await _getFirstBusinessId(user.id);
+      try {
+        shiftId = await _startShift(user.id, businessId: businessId);
+      } catch (e) {
+        throw StateError(
+            'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
+      }
     }
 
     // 5. Get user permissions
@@ -151,11 +154,15 @@ class AuthRepository {
     );
   }
 
-  /// Logout - end the current shift
+  /// Logout - end the current shift.
+  ///
+  /// [shiftId] boleh null (mis. owner yang tidak menjalankan shift) — dalam
+  /// kasus itu tidak ada shift yang perlu ditutup.
   Future<void> logout({
     required String userId,
-    required String shiftId,
+    required String? shiftId,
   }) async {
+    if (shiftId == null) return;
     // End the shift by setting end_at
     await (_db.update(_db.shifts)..where((s) => s.id.equals(shiftId))).write(
       ShiftsCompanion(

@@ -58,6 +58,15 @@ class _ExpensesPageState extends State<ExpensesPage> {
     final session = SessionManager.instance.currentSession;
     if (session == null) return;
 
+    // Pengeluaran selalu menempel ke sebuah shift. Owner tidak menjalankan
+    // shift (shiftId null), jadi tidak bisa mencatat pengeluaran shift.
+    final shiftId = session.shiftId;
+    if (shiftId == null) {
+      AppToast.error(
+          context, 'Pengeluaran hanya bisa dicatat saat shift aktif (kasir).');
+      return;
+    }
+
     // Dialog hanya mengumpulkan data — TIDAK ada operasi DB di dalamnya.
     // Setelah showDialog resolve, dialog sudah 100% hilang dari tree,
     // baru kemudian DB operation dijalankan. Ini mencegah _dependents.isEmpty
@@ -72,7 +81,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
     // Dialog sudah sepenuhnya gone dari tree → aman memanggil DB
     await db.addExpense(
-      shiftId: session.shiftId,
+      shiftId: shiftId,
       userId: session.userId,
       description: result.desc,
       amount: result.amount,
