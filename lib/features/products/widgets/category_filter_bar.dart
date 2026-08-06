@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/app_database.dart';
+import '../../../shared/constants/category_icons.dart';
 import '../category_manager.dart';
 
 /// Horizontal category filter bar widget
@@ -40,10 +41,7 @@ class CategoryFilterBar extends StatelessWidget {
           // Category chips
           ...categories.map((c) {
             final isSelected = selectedCategoryId == c.id;
-            final catIcon = IconData(
-              c.iconCodepoint ?? Icons.category_rounded.codePoint,
-              fontFamily: 'MaterialIcons',
-            );
+            final catIcon = categoryIconFromCodepoint(c.iconCodepoint);
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(

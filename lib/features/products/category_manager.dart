@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
+import '../../shared/constants/category_icons.dart';
 import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/app_toast.dart';
 
@@ -26,42 +27,11 @@ class _CategoryManagerState extends State<CategoryManager> {
   final _formKey = GlobalKey<FormState>();
   int? _selectedIconCodepoint;
 
-  static const _availableIcons = <(IconData, String)>[
-    (Icons.restaurant_rounded, 'Restoran'),
-    (Icons.rice_bowl, 'Nasi'),
-    (Icons.ramen_dining, 'Mie/Ramen'),
-    (Icons.fastfood, 'Fast Food'),
-    (Icons.lunch_dining, 'Makan Siang'),
-    (Icons.dinner_dining, 'Makan Malam'),
-    (Icons.breakfast_dining, 'Sarapan'),
-    (Icons.local_pizza, 'Pizza'),
-    (Icons.kebab_dining, 'Kebab'),
-    (Icons.bakery_dining, 'Roti/Bakery'),
-    (Icons.set_meal, 'Set Meal'),
-    (Icons.soup_kitchen, 'Sup'),
-    (Icons.tapas, 'Tapas'),
-    (Icons.local_cafe_rounded, 'Kafe'),
-    (Icons.coffee_rounded, 'Kopi'),
-    (Icons.emoji_food_beverage, 'Minuman Hangat'),
-    (Icons.local_bar_rounded, 'Bar'),
-    (Icons.sports_bar_rounded, 'Minuman Segar'),
-    (Icons.water_drop_rounded, 'Air'),
-    (Icons.blender, 'Jus'),
-    (Icons.cake_rounded, 'Kue'),
-    (Icons.icecream, 'Es Krim'),
-    (Icons.cookie, 'Snack'),
-    (Icons.storefront_rounded, 'Toko'),
-    (Icons.sell_rounded, 'Promo'),
-    (Icons.label_rounded, 'Label'),
-    (Icons.star_rounded, 'Favorit'),
-    (Icons.local_offer_rounded, 'Penawaran'),
-    (Icons.category_rounded, 'Umum'),
-  ];
-
-  IconData _iconFromCodepoint(int? codepoint) {
-    if (codepoint == null) return Icons.category_rounded;
-    return IconData(codepoint, fontFamily: 'MaterialIcons');
-  }
+  // Daftar ikon dipindah ke shared/constants/category_icons.dart supaya
+  // dipakai bersama widget lain (filter bar, form produk) dan tetap const —
+  // syarat agar tree shaking ikon saat build release tetap jalan.
+  IconData _iconFromCodepoint(int? codepoint) =>
+      categoryIconFromCodepoint(codepoint);
 
   @override
   void dispose() {
@@ -80,7 +50,7 @@ class _CategoryManagerState extends State<CategoryManager> {
       id: id,
       name: name,
       iconCodepoint:
-          _selectedIconCodepoint ?? Icons.category_rounded.codePoint,
+          _selectedIconCodepoint ?? kDefaultCategoryIcon.codePoint,
     );
     _nameC.clear();
     setState(() {
@@ -267,10 +237,10 @@ class _CategoryManagerState extends State<CategoryManager> {
                     height: 44,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: _availableIcons.length,
+                      itemCount: kCategoryIcons.length,
                       separatorBuilder: (_, _) => const SizedBox(width: 6),
                       itemBuilder: (context, i) {
-                        final (iconData, label) = _availableIcons[i];
+                        final (iconData, label) = kCategoryIcons[i];
                         final isSelected =
                             _selectedIconCodepoint == iconData.codePoint;
                         return GestureDetector(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
+import '../../../shared/constants/category_icons.dart';
 import '../../../utils/currency_formatter.dart';
 import '../category_manager.dart';
 
@@ -365,11 +366,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                       }
                     }
 
-                    final selIcon = IconData(
-                      _selectedCategory?.iconCodepoint ??
-                          Icons.category_rounded.codePoint,
-                      fontFamily: 'MaterialIcons',
-                    );
+                    final selIcon = categoryIconFromCodepoint(
+                        _selectedCategory?.iconCodepoint);
 
                     return Row(
                       children: [
@@ -661,10 +659,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                     Divider(height: 1, color: Colors.grey.shade100),
                 itemBuilder: (_, i) {
                   final c = categories[i];
-                  final icon = IconData(
-                    c.iconCodepoint ?? Icons.category_rounded.codePoint,
-                    fontFamily: 'MaterialIcons',
-                  );
+                  final icon = categoryIconFromCodepoint(c.iconCodepoint);
                   return _categoryOption(
                     icon: icon,
                     name: c.name,
