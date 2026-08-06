@@ -51,3 +51,7 @@ app.*.map.json
 # Instruksi & dokumen kerja internal — jangan masuk repo GitHub
 CLAUDE.md
 docs/superpowers/
+
+# Screenshot hasil percobaan di root — jangan ikut ke repo
+flutter_01.png
+flutter_*.png
