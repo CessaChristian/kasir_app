@@ -476,6 +476,14 @@ class AppDatabase extends _$AppDatabase {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
             await _seedPermissions();
           }
+          // SQLite mematikan penegakan foreign key secara default (alasan
+          // kompatibilitas versi lama). Tanpa baris ini, semua `REFERENCES`
+          // di skema hanya jadi dokumentasi: baris yatim tetap bisa masuk dan
+          // ON DELETE CASCADE tidak jalan.
+          //
+          // Ditaruh di beforeOpen (bukan di dalam transaction) karena pragma
+          // ini tidak bisa diubah di dalam transaksi — sesuai anjuran docs drift.
+          await customStatement('PRAGMA foreign_keys = ON');
         },
       );
 

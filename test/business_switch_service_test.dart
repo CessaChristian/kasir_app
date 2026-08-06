@@ -8,6 +8,18 @@ import 'package:kasir_app/features/business/services/business_switch_service.dar
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Penegakan foreign key aktif (PRAGMA foreign_keys = ON), jadi baris
+/// user_business_roles dan shifts wajib menunjuk user yang benar-benar ada.
+Future<void> _makeUser(AppDatabase db, String id) async {
+  await db.into(db.users).insert(UsersCompanion.insert(
+        id: Value(id),
+        username: 'user-$id',
+        pinHash: 'hash',
+        salt: 'salt',
+        role: 'owner',
+      ));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -28,6 +40,7 @@ void main() {
     });
 
     const userId = 'user-1';
+    await _makeUser(dbTest, userId);
     for (final b in [
       (id: 'biz-a', name: 'Teras Inn', type: 'restaurant_dinein'),
       (id: 'biz-b', name: 'Thai Tea', type: 'beverage_grabandgo'),
@@ -94,6 +107,7 @@ void main() {
     });
 
     const userId = 'user-1';
+    await _makeUser(dbTest, userId);
     await dbTest.into(dbTest.businesses).insert(BusinessesCompanion.insert(
           id: const Value('biz-a'),
           name: 'Teras Inn',

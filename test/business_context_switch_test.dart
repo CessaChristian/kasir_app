@@ -5,6 +5,18 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/business_context.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Penegakan foreign key aktif (PRAGMA foreign_keys = ON), jadi baris
+/// user_business_roles wajib menunjuk user yang benar-benar ada.
+Future<void> _makeUser(AppDatabase db, String id) async {
+  await db.into(db.users).insert(UsersCompanion.insert(
+        id: Value(id),
+        username: 'user-$id',
+        pinHash: 'hash',
+        salt: 'salt',
+        role: 'owner',
+      ));
+}
+
 Future<String> _makeBusiness(
   AppDatabase db,
   String id,
@@ -39,6 +51,7 @@ void main() {
     });
 
     const userId = 'user-1';
+    await _makeUser(dbTest, userId);
     await _makeBusiness(dbTest, 'biz-a', 'Teras Inn', 'restaurant_dinein', userId);
     await BusinessContext.instance.loadInitial(userId: userId);
     expect(BusinessContext.instance.availableBusinesses.length, 1);
@@ -63,6 +76,7 @@ void main() {
     });
     BusinessContext.instance.clear();
 
+    await _makeUser(dbTest, 'u');
     await _makeBusiness(dbTest, 'biz-a', 'Teras Inn', 'restaurant_dinein', 'u');
     await _makeBusiness(dbTest, 'biz-b', 'Thai Tea', 'beverage_grabandgo', 'u');
 

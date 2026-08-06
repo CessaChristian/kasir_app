@@ -89,6 +89,14 @@ void main() {
     });
 
     const userId = 'owner-1';
+    // FK aktif: user_business_roles wajib menunjuk user yang benar-benar ada.
+    await dbTest.into(dbTest.users).insert(UsersCompanion.insert(
+          id: const Value(userId),
+          username: 'owner',
+          pinHash: 'hash',
+          salt: 'salt',
+          role: 'owner',
+        ));
     for (final b in [
       (id: 'biz-a', name: 'Teras Inn', type: 'restaurant_dinein'),
       (id: 'biz-b', name: 'Thai Tea', type: 'beverage_grabandgo'),

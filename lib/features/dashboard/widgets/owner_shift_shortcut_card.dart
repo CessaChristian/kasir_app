@@ -60,7 +60,7 @@ class OwnerShiftShortcutCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Pantau Shift Kasir',
+                        'Pantau Shift Kasir ',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w700),
                       ),
