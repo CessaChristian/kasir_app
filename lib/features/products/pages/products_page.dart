@@ -42,9 +42,13 @@ class _ProductsPageState extends State<ProductsPage> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      // Cegah form tertutup tanpa sengaja (tap luar / drag) — input user
-      // bisa hilang. Menutup hanya lewat back + dialog konfirmasi.
-      isDismissible: false,
+      // Tap di luar form diperlakukan sama seperti tombol back: barrier
+      // memanggil Navigator.maybePop() yang selalu lewat PopScope milik
+      // ProductFormSheet, jadi dialog "Buang perubahan?" tetap muncul
+      // kalau form sudah diisi.
+      isDismissible: true,
+      // Tetap false: geser-turun memanggil Navigator.pop() langsung tanpa
+      // melewati PopScope, sehingga input user bisa hilang tanpa konfirmasi.
       enableDrag: false,
       constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
       builder: (_) => ProductFormSheet(editing: editing),
