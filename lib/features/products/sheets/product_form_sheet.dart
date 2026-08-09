@@ -87,13 +87,55 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   int? _int(String s) => int.tryParse(s.trim());
 
-  // Ada input yang akan hilang kalau sheet ditutup?
-  bool get _isDirty =>
-      _nameC.text.trim().isNotEmpty ||
-      _priceC.text.trim().isNotEmpty ||
-      _barcodeC.text.trim().isNotEmpty ||
-      _stockC.text.trim().isNotEmpty ||
-      _selectedCategory != null;
+  // Nilai yang AKAN tersimpan kalau form di-submit sekarang. Rumusnya
+  // disamakan dengan _submit() supaya penilaian "berubah" tidak pernah
+  // berbeda dari data yang benar-benar ditulis ke database.
+  String? get _currentBarcode =>
+      _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim();
+  int? get _currentStock => _trackStock ? (_int(_stockC.text) ?? 0) : null;
+
+  // Ada perubahan yang akan hilang kalau sheet ditutup?
+  //
+  // Sengaja membandingkan dengan produk aslinya, bukan sekadar mengecek
+  // "apakah field terisi". Pada mode Edit semua field sudah terisi data lama
+  // sejak initState, sehingga pengecekan isNotEmpty selalu bernilai true dan
+  // dialog "Buang perubahan?" muncul walau user belum menyentuh apa pun.
+  bool get _isDirty {
+    final p = widget.editing;
+
+    // Mode Tambah: kotor kalau user sudah mengisi atau mengubah apa pun.
+    // trackStock/hasSpicyOption/imagePath ikut dicek — sebelumnya terlewat,
+    // sehingga toggle dan foto bisa hilang tanpa peringatan.
+    if (p == null) {
+      return _nameC.text.trim().isNotEmpty ||
+          parseRupiah(_priceC.text) != null ||
+          _currentBarcode != null ||
+          _selectedCategory != null ||
+          _trackStock ||
+          _hasSpicyOption ||
+          _imagePath != null;
+    }
+
+    // Mode Edit: kotor hanya kalau berbeda dari produk aslinya.
+    //
+    // Kategori dimuat asinkron lewat StreamBuilder di bawah, jadi
+    // _selectedCategory masih null selama beberapa frame pertama. Selama
+    // pengisian itu belum selesai, jangan dianggap berubah.
+    final categoryPending = p.categoryId != null && !_categoryInitialized;
+    final categoryChanged =
+        !categoryPending && _selectedCategory?.id != p.categoryId;
+
+    // Harga dibandingkan sebagai angka, bukan teks, supaya tidak rapuh
+    // terhadap format titik ribuan dari RupiahInputFormatter.
+    return _nameC.text.trim() != p.name ||
+        parseRupiah(_priceC.text) != p.price ||
+        _currentBarcode != p.barcode ||
+        categoryChanged ||
+        _trackStock != p.trackStock ||
+        _currentStock != p.stock ||
+        _hasSpicyOption != p.hasSpicyOption ||
+        _imagePath != p.imagePath;
+  }
 
   // True saat pop berasal dari submit sukses — lewati dialog konfirmasi.
   bool _saving = false;
