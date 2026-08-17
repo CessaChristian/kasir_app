@@ -50,6 +50,7 @@ app.*.map.json
 
 # Instruksi & dokumen kerja internal — jangan masuk repo GitHub
 CLAUDE.md
+INSTRUCTION.md
 docs/superpowers/
 
 # Screenshot hasil percobaan di root — jangan ikut ke repo
