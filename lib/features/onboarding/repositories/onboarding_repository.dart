@@ -3,12 +3,16 @@ import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../data/uuid_helper.dart';
 
-/// Dua business client di-HARDCODE dari kode (spec 2026-07-18 REVISI 2, D3).
-/// Tidak ada UI tambah business — kalau client menambah bisnis baru atau
-/// mengganti nama Thai Tea, ubah konstanta ini.
+/// Business client di-HARDCODE dari kode (spec 2026-07-18 REVISI 2, D3).
+/// Tidak ada UI tambah business — kalau client menambah bisnis baru, tambahkan
+/// entri di sini.
+///
+/// Thai Tea sengaja dikeluarkan karena gerainya belum buka. Arsitektur
+/// multi-business (tabel `businesses`, kolom `business_id`, BusinessContext)
+/// TETAP dipertahankan, jadi menghidupkannya kembali cukup menambah satu baris
+/// di sini tanpa migrasi skema apa pun.
 const kSeedBusinesses = [
   (name: 'Teras Inn', type: 'restaurant_dinein'),
-  (name: 'Thai Tea', type: 'beverage_grabandgo'),
 ];
 
 /// Atomic operations untuk onboarding flow.

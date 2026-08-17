@@ -17,7 +17,7 @@ import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_switcher.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
-import '../features/business/pages/business_list_page.dart';
+import '../features/business/pages/business_detail_page.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
 
 class AppShell extends StatefulWidget {
@@ -548,12 +548,18 @@ class AppShellState extends State<AppShell> {
                           label: 'Business',
                           isSelected: false,
                           onTap: () {
+                            // Aplikasi difokuskan ke satu business, jadi
+                            // langsung ke profilnya tanpa lewat daftar pilihan.
+                            final id =
+                                BusinessContext.instance.activeBusinessId;
+                            if (id == null) return;
                             Navigator.pop(context);
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) =>
-                                      const BusinessListPage()),
+                                builder: (_) =>
+                                    BusinessDetailPage(businessId: id),
+                              ),
                             );
                           },
                         ),

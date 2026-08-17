@@ -10,11 +10,14 @@ import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/business_logo.dart';
-import '../services/business_switch_service.dart';
 
-/// Detail satu business: edit alamat & telepon (untuk nota), ganti/hapus
-/// logo, dan aktivasi business (kalau bukan yang aktif).
-/// Nama business read-only — hardcode dari kode (spec REVISI 2 D5).
+/// Profil business: edit alamat & telepon (dipakai di nota) serta ganti/hapus
+/// logo. Nama business read-only — hardcode dari kode (spec REVISI 2 D5).
+///
+/// Bagian "Aktivasi" dihapus saat aplikasi difokuskan ke satu business.
+/// Struktur datanya (tabel `businesses`, kolom `business_id`, BusinessContext)
+/// SENGAJA dipertahankan supaya business kedua tinggal dinyalakan kembali
+/// tanpa migrasi apa pun.
 class BusinessDetailPage extends StatefulWidget {
   final String businessId;
   const BusinessDetailPage({super.key, required this.businessId});
@@ -125,42 +128,6 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
     }
   }
 
-  Future<void> _confirmActivate() async {
-    final b = _business!;
-    final hasActiveShift = SessionManager.instance.currentShiftId != null;
-
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Ganti ke ${b.name}?'),
-        content: Text(
-          'Aplikasi akan dimuat ulang dengan tampilan ${b.name}.'
-          '${hasActiveShift ? '\n\nShift yang sedang berjalan akan otomatis ditutup, dan shift baru dimulai di ${b.name}.' : ''}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ya, Ganti'),
-          ),
-        ],
-      ),
-    );
-    if (yes != true) return;
-
-    try {
-      await BusinessSwitchService.activate(widget.businessId);
-      // Tidak perlu navigasi manual — root MaterialApp rebuild (key ganti)
-      // dan mendarat di dashboard business baru.
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.error(context, 'Gagal mengganti business: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -171,8 +138,6 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final isActive = b.id == BusinessContext.instance.activeBusinessId;
-
     return Scaffold(
       appBar: AppBar(title: Text(b.name)),
       body: SingleChildScrollView(
@@ -255,58 +220,6 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
-
-            // ── Aktivasi ──
-            if (!isActive)
-              _sectionCard(
-                title: 'Aktivasi',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Jadikan ${b.name} sebagai business aktif. Semua halaman '
-                      '(kasir, produk, laporan) akan menampilkan data ${b.name}.',
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _confirmActivate,
-                      icon: const Icon(Icons.swap_horiz_rounded),
-                      label: const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Text('Aktifkan Business Ini'),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded,
-                        color: colorScheme.primary, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${b.name} sedang aktif.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
