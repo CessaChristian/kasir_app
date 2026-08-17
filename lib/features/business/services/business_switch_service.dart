@@ -1,10 +1,9 @@
-import 'dart:math';
-
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
 import '../../../data/business_context.dart';
 import '../../../data/db.dart';
+import '../../../data/uuid_helper.dart';
 import '../../../shared/auth/session_manager.dart';
 
 /// Alur aktivasi (ganti) business — dipanggil dari BusinessDetailPage
@@ -20,8 +19,6 @@ class BusinessSwitchService {
   /// Override DB untuk unit test. JANGAN dipakai di production code.
   static AppDatabase? dbOverride;
   static AppDatabase get _dbx => dbOverride ?? db;
-
-  static final _random = Random.secure();
 
   static Future<void> activate(String targetBusinessId) async {
     final session = SessionManager.instance.currentSession;
@@ -57,9 +54,7 @@ class BusinessSwitchService {
       // 2. Buka shift baru di business target (invariant: cashier selalu punya
       // shift aktif — tanpa ini transaksi berikutnya menempel ke shift
       // business lama).
-      final ts = DateTime.now().microsecondsSinceEpoch;
-      final r = _random.nextInt(99999).toString().padLeft(5, '0');
-      final newShiftId = 'shift_${ts}_$r';
+      final newShiftId = newUuid();
       await _dbx.into(_dbx.shifts).insert(ShiftsCompanion.insert(
             id: Value(newShiftId),
             businessId: targetBusinessId,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
+import '../../../data/uuid_helper.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../widgets/product_search_bar.dart';
@@ -58,8 +59,9 @@ class _ProductsPageState extends State<ProductsPage> {
     if (!mounted) return;
 
     try {
-      final productId =
-          editing?.id ?? 'prod_${DateTime.now().millisecondsSinceEpoch}';
+      // Primary key WAJIB UUID: ID berbasis jam bisa bentrok antar-device
+      // saat sync (dua HP membuat produk pada milidetik yang sama).
+      final productId = editing?.id ?? newUuid();
 
       await db.upsertProduct(
         id: productId,

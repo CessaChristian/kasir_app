@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
+import '../../data/uuid_helper.dart';
 import '../../shared/constants/category_icons.dart';
 import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -44,7 +45,8 @@ class _CategoryManagerState extends State<CategoryManager> {
 
     // Format to Title Case (capitalize first letter of each word)
     final name = _toTitleCase(_nameC.text.trim());
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    // Primary key WAJIB UUID — lihat catatan di products_page.
+    final id = newUuid();
 
     await db.upsertCategory(
       id: id,

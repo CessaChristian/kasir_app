@@ -1,7 +1,7 @@
-import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/app_database.dart';
+import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
 import '../recovery/models/recovery_result.dart';
@@ -44,8 +44,8 @@ class AuthRepository {
     final salt = CryptoUtils.generateSalt();
     final pinHash = CryptoUtils.hashPin(pin, salt);
 
-    // 4. Generate unique ID
-    final userId = _generateUserId();
+    // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
+    final userId = newUuid();
 
     // 5. Create owner account
     final ownerCompanion = UsersCompanion.insert(
@@ -227,7 +227,7 @@ class AuthRepository {
 
     if (existing != null) return existing.id;
 
-    final shiftId = _generateShiftId();
+    final shiftId = newUuid();
     await _db.into(_db.shifts).insert(
           ShiftsCompanion.insert(
             id: Value(shiftId),
@@ -266,21 +266,6 @@ class AuthRepository {
           ..orderBy([(u) => OrderingTerm.asc(u.username)]))
         .get();
     return users.map((u) => u.username).toList();
-  }
-
-  // S10: Random.secure() suffix mencegah ID prediksi/collision.
-  static final _secureRandom = Random.secure();
-
-  String _generateUserId() {
-    final ts = DateTime.now().microsecondsSinceEpoch;
-    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
-    return 'user_${ts}_$r';
-  }
-
-  String _generateShiftId() {
-    final ts = DateTime.now().microsecondsSinceEpoch;
-    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
-    return 'shift_${ts}_$r';
   }
 
   // ============================================================================

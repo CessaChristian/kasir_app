@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -760,7 +759,7 @@ class AppDatabase extends _$AppDatabase {
     List<SaleLine> lines,
   ) async {
     for (final line in lines) {
-      final itemId = _generateUniqueId();
+      final itemId = newUuid();
 
       await into(transactionItems).insert(
         TransactionItemsCompanion(
@@ -852,7 +851,7 @@ class AppDatabase extends _$AppDatabase {
     final businessId = _requireActiveBusinessId();
     await into(expenses).insert(
       ExpensesCompanion(
-        id: Value(_generateUniqueId()),
+        id: Value(newUuid()),
         businessId: Value(businessId),
         shiftId: Value(shiftId),
         userId: Value(userId),
@@ -1408,17 +1407,6 @@ class AppDatabase extends _$AppDatabase {
     reports.sort((a, b) => b.totalIncome.compareTo(a.totalIncome));
     return reports;
   }
-}
-
-// ---- UTILITY ----
-
-// S10: pakai Random.secure() agar ID tidak dapat diprediksi.
-final _secureRandom = Random.secure();
-
-String _generateUniqueId() {
-  final timestamp = DateTime.now().microsecondsSinceEpoch;
-  final random = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
-  return '${timestamp}_$random';
 }
 
 // ---- DB CONNECTION ----

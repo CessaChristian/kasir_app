@@ -1,6 +1,6 @@
-import 'dart:math';
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
+import '../../../data/uuid_helper.dart';
 import '../../../data/business_context.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -49,8 +49,8 @@ class CashierRepository {
     final salt = CryptoUtils.generateSalt();
     final pinHash = CryptoUtils.hashPin(pin, salt);
 
-    // 4. Generate unique ID
-    final userId = _generateUserId();
+    // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
+    final userId = newUuid();
 
     // Kasir baru di-assign ke business yang sedang aktif — tanpa row
     // user_business_roles, BusinessContext.loadInitial tidak menemukan
@@ -170,13 +170,4 @@ class CashierRepository {
     }
   }
 
-  /// Generate unique user ID — S10: pakai Random.secure() suffix
-  /// untuk mencegah collision dan prediksi ID.
-  static final _secureRandom = Random.secure();
-
-  String _generateUserId() {
-    final ts = DateTime.now().microsecondsSinceEpoch;
-    final r = _secureRandom.nextInt(99999).toString().padLeft(5, '0');
-    return 'cashier_${ts}_$r';
-  }
 }
