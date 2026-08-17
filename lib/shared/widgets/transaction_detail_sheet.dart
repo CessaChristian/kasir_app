@@ -96,7 +96,8 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                         ),
                       ),
                       Text(
-                        tx.id,
+                        // Nomor nota, bukan tx.id — id sekarang UUID internal.
+                        tx.invoiceNo,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -156,7 +157,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                     _infoRow('Tanggal',
                         DateFormat('dd/MM/yyyy HH:mm').format(tx.createdAt)),
                     const SizedBox(height: 6),
-                    _infoRow('No. Transaksi', tx.id),
+                    _infoRow('No. Transaksi', tx.invoiceNo),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

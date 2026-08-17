@@ -94,6 +94,7 @@ void main() {
 
       await db.createSale(
         transactionId: 'trx-1',
+        invoiceNo: 'TRX/09/08/26/000001',
         paymentMethod: 'cash',
         cashReceived: 30000,
         orderType: 'dine_in',
@@ -112,6 +113,39 @@ void main() {
       expect(items, hasLength(1));
       expect(items.single.id, matches(uuidV4),
           reason: 'id transaction_item harus UUID v4');
+    });
+
+    test('nomor nota disimpan terpisah dari primary key', () async {
+      await db.into(db.products).insert(ProductsCompanion.insert(
+            id: const Value('prod-1'),
+            businessId: bizId,
+            name: 'Es Teh',
+            price: 5000,
+          ));
+
+      await db.createSale(
+        transactionId: '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+        invoiceNo: 'TRX/09/08/26/000042',
+        paymentMethod: 'qris',
+        orderType: 'dine_in',
+        lines: [
+          SaleLine(
+            productId: 'prod-1',
+            productName: 'Es Teh',
+            qty: 1,
+            priceAtSale: 5000,
+            trackStock: false,
+          ),
+        ],
+      );
+
+      final tx = await db.select(db.transactions).getSingle();
+      expect(tx.id, matches(uuidV4),
+          reason: 'primary key harus UUID — dipakai untuk sync');
+      expect(tx.invoiceNo, 'TRX/09/08/26/000042',
+          reason: 'nomor nota tersimpan apa adanya untuk ditampilkan di struk');
+      expect(tx.invoiceNo, isNot(tx.id),
+          reason: 'keduanya peran berbeda, tidak boleh dicampur lagi');
     });
   });
 

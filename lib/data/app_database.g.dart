@@ -1997,6 +1997,18 @@ class $TransactionsTable extends Transactions
     requiredDuringInsert: false,
     clientDefault: () => newUuid(),
   );
+  static const VerificationMeta _invoiceNoMeta = const VerificationMeta(
+    'invoiceNo',
+  );
+  @override
+  late final GeneratedColumn<String> invoiceNo = GeneratedColumn<String>(
+    'invoice_no',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _businessIdMeta = const VerificationMeta(
     'businessId',
   );
@@ -2135,6 +2147,7 @@ class $TransactionsTable extends Transactions
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    invoiceNo,
     businessId,
     createdAt,
     total,
@@ -2162,6 +2175,12 @@ class $TransactionsTable extends Transactions
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('invoice_no')) {
+      context.handle(
+        _invoiceNoMeta,
+        invoiceNo.isAcceptableOrUnknown(data['invoice_no']!, _invoiceNoMeta),
+      );
     }
     if (data.containsKey('business_id')) {
       context.handle(
@@ -2263,6 +2282,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      invoiceNo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}invoice_no'],
+      )!,
       businessId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}business_id'],
@@ -2322,6 +2345,13 @@ class $TransactionsTable extends Transactions
 
 class Transaction extends DataClass implements Insertable<Transaction> {
   final String id;
+
+  /// Nomor nota yang TAMPIL di struk, mis. `TRX/18/07/26/081398`.
+  ///
+  /// Dipisah dari [id] (NEW in v11) karena keduanya punya kebutuhan yang
+  /// bertabrakan: [id] harus unik lintas device untuk sync sehingga wajib
+  /// UUID, sedangkan nomor nota harus mudah dibaca kasir dan pelanggan.
+  final String invoiceNo;
   final String businessId;
   final DateTime createdAt;
   final int total;
@@ -2336,6 +2366,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String syncStatus;
   const Transaction({
     required this.id,
+    required this.invoiceNo,
     required this.businessId,
     required this.createdAt,
     required this.total,
@@ -2353,6 +2384,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['invoice_no'] = Variable<String>(invoiceNo);
     map['business_id'] = Variable<String>(businessId);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['total'] = Variable<int>(total);
@@ -2381,6 +2413,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   TransactionsCompanion toCompanion(bool nullToAbsent) {
     return TransactionsCompanion(
       id: Value(id),
+      invoiceNo: Value(invoiceNo),
       businessId: Value(businessId),
       createdAt: Value(createdAt),
       total: Value(total),
@@ -2413,6 +2446,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Transaction(
       id: serializer.fromJson<String>(json['id']),
+      invoiceNo: serializer.fromJson<String>(json['invoiceNo']),
       businessId: serializer.fromJson<String>(json['businessId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       total: serializer.fromJson<int>(json['total']),
@@ -2432,6 +2466,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'invoiceNo': serializer.toJson<String>(invoiceNo),
       'businessId': serializer.toJson<String>(businessId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'total': serializer.toJson<int>(total),
@@ -2449,6 +2484,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
 
   Transaction copyWith({
     String? id,
+    String? invoiceNo,
     String? businessId,
     DateTime? createdAt,
     int? total,
@@ -2463,6 +2499,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     String? syncStatus,
   }) => Transaction(
     id: id ?? this.id,
+    invoiceNo: invoiceNo ?? this.invoiceNo,
     businessId: businessId ?? this.businessId,
     createdAt: createdAt ?? this.createdAt,
     total: total ?? this.total,
@@ -2481,6 +2518,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
       id: data.id.present ? data.id.value : this.id,
+      invoiceNo: data.invoiceNo.present ? data.invoiceNo.value : this.invoiceNo,
       businessId: data.businessId.present
           ? data.businessId.value
           : this.businessId,
@@ -2510,6 +2548,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   String toString() {
     return (StringBuffer('Transaction(')
           ..write('id: $id, ')
+          ..write('invoiceNo: $invoiceNo, ')
           ..write('businessId: $businessId, ')
           ..write('createdAt: $createdAt, ')
           ..write('total: $total, ')
@@ -2529,6 +2568,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   @override
   int get hashCode => Object.hash(
     id,
+    invoiceNo,
     businessId,
     createdAt,
     total,
@@ -2547,6 +2587,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       identical(this, other) ||
       (other is Transaction &&
           other.id == this.id &&
+          other.invoiceNo == this.invoiceNo &&
           other.businessId == this.businessId &&
           other.createdAt == this.createdAt &&
           other.total == this.total &&
@@ -2563,6 +2604,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String> id;
+  final Value<String> invoiceNo;
   final Value<String> businessId;
   final Value<DateTime> createdAt;
   final Value<int> total;
@@ -2578,6 +2620,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
+    this.invoiceNo = const Value.absent(),
     this.businessId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.total = const Value.absent(),
@@ -2594,6 +2637,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   });
   TransactionsCompanion.insert({
     this.id = const Value.absent(),
+    this.invoiceNo = const Value.absent(),
     required String businessId,
     this.createdAt = const Value.absent(),
     required int total,
@@ -2612,6 +2656,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
        paymentMethod = Value(paymentMethod);
   static Insertable<Transaction> custom({
     Expression<String>? id,
+    Expression<String>? invoiceNo,
     Expression<String>? businessId,
     Expression<DateTime>? createdAt,
     Expression<int>? total,
@@ -2628,6 +2673,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (invoiceNo != null) 'invoice_no': invoiceNo,
       if (businessId != null) 'business_id': businessId,
       if (createdAt != null) 'created_at': createdAt,
       if (total != null) 'total': total,
@@ -2646,6 +2692,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
 
   TransactionsCompanion copyWith({
     Value<String>? id,
+    Value<String>? invoiceNo,
     Value<String>? businessId,
     Value<DateTime>? createdAt,
     Value<int>? total,
@@ -2662,6 +2709,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   }) {
     return TransactionsCompanion(
       id: id ?? this.id,
+      invoiceNo: invoiceNo ?? this.invoiceNo,
       businessId: businessId ?? this.businessId,
       createdAt: createdAt ?? this.createdAt,
       total: total ?? this.total,
@@ -2683,6 +2731,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (invoiceNo.present) {
+      map['invoice_no'] = Variable<String>(invoiceNo.value);
     }
     if (businessId.present) {
       map['business_id'] = Variable<String>(businessId.value);
@@ -2730,6 +2781,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   String toString() {
     return (StringBuffer('TransactionsCompanion(')
           ..write('id: $id, ')
+          ..write('invoiceNo: $invoiceNo, ')
           ..write('businessId: $businessId, ')
           ..write('createdAt: $createdAt, ')
           ..write('total: $total, ')
@@ -8851,6 +8903,7 @@ typedef $$ProductsTableProcessedTableManager =
 typedef $$TransactionsTableCreateCompanionBuilder =
     TransactionsCompanion Function({
       Value<String> id,
+      Value<String> invoiceNo,
       required String businessId,
       Value<DateTime> createdAt,
       required int total,
@@ -8868,6 +8921,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
 typedef $$TransactionsTableUpdateCompanionBuilder =
     TransactionsCompanion Function({
       Value<String> id,
+      Value<String> invoiceNo,
       Value<String> businessId,
       Value<DateTime> createdAt,
       Value<int> total,
@@ -8918,6 +8972,11 @@ class $$TransactionsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get invoiceNo => $composableBuilder(
+    column: $table.invoiceNo,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9014,6 +9073,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get invoiceNo => $composableBuilder(
+    column: $table.invoiceNo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -9104,6 +9168,9 @@ class $$TransactionsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get invoiceNo =>
+      $composableBuilder(column: $table.invoiceNo, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -9199,6 +9266,7 @@ class $$TransactionsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> invoiceNo = const Value.absent(),
                 Value<String> businessId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> total = const Value.absent(),
@@ -9214,6 +9282,7 @@ class $$TransactionsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
+                invoiceNo: invoiceNo,
                 businessId: businessId,
                 createdAt: createdAt,
                 total: total,
@@ -9231,6 +9300,7 @@ class $$TransactionsTableTableManager
           createCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> invoiceNo = const Value.absent(),
                 required String businessId,
                 Value<DateTime> createdAt = const Value.absent(),
                 required int total,
@@ -9246,6 +9316,7 @@ class $$TransactionsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
+                invoiceNo: invoiceNo,
                 businessId: businessId,
                 createdAt: createdAt,
                 total: total,

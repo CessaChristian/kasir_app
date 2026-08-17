@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
 import '../../data/app_database.dart';
+import '../../data/uuid_helper.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/models/sale_line.dart';
 import '../../shared/auth/session_manager.dart';
@@ -319,7 +320,12 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     }).toList();
   }
 
-  String _generateTxId() {
+  /// Nomor nota yang TAMPIL di struk — bukan primary key.
+  ///
+  /// Format berbasis jam sengaja dipertahankan karena harus mudah dibaca
+  /// kasir dan pelanggan. Keunikan lintas device dijamin oleh
+  /// `transactions.id` yang berupa UUID, bukan oleh nomor ini.
+  String _generateInvoiceNo() {
     final now = DateTime.now();
     final dd = DateFormat('dd').format(now);
     final mm = DateFormat('MM').format(now);
@@ -340,7 +346,8 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
       final session = SessionManager.instance.currentSession;
 
       await db.createSale(
-        transactionId: _generateTxId(),
+        transactionId: newUuid(),
+        invoiceNo: _generateInvoiceNo(),
         lines: _cartToSaleLines(),
         paymentMethod: isCash ? 'cash' : 'qris',
         orderType: orderType,

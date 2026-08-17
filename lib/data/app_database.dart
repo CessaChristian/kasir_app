@@ -133,6 +133,14 @@ class Products extends Table {
 /// =======================
 class Transactions extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
+
+  /// Nomor nota yang TAMPIL di struk, mis. `TRX/18/07/26/081398`.
+  ///
+  /// Dipisah dari [id] (NEW in v11) karena keduanya punya kebutuhan yang
+  /// bertabrakan: [id] harus unik lintas device untuk sync sehingga wajib
+  /// UUID, sedangkan nomor nota harus mudah dibaca kasir dan pelanggan.
+  TextColumn get invoiceNo => text().withDefault(const Constant(''))();
+
   TextColumn get businessId =>
       text().references(Businesses, #id)(); // NEW in v10
   DateTimeColumn get createdAt =>
@@ -374,7 +382,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -469,6 +477,23 @@ class AppDatabase extends _$AppDatabase {
             // Recreate semua (termasuk Businesses + UserBusinessRoles)
             await m.createAll();
             await _seedPermissions();
+          }
+          if (from < 11 && to >= 11) {
+            // v11 — pisahkan nomor nota dari primary key.
+            //
+            // Sebelumnya `transactions.id` merangkap dua peran: primary key
+            // sekaligus nomor nota yang tampil di struk. Formatnya berbasis
+            // jam (TRX/dd/MM/yy/<mikrodetik>) sehingga rawan bentrok antar
+            // device saat sync. Mulai v11 `id` murni UUID dan nomor notanya
+            // pindah ke kolom sendiri.
+            //
+            // Non-destruktif: hanya ADD COLUMN + backfill.
+            await m.addColumn(transactions, transactions.invoiceNo);
+            // Baris lama memakai id sebagai nomor nota — salin apa adanya
+            // supaya struk lama tetap menampilkan nomor yang sama.
+            await customStatement(
+              "UPDATE transactions SET invoice_no = id WHERE invoice_no = ''",
+            );
           }
         },
         beforeOpen: (details) async {
@@ -670,6 +695,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> createSale({
     required String transactionId,
+    required String invoiceNo,
     required List<SaleLine> lines,
     required String paymentMethod,
     required String orderType,
@@ -704,6 +730,7 @@ class AppDatabase extends _$AppDatabase {
       await into(transactions).insert(
         TransactionsCompanion(
           id: Value(transactionId),
+          invoiceNo: Value(invoiceNo),
           businessId: Value(businessId),
           total: Value(total),
           paymentMethod: Value(paymentMethod),
