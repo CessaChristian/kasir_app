@@ -45,6 +45,14 @@ class Businesses extends Table {
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
 
+  // SQLite tidak punya tipe ENUM, jadi nilai yang sah dijaga lewat CHECK
+  // (NEW in v12). Tanpa ini kolom TEXT menerima salah ketik apa pun —
+  // yang benar-benar pernah terjadi pada transactions.order_type.
+  @override
+  List<String> get customConstraints => [
+        "CHECK (type IN ('restaurant_dinein', 'beverage_grabandgo'))",
+      ];
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -55,7 +63,7 @@ class Businesses extends Table {
 class UserBusinessRoles extends Table {
   TextColumn get userId => text().references(Users, #id)();
   TextColumn get businessId => text().references(Businesses, #id)();
-  TextColumn get role => text()(); // 'owner' | 'cashier' (extendable)
+  TextColumn get role => text()(); // 'owner' | 'cashier' — dijaga CHECK di v12
   DateTimeColumn get assignedAt =>
       dateTime().withDefault(currentDateAndTime)();
 
@@ -65,6 +73,11 @@ class UserBusinessRoles extends Table {
   DateTimeColumn get deletedAt => dateTime().nullable()();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
+
+  @override
+  List<String> get customConstraints => [
+        "CHECK (role IN ('owner', 'cashier'))",
+      ];
 
   @override
   Set<Column> get primaryKey => {userId, businessId};
@@ -164,6 +177,15 @@ class Transactions extends Table {
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
 
+  // NEW in v12. Kolom order_type pernah tercemar 163 baris bernilai
+  // 'takeaway' (tanpa garis bawah) dari penyuntikan data langsung, dan
+  // seluruhnya terhitung sebagai Dine In di laporan tanpa error apa pun.
+  @override
+  List<String> get customConstraints => [
+        "CHECK (payment_method IN ('cash', 'qris'))",
+        "CHECK (order_type IN ('dine_in', 'take_away', 'delivery'))",
+      ];
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -211,7 +233,7 @@ class Users extends Table {
   TextColumn get username => text().unique()();
   TextColumn get pinHash => text()();
   TextColumn get salt => text()();
-  TextColumn get role => text()();
+  TextColumn get role => text()(); // 'owner' | 'cashier' — dijaga CHECK di v12
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -234,6 +256,11 @@ class Users extends Table {
   DateTimeColumn get deletedAt => dateTime().nullable()();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
+
+  @override
+  List<String> get customConstraints => [
+        "CHECK (role IN ('owner', 'cashier'))",
+      ];
 
   @override
   Set<Column> get primaryKey => {id};
@@ -382,7 +409,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -494,6 +521,38 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               "UPDATE transactions SET invoice_no = id WHERE invoice_no = ''",
             );
+          }
+          if (from < 12 && to >= 12) {
+            // v12 — pasang CHECK pada kolom yang berperan sebagai enum.
+            //
+            // SQLite tidak punya tipe ENUM, jadi kolom TEXT menerima salah
+            // ketik apa pun tanpa protes. Ini sudah terbukti merugikan:
+            // order_type sempat berisi 163 baris 'takeaway' (tanpa garis
+            // bawah) sementara kode memakai 'take_away', dan semuanya
+            // terhitung sebagai Dine In di laporan tanpa error apa pun.
+            //
+            // URUTAN PENTING: data dibersihkan DULU. Kalau tidak, pembangunan
+            // ulang tabel akan gagal karena baris lama melanggar CHECK yang
+            // baru dipasang.
+            await customStatement(
+              "UPDATE transactions SET order_type = 'take_away', "
+              "updated_at = CAST(strftime('%s','now') AS INTEGER), "
+              "sync_status = 'pending' WHERE order_type = 'takeaway'",
+            );
+
+            // alterTable membangun ulang tabel (SQLite tidak bisa
+            // ALTER TABLE ADD CONSTRAINT) lalu menyalin seluruh datanya.
+            //
+            // TableMigration masih ditandai experimental oleh drift, tapi
+            // dipakai karena bagian tersulitnya — menjaga acuan foreign key
+            // dari tabel lain saat tabel dibangun ulang — sudah ditangani di
+            // sana. Menulis prosedur 12 langkah SQLite sendiri justru lebih
+            // rawan. Migrasi ini diuji pada database berisi 515 transaksi.
+            // ignore_for_file: experimental_member_use
+            await m.alterTable(TableMigration(transactions));
+            await m.alterTable(TableMigration(users));
+            await m.alterTable(TableMigration(userBusinessRoles));
+            await m.alterTable(TableMigration(businesses));
           }
         },
         beforeOpen: (details) async {
