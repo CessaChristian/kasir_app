@@ -108,6 +108,10 @@ class AuthRepository {
 
     // S5: PIN benar → reset login attempts + clear lock.
     if (user.loginAttempts > 0 || user.loginLockedUntil != null) {
+      // updatedAt SENGAJA tidak dinaikkan. Counter rate-limit bersifat
+      // device-local: menaikkannya membuat baris user terlihat "lebih baru"
+      // setiap kali salah ketik PIN, sehingga bisa menimpa perubahan sah dari
+      // device lain saat sync. Lihat catatan yang sama di _lockUser().
       await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
           .write(const UsersCompanion(
         loginAttempts: Value(0),
@@ -120,7 +124,11 @@ class AuthRepository {
     if (CryptoUtils.needsRehash(user.pinHash)) {
       final newHash = CryptoUtils.hashPin(pin, user.salt);
       await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
-          .write(UsersCompanion(pinHash: Value(newHash)));
+          .write(UsersCompanion(
+        pinHash: Value(newHash),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
+      ));
     }
 
     // 4. Start a new shift — HANYA untuk non-owner (cashier).
@@ -164,9 +172,12 @@ class AuthRepository {
   }) async {
     if (shiftId == null) return;
     // End the shift by setting end_at
+    final now = DateTime.now();
     await (_db.update(_db.shifts)..where((s) => s.id.equals(shiftId))).write(
       ShiftsCompanion(
-        endAt: Value(DateTime.now()),
+        endAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value('pending'),
       ),
     );
   }
@@ -300,6 +311,8 @@ class AuthRepository {
         recoveryUsedAt: const Value(null),
         recoveryAttempts: const Value(0),
         recoveryLockedUntil: const Value(null),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
       ),
     );
 
@@ -370,7 +383,11 @@ class AuthRepository {
     if (HashUtils.needsRehash(owner.recoveryHash!)) {
       final newHash = _hashRecoveryCode(normalized, owner.recoverySalt!);
       await (_db.update(_db.users)..where((u) => u.id.equals(owner.id)))
-          .write(UsersCompanion(recoveryHash: Value(newHash)));
+          .write(UsersCompanion(
+        recoveryHash: Value(newHash),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
+      ));
     }
 
     // Valid - reset attempts
@@ -451,6 +468,8 @@ class AuthRepository {
           recoveryUsedAt: Value(DateTime.now()),
           recoveryAttempts: const Value(0),
           recoveryLockedUntil: const Value(null),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value('pending'),
         ),
       );
 
@@ -541,6 +560,10 @@ class AuthRepository {
       final cycle = user.loginAttempts ~/ 5;
       final lockSeconds = _calculateLockSeconds(cycle);
       final lockUntil = DateTime.now().add(Duration(seconds: lockSeconds));
+      // updatedAt SENGAJA tidak dinaikkan — kunci login bersifat device-local.
+      // Menyinkronkannya berarti salah ketik PIN di satu HP ikut mengunci akun
+      // di semua HP, dan membuat baris user selalu terlihat paling baru
+      // sehingga menimpa perubahan sah dari device lain.
       await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
         UsersCompanion(loginLockedUntil: Value(lockUntil)),
       );
@@ -580,6 +603,7 @@ class AuthRepository {
       final cycle = user.recoveryAttempts ~/ 5;
       final lockSeconds = _calculateLockSeconds(cycle);
       final lockUntil = DateTime.now().add(Duration(seconds: lockSeconds));
+      // updatedAt sengaja tidak dinaikkan — device-local, sama seperti _lockUser().
       await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
         UsersCompanion(recoveryLockedUntil: Value(lockUntil)),
       );
@@ -604,6 +628,7 @@ class AuthRepository {
 
   /// Reset recovery attempts
   Future<void> _resetRecoveryAttempts(String userId) async {
+    // updatedAt sengaja tidak dinaikkan — device-local, sama seperti _lockUser().
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
       const UsersCompanion(
         recoveryAttempts: Value(0),
@@ -617,6 +642,7 @@ class AuthRepository {
   /// HANYA clear lockedUntil — JANGAN reset attempts.
   /// Counter attempts tetap dipertahankan untuk exponential backoff.
   Future<void> _resetRecoveryLock(String userId) async {
+    // updatedAt sengaja tidak dinaikkan — device-local, sama seperti _lockUser().
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
       const UsersCompanion(recoveryLockedUntil: Value(null)),
     );

@@ -636,12 +636,30 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Soft delete kategori: produk dilepas jadi tanpa kategori, lalu kategori
+  /// ditandai terhapus.
+  ///
+  /// Sengaja TIDAK menghapus baris secara fisik. Baris yang lenyap tidak bisa
+  /// diberitahukan ke device lain saat sync — server hanya melihat ketiadaan,
+  /// dan ketiadaan tidak bisa dikirim. Akibatnya baris yang sudah dihapus akan
+  /// dikirim balik oleh server dan "hidup lagi" (zombie record). Dengan
+  /// menandai `deleted_at`, penghapusannya ikut tersinkron.
   Future<void> deleteCategory(String id) async {
     SessionManager.instance.requirePermission('manage_products');
+    final now = DateTime.now();
     await transaction(() async {
       await (update(products)..where((p) => p.categoryId.equals(id)))
-          .write(const ProductsCompanion(categoryId: Value(null)));
-      await (delete(categories)..where((t) => t.id.equals(id))).go();
+          .write(ProductsCompanion(
+        categoryId: const Value(null),
+        updatedAt: Value(now),
+        syncStatus: const Value('pending'),
+      ));
+      await (update(categories)..where((t) => t.id.equals(id)))
+          .write(CategoriesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value('pending'),
+      ));
     });
   }
 
@@ -686,9 +704,16 @@ class AppDatabase extends _$AppDatabase {
     await into(products).insertOnConflictUpdate(data);
   }
 
+  /// Soft delete produk — lihat catatan di [deleteCategory] soal zombie record.
   Future<void> deleteProduct(String id) async {
     SessionManager.instance.requirePermission('manage_products');
-    await (delete(products)..where((t) => t.id.equals(id))).go();
+    final now = DateTime.now();
+    await (update(products)..where((t) => t.id.equals(id)))
+        .write(ProductsCompanion(
+      deletedAt: Value(now),
+      updatedAt: Value(now),
+      syncStatus: const Value('pending'),
+    ));
   }
 
   // ---- SALES ----
@@ -753,8 +778,11 @@ class AppDatabase extends _$AppDatabase {
     for (final line in lines) {
       if (!line.trackStock) continue;
 
+      // Filter deletedAt WAJIB: sejak produk memakai soft delete, barisnya
+      // tetap ada setelah dihapus. Tanpa filter ini produk yang sudah dihapus
+      // masih bisa terjual.
       final product = await (select(products)
-            ..where((t) => t.id.equals(line.productId)))
+            ..where((t) => t.id.equals(line.productId) & t.deletedAt.isNull()))
           .getSingleOrNull();
 
       if (product == null) {
@@ -889,8 +917,16 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Soft delete pengeluaran — lihat catatan di [deleteCategory].
   Future<void> deleteExpense(String id) async {
-    await (delete(expenses)..where((e) => e.id.equals(id))).go();
+    final now = DateTime.now();
+    await (update(expenses)..where((e) => e.id.equals(id)))
+        .write(ExpensesCompanion(
+      deletedAt: Value(now),
+      updatedAt: Value(now),
+      updatedByUserId: Value(SessionManager.instance.currentUserId),
+      syncStatus: const Value('pending'),
+    ));
   }
 
   /// Update expense. Hanya update amount + description.
@@ -1338,7 +1374,8 @@ class AppDatabase extends _$AppDatabase {
     final allShiftIds = allShifts.map((s) => s.id).toList();
     final allShiftExpenses = allShiftIds.isNotEmpty
         ? await (select(expenses)
-              ..where((e) => e.shiftId.isIn(allShiftIds)))
+              ..where((e) =>
+                  e.shiftId.isIn(allShiftIds) & e.deletedAt.isNull()))
             .get()
         : <Expense>[];
     final expensesByShift = <String, List<Expense>>{};
@@ -1350,6 +1387,7 @@ class AppDatabase extends _$AppDatabase {
     final allUserExpenses = await (select(expenses)
           ..where((e) =>
               e.userId.isIn(userIds) &
+              e.deletedAt.isNull() &
               e.createdAt.isBiggerOrEqualValue(expenseStartDate) &
               e.createdAt.isSmallerThanValue(expenseEndDate)))
         .get();

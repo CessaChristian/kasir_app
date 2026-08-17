@@ -91,12 +91,22 @@ void main() {
           categoryId: const Value('cat-1'),
         ));
 
-    // deleteCategory melepas produk dulu (category_id = NULL) baru menghapus
-    // kategorinya, semuanya dalam satu transaction — jadi FK tidak terlanggar.
+    // deleteCategory melepas produk dulu (category_id = NULL) baru menandai
+    // kategorinya terhapus, semuanya dalam satu transaction — jadi FK tidak
+    // terlanggar.
     await db.deleteCategory('cat-1');
 
-    final categories = await db.select(db.categories).get();
-    expect(categories, isEmpty, reason: 'kategori terhapus');
+    // Soft delete: barisnya SENGAJA tetap ada supaya penghapusannya bisa
+    // disebarkan ke device lain saat sync.
+    final row = await (db.select(db.categories)
+          ..where((c) => c.id.equals('cat-1')))
+        .getSingle();
+    expect(row.deletedAt, isNotNull, reason: 'kategori ditandai terhapus');
+    expect(row.syncStatus, 'pending', reason: 'perlu dikirim ke server');
+
+    // Dari sisi aplikasi kategori itu harus hilang.
+    final terlihat = await db.watchCategories().first;
+    expect(terlihat, isEmpty, reason: 'kategori tidak muncul lagi di UI');
 
     final product = await (db.select(db.products)
           ..where((p) => p.id.equals('prod-1')))

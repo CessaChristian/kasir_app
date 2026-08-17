@@ -122,6 +122,8 @@ class CashierRepository {
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
       UsersCompanion(
         isActive: Value(isActive),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
       ),
     );
   }
@@ -144,6 +146,8 @@ class CashierRepository {
       UsersCompanion(
         salt: Value(salt),
         pinHash: Value(pinHash),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
       ),
     );
   }

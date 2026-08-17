@@ -47,9 +47,14 @@ class BusinessSwitchService {
 
     if (isCashierWithShift) {
       // 1. Tutup shift aktif (kalau masih terbuka).
+      final now = DateTime.now();
       await (_dbx.update(_dbx.shifts)
             ..where((s) => s.id.equals(session.shiftId!) & s.endAt.isNull()))
-          .write(ShiftsCompanion(endAt: Value(DateTime.now())));
+          .write(ShiftsCompanion(
+        endAt: Value(now),
+        updatedAt: Value(now),
+        syncStatus: const Value('pending'),
+      ));
 
       // 2. Buka shift baru di business target (invariant: cashier selalu punya
       // shift aktif — tanpa ini transaksi berikutnya menempel ke shift
