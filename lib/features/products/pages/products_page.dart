@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
+import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -20,6 +21,7 @@ class ProductsPage extends StatefulWidget {
 }
 
 class _ProductsPageState extends State<ProductsPage> {
+  final _productRepo = ProductRepository(db);
   String _searchQuery = '';
   String? _selectedCategoryId;
 
@@ -63,7 +65,7 @@ class _ProductsPageState extends State<ProductsPage> {
       // saat sync (dua HP membuat produk pada milidetik yang sama).
       final productId = editing?.id ?? newUuid();
 
-      await db.upsertProduct(
+      await _productRepo.upsertProduct(
         id: productId,
         name: result.name,
         price: result.price,
@@ -97,7 +99,7 @@ class _ProductsPageState extends State<ProductsPage> {
     if (confirmed != true) return;
 
     try {
-      await db.deleteProduct(p.id);
+      await _productRepo.deleteProduct(p.id);
       if (!mounted) return;
       AppToast.success(context, 'Produk berhasil dihapus');
     } catch (e) {
@@ -127,7 +129,7 @@ class _ProductsPageState extends State<ProductsPage> {
           ),
           // Category Filter
           StreamBuilder<List<Category>>(
-            stream: db.watchCategories(),
+            stream: _productRepo.watchCategories(),
             builder: (context, snapshot) {
               final categories = snapshot.data ?? [];
               return CategoryFilterBar(
@@ -141,13 +143,13 @@ class _ProductsPageState extends State<ProductsPage> {
           // Product List - Using single combined stream for better performance
           Expanded(
             child: StreamBuilder<List<Category>>(
-              stream: db.watchCategories(),
+              stream: _productRepo.watchCategories(),
               builder: (context, catSnapshot) {
                 final categories = catSnapshot.data ?? [];
                 final categoryMap = {for (var c in categories) c.id: c.name};
 
                 return StreamBuilder<List<Product>>(
-                  stream: db.watchProducts(),
+                  stream: _productRepo.watchProducts(),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return ErrorStateWidget(

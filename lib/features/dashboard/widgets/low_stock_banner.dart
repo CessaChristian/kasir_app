@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
+import '../../products/repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../app/app_shell.dart';
 import '../../../shared/constants/app_constants.dart';
@@ -10,7 +11,7 @@ class LowStockBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Product>>(
-      stream: db.watchProducts(),
+      stream: ProductRepository(db).watchProducts(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 

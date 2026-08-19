@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
+import '../products/repositories/product_repository.dart';
 import '../../data/app_database.dart';
 import '../../data/uuid_helper.dart';
 import '../../utils/currency_formatter.dart';
@@ -31,6 +32,7 @@ class _CartLine {
 }
 
 class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
+  final _productRepo = ProductRepository(db);
   final List<_CartLine> _cart = [];
   final Set<String> _addingProducts = {};
   // C4: Cache hasil File.existsSync agar tidak blocking main thread setiap rebuild
@@ -451,7 +453,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           SizedBox(
             height: 48,
             child: StreamBuilder<List<Category>>(
-              stream: db.watchCategories(),
+              stream: _productRepo.watchCategories(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) return const SizedBox.shrink();
                 final categories = snapshot.data ?? [];
@@ -484,7 +486,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           // Product Grid
           Expanded(
             child: StreamBuilder<List<Product>>(
-              stream: db.watchProducts(),
+              stream: _productRepo.watchProducts(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return ErrorStateWidget(

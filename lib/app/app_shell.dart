@@ -10,6 +10,7 @@ import '../features/expenses/expenses_page.dart';
 import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
+import '../features/products/repositories/product_repository.dart';
 import '../data/app_database.dart';
 import '../data/business_context.dart';
 import '../shared/constants/app_constants.dart';
@@ -30,6 +31,7 @@ class AppShell extends StatefulWidget {
 }
 
 class AppShellState extends State<AppShell> {
+  final _productRepo = ProductRepository(db);
   int _selectedIndex = 0;
 
   // Cache stream agar tidak dibuat ulang setiap build() dipanggil.
@@ -39,12 +41,12 @@ class AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    _productStream = db.watchProducts();
+    _productStream = _productRepo.watchProducts();
     BusinessContext.instance.addListener(_onBusinessChanged);
   }
 
   void _onBusinessChanged() {
-    setState(() => _productStream = db.watchProducts());
+    setState(() => _productStream = _productRepo.watchProducts());
   }
 
   @override

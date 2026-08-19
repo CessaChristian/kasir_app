@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/db.dart';
+import 'repositories/product_repository.dart';
 import '../../data/app_database.dart';
 import '../../data/uuid_helper.dart';
 import '../../shared/constants/category_icons.dart';
@@ -24,6 +25,7 @@ class CategoryManager extends StatefulWidget {
 }
 
 class _CategoryManagerState extends State<CategoryManager> {
+  final _productRepo = ProductRepository(db);
   final _nameC = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   int? _selectedIconCodepoint;
@@ -48,7 +50,7 @@ class _CategoryManagerState extends State<CategoryManager> {
     // Primary key WAJIB UUID — lihat catatan di products_page.
     final id = newUuid();
 
-    await db.upsertCategory(
+    await _productRepo.upsertCategory(
       id: id,
       name: name,
       iconCodepoint:
@@ -146,7 +148,7 @@ class _CategoryManagerState extends State<CategoryManager> {
     );
 
     if (confirm == true) {
-      await db.deleteCategory(c.id);
+      await _productRepo.deleteCategory(c.id);
     }
   }
 
@@ -359,7 +361,7 @@ class _CategoryManagerState extends State<CategoryManager> {
             
             // Category List
             StreamBuilder<List<Category>>(
-              stream: db.watchCategories(),
+              stream: _productRepo.watchCategories(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return ErrorStateWidget(

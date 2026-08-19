@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../data/db.dart';
+import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../utils/currency_formatter.dart';
@@ -40,6 +41,7 @@ class ProductFormSheet extends StatefulWidget {
 }
 
 class _ProductFormSheetState extends State<ProductFormSheet> {
+  final _productRepo = ProductRepository(db);
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameC;
@@ -389,7 +391,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
                 // Category Picker
                 StreamBuilder<List<Category>>(
-                  stream: db.watchCategories(),
+                  stream: _productRepo.watchCategories(),
                   builder: (context, snapshot) {
                     final categories = snapshot.data ?? [];
 
