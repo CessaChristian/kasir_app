@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 import '../../../utils/currency_formatter.dart';
 
 /// Tampilkan bottom sheet detail karyawan
@@ -421,6 +422,7 @@ class _DetailTransactionRow extends StatefulWidget {
 
 class _DetailTransactionRowState extends State<_DetailTransactionRow>
     with SingleTickerProviderStateMixin {
+  final _salesRepo = SalesRepository(db);
   bool _expanded = false;
   List<TransactionItem>? _items;
   bool _loading = false;
@@ -428,7 +430,7 @@ class _DetailTransactionRowState extends State<_DetailTransactionRow>
   Future<void> _loadItems() async {
     if (_items != null) return;
     setState(() => _loading = true);
-    final items = await db.getTransactionItems(widget.transaction.id);
+    final items = await _salesRepo.getTransactionItems(widget.transaction.id);
     if (mounted) {
       setState(() {
         _items = items;

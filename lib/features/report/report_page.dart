@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
+import '../sales/repositories/sales_repository.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
@@ -1634,6 +1635,7 @@ class _OrderTypeSheet extends StatefulWidget {
 }
 
 class _OrderTypeSheetState extends State<_OrderTypeSheet> {
+  final _salesRepo = SalesRepository(db);
   List<Transaction>? _transactions;
   bool _loading = true;
 
@@ -1644,7 +1646,7 @@ class _OrderTypeSheetState extends State<_OrderTypeSheet> {
   }
 
   Future<void> _loadData() async {
-    final all = await db.getTransactionsByDateRange(
+    final all = await _salesRepo.getTransactionsByDateRange(
         widget.startDate, widget.endDate);
     final filtered =
         all.where((tx) => tx.orderType == widget.orderType).toList();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 
 class PaymentBreakdownCard extends StatefulWidget {
   const PaymentBreakdownCard({super.key});
@@ -11,6 +12,7 @@ class PaymentBreakdownCard extends StatefulWidget {
 }
 
 class _PaymentBreakdownCardState extends State<PaymentBreakdownCard> {
+  final _salesRepo = SalesRepository(db);
   int _cashTotal = 0;
   int _cashCount = 0;
   int _qrisTotal = 0;
@@ -23,7 +25,7 @@ class _PaymentBreakdownCardState extends State<PaymentBreakdownCard> {
     super.initState();
     _load();
     // LOW-1: auto-refresh saat ada transaksi baru
-    _txSub = db.watchTransactions().listen((_) {
+    _txSub = _salesRepo.watchTransactions().listen((_) {
       if (mounted) _load();
     });
   }
@@ -38,7 +40,7 @@ class _PaymentBreakdownCardState extends State<PaymentBreakdownCard> {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
     final end = start.add(const Duration(days: 1));
-    final txs = await db.getTransactionsByDateRange(start, end);
+    final txs = await _salesRepo.getTransactionsByDateRange(start, end);
 
     final cash = txs.where((t) => t.paymentMethod == 'cash').toList();
     final qris = txs.where((t) => t.paymentMethod == 'qris').toList();

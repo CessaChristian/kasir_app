@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 
 class TodayRevenueSummary extends StatefulWidget {
   const TodayRevenueSummary({super.key});
@@ -11,6 +12,7 @@ class TodayRevenueSummary extends StatefulWidget {
 }
 
 class _TodayRevenueSummaryState extends State<TodayRevenueSummary> {
+  final _salesRepo = SalesRepository(db);
   int _todayRevenue = 0;
   int _yesterdayRevenue = 0;
   int _transactionCount = 0;
@@ -23,7 +25,7 @@ class _TodayRevenueSummaryState extends State<TodayRevenueSummary> {
     _loadTodayRevenue();
     // LOW-1: Re-load setiap kali ada perubahan di tabel transactions
     // (insert dari createSale, update, dll) — badge "LIVE" jadi benar.
-    _txSub = db.watchTransactions().listen((_) {
+    _txSub = _salesRepo.watchTransactions().listen((_) {
       if (mounted) _loadTodayRevenue();
     });
   }
@@ -42,9 +44,9 @@ class _TodayRevenueSummaryState extends State<TodayRevenueSummary> {
       final yesterdayStart = todayStart.subtract(const Duration(days: 1));
 
       final todayTx =
-          await db.getTransactionsByDateRange(todayStart, todayEnd);
+          await _salesRepo.getTransactionsByDateRange(todayStart, todayEnd);
       final yesterdayTx =
-          await db.getTransactionsByDateRange(yesterdayStart, todayStart);
+          await _salesRepo.getTransactionsByDateRange(yesterdayStart, todayStart);
 
       if (mounted) {
         setState(() {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/business_context.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -14,6 +15,7 @@ class ActiveShiftCard extends StatefulWidget {
 }
 
 class _ActiveShiftCardState extends State<ActiveShiftCard> {
+  final _salesRepo = SalesRepository(db);
   Shift? _shift;
   int _shiftRevenue = 0;
   int _shiftTxCount = 0;
@@ -31,7 +33,7 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
       if (mounted) setState(() {});
     });
     // LOW-1: refresh shift revenue/tx count saat ada transaksi baru
-    _txSub = db.watchTransactions().listen((_) {
+    _txSub = _salesRepo.watchTransactions().listen((_) {
       if (mounted) _load();
     });
   }

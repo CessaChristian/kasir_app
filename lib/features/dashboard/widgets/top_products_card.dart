@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 import '../../../data/models/top_product.dart';
 
 class TopProductsCard extends StatefulWidget {
@@ -11,6 +12,7 @@ class TopProductsCard extends StatefulWidget {
 }
 
 class _TopProductsCardState extends State<TopProductsCard> {
+  final _salesRepo = SalesRepository(db);
   List<TopProduct> _products = [];
   bool _loading = true;
   StreamSubscription? _txSub;
@@ -20,7 +22,7 @@ class _TopProductsCardState extends State<TopProductsCard> {
     super.initState();
     _load();
     // LOW-1: auto-refresh top products saat ada transaksi baru
-    _txSub = db.watchTransactions().listen((_) {
+    _txSub = _salesRepo.watchTransactions().listen((_) {
       if (mounted) _load();
     });
   }

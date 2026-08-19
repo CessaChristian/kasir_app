@@ -5,8 +5,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
+import '../../sales/repositories/sales_repository.dart';
 
 class ReportExportService {
+  static final _salesRepo = SalesRepository(db);
   /// Export laporan ke file Excel dan buka share dialog
   static Future<void> exportReport(
     ReportSummary report,
@@ -79,7 +81,7 @@ class ReportExportService {
 
     // C1: Batch fetch semua items sekali — hindari N+1 query.
     final allTxIds = report.transactions.map((t) => t.id).toList();
-    final itemsByTx = await db.getTransactionItemsForIds(allTxIds);
+    final itemsByTx = await _salesRepo.getTransactionItemsForIds(allTxIds);
 
     if (isMonthly) {
       // Group transactions by day for monthly report

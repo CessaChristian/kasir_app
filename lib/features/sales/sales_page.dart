@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
+import 'repositories/sales_repository.dart';
 import '../products/repositories/product_repository.dart';
 import '../../data/app_database.dart';
 import '../../data/uuid_helper.dart';
@@ -32,6 +33,7 @@ class _CartLine {
 }
 
 class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
+  final _salesRepo = SalesRepository(db);
   final _productRepo = ProductRepository(db);
   final List<_CartLine> _cart = [];
   final Set<String> _addingProducts = {};
@@ -347,7 +349,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     try {
       final session = SessionManager.instance.currentSession;
 
-      await db.createSale(
+      await _salesRepo.createSale(
         transactionId: newUuid(),
         invoiceNo: _generateInvoiceNo(),
         lines: _cartToSaleLines(),

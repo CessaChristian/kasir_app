@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/error_state_widget.dart';
 import '../../data/db.dart';
+import '../sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
@@ -16,6 +17,7 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
+  final _salesRepo = SalesRepository(db);
   // Track which date sections are expanded (today expanded by default)
   final Set<String> _expandedDates = {};
   bool _initialized = false;
@@ -30,7 +32,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: StreamBuilder<List<Transaction>>(
-        stream: db.watchTransactions(),
+        stream: _salesRepo.watchTransactions(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return ErrorStateWidget(
@@ -530,7 +532,7 @@ class _HistoryPageState extends State<HistoryPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await db.softDeleteTransaction(tx.id);
+      await _salesRepo.softDeleteTransaction(tx.id);
       if (mounted) AppToast.success(context, 'Transaksi berhasil dihapus');
     } catch (e) {
       if (mounted) AppToast.error(context, 'Gagal hapus: $e');

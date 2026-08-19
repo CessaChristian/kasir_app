@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
+import '../../features/sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
 import '../../data/business_context.dart';
 import 'business_logo.dart';
@@ -18,6 +19,7 @@ class TransactionDetailSheet extends StatefulWidget {
 }
 
 class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
+  final _salesRepo = SalesRepository(db);
   List<TransactionItem>? _items;
   bool _loading = true;
 
@@ -28,7 +30,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
   }
 
   Future<void> _loadItems() async {
-    final items = await db.getTransactionItems(widget.transaction.id);
+    final items = await _salesRepo.getTransactionItems(widget.transaction.id);
     if (mounted) {
       setState(() {
         _items = items;
