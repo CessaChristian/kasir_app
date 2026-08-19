@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/db.dart';
+import 'repositories/expense_repository.dart';
 import '../../data/app_database.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -15,6 +16,7 @@ class ExpensesPage extends StatefulWidget {
 }
 
 class _ExpensesPageState extends State<ExpensesPage> {
+  final _expenseRepo = ExpenseRepository(db);
   List<Shift> _pastShifts = [];
   bool _loadingHistory = true;
 
@@ -28,7 +30,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     final session = SessionManager.instance.currentSession;
     _activeShiftId = session?.shiftId;
     if (_activeShiftId != null) {
-      _expensesStream = db.watchExpensesByShift(_activeShiftId!);
+      _expensesStream = _expenseRepo.watchExpensesByShift(_activeShiftId!);
     }
     _loadPastShifts();
   }
@@ -80,7 +82,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     if (result == null || !mounted) return;
 
     // Dialog sudah sepenuhnya gone dari tree → aman memanggil DB
-    await db.addExpense(
+    await _expenseRepo.addExpense(
       shiftId: shiftId,
       userId: session.userId,
       description: result.desc,
@@ -159,7 +161,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       ),
     );
     if (confirmed == true) {
-      await db.deleteExpense(id);
+      await _expenseRepo.deleteExpense(id);
     }
   }
 
@@ -458,7 +460,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await db.updateExpense(
+      await _expenseRepo.updateExpense(
         id: expense.id,
         amount: int.parse(amountC.text),
         description: descC.text.trim(),
@@ -525,13 +527,14 @@ class _ShiftHistoryCard extends StatefulWidget {
 }
 
 class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
+  final _expenseRepo = ExpenseRepository(db);
   bool _expanded = false;
   List<Expense> _expenses = [];
   bool _loaded = false;
 
   Future<void> _loadExpenses() async {
     if (_loaded) return;
-    final result = await db.getExpensesByShift(widget.shift.id);
+    final result = await _expenseRepo.getExpensesByShift(widget.shift.id);
     if (mounted) {
       setState(() {
         _expenses = result;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
+import '../expenses/repositories/expense_repository.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/app_database.dart';
@@ -1256,6 +1257,7 @@ class _ExpenseDetailSheet extends StatefulWidget {
 }
 
 class _ExpenseDetailSheetState extends State<_ExpenseDetailSheet> {
+  final _expenseRepo = ExpenseRepository(db);
   List<ExpenseEntry>? _entries;
   bool _loading = true;
   final Set<String> _expanded = {};
@@ -1267,7 +1269,7 @@ class _ExpenseDetailSheetState extends State<_ExpenseDetailSheet> {
   }
 
   Future<void> _loadEntries() async {
-    final entries = await db.getAllExpensesForOwner(
+    final entries = await _expenseRepo.getAllExpensesForOwner(
       startDate: widget.startDate,
       endDate: widget.endDate,
     );
