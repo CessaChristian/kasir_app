@@ -21,11 +21,10 @@ class SalesRepository {
   /// Seluruhnya dalam satu transaction database: kalau stok tidak cukup,
   /// tidak ada satu pun baris yang tertulis.
   ///
-  /// [transactionId] wajib UUID (kunci internal, tidak pernah tampil),
-  /// [invoiceNo] adalah nomor nota yang tercetak di struk.
-  Future<void> createSale({
+  /// [transactionId] wajib UUID (kunci internal, tidak pernah tampil).
+  /// Nomor nota dibuat sendiri oleh database dan dikembalikan method ini.
+  Future<String> createSale({
     required String transactionId,
-    required String invoiceNo,
     required List<SaleLine> lines,
     required String paymentMethod,
     required String orderType,
@@ -35,7 +34,6 @@ class SalesRepository {
   }) =>
       _db.createSale(
         transactionId: transactionId,
-        invoiceNo: invoiceNo,
         lines: lines,
         paymentMethod: paymentMethod,
         orderType: orderType,

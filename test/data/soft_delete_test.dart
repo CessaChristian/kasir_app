@@ -96,7 +96,6 @@ void main() {
     await expectLater(
       db.createSale(
         transactionId: 'trx-1',
-        invoiceNo: 'TRX/09/08/26/000001',
         paymentMethod: 'qris',
         orderType: 'dine_in',
         lines: [
@@ -145,7 +144,6 @@ void main() {
     // Satu penjualan supaya kasir muncul di laporan.
     await db.createSale(
       transactionId: 'trx-1',
-      invoiceNo: 'TRX/09/08/26/000002',
       paymentMethod: 'qris',
       orderType: 'dine_in',
       cashierUserId: 'kasir-1',

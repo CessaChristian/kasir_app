@@ -68,7 +68,6 @@ void main() {
     final id = 'trx-$invoiceNo';
     await db.createSale(
       transactionId: id,
-      invoiceNo: invoiceNo,
       paymentMethod: 'qris',
       orderType: 'dine_in',
       shiftId: 'shift-1',

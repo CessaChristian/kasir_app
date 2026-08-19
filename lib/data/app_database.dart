@@ -777,9 +777,13 @@ class AppDatabase extends _$AppDatabase {
 
   // ---- SALES ----
 
-  Future<void> createSale({
+  /// Catat penjualan. Mengembalikan nomor nota yang tercetak di struk.
+  ///
+  /// Nomor nota dibuat DI SINI, bukan di UI, supaya menghitung nomor dan
+  /// menyimpan transaksi terjadi dalam satu transaction database. Kalau
+  /// dipisah, ada celah di mana dua checkout bisa membaca hitungan yang sama.
+  Future<String> createSale({
     required String transactionId,
-    required String invoiceNo,
     required List<SaleLine> lines,
     required String paymentMethod,
     required String orderType,
@@ -808,8 +812,10 @@ class AppDatabase extends _$AppDatabase {
     final changeAmount =
         paymentMethod == 'cash' ? (cashReceived! - total) : null;
 
+    late String invoiceNo;
     await transaction(() async {
       await _validateAndUpdateStock(lines);
+      invoiceNo = await _nextInvoiceNo(businessId, DateTime.now());
 
       await into(transactions).insert(
         TransactionsCompanion(
@@ -829,6 +835,36 @@ class AppDatabase extends _$AppDatabase {
 
       await _insertTransactionItems(transactionId, businessId, lines);
     });
+    return invoiceNo;
+  }
+
+  /// Nomor nota berikutnya untuk hari ini: `TRX/dd/MM/yy/NNNN`.
+  ///
+  /// Menghitung SELURUH transaksi hari ini termasuk yang sudah ditandai
+  /// terhapus. Itu disengaja: kalau yang terhapus tidak ikut dihitung, nomor
+  /// bekasnya akan dipakai ulang dan dua struk berbeda punya nomor yang sama —
+  /// persis masalah yang mau dihilangkan. Ini bisa dilakukan karena penghapusan
+  /// transaksi memakai soft delete, jadi barisnya tetap ada.
+  ///
+  /// Dipanggil dari DALAM transaction milik [createSale] supaya menghitung dan
+  /// menyimpan tidak bisa disela.
+  Future<String> _nextInvoiceNo(String businessId, DateTime now) async {
+    final awalHari = DateTime(now.year, now.month, now.day);
+    final akhirHari = awalHari.add(const Duration(days: 1));
+
+    final hitung = transactions.id.count();
+    final baris = await (selectOnly(transactions)
+          ..addColumns([hitung])
+          ..where(transactions.businessId.equals(businessId) &
+              transactions.createdAt.isBiggerOrEqualValue(awalHari) &
+              transactions.createdAt.isSmallerThanValue(akhirHari)))
+        .getSingle();
+    final urut = (baris.read(hitung)! + 1).toString().padLeft(4, '0');
+
+    final dd = now.day.toString().padLeft(2, '0');
+    final mm = now.month.toString().padLeft(2, '0');
+    final yy = (now.year % 100).toString().padLeft(2, '0');
+    return 'TRX/$dd/$mm/$yy/$urut';
   }
 
   // Validate + update stock atomically per produk menggunakan single UPDATE statement.

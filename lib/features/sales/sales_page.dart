@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
 import 'repositories/sales_repository.dart';
@@ -324,21 +323,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     }).toList();
   }
 
-  /// Nomor nota yang TAMPIL di struk — bukan primary key.
-  ///
-  /// Format berbasis jam sengaja dipertahankan karena harus mudah dibaca
-  /// kasir dan pelanggan. Keunikan lintas device dijamin oleh
-  /// `transactions.id` yang berupa UUID, bukan oleh nomor ini.
-  String _generateInvoiceNo() {
-    final now = DateTime.now();
-    final dd = DateFormat('dd').format(now);
-    final mm = DateFormat('MM').format(now);
-    final yy = DateFormat('yy').format(now);
-    // Gunakan microsecond agar unik meski checkout bersamaan
-    final micro = (now.microsecondsSinceEpoch % 1000000).toString().padLeft(6, '0');
-    return 'TRX/$dd/$mm/$yy/$micro';
-  }
-
   Future<void> _checkout(
     PaymentMethod paymentMethod,
     int? cashReceived,
@@ -351,7 +335,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
       await _salesRepo.createSale(
         transactionId: newUuid(),
-        invoiceNo: _generateInvoiceNo(),
         lines: _cartToSaleLines(),
         paymentMethod: isCash ? 'cash' : 'qris',
         orderType: orderType,

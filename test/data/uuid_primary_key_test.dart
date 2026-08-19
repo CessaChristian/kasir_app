@@ -94,7 +94,6 @@ void main() {
 
       await db.createSale(
         transactionId: 'trx-1',
-        invoiceNo: 'TRX/09/08/26/000001',
         paymentMethod: 'cash',
         cashReceived: 30000,
         orderType: 'dine_in',
@@ -125,7 +124,6 @@ void main() {
 
       await db.createSale(
         transactionId: '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
-        invoiceNo: 'TRX/09/08/26/000042',
         paymentMethod: 'qris',
         orderType: 'dine_in',
         lines: [
@@ -142,8 +140,8 @@ void main() {
       final tx = await db.select(db.transactions).getSingle();
       expect(tx.id, matches(uuidV4),
           reason: 'primary key harus UUID — dipakai untuk sync');
-      expect(tx.invoiceNo, 'TRX/09/08/26/000042',
-          reason: 'nomor nota tersimpan apa adanya untuk ditampilkan di struk');
+      expect(tx.invoiceNo, matches(RegExp(r'^TRX/\d{2}/\d{2}/\d{2}/\d{4,}$')),
+          reason: 'nomor nota berformat TRX/dd/MM/yy/NNNN untuk struk');
       expect(tx.invoiceNo, isNot(tx.id),
           reason: 'keduanya peran berbeda, tidak boleh dicampur lagi');
     });
@@ -153,8 +151,6 @@ void main() {
     /// Pemakaian `SinceEpoch` yang SAH — bukan untuk primary key.
     /// Kalau menambah entri di sini, pastikan benar-benar bukan PK.
     const diizinkan = <String, String>{
-      'lib/features/sales/sales_page.dart':
-          'nomor nota (invoice_no) yang tampil di struk — bukan primary key',
       'lib/features/business/pages/business_detail_page.dart':
           'nama file logo, bukan primary key',
       'lib/data/app_database.dart':
