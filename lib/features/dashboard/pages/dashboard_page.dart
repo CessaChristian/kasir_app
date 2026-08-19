@@ -6,6 +6,7 @@ import '../../../shared/auth/session_manager.dart';
 import '../../../shared/constants/app_constants.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
+import '../../shift/repositories/shift_repository.dart';
 import '../../../data/business_context.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
@@ -24,13 +25,6 @@ class DashboardPage extends StatelessWidget {
     return 'Malam';
   }
 
-  Future<int> _getShiftRevenue(String shiftId) async {
-    final transactions = await (db.select(
-      db.transactions,
-    )..where((t) => t.shiftId.equals(shiftId))).get();
-    return transactions.fold<int>(0, (sum, tx) => sum + tx.total);
-  }
-
   Future<void> _showEndShiftDialog(BuildContext context) async {
     final session = SessionManager.instance.currentSession;
     if (session == null) return;
@@ -39,7 +33,7 @@ class DashboardPage extends StatelessWidget {
     final shiftId = session.shiftId;
     final hasShift = shiftId != null;
 
-    final revenue = hasShift ? await _getShiftRevenue(shiftId) : 0;
+    final revenue = hasShift ? await ShiftRepository(db).getShiftRevenue(shiftId) : 0;
     final formatter = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',

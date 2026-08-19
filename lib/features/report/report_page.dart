@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../data/db.dart';
+import 'repositories/report_repository.dart';
 import '../expenses/repositories/expense_repository.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -23,6 +24,7 @@ class ReportPage extends StatefulWidget {
 }
 
 class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateMixin {
+  final _reportRepo = ReportRepository(db);
   // Period mode
   bool _isMonthly = false;
 
@@ -74,9 +76,9 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
         final start = DateTime(_selectedYear, _selectedMonth, 1);
         final end = DateTime(_selectedYear, _selectedMonth + 1, 1);
 
-        final report = await db.getMonthlyReportSummary(_selectedYear, _selectedMonth);
-        final trends = await db.getDailyTrends(_selectedYear, _selectedMonth);
-        final employees = await db.getEmployeeReportSummaryForRange(start, end);
+        final report = await _reportRepo.getMonthlyReportSummary(_selectedYear, _selectedMonth);
+        final trends = await _reportRepo.getDailyTrends(_selectedYear, _selectedMonth);
+        final employees = await _reportRepo.getEmployeeReportSummaryForRange(start, end);
 
         if (!mounted) return;
         setState(() {
@@ -86,8 +88,8 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
           _isLoading = false;
         });
       } else {
-        final report = await db.getReportSummary(_selectedDate);
-        final employees = await db.getEmployeeReportSummary(_selectedDate);
+        final report = await _reportRepo.getReportSummary(_selectedDate);
+        final employees = await _reportRepo.getEmployeeReportSummary(_selectedDate);
 
         if (!mounted) return;
         setState(() {

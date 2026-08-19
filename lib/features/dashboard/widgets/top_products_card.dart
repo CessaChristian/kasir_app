@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
+import '../../report/repositories/report_repository.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../../../data/models/top_product.dart';
 
@@ -12,6 +13,7 @@ class TopProductsCard extends StatefulWidget {
 }
 
 class _TopProductsCardState extends State<TopProductsCard> {
+  final _reportRepo = ReportRepository(db);
   final _salesRepo = SalesRepository(db);
   List<TopProduct> _products = [];
   bool _loading = true;
@@ -37,7 +39,7 @@ class _TopProductsCardState extends State<TopProductsCard> {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
     final end = start.add(const Duration(days: 1));
-    final products = await db.getTopSellingProducts(start, end, limit: 3);
+    final products = await _reportRepo.getTopSellingProducts(start, end, limit: 3);
 
     if (mounted) {
       setState(() {

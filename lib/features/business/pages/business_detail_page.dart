@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../data/app_database.dart';
 import '../../../data/business_context.dart';
 import '../../../data/db.dart';
+import '../repositories/business_repository.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/business_logo.dart';
@@ -27,6 +28,7 @@ class BusinessDetailPage extends StatefulWidget {
 }
 
 class _BusinessDetailPageState extends State<BusinessDetailPage> {
+  final _businessRepo = BusinessRepository(db);
   BusinessesData? _business;
   final _addressC = TextEditingController();
   final _phoneC = TextEditingController();
@@ -46,9 +48,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
   }
 
   Future<void> _load() async {
-    final b = await (db.select(db.businesses)
-          ..where((t) => t.id.equals(widget.businessId)))
-        .getSingleOrNull();
+    final b = await _businessRepo.getById(widget.businessId);
     if (!mounted || b == null) return;
     setState(() {
       _business = b;
@@ -60,7 +60,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
   Future<void> _saveInfo() async {
     setState(() => _saving = true);
     try {
-      await db.updateBusiness(
+      await _businessRepo.updateBusiness(
         id: widget.businessId,
         address: _addressC.text.trim(),
         phone: _phoneC.text.trim(),
@@ -98,7 +98,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
           '${logosDir.path}/${widget.businessId}_${DateTime.now().millisecondsSinceEpoch}.$ext');
       await File(picked.path).copy(target.path);
 
-      await db.updateBusiness(
+      await _businessRepo.updateBusiness(
         id: widget.businessId,
         logoPath: target.path,
         logoPathSet: true,
@@ -114,7 +114,7 @@ class _BusinessDetailPageState extends State<BusinessDetailPage> {
 
   Future<void> _removeLogo() async {
     try {
-      await db.updateBusiness(
+      await _businessRepo.updateBusiness(
         id: widget.businessId,
         logoPath: null,
         logoPathSet: true,

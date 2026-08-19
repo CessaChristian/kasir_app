@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/db.dart';
+import '../../shift/repositories/shift_repository.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/business_context.dart';
@@ -15,6 +16,7 @@ class ActiveShiftCard extends StatefulWidget {
 }
 
 class _ActiveShiftCardState extends State<ActiveShiftCard> {
+  final _shiftRepo = ShiftRepository(db);
   final _salesRepo = SalesRepository(db);
   Shift? _shift;
   int _shiftRevenue = 0;
@@ -54,14 +56,8 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
       return;
     }
 
-    final shifts = await (db.select(db.shifts)
-          ..where((s) => s.id.equals(shiftId)))
-        .get();
-
-    final transactions = await (db.select(db.transactions)
-          ..where((t) => t.shiftId.equals(shiftId))
-          ..where((t) => t.deletedAt.isNull()))
-        .get();
+    final s = await _shiftRepo.getById(shiftId);
+    final transactions = await _shiftRepo.getTransactionsForShift(shiftId);
 
     final cashTxs = transactions.where((t) => t.paymentMethod == 'cash').length;
     final qrisTxs = transactions.where((t) => t.paymentMethod == 'qris').length;
@@ -69,7 +65,6 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
     // Defense: hanya tampilkan shift yang masih AKTIF dan milik business
     // aktif — session bisa memegang shiftId business lain sesaat setelah
     // ganti business.
-    final s = shifts.isNotEmpty ? shifts.first : null;
     final activeBizId = BusinessContext.instance.activeBusinessId;
     final visible =
         s != null && s.endAt == null && s.businessId == activeBizId;

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/db.dart';
 import 'repositories/expense_repository.dart';
+import '../shift/repositories/shift_repository.dart';
 import '../../data/app_database.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -17,6 +18,7 @@ class ExpensesPage extends StatefulWidget {
 
 class _ExpensesPageState extends State<ExpensesPage> {
   final _expenseRepo = ExpenseRepository(db);
+  final _shiftRepo = ShiftRepository(db);
   List<Shift> _pastShifts = [];
   bool _loadingHistory = true;
 
@@ -42,7 +44,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       return;
     }
 
-    final shifts = await db.getShiftsByUser(session.userId);
+    final shifts = await _shiftRepo.getShiftsByUser(session.userId);
     // Pisahkan shift aktif (endAt null) dari history
     final pastShifts = shifts
         .where((s) => s.endAt != null && s.id != session.shiftId)
