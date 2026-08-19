@@ -17,10 +17,6 @@ void main() {
   /// Kalau menambah entri di sini, tulis alasannya.
   const diizinkan = <String, String>{
     'lib/main.dart': 'entry point — dipanggil Flutter, bukan dirujuk file lain',
-    'lib/shared/constants/app_text_styles.dart':
-        'acuan skala tipografi — dicerminkan design system Figma. Belum '
-            'diadopsi widget (masih hardcode TextStyle). Adopsi atau hapus '
-            'adalah keputusan terbuka, bukan sisa lupa.',
   };
 
   /// Nama deklarasi tingkat atas yang diekspor sebuah file Dart.
