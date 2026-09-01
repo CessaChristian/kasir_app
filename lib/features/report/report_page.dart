@@ -47,8 +47,14 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
 
   late TabController _tabController;
 
-  bool get _isOwner =>
-      SessionManager.instance.hasPermission('manage_cashiers');
+  /// Apakah pengeluaran boleh ditampilkan di laporan.
+  ///
+  /// Pertanyaannya "boleh lihat semua pengeluaran?", bukan "dia owner?" —
+  /// jadi yang dipakai permission yang tepat, bukan proksi. Dulu ini memakai
+  /// hasPermission('manage_cashiers') sehingga kasir yang diberi izin kelola
+  /// kasir ikut melihat pengeluaran.
+  bool get _bolehLihatPengeluaran =>
+      SessionManager.instance.hasPermission('view_all_expenses');
 
   // Laporan Shift kini punya halaman tersendiri (ShiftMonitorPage), diakses
   // owner dari dashboard/drawer — tidak lagi jadi tab di sini.
@@ -885,7 +891,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
                     isPositive: report.netIncome >= 0,
                     isBold: true,
                   ),
-                  if (_isOwner && report.totalExpenses > 0) ...[
+                  if (_bolehLihatPengeluaran && report.totalExpenses > 0) ...[
                     Divider(height: 1, color: Colors.grey.shade200),
                     InkWell(
                       onTap: _showDailyExpenseSheet,
@@ -1077,7 +1083,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
     // Tombol "Lihat Detail Pengeluaran" hanya muncul jika owner & ada pengeluaran
     // Data dimuat on-demand saat sheet dibuka — tidak memberatkan load awal
     final Widget? expenseSection =
-        (_isOwner && (_monthlyReport?.totalExpenses ?? 0) > 0)
+        (_bolehLihatPengeluaran && (_monthlyReport?.totalExpenses ?? 0) > 0)
             ? Column(
                 children: [
                   Divider(height: 1, color: Colors.grey.shade200),

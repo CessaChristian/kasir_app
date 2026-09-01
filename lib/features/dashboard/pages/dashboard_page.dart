@@ -249,7 +249,11 @@ class DashboardPage extends StatelessWidget {
     final now = DateTime.now();
     final dayName = DateFormat('EEEE', 'id_ID').format(now);
     final dateStr = DateFormat('d MMM yyyy', 'id_ID').format(now);
-    final isOwner = SessionManager.instance.hasPermission('manage_cashiers');
+    // Role, BUKAN permission. Dulu baris ini memakai
+    // hasPermission('manage_cashiers') sebagai proksi role — akibatnya kasir
+    // yang diberi izin kelola kasir ikut dianggap owner, lalu kehilangan
+    // kartu shift aktifnya sendiri. Lihat test/arsitektur/role_bukan_permission_test.dart
+    final isOwner = SessionManager.instance.isOwner;
 
     final menuItems = [
       {
