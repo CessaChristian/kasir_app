@@ -87,8 +87,13 @@ class Transactions extends Table {
   IntColumn get cashReceived => integer().nullable()();
   IntColumn get change => integer().nullable()();
 
-  TextColumn get cashierUserId => text().nullable()();
-  TextColumn get shiftId => text().nullable()();
+  // FK ditambahkan di v14. Sebelumnya dua kolom ini TEXT polos, sehingga
+  // transaksi bisa menunjuk shift atau kasir yang tidak ada tanpa ditolak
+  // database. Tidak menghalangi soft delete — baris yang ditandai
+  // `deleted_at` tetap ada, jadi acuannya tetap sah.
+  TextColumn get cashierUserId =>
+      text().nullable().references(Users, #id)();
+  TextColumn get shiftId => text().nullable().references(Shifts, #id)();
 
   TextColumn get orderType =>
       text().withDefault(const Constant('dine_in'))();
@@ -119,7 +124,10 @@ class Transactions extends Table {
 class TransactionItems extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get transactionId => text()();
-  TextColumn get productId => text()();
+  // FK ditambahkan di v14. Efeknya: produk yang pernah terjual tidak bisa
+  // dihapus PERMANEN — menghapusnya akan meninggalkan item yatim dan
+  // merusak riwayat penjualan. Soft delete tetap boleh.
+  TextColumn get productId => text().references(Products, #id)();
   TextColumn get productName => text().withDefault(const Constant(''))();
 
   IntColumn get qty => integer()();
@@ -285,7 +293,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -471,6 +479,46 @@ class AppDatabase extends _$AppDatabase {
             await m.deleteTable('user_business_roles');
             await m.deleteTable('businesses');
           }
+          if (from < 14 && to >= 14) {
+            // v14 — pasang foreign key yang selama ini hilang.
+            //
+            // `transactions.shift_id`, `transactions.cashier_user_id`, dan
+            // `transaction_items.product_id` dulunya TEXT polos: database
+            // menerima acuan ke baris yang tidak ada tanpa protes. Bandingkan
+            // dengan `expenses` yang sejak awal punya FK.
+            //
+            // Ini penting menjelang sync. Selama data hanya lokal, baris
+            // ngawur merusak satu perangkat. Setelah terpusat, ia menyebar ke
+            // semua perangkat dan jauh lebih sulit dibereskan.
+            //
+            // Soft delete TIDAK terpengaruh: baris ber-`deleted_at` tetap ada
+            // di tabel, jadi acuannya tetap sah.
+
+            // URUTAN PENTING: bersihkan acuan yatim DULU. Membangun ulang
+            // tabel dengan FK sementara masih ada baris yatim akan gagal di
+            // tengah jalan. Emulator memang sudah bersih, tapi migrasi ini
+            // harus aman juga di database yang tidak.
+            await customStatement(
+              'UPDATE transactions SET shift_id = NULL '
+              'WHERE shift_id IS NOT NULL AND shift_id NOT IN '
+              '(SELECT id FROM shifts)',
+            );
+            await customStatement(
+              'UPDATE transactions SET cashier_user_id = NULL '
+              'WHERE cashier_user_id IS NOT NULL AND cashier_user_id NOT IN '
+              '(SELECT id FROM users)',
+            );
+            // product_id NOT NULL, jadi tidak bisa dikosongkan — item yang
+            // menunjuk produk hantu memang tidak punya arti dan dibuang.
+            await customStatement(
+              'DELETE FROM transaction_items '
+              'WHERE product_id NOT IN (SELECT id FROM products)',
+            );
+
+            // Induk dulu, baru anak.
+            await m.alterTable(TableMigration(transactions));
+            await m.alterTable(TableMigration(transactionItems));
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -570,15 +618,6 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     }
-  }
-
-  Future<void> resetDatabase() async {
-    await transaction(() async {
-      await delete(transactionItems).go();
-      await delete(transactions).go();
-      await delete(products).go();
-      await delete(categories).go();
-    });
   }
 
   // ---- CATEGORIES ----

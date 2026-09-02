@@ -101,7 +101,14 @@ void main() {
 
   test('4. ON DELETE CASCADE benar-benar jalan pada transaction_items',
       () async {
-
+    // Produknya harus benar-benar ada — sejak v14 product_id punya FK.
+    // Sebelumnya test ini menunjuk 'prod-1' yang tidak pernah dibuat, dan
+    // database menerimanya tanpa protes.
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          id: const Value('prod-1'),
+          name: 'Nasi Goreng',
+          price: 15000,
+        ));
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
           id: const Value('trx-1'),
           total: 15000,
@@ -123,8 +130,7 @@ void main() {
         reason: 'item ikut terhapus otomatis lewat ON DELETE CASCADE');
   });
 
-  test('5. hapus produk yang sudah pernah terjual tetap boleh', () async {
-
+  test('5. produk yang pernah terjual TIDAK bisa dihapus permanen', () async {
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
           name: 'Nasi Goreng',
@@ -145,14 +151,102 @@ void main() {
           subtotal: 15000,
         ));
 
-    // transaction_items.product_id SENGAJA tidak diberi FK supaya struk lama
-    // tetap utuh walau produknya dihapus.
-    await (db.delete(db.products)..where((p) => p.id.equals('prod-1'))).go();
+    // Sebelum v14 hapus permanen ini LOLOS dan meninggalkan item yatim.
+    // Sekarang FK menahannya: riwayat penjualan tidak boleh rusak diam-diam.
+    await expectLater(
+      (db.delete(db.products)..where((p) => p.id.equals('prod-1'))).go(),
+      throwsA(anything),
+      reason: 'menghapus produk yang punya item transaksi harus ditolak',
+    );
+
+    final produk = await db.select(db.products).get();
+    expect(produk, hasLength(1), reason: 'produknya harus tetap ada');
+  });
+
+  test('6. soft delete produk terjual TETAP boleh — FK tidak menghalangi',
+      () async {
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          id: const Value('prod-1'),
+          name: 'Nasi Goreng',
+          price: 15000,
+        ));
+    await db.into(db.transactions).insert(TransactionsCompanion.insert(
+          id: const Value('trx-1'),
+          total: 15000,
+          paymentMethod: 'cash',
+        ));
+    await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
+          id: const Value('item-1'),
+          transactionId: 'trx-1',
+          productId: 'prod-1',
+          productName: const Value('Nasi Goreng'),
+          qty: 1,
+          priceAtSale: 15000,
+          subtotal: 15000,
+        ));
+
+    await loginAsOwner();
+    await db.deleteProduct('prod-1');
+
+    final p = await (db.select(db.products)
+          ..where((t) => t.id.equals('prod-1')))
+        .getSingle();
+    expect(p.deletedAt, isNotNull, reason: 'baris ditandai terhapus');
 
     final item = await (db.select(db.transactionItems)
           ..where((i) => i.id.equals('item-1')))
         .getSingle();
     expect(item.productName, 'Nasi Goreng',
         reason: 'struk lama tetap menampilkan nama produk saat transaksi');
+  });
+
+  test('7. transaksi dengan shift_id hantu DITOLAK', () async {
+    await expectLater(
+      db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: const Value('trx-hantu'),
+            total: 1000,
+            paymentMethod: 'cash',
+            shiftId: const Value('shift-yang-tidak-ada'),
+          )),
+      throwsA(anything),
+      reason: 'shift_id ngawur harus ditolak database',
+    );
+    expect(await db.select(db.transactions).get(), isEmpty);
+  });
+
+  test('8. transaksi dengan cashier_user_id hantu DITOLAK', () async {
+    await expectLater(
+      db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: const Value('trx-hantu'),
+            total: 1000,
+            paymentMethod: 'cash',
+            cashierUserId: const Value('user-yang-tidak-ada'),
+          )),
+      throwsA(anything),
+      reason: 'cashier_user_id ngawur harus ditolak database',
+    );
+    expect(await db.select(db.transactions).get(), isEmpty);
+  });
+
+  test('9. item transaksi dengan product_id hantu DITOLAK', () async {
+    await db.into(db.transactions).insert(TransactionsCompanion.insert(
+          id: const Value('trx-1'),
+          total: 1000,
+          paymentMethod: 'cash',
+        ));
+
+    await expectLater(
+      db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
+            id: const Value('item-hantu'),
+            transactionId: 'trx-1',
+            productId: 'produk-yang-tidak-ada',
+            qty: 1,
+            priceAtSale: 1000,
+            subtotal: 1000,
+          )),
+      throwsA(anything),
+      reason: 'product_id ngawur harus ditolak database',
+    );
+    expect(await db.select(db.transactionItems).get(), isEmpty);
   });
 }
