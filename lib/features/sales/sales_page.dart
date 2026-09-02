@@ -10,6 +10,8 @@ import '../../utils/currency_formatter.dart';
 import '../../data/models/sale_line.dart';
 import '../../shared/auth/session_manager.dart';
 import 'dart:io';
+
+import '../../shared/services/image_storage_service.dart';
 import 'models/cart_item.dart';
 import 'cart_page.dart';
 import '../../shared/widgets/error_state_widget.dart';
@@ -44,7 +46,8 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
   bool _imageExists(String? path) {
     if (path == null || path.isEmpty) return false;
-    return _imageExistsCache.putIfAbsent(path, () => File(path).existsSync());
+    return _imageExistsCache.putIfAbsent(
+        path, () => ImageStorageService.adaSync(path));
   }
 
   int get _total => _cart.fold(0, (s, l) => s + l.subtotal);
@@ -625,10 +628,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   }) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final hasLowStock = p.trackStock && (p.stock ?? 0) <= 5;
-    final hasImage =
-        p.imagePath != null &&
-        p.imagePath!.isNotEmpty &&
-        File(p.imagePath!).existsSync();
+    final hasImage = ImageStorageService.adaSync(p.imagePath);
     final imgHeight = cardWidth * 0.60;
 
     Widget content;
@@ -642,7 +642,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: Image.file(
-              File(p.imagePath!),
+              File(ImageStorageService.lokasiPenuhSync(p.imagePath!)),
               height: imgHeight,
               width: double.infinity,
               fit: BoxFit.cover,

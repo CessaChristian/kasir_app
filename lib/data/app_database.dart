@@ -293,7 +293,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -518,6 +518,27 @@ class AppDatabase extends _$AppDatabase {
             // Induk dulu, baru anak.
             await m.alterTable(TableMigration(transactions));
             await m.alterTable(TableMigration(transactionItems));
+          }
+          if (from < 15 && to >= 15) {
+            // v15 — `products.image_path` kini menyimpan path RELATIF
+            // (products/<uuid>.webp), bukan path absolut.
+            //
+            // Baris lama menyimpan path apa adanya dari image_picker, yang
+            // menunjuk folder CACHE aplikasi. Android boleh menghapus folder
+            // itu kapan saja, jadi filenya cepat atau lambat lenyap sementara
+            // path-nya tetap tersimpan — produk tampil dengan kotak kosong
+            // dan tidak ada cara memulihkannya.
+            //
+            // Path absolut peninggalan versi lama dikosongkan: selain rawan
+            // hilang, path absolut memuat lokasi instalasi yang di iOS
+            // berubah setiap kali aplikasi di-update. Yang hilang hanya
+            // gambarnya; produknya utuh dan owner tinggal mengunggah ulang.
+            await customStatement(
+              "UPDATE products SET image_path = NULL, "
+              "updated_at = CAST(strftime('%s','now') AS INTEGER), "
+              "sync_status = 'pending' "
+              "WHERE image_path IS NOT NULL AND image_path LIKE '/%'",
+            );
           }
         },
         beforeOpen: (details) async {

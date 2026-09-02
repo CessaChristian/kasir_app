@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import '../../../shared/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/currency_formatter.dart';
@@ -153,14 +155,16 @@ class ProductTile extends StatelessWidget {
   }
   
   Widget _buildThumbnail(Color primaryColor) {
+    // Database menyimpan path RELATIF sejak v15; diresolusi ke path absolut
+    // lewat ImageStorageService (path absolut lama tetap dilayani).
     final path = product.imagePath;
-    final hasImage = path != null && path.isNotEmpty && File(path).existsSync();
+    final hasImage = ImageStorageService.adaSync(path);
 
     if (hasImage) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.file(
-          File(path),
+          File(ImageStorageService.lokasiPenuhSync(path!)),
           width: 48,
           height: 48,
           fit: BoxFit.cover,

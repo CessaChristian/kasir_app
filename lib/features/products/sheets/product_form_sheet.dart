@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../../shared/services/image_storage_service.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
 import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
@@ -54,6 +57,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   bool _trackStock = false;
   bool _hasSpicyOption = false;
   String? _imagePath;
+  final _imageStorage = ImageStorageService();
 
   @override
   void initState() {
@@ -227,16 +231,21 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
     if (source == null) return;
 
+    // SENGAJA tanpa maxWidth/imageQuality: biar picker menyerahkan gambar
+    // ASLI. Kompresi dilakukan sekali saja di ImageStorageService (ke WebP).
+    // Mengompres di sini lalu di sana = dua kali lossy, kualitas turun dua
+    // tahap tanpa ukuran ikut mengecil sebanding.
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: source,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 80,
-    );
+    final picked = await picker.pickImage(source: source);
+    if (picked == null) return;
 
-    if (picked != null && mounted) {
-      setState(() => _imagePath = picked.path);
+    try {
+      // Hasilnya path RELATIF (products/<uuid>.webp) — itu yang masuk DB.
+      // File-nya sudah berada di folder permanen, bukan cache.
+      final relatif = await _imageStorage.simpan(File(picked.path));
+      if (mounted) setState(() => _imagePath = relatif);
+    } catch (e) {
+      if (mounted) AppToast.error(context, 'Gagal menyimpan gambar: $e');
     }
   }
 
@@ -782,7 +791,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   Widget _buildImagePicker(Color primaryColor) {
     final hasImage =
-        _imagePath != null && File(_imagePath!).existsSync();
+        _imagePath != null && ImageStorageService.adaSync(_imagePath);
 
     return GestureDetector(
       onTap: _pickImage,
@@ -806,7 +815,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(11),
                     child: Image.file(
-                      File(_imagePath!),
+                      File(ImageStorageService.lokasiPenuhSync(_imagePath!)),
                       fit: BoxFit.cover,
                     ),
                   ),

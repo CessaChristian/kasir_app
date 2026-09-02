@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
+import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -16,6 +17,10 @@ void main() async {
 
   // Initialize date formatting
   await initializeDateFormatting('id_ID', null);
+
+  // Folder gambar di-cache sekali supaya build() bisa menyusun path secara
+  // sinkron tanpa FutureBuilder di setiap kartu produk.
+  await ImageStorageService.init();
 
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
