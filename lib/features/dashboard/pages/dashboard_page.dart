@@ -356,12 +356,8 @@ class DashboardPage extends StatelessWidget {
                           child: ListenableBuilder(
                             listenable: BusinessContext.instance,
                             builder: (context, _) {
-                              final bizCtx = BusinessContext.instance;
-                              final bizName = bizCtx.activeBusiness?.name ??
-                                  AppConstants.storeName;
+                              const bizName = AppConstants.storeName;
 
-                              // Nama business statis — ganti business hanya
-                              // lewat page Business (spec REVISI 2, D6).
                               return Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,

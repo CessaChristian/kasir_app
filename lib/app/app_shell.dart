@@ -15,10 +15,8 @@ import '../data/app_database.dart';
 import '../data/business_context.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
-import '../shared/widgets/business_switcher.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/settings/pages/device_mode_page.dart';
-import '../features/business/pages/business_detail_page.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
 
 class AppShell extends StatefulWidget {
@@ -312,7 +310,10 @@ class AppShellState extends State<AppShell> {
       appBar: isDashboard
           ? null
           : AppBar(
-              title: const BusinessSwitcher(),
+              title: const Text(
+                AppConstants.storeName,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               centerTitle: true,
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
@@ -373,8 +374,7 @@ class AppShellState extends State<AppShell> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  BusinessContext.instance.activeBusiness?.name ??
-                                      AppConstants.storeName,
+                                  AppConstants.storeName,
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -544,27 +544,6 @@ class AppShellState extends State<AppShell> {
                         },
                       ),
                       if (SessionManager.instance.hasCurrentPermission('manage_business')) ...[
-                        _buildDrawerMenuItem(
-                          context,
-                          icon: Icons.storefront_rounded,
-                          label: 'Business',
-                          isSelected: false,
-                          onTap: () {
-                            // Aplikasi difokuskan ke satu business, jadi
-                            // langsung ke profilnya tanpa lewat daftar pilihan.
-                            final id =
-                                BusinessContext.instance.activeBusinessId;
-                            if (id == null) return;
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    BusinessDetailPage(businessId: id),
-                              ),
-                            );
-                          },
-                        ),
                         _buildDrawerMenuItem(
                           context,
                           icon: Icons.devices_rounded,

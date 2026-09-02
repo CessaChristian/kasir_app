@@ -127,14 +127,11 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                 ),
                 child: Column(
                   children: [
-                    // Store header — identitas dari business aktif
-                    // (bukan hardcode) supaya benar di semua business.
+                    // Store header — aplikasi difokuskan ke satu bisnis.
                     const BusinessLogo(size: 64),
                     const SizedBox(height: 8),
                     Text(
-                      (BusinessContext.instance.activeBusiness?.name ??
-                              AppConstants.storeName)
-                          .toUpperCase(),
+                      AppConstants.storeName.toUpperCase(),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
