@@ -4,6 +4,7 @@ import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/services/image_storage_service.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../widgets/product_search_bar.dart';
 import '../widgets/category_filter_bar.dart';
@@ -76,6 +77,16 @@ class _ProductsPageState extends State<ProductsPage> {
         hasSpicyOption: result.hasSpicyOption,
         imagePath: result.imagePath,
       );
+
+      // Gambar lama dibuang HANYA setelah penyimpanan sungguh berhasil.
+      // Kalau dihapus lebih awal (mis. saat memilih foto baru di form) lalu
+      // penyimpanan gagal, produk kehilangan gambarnya tanpa sebab.
+      final gambarLama = editing?.imagePath;
+      if (gambarLama != null &&
+          gambarLama.isNotEmpty &&
+          gambarLama != result.imagePath) {
+        await ImageStorageService().hapus(gambarLama);
+      }
 
       if (!mounted) return;
       AppToast.success(context,

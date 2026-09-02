@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,14 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   bool _hasSpicyOption = false;
   String? _imagePath;
   final _imageStorage = ImageStorageService();
+
+  /// Gambar yang DIBUAT selama sesi form ini. Kalau user memilih foto
+  /// berkali-kali, atau akhirnya membatalkan, file-file ini jadi yatim:
+  /// sudah ada di folder permanen tapi tidak dirujuk baris mana pun.
+  ///
+  /// Gambar LAMA milik produk tidak pernah masuk daftar ini — penghapusannya
+  /// urusan products_page, yang tahu penyimpanan ke database sungguh berhasil.
+  final _gambarBaru = <String>{};
 
   @override
   void initState() {
@@ -146,6 +155,18 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   // True saat pop berasal dari submit sukses — lewati dialog konfirmasi.
   bool _saving = false;
 
+  /// Buang gambar yang dibuat sesi ini tapi tidak jadi dipakai.
+  ///
+  /// [kecuali] adalah pilihan akhir yang dibawa keluar form — hanya itu yang
+  /// dipertahankan. Aman dipanggil untuk file yang sudah tidak ada.
+  Future<void> _bersihkanGambarYatim({String? kecuali}) async {
+    for (final relatif in _gambarBaru) {
+      if (relatif == kecuali) continue;
+      await _imageStorage.hapus(relatif);
+    }
+    _gambarBaru.clear();
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
@@ -153,6 +174,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     if (price == null || price <= 0) return;
 
     _saving = true;
+    // Sisa pilihan yang tidak jadi dipakai boleh langsung dibuang: file-file
+    // itu belum pernah tercatat di database mana pun.
+    unawaited(_bersihkanGambarYatim(kecuali: _imagePath));
     Navigator.pop(
       context,
       FormResult(
@@ -243,6 +267,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
       // Hasilnya path RELATIF (products/<uuid>.webp) — itu yang masuk DB.
       // File-nya sudah berada di folder permanen, bukan cache.
       final relatif = await _imageStorage.simpan(File(picked.path));
+      _gambarBaru.add(relatif);
       if (mounted) setState(() => _imagePath = relatif);
     } catch (e) {
       if (mounted) AppToast.error(context, 'Gagal menyimpan gambar: $e');
@@ -280,7 +305,12 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
             ],
           ),
         );
-        if (keluar == true && context.mounted) Navigator.of(context).pop();
+        if (keluar == true) {
+          // Semua gambar sesi ini jadi yatim. Gambar LAMA milik produk tidak
+          // ikut terhapus — perubahannya memang dibatalkan.
+          await _bersihkanGambarYatim();
+          if (context.mounted) Navigator.of(context).pop();
+        }
       },
       child: Container(
       decoration: const BoxDecoration(

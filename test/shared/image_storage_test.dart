@@ -106,4 +106,77 @@ void main() {
       );
     });
   });
+
+  group('pembersihan file — mencegah sampah menumpuk', () {
+    /// Bikin file gambar palsu, kembalikan path relatifnya.
+    String buat(String nama) {
+      final folder = Directory(p.join(dasar.path, 'products'))
+        ..createSync(recursive: true);
+      File(p.join(folder.path, nama)).writeAsBytesSync([1, 2, 3]);
+      return 'products/$nama';
+    }
+
+    test('gambar yang diganti berkali-kali hanya menyisakan yang terakhir',
+        () async {
+      // Meniru user memilih foto tiga kali dalam satu sesi form.
+      final a = buat('a.webp');
+      final b = buat('b.webp');
+      final c = buat('c.webp');
+
+      // Yang dipertahankan hanya pilihan terakhir.
+      for (final relatif in [a, b]) {
+        await layanan.hapus(relatif);
+      }
+
+      expect(ImageStorageService.adaSync(a), isFalse);
+      expect(ImageStorageService.adaSync(b), isFalse);
+      expect(ImageStorageService.adaSync(c), isTrue,
+          reason: 'pilihan terakhir harus tetap ada');
+    });
+
+    test('menghapus satu gambar tidak menyentuh gambar lain', () async {
+      final lama = buat('lama.webp');
+      final baru = buat('baru.webp');
+
+      await layanan.hapus(lama);
+
+      expect(ImageStorageService.adaSync(lama), isFalse);
+      expect(ImageStorageService.adaSync(baru), isTrue,
+          reason: 'penghapusan harus tepat sasaran, bukan mengosongkan folder');
+    });
+
+    test('hapus dua kali tidak melempar error', () async {
+      final x = buat('x.webp');
+      await layanan.hapus(x);
+      await layanan.hapus(x);
+      expect(ImageStorageService.adaSync(x), isFalse);
+    });
+  });
+
+  group('sumber — pastikan hapus() benar-benar dipanggil', () {
+    test('form membersihkan gambar yatim, products_page membuang yang lama',
+        () {
+      final form = File(
+              'lib/features/products/sheets/product_form_sheet.dart')
+          .readAsStringSync();
+      expect(form.contains('_bersihkanGambarYatim'), isTrue,
+          reason: 'form wajib membuang gambar yang tidak jadi dipakai');
+      expect(form.contains('kecuali: _imagePath'), isTrue,
+          reason: 'saat submit, pilihan akhir harus dikecualikan');
+
+      final halaman =
+          File('lib/features/products/pages/products_page.dart')
+              .readAsStringSync();
+      expect(halaman.contains('ImageStorageService().hapus('), isTrue,
+          reason: 'gambar lama yang tergantikan wajib dibuang');
+      // Penghapusan HARUS setelah upsertProduct, bukan sebelum: kalau
+      // penyimpanan gagal, gambar lama tidak boleh sudah telanjur hilang.
+      expect(
+        halaman.indexOf('upsertProduct') <
+            halaman.indexOf('ImageStorageService().hapus('),
+        isTrue,
+        reason: 'hapus gambar lama harus SETELAH penyimpanan berhasil',
+      );
+    });
+  });
 }
