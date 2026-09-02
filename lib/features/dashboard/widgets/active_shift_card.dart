@@ -5,7 +5,6 @@ import '../../../data/db.dart';
 import '../../shift/repositories/shift_repository.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../../../data/app_database.dart';
-import '../../../data/business_context.dart';
 import '../../../shared/auth/session_manager.dart';
 
 class ActiveShiftCard extends StatefulWidget {
@@ -62,12 +61,8 @@ class _ActiveShiftCardState extends State<ActiveShiftCard> {
     final cashTxs = transactions.where((t) => t.paymentMethod == 'cash').length;
     final qrisTxs = transactions.where((t) => t.paymentMethod == 'qris').length;
 
-    // Defense: hanya tampilkan shift yang masih AKTIF dan milik business
-    // aktif — session bisa memegang shiftId business lain sesaat setelah
-    // ganti business.
-    final activeBizId = BusinessContext.instance.activeBusinessId;
-    final visible =
-        s != null && s.endAt == null && s.businessId == activeBizId;
+    // Defense: hanya tampilkan shift yang masih AKTIF.
+    final visible = s != null && s.endAt == null;
 
     if (mounted) {
       setState(() {

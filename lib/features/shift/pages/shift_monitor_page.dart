@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../data/business_context.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../reports/repositories/shift_report_repository.dart';
 import '../../reports/widgets/date_range_filter.dart';
@@ -45,13 +44,6 @@ class _ShiftMonitorPageState extends State<ShiftMonitorPage> {
   void initState() {
     super.initState();
     _load();
-    BusinessContext.instance.addListener(_load);
-  }
-
-  @override
-  void dispose() {
-    BusinessContext.instance.removeListener(_load);
-    super.dispose();
   }
 
   Future<void> _load() async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/constants/app_constants.dart';
 import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
 import '../../../data/business_context.dart';
@@ -25,10 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePin = true;
   List<String> _availableUsernames = [];
 
-  /// Branding dari business aktif terakhir (di-set loadPersistedForBranding
-  /// di main()) — nama, logo, dan warna login mengikuti business itu.
-  String get _brandName =>
-      BusinessContext.instance.activeBusiness?.name ?? 'POS Sistem';
+  String get _brandName => AppConstants.storeName;
 
   @override
   void initState() {

@@ -7,7 +7,6 @@ import '../../../shared/constants/app_constants.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
 import '../../shift/repositories/shift_repository.dart';
-import '../../../data/business_context.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../widgets/active_shift_card.dart';
@@ -353,47 +352,39 @@ class DashboardPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: ListenableBuilder(
-                            listenable: BusinessContext.instance,
-                            builder: (context, _) {
-                              const bizName = AppConstants.storeName;
-
-                              return Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            bizName,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.primary,
-                                              letterSpacing: 0.2,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Text(
-                                      'POS Sistem',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      AppConstants.storeName,
                                       style: TextStyle(
-                                        fontSize: 9,
-                                        color: Colors.grey.shade400,
-                                        letterSpacing: 1.5,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.primary,
+                                        letterSpacing: 0.2,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                  ],
-                                );
-                            },
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'POS Sistem',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.grey.shade400,
+                                  letterSpacing: 1.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
 

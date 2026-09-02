@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../data/db.dart';
 import '../../features/sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
-import '../../data/business_context.dart';
 import 'business_logo.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/constants/app_constants.dart';
@@ -139,12 +138,9 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                         letterSpacing: 1,
                       ),
                     ),
-                    if ((BusinessContext.instance.activeBusiness?.address ??
-                            '')
-                        .trim()
-                        .isNotEmpty)
+                    if (AppConstants.storeAddress.trim().isNotEmpty)
                       Text(
-                        BusinessContext.instance.activeBusiness!.address!,
+                        AppConstants.storeAddress,
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade600),
                       ),

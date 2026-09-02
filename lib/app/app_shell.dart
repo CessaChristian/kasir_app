@@ -12,11 +12,9 @@ import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
 import '../features/products/repositories/product_repository.dart';
 import '../data/app_database.dart';
-import '../data/business_context.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
-import '../features/settings/pages/device_mode_page.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
 
 class AppShell extends StatefulWidget {
@@ -33,24 +31,12 @@ class AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
   // Cache stream agar tidak dibuat ulang setiap build() dipanggil.
-  // Diperbarui saat BusinessContext ganti business aktif.
   Stream<List<Product>> _productStream = const Stream.empty();
 
   @override
   void initState() {
     super.initState();
     _productStream = _productRepo.watchProducts();
-    BusinessContext.instance.addListener(_onBusinessChanged);
-  }
-
-  void _onBusinessChanged() {
-    setState(() => _productStream = _productRepo.watchProducts());
-  }
-
-  @override
-  void dispose() {
-    BusinessContext.instance.removeListener(_onBusinessChanged);
-    super.dispose();
   }
 
   void navigateToPage(int index) {
@@ -368,31 +354,28 @@ class AppShellState extends State<AppShell> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          ListenableBuilder(
-                            listenable: BusinessContext.instance,
-                            builder: (_, _) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  AppConstants.storeName,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                    letterSpacing: 0.3,
-                                  ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppConstants.storeName,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                  letterSpacing: 0.3,
                                 ),
-                                Text(
-                                  'POS Sistem',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey.shade500,
-                                    letterSpacing: 2.0,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                              ),
+                              Text(
+                                'POS Sistem',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                  letterSpacing: 2.0,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -543,22 +526,6 @@ class AppShellState extends State<AppShell> {
                           );
                         },
                       ),
-                      if (SessionManager.instance.hasCurrentPermission('manage_business')) ...[
-                        _buildDrawerMenuItem(
-                          context,
-                          icon: Icons.devices_rounded,
-                          label: 'Mode Device',
-                          isSelected: false,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const DeviceModePage()),
-                            );
-                          },
-                        ),
-                      ],
                       // "Laporan Shift" dipindah jadi tab "Shift" di halaman
                       // Laporan — menghilangkan kebingungan dua menu laporan.
                     ],
