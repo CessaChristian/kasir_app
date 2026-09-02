@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/app_database.dart';
-import '../../data/business_context.dart';
 import '../../data/db.dart';
 import '../../features/auth/models/auth_session.dart';
 
@@ -37,7 +36,6 @@ class SessionManager {
     _currentSession = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
-    BusinessContext.instance.clear();
   }
 
   /// Restore session dari storage.
@@ -70,7 +68,7 @@ class SessionManager {
 
     // S6: re-validate user dari DB — JANGAN percaya role/permissions di storage
     try {
-      final user = await (db.select(db.users)
+      final user = await (_dbx.select(_dbx.users)
             ..where((u) => u.id.equals(session.userId))
             ..limit(1))
           .getSingleOrNull();
@@ -92,15 +90,6 @@ class SessionManager {
 
       // Sinkronkan storage agar konsisten dengan DB
       await prefs.setString(_sessionKey, json.encode(_currentSession!.toJson()));
-
-      // Multi-business: re-populate BusinessContext + role cache
-      try {
-        await BusinessContext.instance.loadInitial(userId: user.id);
-        await refreshRoleCache();
-      } catch (_) {
-        // Tidak clear session — biarkan session restore, hanya warn
-        // (BusinessContext null akan di-handle di UI layer)
-      }
     } catch (_) {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();
@@ -111,10 +100,10 @@ class SessionManager {
   Future<List<String>> _getUserPermissionsFromDb(
       String userId, String role) async {
     if (role == 'owner') {
-      final all = await db.select(db.permissions).get();
+      final all = await _dbx.select(_dbx.permissions).get();
       return all.map((p) => p.code).toList();
     }
-    final perms = await (db.select(db.userPermissions)
+    final perms = await (_dbx.select(_dbx.userPermissions)
           ..where((up) => up.userId.equals(userId))
           ..where((up) => up.enabled.equals(true)))
         .get();
@@ -178,49 +167,23 @@ class SessionManager {
     },
   };
 
-  /// In-memory cache role per business untuk current user.
-  /// Di-populate via [refreshRoleCache] setelah login + setelah switch business.
-  final Map<String, String> _roleCache = {};
-
-  /// Check permission di context BusinessContext.instance.activeBusinessId.
-  /// Return false kalau no active business atau user tidak punya role.
+  /// Permission menurut role user yang sedang login.
+  ///
+  /// Dulu role dibaca dari cache per-business yang diisi dari
+  /// `user_business_roles` — sumber kebenaran kedua di samping `users.role`.
+  /// Duplikasi itu dibuang di v13; role sekarang hanya ada satu tempat,
+  /// yaitu `users.role` yang sudah divalidasi ulang dari DB saat
+  /// [restoreSession] (anti-tamper).
   bool hasCurrentPermission(String permission) {
-    if (_currentSession == null) return false;
-
-    final businessId = BusinessContext.instance.activeBusinessId;
-    if (businessId == null) return false;
-
-    // Sync read role dari _roleCache (populated by refreshRoleCache setelah login)
-    final role = _roleCache[businessId];
-    if (role == null) return false; // belum di-cache, panggil refreshRoleCache dulu
-
+    final role = _currentSession?.role;
+    if (role == null) return false;
     return _rolePermissions[role]?.contains(permission) ?? false;
   }
 
   /// Throw kalau no permission. Pakai ini di UI handler.
   void requireCurrentPermission(String permission) {
     if (!hasCurrentPermission(permission)) {
-      throw StateError('Permission required (current business): $permission');
-    }
-  }
-
-  /// Refresh role cache untuk current user dari DB.
-  /// Wajib dipanggil setelah:
-  /// - Login sukses
-  /// - BusinessContext.switchTo (business baru)
-  /// - Add/remove user_business_role (jarang, biasanya saat onboarding)
-  Future<void> refreshRoleCache() async {
-    _roleCache.clear();
-    if (_currentSession == null) return;
-
-    final userId = _currentSession!.userId;
-    final roles = await (_dbx.select(_dbx.userBusinessRoles)
-          ..where((r) => r.userId.equals(userId))
-          ..where((r) => r.deletedAt.isNull()))
-        .get();
-
-    for (final role in roles) {
-      _roleCache[role.businessId] = role.role;
+      throw StateError('Permission required: $permission');
     }
   }
 

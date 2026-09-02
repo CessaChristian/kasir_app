@@ -29,18 +29,11 @@ void main() {
 
   group('perilaku — ID yang dibuat DB layer', () {
     late AppDatabase db;
-    const bizId = 'biz-a';
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       db = AppDatabase.forTesting(NativeDatabase.memory());
-      AppDatabase.activeBusinessIdProvider = () => bizId;
 
-      await db.into(db.businesses).insert(BusinessesCompanion.insert(
-            id: const Value(bizId),
-            name: 'Teras Inn',
-            type: 'restaurant_dinein',
-          ));
       await db.into(db.users).insert(UsersCompanion.insert(
             id: const Value('owner-1'),
             username: 'owner',
@@ -58,7 +51,6 @@ void main() {
     });
 
     tearDown(() async {
-      AppDatabase.activeBusinessIdProvider = null;
       await SessionManager.instance.clearSession();
       await db.close();
     });
@@ -66,7 +58,6 @@ void main() {
     test('addExpense menghasilkan id UUID', () async {
       await db.into(db.shifts).insert(ShiftsCompanion.insert(
             id: const Value('shift-1'),
-            businessId: bizId,
             userId: 'owner-1',
           ));
 
@@ -87,7 +78,6 @@ void main() {
         () async {
       await db.into(db.products).insert(ProductsCompanion.insert(
             id: const Value('prod-1'),
-            businessId: bizId,
             name: 'Nasi Goreng',
             price: 15000,
           ));
@@ -117,7 +107,6 @@ void main() {
     test('nomor nota disimpan terpisah dari primary key', () async {
       await db.into(db.products).insert(ProductsCompanion.insert(
             id: const Value('prod-1'),
-            businessId: bizId,
             name: 'Es Teh',
             price: 5000,
           ));

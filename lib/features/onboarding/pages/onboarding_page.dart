@@ -7,9 +7,9 @@ import '../../auth/repositories/auth_repository.dart';
 import '../../auth/recovery/pages/save_recovery_code_page.dart';
 
 class OnboardingPage extends StatefulWidget {
-  /// Callback dipanggil setelah onboarding sukses dengan businessId aktif.
+  /// Callback dipanggil setelah onboarding sukses.
   /// Caller (main.dart) handle navigasi ke login.
-  final void Function(String businessId) onComplete;
+  final void Function() onComplete;
 
   const OnboardingPage({super.key, required this.onComplete});
 
@@ -36,7 +36,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       final salt = CryptoUtils.generateSalt();
       final pinHash = CryptoUtils.hashPin(pin, salt);
 
-      final result = await _repo.setupFirstOwner(
+      final userId = await _repo.setupFirstOwner(
         username: username,
         pinHash: pinHash,
         salt: salt,
@@ -46,7 +46,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       // owner yang lupa PIN tidak akan pernah bisa akses datanya lagi.
       final authRepo = AuthRepository(db);
       final recoveryCode =
-          await authRepo.generateAndStoreRecoveryCodeForOwner(result.userId);
+          await authRepo.generateAndStoreRecoveryCodeForOwner(userId);
 
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -54,7 +54,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           builder: (_) => SaveRecoveryCodePage(
             recoveryCode: recoveryCode,
             // ctx milik SaveRecoveryCodePage — selalu valid saat dipanggil
-            onComplete: (_) => widget.onComplete(result.terasInnId),
+            onComplete: (_) => widget.onComplete(),
           ),
         ),
       );

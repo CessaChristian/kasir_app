@@ -18,21 +18,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late AppDatabase db;
-  const bizId = 'biz-a';
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    AppDatabase.activeBusinessIdProvider = () => bizId;
 
-    await db.into(db.businesses).insert(BusinessesCompanion.insert(
-          id: const Value(bizId),
-          name: 'Teras Inn',
-          type: 'restaurant_dinein',
-        ));
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
-          businessId: bizId,
           name: 'Es Teh',
           price: 5000,
         ));
@@ -46,7 +38,6 @@ void main() {
   });
 
   tearDown(() async {
-    AppDatabase.activeBusinessIdProvider = null;
     await SessionManager.instance.clearSession();
     await db.close();
   });

@@ -27,17 +27,11 @@ void main() {
       expect(shifts, isEmpty, reason: 'tidak ada shift dibuat untuk owner');
     });
 
-    test('cashier login membuka shift baru di business-nya', () async {
+    test('cashier login membuka shift baru', () async {
       SharedPreferences.setMockInitialValues({});
       final dbTest = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(dbTest.close);
       final repo = AuthRepository(dbTest);
-
-      await dbTest.into(dbTest.businesses).insert(BusinessesCompanion.insert(
-            id: const Value('biz-a'),
-            name: 'Teras Inn',
-            type: 'restaurant_dinein',
-          ));
 
       final salt = CryptoUtils.generateSalt();
       final hash = CryptoUtils.hashPin('4321', salt);
@@ -48,14 +42,6 @@ void main() {
             salt: salt,
             role: 'cashier',
           ));
-      await dbTest
-          .into(dbTest.userBusinessRoles)
-          .insert(UserBusinessRolesCompanion.insert(
-            userId: 'cashier-1',
-            businessId: 'biz-a',
-            role: 'cashier',
-          ));
-
       final session = await repo.login(username: 'sari', pin: '4321');
 
       expect(session, isNotNull);
@@ -63,7 +49,6 @@ void main() {
 
       final shifts = await dbTest.select(dbTest.shifts).get();
       expect(shifts, hasLength(1));
-      expect(shifts.first.businessId, 'biz-a');
       expect(shifts.first.userId, 'cashier-1');
       expect(shifts.first.endAt, isNull, reason: 'shift baru masih aktif');
     });

@@ -20,19 +20,12 @@ void main() {
 
   late AppDatabase db;
   late ExpenseRepository repo;
-  const bizId = 'biz-a';
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     repo = ExpenseRepository(db);
-    AppDatabase.activeBusinessIdProvider = () => bizId;
 
-    await db.into(db.businesses).insert(BusinessesCompanion.insert(
-          id: const Value(bizId),
-          name: 'Teras Inn',
-          type: 'restaurant_dinein',
-        ));
     await db.into(db.users).insert(UsersCompanion.insert(
           id: const Value('kasir-1'),
           username: 'sari',
@@ -42,7 +35,6 @@ void main() {
         ));
     await db.into(db.shifts).insert(ShiftsCompanion.insert(
           id: const Value('shift-1'),
-          businessId: bizId,
           userId: 'kasir-1',
         ));
     await SessionManager.instance.setSession(AuthSession.create(
@@ -55,7 +47,6 @@ void main() {
   });
 
   tearDown(() async {
-    AppDatabase.activeBusinessIdProvider = null;
     await SessionManager.instance.clearSession();
     await db.close();
   });
@@ -80,7 +71,6 @@ void main() {
     expect(e.amount, 25000);
     expect(e.shiftId, 'shift-1');
     expect(e.userId, 'kasir-1');
-    expect(e.businessId, bizId, reason: 'ter-scope ke business aktif');
     expect(e.deletedAt, isNull);
   });
 

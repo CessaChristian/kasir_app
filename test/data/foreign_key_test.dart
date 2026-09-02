@@ -40,15 +40,6 @@ void main() {
     ));
   }
 
-  Future<String> makeBusiness([String id = 'biz-a']) async {
-    await db.into(db.businesses).insert(BusinessesCompanion.insert(
-          id: Value(id),
-          name: 'Teras Inn',
-          type: 'restaurant_dinein',
-        ));
-    return id;
-  }
-
   test('1. PRAGMA foreign_keys aktif di koneksi aplikasi', () async {
     final rows = await db.customSelect('PRAGMA foreign_keys').get();
     expect(rows.first.data.values.first, 1,
@@ -57,35 +48,28 @@ void main() {
 
   test('2. insert dengan induk yang tidak ada DITOLAK', () async {
     await expectLater(
-      db.into(db.products).insert(ProductsCompanion.insert(
-            id: const Value('p-hantu'),
-            businessId: 'business-yang-tidak-ada',
-            name: 'Produk Hantu',
-            price: 1000,
+      db.into(db.shifts).insert(ShiftsCompanion.insert(
+            id: const Value('shift-hantu'),
+            userId: 'user-yang-tidak-ada',
           )),
       throwsA(anything),
-      reason: 'business_id ngawur harus ditolak database',
+      reason: 'user_id ngawur harus ditolak database',
     );
 
-    final all = await db.select(db.products).get();
+    final all = await db.select(db.shifts).get();
     expect(all, isEmpty, reason: 'tidak boleh ada baris yatim yang lolos');
   });
 
   test('3. deleteCategory tetap berhasil walau kategori masih dipakai produk',
       () async {
-    final bizId = await makeBusiness();
-    AppDatabase.activeBusinessIdProvider = () => bizId;
-    addTearDown(() => AppDatabase.activeBusinessIdProvider = null);
     await loginAsOwner();
 
     await db.into(db.categories).insert(CategoriesCompanion.insert(
           id: const Value('cat-1'),
-          businessId: bizId,
           name: 'Makanan',
         ));
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
-          businessId: bizId,
           name: 'Nasi Goreng',
           price: 15000,
           categoryId: const Value('cat-1'),
@@ -117,17 +101,14 @@ void main() {
 
   test('4. ON DELETE CASCADE benar-benar jalan pada transaction_items',
       () async {
-    final bizId = await makeBusiness();
 
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
           id: const Value('trx-1'),
-          businessId: bizId,
           total: 15000,
           paymentMethod: 'cash',
         ));
     await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
           id: const Value('item-1'),
-          businessId: bizId,
           transactionId: 'trx-1',
           productId: 'prod-1',
           qty: 1,
@@ -143,25 +124,19 @@ void main() {
   });
 
   test('5. hapus produk yang sudah pernah terjual tetap boleh', () async {
-    final bizId = await makeBusiness();
-    AppDatabase.activeBusinessIdProvider = () => bizId;
-    addTearDown(() => AppDatabase.activeBusinessIdProvider = null);
 
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
-          businessId: bizId,
           name: 'Nasi Goreng',
           price: 15000,
         ));
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
           id: const Value('trx-1'),
-          businessId: bizId,
           total: 15000,
           paymentMethod: 'cash',
         ));
     await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
           id: const Value('item-1'),
-          businessId: bizId,
           transactionId: 'trx-1',
           productId: 'prod-1',
           productName: const Value('Nasi Goreng'),

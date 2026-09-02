@@ -1,82 +1,75 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
+import 'package:kasir_app/features/onboarding/repositories/onboarding_repository.dart';
 
+/// Onboarding sejak v13 hanya membuat akun owner.
+///
+/// Sebelumnya ia juga menyemai tabel `businesses` beserta baris
+/// `user_business_roles`. Keduanya dibuang karena aplikasi difokuskan ke satu
+/// bisnis, dan peran user cukup dibaca dari `users.role`.
+///
+/// Test lama menguji "pola yang setara" dengan menyalin isi repository ke
+/// dalam test — sehingga perubahan pada repository tidak akan ketahuan. Di
+/// sini repository aslinya yang dipanggil, lewat `dbOverride`.
 void main() {
   late AppDatabase db;
+  late OnboardingRepository repo;
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
+    OnboardingRepository.dbOverride = db;
+    repo = OnboardingRepository();
   });
 
   tearDown(() async {
+    OnboardingRepository.dbOverride = null;
     await db.close();
   });
 
-  // Note: OnboardingRepository pakai global db singleton, jadi tidak bisa
-  // di-test langsung tanpa refactor. Test ini test pattern equivalent
-  // dengan in-memory DB untuk verifikasi schema + atomic insert.
-  group('Onboarding flow (manual atomic insert via in-memory DB)', () {
-    test('atomic insert: user + business + role berhasil bersama', () async {
-      await db.transaction(() async {
-        final user = await db.into(db.users).insertReturning(
-              UsersCompanion.insert(
-                username: 'sari',
-                pinHash: 'hash',
-                salt: 'salt',
-                role: 'owner',
-              ),
-            );
-        final business = await db.into(db.businesses).insertReturning(
-              BusinessesCompanion.insert(
-                name: 'Teras Inn',
-                type: 'restaurant_dinein',
-              ),
-            );
-        await db.into(db.userBusinessRoles).insert(
-              UserBusinessRolesCompanion.insert(
-                userId: user.id,
-                businessId: business.id,
-                role: 'owner',
-              ),
-            );
-      });
+  test('setupFirstOwner membuat satu user ber-role owner', () async {
+    final userId = await repo.setupFirstOwner(
+      username: 'sari',
+      pinHash: 'hash',
+      salt: 'salt',
+    );
 
-      // Verify semua ter-insert
-      final users = await db.select(db.users).get();
-      final businesses = await db.select(db.businesses).get();
-      final roles = await db.select(db.userBusinessRoles).get();
+    final users = await db.select(db.users).get();
+    expect(users, hasLength(1));
+    expect(users.single.id, userId);
+    expect(users.single.username, 'sari');
+    expect(users.single.role, 'owner');
+  });
 
-      expect(users, hasLength(1));
-      expect(businesses, hasLength(1));
-      expect(roles, hasLength(1));
-      expect(roles.first.userId, equals(users.first.id));
-      expect(roles.first.businessId, equals(businesses.first.id));
-      expect(roles.first.role, equals('owner'));
-    });
+  test('hasAnyUser membedakan pemasangan baru dari yang sudah dipakai',
+      () async {
+    expect(await repo.hasAnyUser(), isFalse,
+        reason: 'belum ada user — ini pemasangan baru');
 
-    test('hasAnyBusiness equivalent: detect first launch', () async {
-      // Initially kosong
-      final initial = await (db.select(db.businesses)
-            ..where((b) => b.deletedAt.isNull())
-            ..limit(1))
-          .get();
-      expect(initial, isEmpty, reason: 'First launch — no business');
+    await repo.setupFirstOwner(
+      username: 'sari',
+      pinHash: 'hash',
+      salt: 'salt',
+    );
 
-      // Insert 1 business
-      await db.into(db.businesses).insert(
-            BusinessesCompanion.insert(
-              name: 'Teras Inn',
-              type: 'restaurant_dinein',
-            ),
-          );
+    expect(await repo.hasAnyUser(), isTrue);
+  });
 
-      // Now should detect
-      final after = await (db.select(db.businesses)
-            ..where((b) => b.deletedAt.isNull())
-            ..limit(1))
-          .get();
-      expect(after, hasLength(1));
-    });
+  test('username yang sama ditolak', () async {
+    await repo.setupFirstOwner(
+      username: 'sari',
+      pinHash: 'hash',
+      salt: 'salt',
+    );
+
+    await expectLater(
+      repo.setupFirstOwner(
+        username: 'sari',
+        pinHash: 'hash-lain',
+        salt: 'salt-lain',
+      ),
+      throwsA(anything),
+      reason: 'username unik — dua akun dengan nama sama harus ditolak',
+    );
   });
 }

@@ -125,7 +125,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         // No user at all (fresh install) -> show onboarding
         if (!state.hasUser) {
           return OnboardingPage(
-            onComplete: (_) {
+            onComplete: () {
               // pushAndRemoveUntil — bersihkan OnboardingPage + SaveRecoveryCodePage
               // dari stack supaya back button tidak balik ke onboarding.
               Navigator.of(context).pushAndRemoveUntil(

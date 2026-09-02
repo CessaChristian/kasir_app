@@ -14,16 +14,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late AppDatabase db;
-  const bizId = 'biz-a';
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    await db.into(db.businesses).insert(BusinessesCompanion.insert(
-          id: const Value(bizId),
-          name: 'Teras Inn',
-          type: 'restaurant_dinein',
-        ));
   });
 
   tearDown(() async => db.close());
@@ -42,17 +36,12 @@ void main() {
     expect(await ddl('transactions'),
         contains("CHECK (payment_method IN ('cash', 'qris'))"));
     expect(await ddl('users'), contains("CHECK (role IN ('owner', 'cashier'))"));
-    expect(await ddl('user_business_roles'),
-        contains("CHECK (role IN ('owner', 'cashier'))"));
-    expect(await ddl('businesses'),
-        contains("CHECK (type IN ('restaurant_dinein', 'beverage_grabandgo'))"));
   });
 
   test('order_type salah ketik DITOLAK database', () async {
     // Persis bug yang pernah terjadi: 'takeaway' tanpa garis bawah.
     await expectLater(
       db.into(db.transactions).insert(TransactionsCompanion.insert(
-            businessId: bizId,
             total: 15000,
             paymentMethod: 'cash',
             orderType: const Value('takeaway'),
@@ -67,7 +56,6 @@ void main() {
   test('order_type yang sah tetap diterima', () async {
     for (final v in ['dine_in', 'take_away', 'delivery']) {
       await db.into(db.transactions).insert(TransactionsCompanion.insert(
-            businessId: bizId,
             total: 1000,
             paymentMethod: 'qris',
             orderType: Value(v),
@@ -79,7 +67,6 @@ void main() {
   test('payment_method dan role juga dijaga', () async {
     await expectLater(
       db.into(db.transactions).insert(TransactionsCompanion.insert(
-            businessId: bizId,
             total: 1000,
             paymentMethod: 'gopay', // belum didukung
           )),

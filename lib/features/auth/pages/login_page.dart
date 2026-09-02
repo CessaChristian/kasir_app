@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../shared/constants/app_constants.dart';
 import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
-import '../../../data/business_context.dart';
 import '../../../data/db.dart';
 import '../repositories/auth_repository.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -138,8 +137,6 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       await SessionManager.instance.setSession(session);
-      await BusinessContext.instance.loadInitial(userId: session.userId);
-      await SessionManager.instance.refreshRoleCache();
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(

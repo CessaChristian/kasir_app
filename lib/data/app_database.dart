@@ -12,84 +12,11 @@ import 'uuid_helper.dart';
 part 'app_database.g.dart';
 part 'models/report_models.dart';
 
-/// Hook yang di-set dari luar (db.dart) untuk menghindari circular import.
-/// BusinessContext imports app_database.dart, sehingga app_database.dart
-/// tidak boleh import business_context.dart secara langsung.
-///
-/// Usage dari db.dart:
-///   AppDatabase.activeBusinessIdProvider = () => BusinessContext.instance.activeBusinessId;
-///
-/// Usage dari tests:
-///   AppDatabase.activeBusinessIdProvider = () => testBusinessId;
-String? Function()? _activeBusinessIdProvider;
-
-/// =======================
-/// TABLE: BUSINESSES (new in v10)
-/// =======================
-class Businesses extends Table {
-  TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get name => text()();
-  TextColumn get type => text()(); // 'restaurant_dinein' | 'beverage_grabandgo'
-  TextColumn get logoPath => text().nullable()();
-  TextColumn get address => text().nullable()();
-  TextColumn get phone => text().nullable()();
-  BoolColumn get isActive =>
-      boolean().withDefault(const Constant(true))();
-
-  // Sync-friendly columns (per spec §5.1.6)
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
-  TextColumn get syncStatus =>
-      text().withDefault(const Constant('pending'))();
-
-  // SQLite tidak punya tipe ENUM, jadi nilai yang sah dijaga lewat CHECK
-  // (NEW in v12). Tanpa ini kolom TEXT menerima salah ketik apa pun —
-  // yang benar-benar pernah terjadi pada transactions.order_type.
-  @override
-  List<String> get customConstraints => [
-        "CHECK (type IN ('restaurant_dinein', 'beverage_grabandgo'))",
-      ];
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-/// =======================
-/// TABLE: USER_BUSINESS_ROLES (many-to-many, new in v10)
-/// =======================
-class UserBusinessRoles extends Table {
-  TextColumn get userId => text().references(Users, #id)();
-  TextColumn get businessId => text().references(Businesses, #id)();
-  TextColumn get role => text()(); // 'owner' | 'cashier' — dijaga CHECK di v12
-  DateTimeColumn get assignedAt =>
-      dateTime().withDefault(currentDateAndTime)();
-
-  // Sync-friendly
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
-  TextColumn get syncStatus =>
-      text().withDefault(const Constant('pending'))();
-
-  @override
-  List<String> get customConstraints => [
-        "CHECK (role IN ('owner', 'cashier'))",
-      ];
-
-  @override
-  Set<Column> get primaryKey => {userId, businessId};
-}
-
 /// =======================
 /// TABLE: CATEGORIES (modified in v10 — add business_id + sync fields)
 /// =======================
 class Categories extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get name => text()();
   IntColumn get iconCodepoint => integer().nullable()();
 
@@ -111,8 +38,6 @@ class Categories extends Table {
 /// =======================
 class Products extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get name => text()();
   IntColumn get price => integer()();
   TextColumn get barcode => text().nullable()();
@@ -154,8 +79,6 @@ class Transactions extends Table {
   /// UUID, sedangkan nomor nota harus mudah dibaca kasir dan pelanggan.
   TextColumn get invoiceNo => text().withDefault(const Constant(''))();
 
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
@@ -195,8 +118,6 @@ class Transactions extends Table {
 /// =======================
 class TransactionItems extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10 (denormalized untuk performa)
   TextColumn get transactionId => text()();
   TextColumn get productId => text()();
   TextColumn get productName => text().withDefault(const Constant(''))();
@@ -271,8 +192,6 @@ class Users extends Table {
 /// =======================
 class Shifts extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get userId => text().references(Users, #id)();
   DateTimeColumn get startAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -324,8 +243,6 @@ class UserPermissions extends Table {
 /// =======================
 class Expenses extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get businessId =>
-      text().references(Businesses, #id)(); // NEW in v10
   TextColumn get shiftId => text().references(Shifts, #id)();
   @ReferenceName('createdExpensesRefs')
   TextColumn get userId => text().references(Users, #id)(); // creator
@@ -361,55 +278,14 @@ class Expenses extends Table {
   Permissions,
   UserPermissions,
   Expenses,
-  Businesses,           // NEW in v10
-  UserBusinessRoles,    // NEW in v10
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.executor);
 
-  // ---- BusinessContext bridge (no circular import) ----
-
-  /// Set dari db.dart setelah BusinessContext tersedia.
-  /// Atau di-override dalam tests:
-  ///   AppDatabase.activeBusinessIdProvider = () => 'test-biz-id';
-  static set activeBusinessIdProvider(String? Function()? fn) {
-    _activeBusinessIdProvider = fn;
-  }
-
-  /// True jika provider sudah di-wire (dipakai test untuk memastikan
-  /// mengakses `db` otomatis melakukan wiring).
-  static bool get hasActiveBusinessProvider =>
-      _activeBusinessIdProvider != null;
-
-  /// Ambil active business ID. Throws [StateError] jika provider belum di-set
-  /// atau tidak ada active business.
-  static String _requireActiveBusinessId() {
-    final provider = _activeBusinessIdProvider;
-    if (provider == null) {
-      throw StateError(
-        'AppDatabase.activeBusinessIdProvider belum di-set. '
-        'Pastikan db.dart sudah wired BusinessContext.',
-      );
-    }
-    final id = provider();
-    if (id == null) {
-      throw StateError(
-        'Tidak ada active business. Login dan pilih business terlebih dahulu.',
-      );
-    }
-    return id;
-  }
-
-  /// Versi nullable — untuk watch/query yang boleh return empty stream
-  /// ketika belum ada active business.
-  static String? _getActiveBusinessId() {
-    return _activeBusinessIdProvider?.call();
-  }
-
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -501,7 +377,7 @@ class AppDatabase extends _$AppDatabase {
             await m.deleteTable('products');
             await m.deleteTable('categories');
 
-            // Recreate semua (termasuk Businesses + UserBusinessRoles)
+            // Recreate semua tabel dengan skema saat itu
             await m.createAll();
             await _seedPermissions();
           }
@@ -551,8 +427,49 @@ class AppDatabase extends _$AppDatabase {
             // ignore_for_file: experimental_member_use
             await m.alterTable(TableMigration(transactions));
             await m.alterTable(TableMigration(users));
-            await m.alterTable(TableMigration(userBusinessRoles));
-            await m.alterTable(TableMigration(businesses));
+          }
+          if (from < 13 && to >= 13) {
+            // v13 — aplikasi difokuskan ke SATU bisnis.
+            //
+            // Kolom `business_id` dan tabel `businesses` /
+            // `user_business_roles` dibuang seluruhnya. Peran user kini
+            // dibaca dari `users.role` yang sudah ada — sebelumnya peran
+            // punya dua sumber kebenaran, dan itu sudah pernah menimbulkan
+            // bug (kasir dianggap owner).
+            //
+            // URUTAN PENTING: baris milik bisnis lain dihapus DULU. Kalau
+            // kolomnya dibuang lebih dulu, data dua bisnis akan melebur jadi
+            // satu dan laporan ikut salah.
+            const bisnisDipertahankan = "SELECT id FROM businesses "
+                "ORDER BY (name = 'Teras Inn') DESC, created_at ASC LIMIT 1";
+
+            // Anak dulu, baru induk, supaya foreign key tidak terlanggar.
+            for (final tabel in [
+              'transaction_items',
+              'transactions',
+              'expenses',
+              'shifts',
+              'products',
+              'categories',
+            ]) {
+              // Kalau tabel businesses kosong, subquery bernilai NULL dan
+              // perbandingan `<>` ikut NULL — tidak ada baris yang terhapus.
+              await customStatement(
+                'DELETE FROM $tabel WHERE business_id <> ($bisnisDipertahankan)',
+              );
+            }
+
+            // Bangun ulang tanpa kolom business_id. Induk dulu supaya acuan
+            // foreign key dari tabel anak tetap sah saat disalin.
+            await m.alterTable(TableMigration(categories));
+            await m.alterTable(TableMigration(products));
+            await m.alterTable(TableMigration(shifts));
+            await m.alterTable(TableMigration(transactions));
+            await m.alterTable(TableMigration(transactionItems));
+            await m.alterTable(TableMigration(expenses));
+
+            await m.deleteTable('user_business_roles');
+            await m.deleteTable('businesses');
           }
         },
         beforeOpen: (details) async {
@@ -667,11 +584,9 @@ class AppDatabase extends _$AppDatabase {
   // ---- CATEGORIES ----
 
   Stream<List<Category>> watchCategories() {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return const Stream.empty();
     return (select(categories)
           ..where((t) =>
-              t.businessId.equals(businessId) & t.deletedAt.isNull())
+              t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.asc(t.name)]))
         .watch();
   }
@@ -681,12 +596,10 @@ class AppDatabase extends _$AppDatabase {
     required String name,
     int? iconCodepoint,
   }) async {
-    final businessId = _requireActiveBusinessId();
     SessionManager.instance.requirePermission('manage_products');
     await into(categories).insertOnConflictUpdate(
       CategoriesCompanion(
         id: Value(id),
-        businessId: Value(businessId),
         name: Value(name),
         iconCodepoint: Value(iconCodepoint),
         updatedAt: Value(DateTime.now()),
@@ -725,11 +638,9 @@ class AppDatabase extends _$AppDatabase {
   // ---- PRODUCTS ----
 
   Stream<List<Product>> watchProducts() {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return const Stream.empty();
     return (select(products)
           ..where((p) =>
-              p.businessId.equals(businessId) & p.deletedAt.isNull()))
+              p.deletedAt.isNull()))
         .watch();
   }
 
@@ -744,11 +655,9 @@ class AppDatabase extends _$AppDatabase {
     required bool hasSpicyOption,
     String? imagePath,
   }) async {
-    final businessId = _requireActiveBusinessId();
     SessionManager.instance.requirePermission('manage_products');
     final data = ProductsCompanion(
       id: Value(id),
-      businessId: Value(businessId),
       name: Value(name),
       price: Value(price),
       barcode: Value(barcode),
@@ -791,7 +700,6 @@ class AppDatabase extends _$AppDatabase {
     String? cashierUserId,
     String? shiftId,
   }) async {
-    final businessId = _requireActiveBusinessId();
     // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
     // DB layer juga reject jika permission tidak ada.
     SessionManager.instance.requirePermission('create_transaction');
@@ -815,13 +723,12 @@ class AppDatabase extends _$AppDatabase {
     late String invoiceNo;
     await transaction(() async {
       await _validateAndUpdateStock(lines);
-      invoiceNo = await _nextInvoiceNo(businessId, DateTime.now());
+      invoiceNo = await _nextInvoiceNo(DateTime.now());
 
       await into(transactions).insert(
         TransactionsCompanion(
           id: Value(transactionId),
           invoiceNo: Value(invoiceNo),
-          businessId: Value(businessId),
           total: Value(total),
           paymentMethod: Value(paymentMethod),
           cashReceived: Value(cashReceived),
@@ -833,7 +740,7 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-      await _insertTransactionItems(transactionId, businessId, lines);
+      await _insertTransactionItems(transactionId, lines);
     });
     return invoiceNo;
   }
@@ -848,15 +755,14 @@ class AppDatabase extends _$AppDatabase {
   ///
   /// Dipanggil dari DALAM transaction milik [createSale] supaya menghitung dan
   /// menyimpan tidak bisa disela.
-  Future<String> _nextInvoiceNo(String businessId, DateTime now) async {
+  Future<String> _nextInvoiceNo(DateTime now) async {
     final awalHari = DateTime(now.year, now.month, now.day);
     final akhirHari = awalHari.add(const Duration(days: 1));
 
     final hitung = transactions.id.count();
     final baris = await (selectOnly(transactions)
           ..addColumns([hitung])
-          ..where(transactions.businessId.equals(businessId) &
-              transactions.createdAt.isBiggerOrEqualValue(awalHari) &
+          ..where(transactions.createdAt.isBiggerOrEqualValue(awalHari) &
               transactions.createdAt.isSmallerThanValue(akhirHari)))
         .getSingle();
     final urut = (baris.read(hitung)! + 1).toString().padLeft(4, '0');
@@ -905,7 +811,6 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _insertTransactionItems(
     String transactionId,
-    String businessId, // already fetched from BusinessContext by createSale
     List<SaleLine> lines,
   ) async {
     for (final line in lines) {
@@ -914,7 +819,6 @@ class AppDatabase extends _$AppDatabase {
       await into(transactionItems).insert(
         TransactionItemsCompanion(
           id: Value(itemId),
-          businessId: Value(businessId),
           transactionId: Value(transactionId),
           productId: Value(line.productId),
           productName: Value(line.productName),
@@ -931,23 +835,18 @@ class AppDatabase extends _$AppDatabase {
   // ---- TRANSACTIONS / HISTORY ----
 
   Stream<List<Transaction>> watchTransactions() {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return const Stream.empty();
     return (select(transactions)
           ..where((t) =>
-              t.businessId.equals(businessId) & t.deletedAt.isNull())
+              t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
   }
 
   Future<List<TransactionItem>> getTransactionItems(
       String transactionId) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
     return (select(transactionItems)
           ..where((t) =>
               t.transactionId.equals(transactionId) &
-              t.businessId.equals(businessId) &
               t.deletedAt.isNull()))
         .get();
   }
@@ -958,13 +857,10 @@ class AppDatabase extends _$AppDatabase {
       List<String> transactionIds) async {
     if (transactionIds.isEmpty) return {};
 
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return {};
 
     final items = await (select(transactionItems)
           ..where((t) =>
               t.transactionId.isIn(transactionIds) &
-              t.businessId.equals(businessId) &
               t.deletedAt.isNull()))
         .get();
 
@@ -981,12 +877,9 @@ class AppDatabase extends _$AppDatabase {
   // ---- EXPENSES ----
 
   Stream<List<Expense>> watchExpensesByShift(String shiftId) {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return const Stream.empty();
     return (select(expenses)
           ..where((e) =>
               e.shiftId.equals(shiftId) &
-              e.businessId.equals(businessId) &
               e.deletedAt.isNull())
           ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
         .watch();
@@ -998,11 +891,9 @@ class AppDatabase extends _$AppDatabase {
     required String description,
     required int amount,
   }) async {
-    final businessId = _requireActiveBusinessId();
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(newUuid()),
-        businessId: Value(businessId),
         shiftId: Value(shiftId),
         userId: Value(userId),
         description: Value(description),
@@ -1031,9 +922,8 @@ class AppDatabase extends _$AppDatabase {
     required int amount,
     required String description,
   }) async {
-    final businessId = _requireActiveBusinessId();
     await (update(expenses)..where((e) =>
-      e.id.equals(id) & e.businessId.equals(businessId)
+      e.id.equals(id)
     )).write(ExpensesCompanion(
       amount: Value(amount),
       description: Value(description),
@@ -1043,39 +933,14 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
-  /// Update profil business aktif (nama, alamat, telepon).
-  /// Caller WAJIB validasi permission manage_business sebelum call.
-  /// Update profil business (aktif maupun tidak) — dipakai page Business.
-  /// Nama business TIDAK bisa diubah (hardcode dari kode, spec REVISI 2 D5).
-  /// Field null = tidak diubah; `logoPathSet: true` + `logoPath: null`
-  /// artinya hapus logo.
-  Future<void> updateBusiness({
-    required String id,
-    String? address,
-    String? phone,
-    String? logoPath,
-    bool logoPathSet = false,
-  }) async {
-    SessionManager.instance.requireCurrentPermission('manage_business');
-    await (update(businesses)..where((b) => b.id.equals(id)))
-        .write(BusinessesCompanion(
-      address: address != null ? Value(address) : const Value.absent(),
-      phone: phone != null ? Value(phone) : const Value.absent(),
-      logoPath: logoPathSet ? Value(logoPath) : const Value.absent(),
-      updatedAt: Value(DateTime.now()),
-      syncStatus: const Value('pending'),
-    ));
-  }
-
   /// Soft-delete transaksi + reverse stok (transactional).
   /// Caller WAJIB validasi permission sebelum call.
   Future<void> softDeleteTransaction(String transactionId) async {
-    final businessId = _requireActiveBusinessId();
 
     await transaction(() async {
       // 1. Soft delete transaction header
       await (update(transactions)..where((t) =>
-        t.id.equals(transactionId) & t.businessId.equals(businessId)
+        t.id.equals(transactionId)
       )).write(TransactionsCompanion(
         deletedAt: Value(DateTime.now()),
         updatedAt: Value(DateTime.now()),
@@ -1084,7 +949,7 @@ class AppDatabase extends _$AppDatabase {
 
       // 2. Soft delete transaction items
       await (update(transactionItems)..where((ti) =>
-        ti.transactionId.equals(transactionId) & ti.businessId.equals(businessId)
+        ti.transactionId.equals(transactionId)
       )).write(TransactionItemsCompanion(
         deletedAt: Value(DateTime.now()),
         updatedAt: Value(DateTime.now()),
@@ -1117,24 +982,18 @@ class AppDatabase extends _$AppDatabase {
 
   /// Shifts milik seorang user di active business, terurut terbaru di atas
   Future<List<Shift>> getShiftsByUser(String userId) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
     return (select(shifts)
           ..where((s) =>
               s.userId.equals(userId) &
-              s.businessId.equals(businessId) &
               s.deletedAt.isNull())
           ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
         .get();
   }
 
   Future<List<Expense>> getExpensesByShift(String shiftId) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
     return (select(expenses)
           ..where((e) =>
               e.shiftId.equals(shiftId) &
-              e.businessId.equals(businessId) &
               e.deletedAt.isNull())
           ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
         .get();
@@ -1145,14 +1004,11 @@ class AppDatabase extends _$AppDatabase {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
 
     final query = select(expenses).join([
       innerJoin(users, users.id.equalsExp(expenses.userId)),
     ]);
 
-    query.where(expenses.businessId.equals(businessId));
     query.where(expenses.deletedAt.isNull());
 
     if (startDate != null) {
@@ -1174,11 +1030,8 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> _getTotalExpensesByDateRange(
       DateTime startDate, DateTime endDate) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return 0;
     final result = await (select(expenses)
           ..where((e) =>
-              e.businessId.equals(businessId) &
               e.deletedAt.isNull() &
               e.createdAt.isBiggerOrEqualValue(startDate) &
               e.createdAt.isSmallerThanValue(endDate)))
@@ -1192,11 +1045,8 @@ class AppDatabase extends _$AppDatabase {
     DateTime startDate,
     DateTime endDate,
   ) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
     return (select(transactions)
           ..where((t) =>
-              t.businessId.equals(businessId) &
               t.deletedAt.isNull() &
               t.createdAt.isBiggerOrEqualValue(startDate) &
               t.createdAt.isSmallerThanValue(endDate))
@@ -1257,8 +1107,6 @@ class AppDatabase extends _$AppDatabase {
     DateTime endDate, {
     int limit = 5,
   }) async {
-    final businessId = _getActiveBusinessId();
-    if (businessId == null) return [];
 
     final startEpoch = startDate.millisecondsSinceEpoch ~/ 1000;
     final endEpoch = endDate.millisecondsSinceEpoch ~/ 1000;
@@ -1272,7 +1120,6 @@ class AppDatabase extends _$AppDatabase {
       FROM transaction_items ti
       JOIN transactions t ON t.id = ti.transaction_id
       WHERE t.created_at BETWEEN ? AND ?
-        AND t.business_id = ?
         AND t.deleted_at IS NULL
         AND ti.deleted_at IS NULL
       GROUP BY ti.product_name
@@ -1282,7 +1129,6 @@ class AppDatabase extends _$AppDatabase {
       variables: [
         Variable.withInt(startEpoch),
         Variable.withInt(endEpoch),
-        Variable.withString(businessId),
         Variable.withInt(limit)
       ],
       readsFrom: {transactionItems, transactions},

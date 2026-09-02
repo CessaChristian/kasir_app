@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
@@ -135,14 +134,10 @@ class AuthRepository {
     // Owner memantau dari device sendiri dan TIDAK menjalankan shift, jadi
     // shiftId owner = null (spec: shift page monitoring). I4: bungkus dengan
     // pesan error spesifik agar user tahu PIN sudah benar tapi gagal di shift.
-    //
-    // businessId: login terjadi sebelum BusinessContext.loadInitial, jadi
-    // kita query langsung dari userBusinessRoles.
     String? shiftId;
     if (user.role != 'owner') {
-      final businessId = await _getFirstBusinessId(user.id);
       try {
-        shiftId = await _startShift(user.id, businessId: businessId);
+        shiftId = await _startShift(user.id);
       } catch (e) {
         throw StateError(
             'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
@@ -187,51 +182,10 @@ class AuthRepository {
         .getSingleOrNull();
   }
 
-  /// Ambil businessId untuk _startShift saat login (sebelum
-  /// BusinessContext.loadInitial dipanggil).
-  /// Prioritas: business aktif terakhir yang dipersist — supaya shift login
-  /// dibuka di business yang sama dengan tampilan app setelah login.
-  Future<String> _getFirstBusinessId(String userId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final persistedId = prefs.getString('active_business_id');
-    if (persistedId != null) {
-      final persisted = await (_db.select(_db.userBusinessRoles)
-            ..where((r) =>
-                r.userId.equals(userId) &
-                r.businessId.equals(persistedId) &
-                r.deletedAt.isNull())
-            ..limit(1))
-          .get();
-      if (persisted.isNotEmpty) return persistedId;
-    }
-
-    final roles = await (_db.select(_db.userBusinessRoles)
-          ..where((r) =>
-              r.userId.equals(userId) & r.deletedAt.isNull())
-          ..limit(1))
-        .get();
-    if (roles.isNotEmpty) return roles.first.businessId;
-
-    // Fallback: kalau user belum punya role (misal owner baru),
-    // ambil business pertama dari tabel businesses.
-    final businesses = await (_db.select(_db.businesses)
-          ..where((b) => b.deletedAt.isNull())
-          ..limit(1))
-        .get();
-    if (businesses.isNotEmpty) return businesses.first.id;
-
-    // Edge case: tidak ada business sama sekali (fresh install sebelum onboarding).
-    // Return string kosong — shift akan gagal FK constraint, yang memang benar
-    // karena onboarding belum selesai.
-    return '';
-  }
-
-  /// Start a new shift for a user di active business, atau gunakan shift aktif yang sudah ada.
-  Future<String> _startShift(String userId, {required String businessId}) async {
+  /// Buka shift baru untuk user, atau pakai shift yang masih terbuka.
+  Future<String> _startShift(String userId) async {
     final existing = await (_db.select(_db.shifts)
           ..where((s) => s.userId.equals(userId))
-          // Shift bersifat per business — jangan reuse shift business lain.
-          ..where((s) => s.businessId.equals(businessId))
           ..where((s) => s.endAt.isNull())
           ..limit(1))
         .getSingleOrNull();
@@ -242,7 +196,6 @@ class AuthRepository {
     await _db.into(_db.shifts).insert(
           ShiftsCompanion.insert(
             id: Value(shiftId),
-            businessId: businessId,
             userId: userId,
           ),
         );

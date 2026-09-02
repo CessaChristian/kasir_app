@@ -18,19 +18,12 @@ void main() {
 
   late AppDatabase db;
   late ShiftRepository repo;
-  const bizId = 'biz-a';
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     repo = ShiftRepository(db);
-    AppDatabase.activeBusinessIdProvider = () => bizId;
 
-    await db.into(db.businesses).insert(BusinessesCompanion.insert(
-          id: const Value(bizId),
-          name: 'Teras Inn',
-          type: 'restaurant_dinein',
-        ));
     await db.into(db.users).insert(UsersCompanion.insert(
           id: const Value('kasir-1'),
           username: 'sari',
@@ -40,12 +33,10 @@ void main() {
         ));
     await db.into(db.shifts).insert(ShiftsCompanion.insert(
           id: const Value('shift-1'),
-          businessId: bizId,
           userId: 'kasir-1',
         ));
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
-          businessId: bizId,
           name: 'Nasi Goreng',
           price: 15000,
         ));
@@ -59,7 +50,6 @@ void main() {
   });
 
   tearDown(() async {
-    AppDatabase.activeBusinessIdProvider = null;
     await SessionManager.instance.clearSession();
     await db.close();
   });

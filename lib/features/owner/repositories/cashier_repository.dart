@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
-import '../../../data/business_context.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../shared/auth/session_manager.dart';
 
@@ -52,14 +51,6 @@ class CashierRepository {
     // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
     final userId = newUuid();
 
-    // Kasir baru di-assign ke business yang sedang aktif — tanpa row
-    // user_business_roles, BusinessContext.loadInitial tidak menemukan
-    // business apapun dan semua halaman kasir jadi kosong.
-    final businessId = BusinessContext.instance.activeBusinessId;
-    if (businessId == null) {
-      throw StateError('Tidak ada business aktif — tidak bisa membuat kasir');
-    }
-
     // I1: Bungkus insert user + set permissions dalam satu transaksi.
     // Kalau permissions gagal di-set, user juga di-rollback agar tidak
     // ada akun "zombie" tanpa permission.
@@ -72,14 +63,6 @@ class CashierRepository {
               salt: salt,
               role: 'cashier',
               isActive: const Value(true),
-            ),
-          );
-
-      await _db.into(_db.userBusinessRoles).insert(
-            UserBusinessRolesCompanion.insert(
-              userId: userId,
-              businessId: businessId,
-              role: 'cashier',
             ),
           );
 
@@ -96,24 +79,12 @@ class CashierRepository {
     });
   }
 
-  /// Get all cashiers yang di-assign ke business aktif.
+  /// Semua akun kasir, terbaru dulu.
   Future<List<User>> getAllCashiers() async {
-    final businessId = BusinessContext.instance.activeBusinessId;
-    if (businessId == null) return [];
-
-    final query = _db.select(_db.users).join([
-      innerJoin(
-        _db.userBusinessRoles,
-        _db.userBusinessRoles.userId.equalsExp(_db.users.id) &
-            _db.userBusinessRoles.businessId.equals(businessId) &
-            _db.userBusinessRoles.deletedAt.isNull(),
-      ),
-    ])
-      ..where(_db.users.role.equals('cashier'))
-      ..orderBy([OrderingTerm.desc(_db.users.createdAt)]);
-
-    final rows = await query.get();
-    return rows.map((row) => row.readTable(_db.users)).toList();
+    return await (_db.select(_db.users)
+          ..where((u) => u.role.equals('cashier'))
+          ..orderBy([(u) => OrderingTerm.desc(u.createdAt)]))
+        .get();
   }
 
   /// Toggle cashier active status
