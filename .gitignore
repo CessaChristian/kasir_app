@@ -56,3 +56,5 @@ docs/superpowers/
 # Screenshot hasil percobaan di root — jangan ikut ke repo
 flutter_01.png
 flutter_*.png
+# Konfigurasi lokal Flutter DevTools — bukan bagian dari project
+devtools_options.yaml
