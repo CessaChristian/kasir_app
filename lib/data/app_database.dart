@@ -13,6 +13,28 @@ part 'app_database.g.dart';
 part 'models/report_models.dart';
 
 /// =======================
+/// TABLE: SYNC_STATE (v16)
+/// =======================
+///
+/// Mengingat kapan terakhir setiap tabel ditarik dari server, supaya
+/// penarikan berikutnya cukup meminta "baris yang berubah setelah waktu ini"
+/// — bukan mengunduh ulang seluruh tabel tiap kali.
+///
+/// Tabel ini MURNI lokal: tidak ada padanannya di PostgreSQL dan tidak
+/// pernah ikut disinkronkan.
+class SyncState extends Table {
+  /// Nama tabel yang dilacak, mis. 'products'.
+  /// Dinamai `entity`, bukan `tableName`, karena drift sudah memakai nama itu.
+  TextColumn get entity => text()();
+
+  /// Nilai `updated_at` tertinggi yang sudah berhasil ditarik.
+  DateTimeColumn get lastPulledAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {entity};
+}
+
+/// =======================
 /// TABLE: CATEGORIES (modified in v10 — add business_id + sync fields)
 /// =======================
 class Categories extends Table {
@@ -286,6 +308,7 @@ class Expenses extends Table {
   Permissions,
   UserPermissions,
   Expenses,
+  SyncState,          // v16 — penanda waktu sinkron, murni lokal
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -293,7 +316,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -539,6 +562,10 @@ class AppDatabase extends _$AppDatabase {
               "sync_status = 'pending' "
               "WHERE image_path IS NOT NULL AND image_path LIKE '/%'",
             );
+          }
+          if (from < 16 && to >= 16) {
+            // v16 — penanda waktu sinkron per tabel.
+            await m.createTable(syncState);
           }
         },
         beforeOpen: (details) async {

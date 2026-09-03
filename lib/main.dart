@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
+import 'data/supabase/supabase_service.dart';
+import 'data/sync/sync_engine.dart';
 import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
@@ -22,10 +26,28 @@ void main() async {
   // sinkron tanpa FutureBuilder di setiap kartu produk.
   await ImageStorageService.init();
 
+  // Koneksi Supabase. Sengaja tidak melempar error kalau gagal: aplikasi
+  // harus tetap jalan penuh secara offline. Kasir tidak boleh gagal
+  // berjualan hanya karena server tidak bisa dihubungi.
+  await SupabaseService.instance.init();
+
+  // Sinkron pertama dijalankan di latar belakang — TIDAK ditunggu.
+  // Menunggunya berarti layar putih selama jaringan lambat, dan aplikasi
+  // sudah punya seluruh datanya secara lokal.
+  unawaited(_sinkronAwal());
+
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
 
   runApp(const MyApp());
+}
+
+/// Sinkron saat aplikasi dibuka. Hasilnya dicatat ke log, bukan ditampilkan
+/// — antarmukanya menyusul bersama UI baru.
+Future<void> _sinkronAwal() async {
+  if (!SupabaseService.instance.online) return;
+  final hasil = await SyncEngine(db).jalankan();
+  debugPrint('[sync] $hasil');
 }
 
 class MyApp extends StatelessWidget {
