@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../utils/crypto_utils.dart';
 
 /// Step 1 dari onboarding wizard.
 /// Form input untuk setup akun owner: username + PIN.
 ///
 /// Recovery code akan auto-generated dan di-show setelah submit (existing
-/// flow dari fitur S7). PIN harus 4 digit numeric.
+/// flow dari fitur S7). PIN harus 6 digit numeric.
 class OwnerSetupStep extends StatefulWidget {
   final void Function({
     required String username,
@@ -77,8 +78,8 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
             TextFormField(
               controller: _pinC,
               decoration: InputDecoration(
-                labelText: 'PIN (4 digit)',
-                hintText: '****',
+                labelText: 'PIN (${CryptoUtils.pinLength} digit)',
+                hintText: '******',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(_obscurePin ? Icons.visibility : Icons.visibility_off),
@@ -87,11 +88,10 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
               ),
               obscureText: _obscurePin,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: CryptoUtils.pinLength,
               validator: (v) {
-                if (v == null || v.length != 4) return 'PIN harus 4 digit';
-                if (!RegExp(r'^[0-9]{4}$').hasMatch(v)) {
-                  return 'PIN harus angka';
+                if (v == null || !CryptoUtils.isValidPinFormat(v)) {
+                  return 'PIN harus ${CryptoUtils.pinLength} digit angka';
                 }
                 return null;
               },
@@ -100,12 +100,12 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
               controller: _pinConfirmC,
               decoration: const InputDecoration(
                 labelText: 'Konfirmasi PIN',
-                hintText: '****',
+                hintText: '******',
                 border: OutlineInputBorder(),
               ),
               obscureText: _obscurePin,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: CryptoUtils.pinLength,
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Konfirmasi PIN wajib diisi';
                 if (v != _pinC.text) return 'PIN tidak cocok';

@@ -32,7 +32,7 @@ class CashierRepository {
 
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(pin)) {
-      throw ArgumentError('PIN must be 4-6 digits');
+      throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
 
     // 2. Check if username already exists
@@ -105,7 +105,7 @@ class CashierRepository {
 
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(newPin)) {
-      throw ArgumentError('PIN must be 4-6 digits');
+      throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
 
     // 2. Generate new salt and hash

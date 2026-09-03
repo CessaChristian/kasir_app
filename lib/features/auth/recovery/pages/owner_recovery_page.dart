@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../utils/crypto_utils.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import '../../../../shared/widgets/app_toast.dart';
@@ -283,7 +284,7 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
                         textInputAction: TextInputAction.next,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
+                          LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
                         ],
                         style: const TextStyle(fontSize: 20, letterSpacing: 8),
                         decoration: _inputDecoration(
@@ -306,8 +307,8 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
                           if (v == null || v.isEmpty) {
                             return 'PIN baru wajib diisi';
                           }
-                          if (v.length < 4 || v.length > 6) {
-                            return 'PIN harus 4-6 digit';
+                          if (v.length != CryptoUtils.pinLength) {
+                            return 'PIN harus ${CryptoUtils.pinLength} digit';
                           }
                           return null;
                         },
@@ -327,7 +328,7 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
                         onFieldSubmitted: (_) => _resetPin(),
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
+                          LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
                         ],
                         style: const TextStyle(fontSize: 20, letterSpacing: 8),
                         decoration: _inputDecoration(

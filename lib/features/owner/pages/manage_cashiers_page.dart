@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/crypto_utils.dart';
 import 'package:flutter/services.dart';
 import '../../../data/db.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -250,8 +251,8 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
                     icon: Icons.lock_outline_rounded,
                     obscure: true,
                     isPin: true,
-                    validator: (v) => v == null || v.length < 4 || v.length > 6
-                        ? 'PIN harus 4–6 digit'
+                    validator: (v) => v == null || v.length != CryptoUtils.pinLength
+                        ? 'PIN harus ${CryptoUtils.pinLength} digit'
                         : null,
                   ),
                   const SizedBox(height: 14),
@@ -441,8 +442,8 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
                     icon: Icons.lock_outline_rounded,
                     obscure: true,
                     isPin: true,
-                    validator: (v) => v == null || v.length < 4 || v.length > 6
-                        ? 'PIN harus 4–6 digit'
+                    validator: (v) => v == null || v.length != CryptoUtils.pinLength
+                        ? 'PIN harus ${CryptoUtils.pinLength} digit'
                         : null,
                   ),
                   const SizedBox(height: 14),
@@ -559,7 +560,7 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
               keyboardType: isPin ? TextInputType.number : TextInputType.text,
               textInputAction: TextInputAction.next,
               inputFormatters: isPin
-                  ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)]
+                  ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(CryptoUtils.pinLength)]
                   : null,
               style: TextStyle(
                 fontSize: isPin ? 20 : 15,

@@ -36,7 +36,7 @@ class AuthRepository {
 
     // 2. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(pin)) {
-      throw ArgumentError('PIN must be 4-6 digits');
+      throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
 
     // 3. Generate salt and hash PIN
@@ -365,7 +365,7 @@ class AuthRepository {
     // jangan sentuh DB sama sekali (tidak boleh menghitung sebagai attempt).
     if (!CryptoUtils.isValidPinFormat(newPin)) {
       return RecoveryResult.invalidCode(
-        message: 'New PIN must be 4-6 digits',
+        message: 'PIN baru harus 6 digit angka',
       );
     }
 

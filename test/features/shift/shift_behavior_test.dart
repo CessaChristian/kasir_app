@@ -16,9 +16,9 @@ void main() {
       addTearDown(dbTest.close);
       final repo = AuthRepository(dbTest);
 
-      await repo.bootstrapOwner(username: 'owner', pin: '1234');
+      await repo.bootstrapOwner(username: 'owner', pin: '123456');
 
-      final session = await repo.login(username: 'owner', pin: '1234');
+      final session = await repo.login(username: 'owner', pin: '123456');
 
       expect(session, isNotNull);
       expect(session!.shiftId, isNull, reason: 'owner tidak menjalankan shift');
@@ -34,7 +34,7 @@ void main() {
       final repo = AuthRepository(dbTest);
 
       final salt = CryptoUtils.generateSalt();
-      final hash = CryptoUtils.hashPin('4321', salt);
+      final hash = CryptoUtils.hashPin('654321', salt);
       await dbTest.into(dbTest.users).insert(UsersCompanion.insert(
             id: const Value('cashier-1'),
             username: 'sari',
@@ -42,7 +42,7 @@ void main() {
             salt: salt,
             role: 'cashier',
           ));
-      final session = await repo.login(username: 'sari', pin: '4321');
+      final session = await repo.login(username: 'sari', pin: '654321');
 
       expect(session, isNotNull);
       expect(session!.shiftId, isNotNull, reason: 'cashier harus punya shift');

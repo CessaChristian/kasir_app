@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/crypto_utils.dart';
 import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
 import '../../../data/db.dart';
@@ -243,7 +244,7 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
                         textInputAction: TextInputAction.next,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
+                          LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
                         ],
                         style: const TextStyle(
                             fontSize: 20, letterSpacing: 8),
@@ -266,8 +267,8 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
                           if (v == null || v.isEmpty) {
                             return 'PIN wajib diisi';
                           }
-                          if (v.length < 4 || v.length > 6) {
-                            return 'PIN harus 4–6 digit';
+                          if (v.length != CryptoUtils.pinLength) {
+                            return 'PIN harus ${CryptoUtils.pinLength} digit';
                           }
                           return null;
                         },
@@ -286,7 +287,7 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
                         onFieldSubmitted: (_) => _setupOwner(),
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
+                          LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
                         ],
                         style: const TextStyle(
                             fontSize: 20, letterSpacing: 8),

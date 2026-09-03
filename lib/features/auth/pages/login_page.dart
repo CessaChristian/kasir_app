@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../shared/constants/app_constants.dart';
+import '../../../utils/crypto_utils.dart';
 import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
 import '../../../data/db.dart';
@@ -398,11 +399,11 @@ class _LoginPageState extends State<LoginPage> {
       onFieldSubmitted: (_) => _login(),
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(4),
+        LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
       ],
       style: const TextStyle(fontSize: 20, letterSpacing: 8),
       decoration: InputDecoration(
-        hintText: '• • • •',
+        hintText: '• • • • • •',
         hintStyle: TextStyle(
           color: Colors.grey.shade300,
           fontSize: 16,
@@ -440,7 +441,13 @@ class _LoginPageState extends State<LoginPage> {
           vertical: 16,
         ),
       ),
-      validator: (v) => v == null || v.isEmpty ? 'PIN wajib diisi' : null,
+      validator: (v) {
+        if (v == null || v.isEmpty) return 'PIN wajib diisi';
+        if (v.length != CryptoUtils.pinLength) {
+          return 'PIN harus ${CryptoUtils.pinLength} digit';
+        }
+        return null;
+      },
     );
   }
 }

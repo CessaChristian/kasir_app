@@ -17,6 +17,11 @@ class CryptoUtils {
   static const int _pbkdf2KeyLength = 32; // 256 bits
   static const String _pbkdf2Prefix = 'pbkdf2:';
 
+  /// Panjang PIN — satu-satunya sumber kebenaran untuk seluruh aplikasi.
+  /// Halaman login, onboarding, kelola kasir, dan reset PIN semuanya
+  /// mengacu ke sini.
+  static const int pinLength = 6;
+
   /// Generate a random salt for password hashing.
   ///
   /// [length] - Length of the salt in bytes (default: 32)
@@ -60,9 +65,15 @@ class CryptoUtils {
     return !storedHash.startsWith(_pbkdf2Prefix);
   }
 
-  /// Validate PIN format (4-6 digits).
+  /// Validate PIN format — WAJIB tepat [pinLength] digit.
+  ///
+  /// Dulu 4-6 digit, dan itu melahirkan bug serius: halaman login membatasi
+  /// ketikan di 4 karakter, sementara pembuatan akun mengizinkan sampai 6.
+  /// Akun ber-PIN 5 atau 6 digit tidak akan pernah bisa masuk — keyboardnya
+  /// berhenti menerima sebelum PIN selesai diketik, hash tidak pernah cocok,
+  /// dan tidak ada pesan error yang menjelaskan sebabnya.
   static bool isValidPinFormat(String pin) {
-    if (pin.length < 4 || pin.length > 6) return false;
+    if (pin.length != pinLength) return false;
     return RegExp(r'^\d+$').hasMatch(pin);
   }
 
