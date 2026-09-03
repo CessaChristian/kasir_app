@@ -880,8 +880,21 @@ class AppDatabase extends _$AppDatabase {
         );
       }
 
+      // `updated_at` dan `sync_status` WAJIB ikut diperbarui.
+      //
+      // Sebelum ini SQL-nya hanya menyentuh `stock`, sehingga pengurangan
+      // stok akibat penjualan TIDAK PERNAH tersinkron ke server: barisnya
+      // tetap bertanda 'synced' dan `updated_at`-nya tetap nilai lama, jadi
+      // mesin sync menganggapnya tidak berubah. Owner melihat stok basi
+      // selamanya — padahal memantau stok justru alasan utama adanya sync.
+      //
+      // Jalur kebalikannya (pengembalian stok saat transaksi dihapus) sejak
+      // awal sudah benar. Asimetri itulah yang membuat bug ini tidak terlihat.
       final updated = await customUpdate(
-        'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+        'UPDATE products SET stock = stock - ?, '
+        "updated_at = CAST(strftime('%s','now') AS INTEGER), "
+        "sync_status = 'pending' "
+        'WHERE id = ? AND stock >= ?',
         variables: [
           Variable.withInt(line.qty),
           Variable.withString(line.productId),
