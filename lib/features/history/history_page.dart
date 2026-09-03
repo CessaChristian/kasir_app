@@ -8,6 +8,7 @@ import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/sync_refresh.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -87,28 +88,31 @@ class _HistoryPageState extends State<HistoryPage> {
               Expanded(
                 child: transactions.isEmpty
                     ? _buildNoTransactionsForMonth()
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        itemCount: sortedKeys.length,
-                        itemBuilder: (context, index) {
-                          final dateKey = sortedKeys[index];
-                          final dayTransactions = grouped[dateKey]!;
-                          final date = DateTime.parse(dateKey);
-                          final isExpanded = _expandedDates.contains(dateKey);
+                    : SyncRefresh(
+                        child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          itemCount: sortedKeys.length,
+                          itemBuilder: (context, index) {
+                            final dateKey = sortedKeys[index];
+                            final dayTransactions = grouped[dateKey]!;
+                            final date = DateTime.parse(dateKey);
+                            final isExpanded = _expandedDates.contains(dateKey);
 
-                          // Calculate daily total
-                          final dailyTotal = dayTransactions.fold<int>(
-                            0, (sum, tx) => sum + tx.total);
+                            // Calculate daily total
+                            final dailyTotal = dayTransactions.fold<int>(
+                              0, (sum, tx) => sum + tx.total);
 
-                          return _buildDaySection(
-                            date: date,
-                            dateKey: dateKey,
-                            transactions: dayTransactions,
-                            dailyTotal: dailyTotal,
-                            isExpanded: isExpanded,
-                          );
-                        },
+                            return _buildDaySection(
+                              date: date,
+                              dateKey: dateKey,
+                              transactions: dayTransactions,
+                              dailyTotal: dailyTotal,
+                              isExpanded: isExpanded,
+                            );
+                          },
                       ),
+                    ),
               ),
             ],
           );

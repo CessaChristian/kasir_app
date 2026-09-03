@@ -5,7 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
 import 'data/supabase/supabase_service.dart';
-import 'data/sync/sync_engine.dart';
+import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
@@ -46,7 +46,7 @@ void main() async {
 /// — antarmukanya menyusul bersama UI baru.
 Future<void> _sinkronAwal() async {
   if (!SupabaseService.instance.online) return;
-  final hasil = await SyncEngine(db).jalankan();
+  final hasil = await SyncService.instance.jalankan();
   debugPrint('[sync] $hasil');
 }
 

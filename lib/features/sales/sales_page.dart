@@ -11,6 +11,7 @@ import '../../shared/auth/session_manager.dart';
 import 'dart:io';
 
 import '../../shared/services/image_storage_service.dart';
+import '../../shared/widgets/sync_refresh.dart';
 import 'models/cart_item.dart';
 import 'cart_page.dart';
 import '../../shared/widgets/error_state_widget.dart';
@@ -502,41 +503,46 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                             rowItems.any((p) => _imageExists(p.imagePath)))
                         .toList();
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                      itemCount: rows.length,
-                      itemBuilder: (_, rowIdx) {
-                        final rowItems = rows[rowIdx];
-                        final rowHasImage = rowHasImageList[rowIdx];
-                        final noImageHeight = cardWidth / 1.12;
+                    return SyncRefresh(
+                      child: ListView.builder(
+                        // Tanpa ini, gerakan menarik tidak terbaca saat
+                        // produknya sedikit dan layar belum penuh.
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        itemCount: rows.length,
+                        itemBuilder: (_, rowIdx) {
+                          final rowItems = rows[rowIdx];
+                          final rowHasImage = rowHasImageList[rowIdx];
+                          final noImageHeight = cardWidth / 1.12;
 
-                        final rowWidget = Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (int i = 0; i < cols; i++) ...[
-                              if (i > 0) const SizedBox(width: spacing),
-                              Expanded(
-                                child: i < rowItems.length
-                                    ? _buildProductCard(
-                                        rowItems[i],
-                                        rowHasImage: rowHasImage,
-                                        cardWidth: cardWidth,
-                                      )
-                                    : const SizedBox(),
-                              ),
+                          final rowWidget = Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (int i = 0; i < cols; i++) ...[
+                                if (i > 0) const SizedBox(width: spacing),
+                                Expanded(
+                                  child: i < rowItems.length
+                                      ? _buildProductCard(
+                                          rowItems[i],
+                                          rowHasImage: rowHasImage,
+                                          cardWidth: cardWidth,
+                                        )
+                                      : const SizedBox(),
+                                ),
+                              ],
                             ],
-                          ],
-                        );
+                          );
 
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          // Baris bergambar: tinggi mengikuti konten (IntrinsicHeight)
-                          // Baris tanpa gambar: tinggi tetap & kompak
-                          child: rowHasImage
-                              ? IntrinsicHeight(child: rowWidget)
-                              : SizedBox(height: noImageHeight, child: rowWidget),
-                        );
-                      },
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            // Baris bergambar: tinggi mengikuti konten (IntrinsicHeight)
+                            // Baris tanpa gambar: tinggi tetap & kompak
+                            child: rowHasImage
+                                ? IntrinsicHeight(child: rowWidget)
+                                : SizedBox(height: noImageHeight, child: rowWidget),
+                          );
+                        },
+                      ),
                     );
                   },
                 );

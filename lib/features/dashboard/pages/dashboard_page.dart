@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../app/app_shell.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/constants/app_constants.dart';
+import '../../../shared/widgets/sync_refresh.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
 import '../../shift/repositories/shift_repository.dart';
@@ -510,47 +511,50 @@ class DashboardPage extends StatelessWidget {
             child: Stack(
               children: [
                 // Layer 1: konten scroll
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Owner: pintasan pantau shift kasir (owner tidak punya
-                      // shift). Cashier: kartu shift aktif miliknya.
-                      if (isOwner)
-                        const OwnerShiftShortcutCard()
-                      else
-                        const ActiveShiftCard(),
-                      const SizedBox(height: 20),
+                SyncRefresh(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Owner: pintasan pantau shift kasir (owner tidak punya
+                        // shift). Cashier: kartu shift aktif miliknya.
+                        if (isOwner)
+                          const OwnerShiftShortcutCard()
+                        else
+                          const ActiveShiftCard(),
+                        const SizedBox(height: 20),
 
-                      // Quick access
-                      _buildSectionLabel('Akses Cepat', colorScheme.primary),
-                      const SizedBox(height: 12),
+                        // Quick access
+                        _buildSectionLabel('Akses Cepat', colorScheme.primary),
+                        const SizedBox(height: 12),
 
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 1.05,
-                            ),
-                        itemCount: availableMenuItems.length,
-                        itemBuilder: (ctx, i) {
-                          final item = availableMenuItems[i];
-                          return _buildFeatureCard(
-                            ctx,
-                            icon: item['icon'] as IconData,
-                            label: item['label'] as String,
-                            description: item['description'] as String,
-                            primaryColor: colorScheme.primary,
-                            delay: i * 60,
-                          );
-                        },
-                      ),
-                    ],
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: 1.05,
+                              ),
+                          itemCount: availableMenuItems.length,
+                          itemBuilder: (ctx, i) {
+                            final item = availableMenuItems[i];
+                            return _buildFeatureCard(
+                              ctx,
+                              icon: item['icon'] as IconData,
+                              label: item['label'] as String,
+                              description: item['description'] as String,
+                              primaryColor: colorScheme.primary,
+                              delay: i * 60,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

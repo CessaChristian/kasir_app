@@ -4,6 +4,7 @@ import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/sync_refresh.dart';
 import '../../../shared/services/image_storage_service.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../widgets/product_search_bar.dart';
@@ -200,23 +201,26 @@ class _ProductsPageState extends State<ProductsPage> {
                       return _buildEmptyState(context);
                     }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                      itemCount: items.length,
-                      itemBuilder: (context, i) {
-                        final p = items[i];
-                        final categoryName = p.categoryId != null
-                            ? categoryMap[p.categoryId] ?? 'Tanpa Kategori'
-                            : 'Tanpa Kategori';
+                    return SyncRefresh(
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        itemCount: items.length,
+                        itemBuilder: (context, i) {
+                          final p = items[i];
+                          final categoryName = p.categoryId != null
+                              ? categoryMap[p.categoryId] ?? 'Tanpa Kategori'
+                              : 'Tanpa Kategori';
 
-                        return ProductTile(
-                          product: p,
-                          categoryName: categoryName,
-                          onTap: () => _openForm(context, editing: p),
-                          onEdit: () => _openForm(context, editing: p),
-                          onDelete: () => _delete(context, p),
-                        );
-                      },
+                          return ProductTile(
+                            product: p,
+                            categoryName: categoryName,
+                            onTap: () => _openForm(context, editing: p),
+                            onEdit: () => _openForm(context, editing: p),
+                            onDelete: () => _delete(context, p),
+                          );
+                        },
+                      ),
                     );
                   },
                 );
