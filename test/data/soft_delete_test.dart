@@ -52,7 +52,7 @@ void main() {
     await db.close();
   });
 
-  Future<void> makeProduct({int stock = 10}) async {
+  Future<void> makeProduct() async {
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
           name: 'Nasi Goreng',
@@ -79,7 +79,7 @@ void main() {
     await makeProduct();
     await db.deleteProduct('prod-1');
 
-    // Sebelum perbaikan, _validateAndUpdateStock tidak memfilter deletedAt
+    // Sebelum perbaikan, validasi produk tidak memfilter deletedAt
     // sehingga produk yang sudah dihapus masih ditemukan dan tetap laku.
     await expectLater(
       db.createSale(
@@ -126,7 +126,7 @@ void main() {
 
   test('pengeluaran yang dihapus tidak ikut terhitung di laporan Per Karyawan',
       () async {
-    await makeProduct(stock: 100);
+    await makeProduct();
 
     // Satu penjualan supaya kasir muncul di laporan.
     await db.createSale(

@@ -525,8 +525,6 @@ class AppShellState extends State<AppShell> {
                     ],
 
                     const SizedBox(height: 8),
-
-                    // Low stock warning
                   ],
                   ),
                 ),

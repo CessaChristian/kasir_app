@@ -860,7 +860,6 @@ class AppDatabase extends _$AppDatabase {
     return 'TRX/$dd/$mm/$yy/$urut';
   }
 
-  // rowsAffected == 0 berarti stok tidak cukup (concurrent update atau stok NULL).
   /// Pastikan setiap produk di keranjang masih ada.
   ///
   /// Dulu fungsi ini juga mengurangi stok. Fitur stok dihapus atas permintaan
@@ -1011,7 +1010,7 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
-  /// Soft-delete transaksi + reverse stok (transactional).
+  /// Tandai transaksi dan itemnya terhapus, dalam satu transaction.
   /// Caller WAJIB validasi permission sebelum call.
   Future<void> softDeleteTransaction(String transactionId) async {
 

@@ -257,7 +257,7 @@ class DashboardPage extends StatelessWidget {
       {
         'icon': Icons.inventory_2_rounded,
         'label': 'Produk',
-        'description': 'Kelola produk & stok',
+        'description': 'Kelola produk & kategori',
         'permission': 'manage_products',
       },
       {

@@ -87,7 +87,6 @@ class ProductTile extends StatelessWidget {
                             icon: Icons.category_outlined,
                             label: categoryName,
                           ),
-                          // Stock Badge
                           // Barcode Badge
                           if (product.barcode != null && product.barcode!.isNotEmpty)
                             _buildBadge(

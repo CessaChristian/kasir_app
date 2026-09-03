@@ -16,10 +16,10 @@ class SalesRepository {
 
   // ---- TULIS ----
 
-  /// Catat satu penjualan beserta itemnya, sekaligus mengurangi stok.
+  /// Catat satu penjualan beserta itemnya.
   ///
-  /// Seluruhnya dalam satu transaction database: kalau stok tidak cukup,
-  /// tidak ada satu pun baris yang tertulis.
+  /// Seluruhnya dalam satu transaction database: kalau salah satu produk
+  /// ternyata sudah dihapus, tidak ada satu pun baris yang tertulis.
   ///
   /// [transactionId] wajib UUID (kunci internal, tidak pernah tampil).
   /// Nomor nota dibuat sendiri oleh database dan dikembalikan method ini.
@@ -42,8 +42,8 @@ class SalesRepository {
         shiftId: shiftId,
       );
 
-  /// Tandai transaksi terhapus dan kembalikan stok produknya.
-  /// Item transaksi ikut ditandai terhapus dalam satu transaction.
+  /// Tandai transaksi terhapus. Item transaksinya ikut ditandai terhapus
+  /// dalam satu transaction.
   Future<void> softDeleteTransaction(String transactionId) =>
       _db.softDeleteTransaction(transactionId);
 

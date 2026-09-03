@@ -507,7 +507,6 @@ class _HistoryPageState extends State<HistoryPage> {
           children: [
             Text('Tindakan ini akan:'),
             SizedBox(height: 8),
-            Text('• Mengembalikan produk ke stok'),
             Text('• Mengurangi total penjualan'),
             Text('• Mengubah laporan shift'),
             SizedBox(height: 8),
