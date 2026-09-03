@@ -3,8 +3,6 @@ class CartItem {
   final String productName;
   final int pricePerUnit;
   final int qty;
-  final bool trackStock;
-  final int? maxStock;
   final String? notes;
 
   CartItem({
@@ -12,8 +10,6 @@ class CartItem {
     required this.productName,
     required this.pricePerUnit,
     required this.qty,
-    required this.trackStock,
-    this.maxStock,
     this.notes,
   });
 
@@ -25,8 +21,6 @@ class CartItem {
       productName: productName,
       pricePerUnit: pricePerUnit,
       qty: qty ?? this.qty,
-      trackStock: trackStock,
-      maxStock: maxStock,
       notes: notes ?? this.notes,
     );
   }

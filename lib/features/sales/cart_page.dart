@@ -90,9 +90,6 @@ class _CartPageState extends State<CartPage> {
     if (index >= _localCartItems.length) return;
     final item = _localCartItems[index];
     // Tombol + di-disable secara visual jika sudah max — guard ini hanya backup
-    if (item.trackStock && item.maxStock != null && item.qty >= item.maxStock!) {
-      return;
-    }
     setState(() {
       _localCartItems[index] = item.copyWith(qty: item.qty + 1);
     });
@@ -477,8 +474,6 @@ class _CartPageState extends State<CartPage> {
 
   Widget _buildCartItem(CartItem item, int index) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final isAtMaxStock =
-        item.trackStock && item.maxStock != null && item.qty >= item.maxStock!;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -539,25 +534,6 @@ class _CartPageState extends State<CartPage> {
                       style:
                           TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
-                    if (isAtMaxStock) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Text(
-                          'maks',
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.orange.shade700),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ],
@@ -606,17 +582,13 @@ class _CartPageState extends State<CartPage> {
                           ),
                         ),
                         InkWell(
-                          onTap: isAtMaxStock
-                              ? null
-                              : () => _handleIncrement(index),
+                          onTap: () => _handleIncrement(index),
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
                             padding: const EdgeInsets.all(6),
                             child: Icon(Icons.add_rounded,
                                 size: 15,
-                                color: isAtMaxStock
-                                    ? Colors.grey.shade300
-                                    : primaryColor),
+                                  color: primaryColor),
                           ),
                         ),
                       ],

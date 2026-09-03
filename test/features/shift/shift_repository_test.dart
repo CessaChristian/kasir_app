@@ -68,7 +68,6 @@ void main() {
           productName: 'Nasi Goreng',
           qty: qty,
           priceAtSale: 15000,
-          trackStock: false,
         ),
       ],
     );

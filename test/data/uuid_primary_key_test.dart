@@ -93,7 +93,6 @@ void main() {
             productName: 'Nasi Goreng',
             qty: 2,
             priceAtSale: 15000,
-            trackStock: false,
           ),
         ],
       );
@@ -121,7 +120,6 @@ void main() {
             productName: 'Es Teh',
             qty: 1,
             priceAtSale: 5000,
-            trackStock: false,
           ),
         ],
       );

@@ -11,7 +11,6 @@ import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../widgets/active_shift_card.dart';
 import '../widgets/owner_shift_shortcut_card.dart';
-import '../widgets/low_stock_banner.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -516,9 +515,6 @@ class DashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Low stock alert — hanya muncul jika ada stok kritis
-                      const LowStockBanner(),
-
                       // Owner: pintasan pantau shift kasir (owner tidak punya
                       // shift). Cashier: kartu shift aktif miliknya.
                       if (isOwner)

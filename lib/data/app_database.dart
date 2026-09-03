@@ -67,10 +67,6 @@ class Products extends Table {
   TextColumn get categoryId =>
       text().nullable().references(Categories, #id)();
 
-  BoolColumn get trackStock =>
-      boolean().withDefault(const Constant(false))();
-  IntColumn get stock => integer().nullable()();
-
   BoolColumn get hasSpicyOption =>
       boolean().withDefault(const Constant(false))();
   TextColumn get imagePath => text().nullable()();
@@ -316,7 +312,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -567,6 +563,14 @@ class AppDatabase extends _$AppDatabase {
             // v16 — penanda waktu sinkron per tabel.
             await m.createTable(syncState);
           }
+          if (from < 17 && to >= 17) {
+            // v17 — fitur stok dihapus atas permintaan pemilik.
+            //
+            // Restoran memasak saat dipesan, bukan mengambil dari rak, jadi
+            // menghitung sisa stok tidak punya arti di sini. Konsekuensinya
+            // disadari: aplikasi tidak lagi mencegah penjualan barang habis.
+            await m.alterTable(TableMigration(products));
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -737,8 +741,6 @@ class AppDatabase extends _$AppDatabase {
     required int price,
     String? barcode,
     String? categoryId,
-    required bool trackStock,
-    int? stock,
     required bool hasSpicyOption,
     String? imagePath,
   }) async {
@@ -749,8 +751,6 @@ class AppDatabase extends _$AppDatabase {
       price: Value(price),
       barcode: Value(barcode),
       categoryId: Value(categoryId),
-      trackStock: Value(trackStock),
-      stock: Value(trackStock ? stock : null),
       hasSpicyOption: Value(hasSpicyOption),
       imagePath: Value(imagePath),
       updatedAt: Value(DateTime.now()),
@@ -809,7 +809,7 @@ class AppDatabase extends _$AppDatabase {
 
     late String invoiceNo;
     await transaction(() async {
-      await _validateAndUpdateStock(lines);
+      await _validasiProdukMasihAda(lines);
       invoiceNo = await _nextInvoiceNo(DateTime.now());
 
       await into(transactions).insert(
@@ -860,51 +860,29 @@ class AppDatabase extends _$AppDatabase {
     return 'TRX/$dd/$mm/$yy/$urut';
   }
 
-  // Validate + update stock atomically per produk menggunakan single UPDATE statement.
   // rowsAffected == 0 berarti stok tidak cukup (concurrent update atau stok NULL).
-  Future<void> _validateAndUpdateStock(List<SaleLine> lines) async {
+  /// Pastikan setiap produk di keranjang masih ada.
+  ///
+  /// Dulu fungsi ini juga mengurangi stok. Fitur stok dihapus atas permintaan
+  /// pemilik — masakan dibuat saat dipesan, bukan diambil dari rak — tapi
+  /// pemeriksaan ini TETAP diperlukan dan bukan soal stok.
+  ///
+  /// Kasusnya nyata: kasir membuka halaman Kasir, pemilik menghapus sebuah
+  /// produk dari HP-nya, lalu kasir menekan produk yang sudah tidak ada itu.
+  /// Tanpa pemeriksaan ini, item transaksi akan menunjuk produk yang tidak
+  /// ada dan ditolak foreign key dengan pesan yang tidak bisa dipahami kasir.
+  Future<void> _validasiProdukMasihAda(List<SaleLine> lines) async {
     for (final line in lines) {
-      if (!line.trackStock) continue;
-
-      // Filter deletedAt WAJIB: sejak produk memakai soft delete, barisnya
-      // tetap ada setelah dihapus. Tanpa filter ini produk yang sudah dihapus
-      // masih bisa terjual.
-      final product = await (select(products)
-            ..where((t) => t.id.equals(line.productId) & t.deletedAt.isNull()))
+      final ada = await (select(products)
+            ..where((t) => t.id.equals(line.productId) & t.deletedAt.isNull())
+            ..limit(1))
           .getSingleOrNull();
 
-      if (product == null) {
+      if (ada == null) {
         throw StateError(
           '"${line.productName}" sudah tidak tersedia. '
           'Hapus produk ini dari keranjang sebelum melanjutkan.',
         );
-      }
-
-      // `updated_at` dan `sync_status` WAJIB ikut diperbarui.
-      //
-      // Sebelum ini SQL-nya hanya menyentuh `stock`, sehingga pengurangan
-      // stok akibat penjualan TIDAK PERNAH tersinkron ke server: barisnya
-      // tetap bertanda 'synced' dan `updated_at`-nya tetap nilai lama, jadi
-      // mesin sync menganggapnya tidak berubah. Owner melihat stok basi
-      // selamanya — padahal memantau stok justru alasan utama adanya sync.
-      //
-      // Jalur kebalikannya (pengembalian stok saat transaksi dihapus) sejak
-      // awal sudah benar. Asimetri itulah yang membuat bug ini tidak terlihat.
-      final updated = await customUpdate(
-        'UPDATE products SET stock = stock - ?, '
-        "updated_at = CAST(strftime('%s','now') AS INTEGER), "
-        "sync_status = 'pending' "
-        'WHERE id = ? AND stock >= ?',
-        variables: [
-          Variable.withInt(line.qty),
-          Variable.withString(line.productId),
-          Variable.withInt(line.qty),
-        ],
-        updates: {products},
-      );
-
-      if (updated == 0) {
-        throw StateError('Stok tidak cukup untuk "${product.name}"');
       }
     }
   }
@@ -1056,27 +1034,10 @@ class AppDatabase extends _$AppDatabase {
         syncStatus: const Value('pending'),
       ));
 
-      // 3. Fetch items (WITHOUT deleted filter — we just set deletedAt above)
-      final items = await (select(transactionItems)..where((ti) =>
-        ti.transactionId.equals(transactionId)
-      )).get();
-
-      // 4. Reverse stock movements (kembalikan stok produk)
-      for (final item in items) {
-        final prod = await (select(products)
-          ..where((p) => p.id.equals(item.productId) & p.deletedAt.isNull())
-          ..limit(1)).getSingleOrNull();
-
-        if (prod != null && prod.trackStock && prod.stock != null) {
-          await (update(products)..where((p) => p.id.equals(item.productId))).write(
-            ProductsCompanion(
-              stock: Value(prod.stock! + item.qty),
-              updatedAt: Value(DateTime.now()),
-              syncStatus: const Value('pending'),
-            ),
-          );
-        }
-      }
+      // Dulu di sini stok produk dikembalikan. Fitur stok dihapus atas
+      // permintaan pemilik, jadi membatalkan transaksi kini cukup menandai
+      // transaksi dan itemnya terhapus — tidak ada angka yang perlu
+      // dipulihkan.
     });
   }
 

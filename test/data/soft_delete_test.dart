@@ -57,8 +57,6 @@ void main() {
           id: const Value('prod-1'),
           name: 'Nasi Goreng',
           price: 15000,
-          trackStock: const Value(true),
-          stock: Value(stock),
         ));
   }
 
@@ -94,7 +92,6 @@ void main() {
             productName: 'Nasi Goreng',
             qty: 1,
             priceAtSale: 15000,
-            trackStock: true,
           ),
         ],
       ),
@@ -144,7 +141,6 @@ void main() {
           productName: 'Nasi Goreng',
           qty: 1,
           priceAtSale: 15000,
-          trackStock: true,
         ),
       ],
     );

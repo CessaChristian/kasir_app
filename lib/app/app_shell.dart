@@ -10,8 +10,6 @@ import '../features/expenses/expenses_page.dart';
 import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
-import '../features/products/repositories/product_repository.dart';
-import '../data/app_database.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
@@ -27,16 +25,12 @@ class AppShell extends StatefulWidget {
 }
 
 class AppShellState extends State<AppShell> {
-  final _productRepo = ProductRepository(db);
   int _selectedIndex = 0;
 
-  // Cache stream agar tidak dibuat ulang setiap build() dipanggil.
-  Stream<List<Product>> _productStream = const Stream.empty();
 
   @override
   void initState() {
     super.initState();
-    _productStream = _productRepo.watchProducts();
   }
 
   void navigateToPage(int index) {
@@ -533,45 +527,6 @@ class AppShellState extends State<AppShell> {
                     const SizedBox(height: 8),
 
                     // Low stock warning
-                    if (SessionManager.instance.hasPermission('manage_products'))
-                      StreamBuilder<List<Product>>(
-                        stream: _productStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) return const SizedBox.shrink();
-                          final products = snapshot.data ?? [];
-                          final lowStockCount = products
-                              .where((p) =>
-                                  p.trackStock && (p.stock ?? 0) <= AppConstants.lowStockThreshold)
-                              .length;
-                          if (lowStockCount == 0) return const SizedBox.shrink();
-                          return Container(
-                            margin: const EdgeInsets.only(top: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.orange.shade200),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.warning_amber_rounded,
-                                    color: Colors.orange.shade400, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '$lowStockCount produk stok menipis',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.orange.shade800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
                   ],
                   ),
                 ),

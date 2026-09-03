@@ -3,7 +3,6 @@ class SaleLine {
   final String productName;
   final int qty;
   final int priceAtSale;
-  final bool trackStock;
   final String? notes;
 
   SaleLine({
@@ -11,7 +10,6 @@ class SaleLine {
     required this.productName,
     required this.qty,
     required this.priceAtSale,
-    required this.trackStock,
     this.notes,
   });
 

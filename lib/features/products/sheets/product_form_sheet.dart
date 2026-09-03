@@ -18,8 +18,6 @@ class FormResult {
   final int price;
   final String? barcode;
   final String? categoryId;
-  final bool trackStock;
-  final int? stock;
   final bool hasSpicyOption;
   final String? imagePath;
 
@@ -28,8 +26,6 @@ class FormResult {
     required this.price,
     required this.barcode,
     this.categoryId,
-    required this.trackStock,
-    required this.stock,
     required this.hasSpicyOption,
     this.imagePath,
   });
@@ -51,11 +47,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   late final TextEditingController _nameC;
   late final TextEditingController _priceC;
   late final TextEditingController _barcodeC;
-  late final TextEditingController _stockC;
 
   Category? _selectedCategory;
   bool _categoryInitialized = false;
-  bool _trackStock = false;
   bool _hasSpicyOption = false;
   String? _imagePath;
   final _imageStorage = ImageStorageService();
@@ -77,37 +71,25 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
       text: p != null ? formatRupiah(p.price) : '',
     );
     _barcodeC = TextEditingController(text: p?.barcode ?? '');
-    _trackStock = p?.trackStock ?? false;
-    _stockC = TextEditingController(text: p?.stock?.toString() ?? '');
     _hasSpicyOption = p?.hasSpicyOption ?? false;
     _imagePath = p?.imagePath;
-    // LOW-2: rebuild saat stok berubah supaya hint "stok 0 = habis"
-    // muncul/hilang real-time.
-    _stockC.addListener(_onStockChanged);
   }
 
-  void _onStockChanged() {
-    if (mounted) setState(() {});
-  }
 
   @override
   void dispose() {
-    _stockC.removeListener(_onStockChanged);
     _nameC.dispose();
     _priceC.dispose();
     _barcodeC.dispose();
-    _stockC.dispose();
     super.dispose();
   }
 
-  int? _int(String s) => int.tryParse(s.trim());
 
   // Nilai yang AKAN tersimpan kalau form di-submit sekarang. Rumusnya
   // disamakan dengan _submit() supaya penilaian "berubah" tidak pernah
   // berbeda dari data yang benar-benar ditulis ke database.
   String? get _currentBarcode =>
       _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim();
-  int? get _currentStock => _trackStock ? (_int(_stockC.text) ?? 0) : null;
 
   // Ada perubahan yang akan hilang kalau sheet ditutup?
   //
@@ -119,14 +101,13 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     final p = widget.editing;
 
     // Mode Tambah: kotor kalau user sudah mengisi atau mengubah apa pun.
-    // trackStock/hasSpicyOption/imagePath ikut dicek — sebelumnya terlewat,
+    // hasSpicyOption/imagePath ikut dicek — sebelumnya terlewat,
     // sehingga toggle dan foto bisa hilang tanpa peringatan.
     if (p == null) {
       return _nameC.text.trim().isNotEmpty ||
           parseRupiah(_priceC.text) != null ||
           _currentBarcode != null ||
           _selectedCategory != null ||
-          _trackStock ||
           _hasSpicyOption ||
           _imagePath != null;
     }
@@ -146,8 +127,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         parseRupiah(_priceC.text) != p.price ||
         _currentBarcode != p.barcode ||
         categoryChanged ||
-        _trackStock != p.trackStock ||
-        _currentStock != p.stock ||
         _hasSpicyOption != p.hasSpicyOption ||
         _imagePath != p.imagePath;
   }
@@ -184,8 +163,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         price: price,
         barcode: _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim(),
         categoryId: _selectedCategory?.id,
-        trackStock: _trackStock,
-        stock: _trackStock ? (_int(_stockC.text) ?? 0) : null,
         hasSpicyOption: _hasSpicyOption,
         imagePath: _imagePath,
       ),
@@ -538,86 +515,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                 ),
                 const SizedBox(height: 8),
 
-                // ---- Lacak Stok ----
-                _buildToggle(
-                  title: 'Lacak stok',
-                  subtitle: _trackStock
-                      ? 'Stok berkurang otomatis saat penjualan'
-                      : 'Stok tidak akan dilacak',
-                  icon: _trackStock
-                      ? Icons.inventory_rounded
-                      : Icons.inventory_outlined,
-                  value: _trackStock,
-                  primaryColor: primaryColor,
-                  activeColor: primaryColor,
-                  onChanged: (v) => setState(() => _trackStock = v),
-                ),
-
-                // Stock input
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: _trackStock
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildTextField(
-                                controller: _stockC,
-                                label: 'Jumlah stok',
-                                hint: '0',
-                                icon: Icons.numbers_rounded,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly
-                                ],
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                // LOW-2: cegah stok kosong/0 disimpan tanpa
-                                // disadari — produk akan langsung tampil
-                                // sebagai "habis" dan tidak bisa dijual.
-                                validator: (v) {
-                                  final s = (v ?? '').trim();
-                                  if (s.isEmpty) {
-                                    return 'Isi jumlah stok awal';
-                                  }
-                                  final n = int.tryParse(s);
-                                  if (n == null) return 'Angka tidak valid';
-                                  if (n < 0) return 'Stok tidak boleh negatif';
-                                  return null;
-                                },
-                              ),
-                              if ((_int(_stockC.text) ?? 0) == 0 &&
-                                  _stockC.text.trim().isNotEmpty)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.only(top: 6, left: 4),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.info_outline,
-                                        size: 14,
-                                        color: Colors.orange.shade700,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          'Stok 0 — produk akan langsung tampil sebagai habis.',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.orange.shade700,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
 
                 const SizedBox(height: 20),
 

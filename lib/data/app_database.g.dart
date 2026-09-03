@@ -526,30 +526,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       'REFERENCES categories (id)',
     ),
   );
-  static const VerificationMeta _trackStockMeta = const VerificationMeta(
-    'trackStock',
-  );
-  @override
-  late final GeneratedColumn<bool> trackStock = GeneratedColumn<bool>(
-    'track_stock',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("track_stock" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _stockMeta = const VerificationMeta('stock');
-  @override
-  late final GeneratedColumn<int> stock = GeneratedColumn<int>(
-    'stock',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _hasSpicyOptionMeta = const VerificationMeta(
     'hasSpicyOption',
   );
@@ -630,8 +606,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     price,
     barcode,
     categoryId,
-    trackStock,
-    stock,
     hasSpicyOption,
     imagePath,
     createdAt,
@@ -680,18 +654,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       context.handle(
         _categoryIdMeta,
         categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
-      );
-    }
-    if (data.containsKey('track_stock')) {
-      context.handle(
-        _trackStockMeta,
-        trackStock.isAcceptableOrUnknown(data['track_stock']!, _trackStockMeta),
-      );
-    }
-    if (data.containsKey('stock')) {
-      context.handle(
-        _stockMeta,
-        stock.isAcceptableOrUnknown(data['stock']!, _stockMeta),
       );
     }
     if (data.containsKey('has_spicy_option')) {
@@ -762,14 +724,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.string,
         data['${effectivePrefix}category_id'],
       ),
-      trackStock: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}track_stock'],
-      )!,
-      stock: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}stock'],
-      ),
       hasSpicyOption: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_spicy_option'],
@@ -809,8 +763,6 @@ class Product extends DataClass implements Insertable<Product> {
   final int price;
   final String? barcode;
   final String? categoryId;
-  final bool trackStock;
-  final int? stock;
   final bool hasSpicyOption;
   final String? imagePath;
   final DateTime createdAt;
@@ -823,8 +775,6 @@ class Product extends DataClass implements Insertable<Product> {
     required this.price,
     this.barcode,
     this.categoryId,
-    required this.trackStock,
-    this.stock,
     required this.hasSpicyOption,
     this.imagePath,
     required this.createdAt,
@@ -843,10 +793,6 @@ class Product extends DataClass implements Insertable<Product> {
     }
     if (!nullToAbsent || categoryId != null) {
       map['category_id'] = Variable<String>(categoryId);
-    }
-    map['track_stock'] = Variable<bool>(trackStock);
-    if (!nullToAbsent || stock != null) {
-      map['stock'] = Variable<int>(stock);
     }
     map['has_spicy_option'] = Variable<bool>(hasSpicyOption);
     if (!nullToAbsent || imagePath != null) {
@@ -872,10 +818,6 @@ class Product extends DataClass implements Insertable<Product> {
       categoryId: categoryId == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryId),
-      trackStock: Value(trackStock),
-      stock: stock == null && nullToAbsent
-          ? const Value.absent()
-          : Value(stock),
       hasSpicyOption: Value(hasSpicyOption),
       imagePath: imagePath == null && nullToAbsent
           ? const Value.absent()
@@ -900,8 +842,6 @@ class Product extends DataClass implements Insertable<Product> {
       price: serializer.fromJson<int>(json['price']),
       barcode: serializer.fromJson<String?>(json['barcode']),
       categoryId: serializer.fromJson<String?>(json['categoryId']),
-      trackStock: serializer.fromJson<bool>(json['trackStock']),
-      stock: serializer.fromJson<int?>(json['stock']),
       hasSpicyOption: serializer.fromJson<bool>(json['hasSpicyOption']),
       imagePath: serializer.fromJson<String?>(json['imagePath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -919,8 +859,6 @@ class Product extends DataClass implements Insertable<Product> {
       'price': serializer.toJson<int>(price),
       'barcode': serializer.toJson<String?>(barcode),
       'categoryId': serializer.toJson<String?>(categoryId),
-      'trackStock': serializer.toJson<bool>(trackStock),
-      'stock': serializer.toJson<int?>(stock),
       'hasSpicyOption': serializer.toJson<bool>(hasSpicyOption),
       'imagePath': serializer.toJson<String?>(imagePath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -936,8 +874,6 @@ class Product extends DataClass implements Insertable<Product> {
     int? price,
     Value<String?> barcode = const Value.absent(),
     Value<String?> categoryId = const Value.absent(),
-    bool? trackStock,
-    Value<int?> stock = const Value.absent(),
     bool? hasSpicyOption,
     Value<String?> imagePath = const Value.absent(),
     DateTime? createdAt,
@@ -950,8 +886,6 @@ class Product extends DataClass implements Insertable<Product> {
     price: price ?? this.price,
     barcode: barcode.present ? barcode.value : this.barcode,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
-    trackStock: trackStock ?? this.trackStock,
-    stock: stock.present ? stock.value : this.stock,
     hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
     imagePath: imagePath.present ? imagePath.value : this.imagePath,
     createdAt: createdAt ?? this.createdAt,
@@ -968,10 +902,6 @@ class Product extends DataClass implements Insertable<Product> {
       categoryId: data.categoryId.present
           ? data.categoryId.value
           : this.categoryId,
-      trackStock: data.trackStock.present
-          ? data.trackStock.value
-          : this.trackStock,
-      stock: data.stock.present ? data.stock.value : this.stock,
       hasSpicyOption: data.hasSpicyOption.present
           ? data.hasSpicyOption.value
           : this.hasSpicyOption,
@@ -993,8 +923,6 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('price: $price, ')
           ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
-          ..write('trackStock: $trackStock, ')
-          ..write('stock: $stock, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
           ..write('imagePath: $imagePath, ')
           ..write('createdAt: $createdAt, ')
@@ -1012,8 +940,6 @@ class Product extends DataClass implements Insertable<Product> {
     price,
     barcode,
     categoryId,
-    trackStock,
-    stock,
     hasSpicyOption,
     imagePath,
     createdAt,
@@ -1030,8 +956,6 @@ class Product extends DataClass implements Insertable<Product> {
           other.price == this.price &&
           other.barcode == this.barcode &&
           other.categoryId == this.categoryId &&
-          other.trackStock == this.trackStock &&
-          other.stock == this.stock &&
           other.hasSpicyOption == this.hasSpicyOption &&
           other.imagePath == this.imagePath &&
           other.createdAt == this.createdAt &&
@@ -1046,8 +970,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<int> price;
   final Value<String?> barcode;
   final Value<String?> categoryId;
-  final Value<bool> trackStock;
-  final Value<int?> stock;
   final Value<bool> hasSpicyOption;
   final Value<String?> imagePath;
   final Value<DateTime> createdAt;
@@ -1061,8 +983,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.price = const Value.absent(),
     this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
-    this.trackStock = const Value.absent(),
-    this.stock = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1077,8 +997,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     required int price,
     this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
-    this.trackStock = const Value.absent(),
-    this.stock = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1094,8 +1012,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<int>? price,
     Expression<String>? barcode,
     Expression<String>? categoryId,
-    Expression<bool>? trackStock,
-    Expression<int>? stock,
     Expression<bool>? hasSpicyOption,
     Expression<String>? imagePath,
     Expression<DateTime>? createdAt,
@@ -1110,8 +1026,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (price != null) 'price': price,
       if (barcode != null) 'barcode': barcode,
       if (categoryId != null) 'category_id': categoryId,
-      if (trackStock != null) 'track_stock': trackStock,
-      if (stock != null) 'stock': stock,
       if (hasSpicyOption != null) 'has_spicy_option': hasSpicyOption,
       if (imagePath != null) 'image_path': imagePath,
       if (createdAt != null) 'created_at': createdAt,
@@ -1128,8 +1042,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<int>? price,
     Value<String?>? barcode,
     Value<String?>? categoryId,
-    Value<bool>? trackStock,
-    Value<int?>? stock,
     Value<bool>? hasSpicyOption,
     Value<String?>? imagePath,
     Value<DateTime>? createdAt,
@@ -1144,8 +1056,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       price: price ?? this.price,
       barcode: barcode ?? this.barcode,
       categoryId: categoryId ?? this.categoryId,
-      trackStock: trackStock ?? this.trackStock,
-      stock: stock ?? this.stock,
       hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
       imagePath: imagePath ?? this.imagePath,
       createdAt: createdAt ?? this.createdAt,
@@ -1173,12 +1083,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     }
     if (categoryId.present) {
       map['category_id'] = Variable<String>(categoryId.value);
-    }
-    if (trackStock.present) {
-      map['track_stock'] = Variable<bool>(trackStock.value);
-    }
-    if (stock.present) {
-      map['stock'] = Variable<int>(stock.value);
     }
     if (hasSpicyOption.present) {
       map['has_spicy_option'] = Variable<bool>(hasSpicyOption.value);
@@ -1212,8 +1116,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('price: $price, ')
           ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
-          ..write('trackStock: $trackStock, ')
-          ..write('stock: $stock, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
           ..write('imagePath: $imagePath, ')
           ..write('createdAt: $createdAt, ')
@@ -5981,8 +5883,6 @@ typedef $$ProductsTableCreateCompanionBuilder =
       required int price,
       Value<String?> barcode,
       Value<String?> categoryId,
-      Value<bool> trackStock,
-      Value<int?> stock,
       Value<bool> hasSpicyOption,
       Value<String?> imagePath,
       Value<DateTime> createdAt,
@@ -5998,8 +5898,6 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<int> price,
       Value<String?> barcode,
       Value<String?> categoryId,
-      Value<bool> trackStock,
-      Value<int?> stock,
       Value<bool> hasSpicyOption,
       Value<String?> imagePath,
       Value<DateTime> createdAt,
@@ -6082,16 +5980,6 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<String> get barcode => $composableBuilder(
     column: $table.barcode,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get trackStock => $composableBuilder(
-    column: $table.trackStock,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get stock => $composableBuilder(
-    column: $table.stock,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6203,16 +6091,6 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get trackStock => $composableBuilder(
-    column: $table.trackStock,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get stock => $composableBuilder(
-    column: $table.stock,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
     builder: (column) => ColumnOrderings(column),
@@ -6287,14 +6165,6 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<String> get barcode =>
       $composableBuilder(column: $table.barcode, builder: (column) => column);
-
-  GeneratedColumn<bool> get trackStock => $composableBuilder(
-    column: $table.trackStock,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get stock =>
-      $composableBuilder(column: $table.stock, builder: (column) => column);
 
   GeneratedColumn<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
@@ -6400,8 +6270,6 @@ class $$ProductsTableTableManager
                 Value<int> price = const Value.absent(),
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
-                Value<bool> trackStock = const Value.absent(),
-                Value<int?> stock = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6415,8 +6283,6 @@ class $$ProductsTableTableManager
                 price: price,
                 barcode: barcode,
                 categoryId: categoryId,
-                trackStock: trackStock,
-                stock: stock,
                 hasSpicyOption: hasSpicyOption,
                 imagePath: imagePath,
                 createdAt: createdAt,
@@ -6432,8 +6298,6 @@ class $$ProductsTableTableManager
                 required int price,
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
-                Value<bool> trackStock = const Value.absent(),
-                Value<int?> stock = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6447,8 +6311,6 @@ class $$ProductsTableTableManager
                 price: price,
                 barcode: barcode,
                 categoryId: categoryId,
-                trackStock: trackStock,
-                stock: stock,
                 hasSpicyOption: hasSpicyOption,
                 imagePath: imagePath,
                 createdAt: createdAt,

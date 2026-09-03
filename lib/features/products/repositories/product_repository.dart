@@ -56,8 +56,6 @@ class ProductRepository {
     required int price,
     String? barcode,
     String? categoryId,
-    required bool trackStock,
-    int? stock,
     required bool hasSpicyOption,
     String? imagePath,
   }) =>
@@ -67,8 +65,6 @@ class ProductRepository {
         price: price,
         barcode: barcode,
         categoryId: categoryId,
-        trackStock: trackStock,
-        stock: stock,
         hasSpicyOption: hasSpicyOption,
         imagePath: imagePath,
       );

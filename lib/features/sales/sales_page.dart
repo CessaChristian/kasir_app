@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../shared/widgets/app_toast.dart';
 import '../../data/db.dart';
 import 'repositories/sales_repository.dart';
 import '../products/repositories/product_repository.dart';
@@ -248,21 +247,9 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     _addingProducts.add(p.id);
 
     try {
-      if (p.trackStock && (p.stock ?? 0) <= 0) {
-        if (!mounted) return;
-        AppToast.error(context, 'Stok "${p.name}" sudah habis');
-        return;
-      }
-
       final idx = _cart.indexWhere((x) => x.product.id == p.id);
 
       if (idx != -1) {
-        if (p.trackStock && _cart[idx].qty >= (p.stock ?? 0)) {
-          if (!mounted) return;
-          AppToast.warning(
-              context, 'Stok "${p.name}" hanya ${p.stock}, tidak bisa ditambah lagi');
-          return;
-        }
         await _playAddToCartAnimation(tapPosition);
         if (!mounted) return;
         setState(() => _cart[idx].qty += 1);
@@ -288,11 +275,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
   void _incQty(int index) {
     if (index >= _cart.length) return;
-    final item = _cart[index];
-    if (item.product.trackStock) {
-      final maxStock = item.product.stock ?? 0;
-      if (item.qty >= maxStock) return;
-    }
     _cart[index].qty += 1;
   }
 
@@ -320,7 +302,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
         productName: l.product.name,
         qty: l.qty,
         priceAtSale: l.product.price,
-        trackStock: l.product.trackStock,
         notes: l.notes,
       );
     }).toList();
@@ -365,8 +346,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
             productName: item.product.name,
             pricePerUnit: item.product.price,
             qty: item.qty,
-            maxStock: item.product.trackStock ? item.product.stock : null,
-            trackStock: item.product.trackStock,
             notes: item.notes,
           );
         }).toList(),
@@ -627,7 +606,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     required double cardWidth,
   }) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final hasLowStock = p.trackStock && (p.stock ?? 0) <= 5;
     final hasImage = ImageStorageService.adaSync(p.imagePath);
     final imgHeight = cardWidth * 0.60;
 
@@ -683,10 +661,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
               ],
             ],
           ),
-          if (p.trackStock) ...[
-            const SizedBox(height: 3),
-            _stockBadge(hasLowStock, p.stock),
-          ],
         ],
       );
     } else {
@@ -731,10 +705,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
               ],
             ],
           ),
-          if (p.trackStock) ...[
-            const SizedBox(height: 3),
-            _stockBadge(hasLowStock, p.stock),
-          ],
         ],
       );
     }
@@ -746,7 +716,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: hasLowStock ? Colors.red.shade200 : Colors.grey.shade200,
+            color: Colors.grey.shade200,
           ),
           boxShadow: [
             BoxShadow(
@@ -764,23 +734,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _stockBadge(bool hasLowStock, int? stock) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: hasLowStock ? Colors.red.shade50 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'Stok: ${stock ?? 0}',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-          color: hasLowStock ? Colors.red : Colors.grey.shade600,
-        ),
-      ),
-    );
-  }
 
   Widget _buildEmptyState() {
     return Center(

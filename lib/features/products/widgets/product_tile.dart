@@ -4,7 +4,6 @@ import '../../../shared/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/currency_formatter.dart';
-import '../../../shared/constants/app_constants.dart';
 
 /// Product card/tile widget
 class ProductTile extends StatelessWidget {
@@ -26,16 +25,13 @@ class ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final hasLowStock = product.trackStock && 
-        (product.stock ?? 0) <= AppConstants.lowStockThreshold;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: hasLowStock ? Colors.red.shade200 : Colors.grey.shade200,
+          color: Colors.grey.shade200,
           width: 1,
         ),
         boxShadow: [
@@ -92,7 +88,6 @@ class ProductTile extends StatelessWidget {
                             label: categoryName,
                           ),
                           // Stock Badge
-                          _buildStockBadge(),
                           // Barcode Badge
                           if (product.barcode != null && product.barcode!.isNotEmpty)
                             _buildBadge(
@@ -212,39 +207,4 @@ class ProductTile extends StatelessWidget {
     );
   }
   
-  Widget _buildStockBadge() {
-    if (!product.trackStock) {
-      return _buildBadge(icon: Icons.all_inclusive, label: '∞ Stok');
-    }
-    
-    final stock = product.stock ?? 0;
-    final isLow = stock <= AppConstants.lowStockThreshold;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isLow ? Colors.red.shade50 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.inventory_outlined,
-            size: 12,
-            color: isLow ? Colors.red : Colors.grey.shade600,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '$stock',
-            style: TextStyle(
-              fontSize: 11,
-              color: isLow ? Colors.red : Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
