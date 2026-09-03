@@ -10,13 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Mengunci aturan: setiap baris yang lahir atau berubah WAJIB bertanda
 /// `sync_status = 'pending'`, karena kolom itulah antrean pengiriman.
 ///
-/// Latar belakang — pernah ada perubahan data yang lolos tanpa ditandai.
-/// Pengurangan stok akibat penjualan memakai SQL mentah yang hanya menyentuh
-/// satu kolom, sehingga barisnya tetap 'synced' dan mesin sync menganggapnya
-/// tidak pernah berubah. Fiturnya sendiri sudah dihapus, tapi pelajarannya
-/// tetap berlaku untuk kolom mana pun: **perubahan yang tidak ditandai akan
-/// gagal DIAM-DIAM** — tidak ada error, data benar secara lokal, dan hanya
-/// perbandingan dengan server yang bisa mengungkapnya.
+/// Latar belakang — pernah ada perubahan data yang lolos tanpa ditandai:
+/// SQL mentah yang menyentuh satu kolom saja, sehingga barisnya tetap
+/// 'synced' dan mesin sync menganggapnya tidak pernah berubah.
+///
+/// Kegagalannya DIAM-DIAM: tidak ada error, data benar secara lokal, dan
+/// hanya perbandingan dengan server yang bisa mengungkapnya.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

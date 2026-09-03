@@ -564,11 +564,7 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(syncState);
           }
           if (from < 17 && to >= 17) {
-            // v17 — fitur stok dihapus atas permintaan pemilik.
-            //
-            // Restoran memasak saat dipesan, bukan mengambil dari rak, jadi
-            // menghitung sisa stok tidak punya arti di sini. Konsekuensinya
-            // disadari: aplikasi tidak lagi mencegah penjualan barang habis.
+            // v17 — buang dua kolom yang tidak lagi dipakai dari products.
             await m.alterTable(TableMigration(products));
           }
         },
@@ -862,10 +858,6 @@ class AppDatabase extends _$AppDatabase {
 
   /// Pastikan setiap produk di keranjang masih ada.
   ///
-  /// Dulu fungsi ini juga mengurangi stok. Fitur stok dihapus atas permintaan
-  /// pemilik — masakan dibuat saat dipesan, bukan diambil dari rak — tapi
-  /// pemeriksaan ini TETAP diperlukan dan bukan soal stok.
-  ///
   /// Kasusnya nyata: kasir membuka halaman Kasir, pemilik menghapus sebuah
   /// produk dari HP-nya, lalu kasir menekan produk yang sudah tidak ada itu.
   /// Tanpa pemeriksaan ini, item transaksi akan menunjuk produk yang tidak
@@ -1032,11 +1024,6 @@ class AppDatabase extends _$AppDatabase {
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value('pending'),
       ));
-
-      // Dulu di sini stok produk dikembalikan. Fitur stok dihapus atas
-      // permintaan pemilik, jadi membatalkan transaksi kini cukup menandai
-      // transaksi dan itemnya terhapus — tidak ada angka yang perlu
-      // dipulihkan.
     });
   }
 

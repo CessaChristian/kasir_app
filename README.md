@@ -16,10 +16,10 @@ dirancang menangani **beberapa usaha dalam satu aplikasi** — saat ini
 - **Multi-business** — satu aplikasi menangani 2 usaha; owner bisa berpindah usaha, data terpisah otomatis per usaha.
 - **Autentikasi 2 peran** — Owner & Kasir dengan **PIN** (di-hash PBKDF2), *recovery code* untuk owner, dan *rate limiting* login.
 - **Onboarding** — wizard setup akun owner pertama + seed 2 usaha otomatis.
-- **Manajemen produk** — produk, kategori, barcode, pelacakan stok, opsi level pedas, foto produk.
+- **Manajemen produk** — produk, kategori, barcode, opsi level pedas, foto produk.
 - **Kasir (POS)** — keranjang, pembayaran **Cash & QRIS**, tipe pesanan (dine-in / take away / delivery), struk.
 - **Shift** — kasir otomatis membuka shift saat login & menutupnya saat logout; owner memantau lewat halaman **Pantau Shift**.
-- **Riwayat transaksi** — filter, detail item, hapus transaksi (soft-delete + kembalikan stok).
+- **Riwayat transaksi** — filter, detail item, hapus transaksi (soft-delete).
 - **Laporan** — harian & bulanan, grafik tren, produk terlaris, performa per kasir, **export Excel**.
 - **Pengeluaran** — catat pengeluaran per shift.
 - **Manajemen usaha & kasir** — kelola kasir + izin akses, profil usaha, mode device.

@@ -46,7 +46,7 @@ relasinya ke usaha lewat `user_business_roles`); `permissions` &
 ### Katalog produk
 - **`categories`** — kategori produk (`name`, `iconCodepoint`), milik 1 usaha.
 - **`products`** — produk (`name`, `price`, `barcode`, `categoryId`,
-  `trackStock`, `stock`, `hasSpicyOption`, `imagePath`), milik 1 usaha.
+  `hasSpicyOption`, `imagePath`).
 
 ### Transaksi / penjualan
 - **`transactions`** — header transaksi (`total`, `paymentMethod` [`cash`/`qris`],

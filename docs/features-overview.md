@@ -23,26 +23,25 @@ Menu yang muncul untuk tiap user **difilter otomatis** sesuai izinnya
 ## Dashboard — `features/dashboard`
 
 Halaman utama setelah login. Menampilkan ringkasan (pendapatan hari ini,
-breakdown Cash/QRIS, produk terlaris, banner stok menipis). Untuk **owner**
+breakdown Cash/QRIS, produk terlaris). Untuk **owner**
 tampil kartu pintasan **"Pantau Shift Kasir"**; untuk **kasir** tampil kartu
 **shift aktif**. *Izin:* semua user (`all`).
 
 ## Produk & Kategori — `features/products`
 
-Tambah/edit/hapus produk & kategori, barcode, pelacakan stok, opsi level pedas,
+Tambah/edit/hapus produk & kategori, barcode, opsi level pedas,
 dan foto produk. *Izin:* `manage_products`.
 
 ## Kasir / POS — `features/sales`
 
 Alur penjualan: pilih produk → keranjang → pilih **tipe pesanan** (dine-in /
 take away / delivery) → bayar **Cash** (dengan kembalian) atau **QRIS** → struk.
-Saat transaksi, stok produk berkurang **atomik** (aman dari kondisi balapan).
 *Izin:* `create_transaction`.
 
 ## Riwayat — `features/history`
 
 Daftar transaksi + detail item per transaksi. Bisa **hapus transaksi**
-(soft-delete) yang juga **mengembalikan stok**. *Izin:* `view_history`;
+(soft-delete). *Izin:* `view_history`;
 hapus butuh `delete_own_transaction` / `delete_any_transaction`.
 
 ## Laporan — `features/report`

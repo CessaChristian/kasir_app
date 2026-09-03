@@ -75,8 +75,6 @@ create table public.products (
   price            bigint      not null,
   barcode          text,
   category_id      uuid        references public.categories(id),
-  -- Fitur stok dihapus atas permintaan pemilik (skema lokal v17): restoran
-  -- memasak saat dipesan, bukan mengambil dari rak.
   has_spicy_option boolean     not null default false,
   -- Path RELATIF di Supabase Storage, mis. 'products/<uuid>.webp'.
   -- Jangan simpan URL penuh: domain project bisa berubah.
