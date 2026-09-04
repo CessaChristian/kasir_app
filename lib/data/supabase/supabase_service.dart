@@ -37,9 +37,6 @@ class SupabaseService {
   /// True kalau koneksi Supabase aktif dan device sudah login.
   bool get online => _siap && client?.auth.currentSession != null;
 
-  /// True kalau belum ada sesi aktif.
-  bool get currentSessionKosong =>
-      !_siap || Supabase.instance.client.auth.currentSession == null;
 
   /// Null kalau aplikasi dibangun tanpa --dart-define, atau init gagal.
   SupabaseClient? get client => _siap ? Supabase.instance.client : null;
@@ -60,19 +57,36 @@ class SupabaseService {
         ),
       );
       _siap = true;
-      await _loginUlangDariBrankas();
-
-      // Tahap uji: daftarkan otomatis kalau kredensial diberikan saat build
-      // dan perangkat belum pernah didaftarkan.
-      if (currentSessionKosong && SupabaseConfig.adaKredensialPerangkat) {
-        await daftarkanPerangkat(
-          email: SupabaseConfig.deviceEmail,
-          password: SupabaseConfig.devicePassword,
-        );
-      }
+      await pastikanTerhubung();
     } catch (_) {
       _siap = false;
     }
+  }
+
+  /// Pastikan ada sesi Supabase yang aktif, mencoba menyambung kalau belum.
+  ///
+  /// WAJIB dipanggil sebelum setiap putaran sinkron, bukan hanya sekali di
+  /// `init()`. Perangkat yang dipasang saat jaringan mati tidak akan pernah
+  /// punya sesi; tanpa percobaan ulang, ia tetap dianggap offline selamanya
+  /// meski jaringannya sudah pulih — tombol "Coba Lagi" jadi tidak berguna.
+  ///
+  /// Sesi juga bisa kedaluwarsa kalau perangkat lama tidak dipakai.
+  Future<bool> pastikanTerhubung() async {
+    if (!_siap) return false;
+    if (Supabase.instance.client.auth.currentSession != null) return true;
+
+    // 1. Coba kredensial yang sudah tersimpan di Keystore.
+    await _loginUlangDariBrankas();
+    if (Supabase.instance.client.auth.currentSession != null) return true;
+
+    // 2. Belum pernah terdaftar — pakai kredensial dari build.
+    if (SupabaseConfig.adaKredensialPerangkat) {
+      return daftarkanPerangkat(
+        email: SupabaseConfig.deviceEmail,
+        password: SupabaseConfig.devicePassword,
+      );
+    }
+    return false;
   }
 
   /// Daftarkan perangkat ini. Dipanggil SEKALI saat menyiapkan HP.

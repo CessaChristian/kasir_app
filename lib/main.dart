@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
+import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
@@ -93,7 +94,31 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 
   Future<AuthState> _checkAuthState() async {
     final onboardingRepo = OnboardingRepository();
-    final hasUser = await onboardingRepo.hasAnyUser();
+    var hasUser = await onboardingRepo.hasAnyUser();
+
+    // PEMASANGAN PERTAMA — database lokal masih kosong.
+    //
+    // Kosongnya database TIDAK berarti bisnis ini belum punya akun. Bisa jadi
+    // akunnya sudah ada di server dan HP ini cuma belum pernah menariknya.
+    // Menebak "belum ada" tanpa bertanya ke server membuat pemilik membuat
+    // akun owner KEDUA di HP barunya — dan akun ganda itu ikut tersinkron.
+    //
+    // Karena itu di sinilah satu-satunya tempat sinkron DITUNGGU. Pemakaian
+    // sehari-hari tidak pernah menunggu: begitu ada user lokal, blok ini
+    // dilewati dan aplikasi jalan penuh walau offline.
+    if (!hasUser && SupabaseConfig.tersedia) {
+      final hasil = await SyncService.instance.jalankan();
+      if (!hasil.berhasil) {
+        return AuthState(
+          hasUser: false,
+          hasOwner: false,
+          isLoggedIn: false,
+          perluInternet: true,
+        );
+      }
+      // Periksa ULANG — server mungkin baru saja mengirimkan akunnya.
+      hasUser = await onboardingRepo.hasAnyUser();
+    }
 
     if (!hasUser) {
       return AuthState(hasUser: false, hasOwner: false, isLoggedIn: false);
@@ -149,6 +174,20 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 
         final state = snapshot.data!;
 
+        // Pemasangan pertama tapi server tak terjangkau — JANGAN tawarkan
+        // pembuatan akun owner sebelum dipastikan memang belum ada.
+        if (state.perluInternet) {
+          return _LayarPerluInternet(
+            onCobaLagi: () async {
+              // Future-nya dibuat DULU lalu ditunggu, supaya tombol tahu
+              // kapan prosesnya selesai dan bisa menampilkan kemajuannya.
+              final baru = _checkAuthState();
+              setState(() => _authFuture = baru);
+              await baru;
+            },
+          );
+        }
+
         // No user at all (fresh install) -> show onboarding
         if (!state.hasUser) {
           return OnboardingPage(
@@ -180,15 +219,128 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
   }
 }
 
+
+/// Ditampilkan saat aplikasi baru dipasang tapi server tidak bisa dihubungi.
+///
+/// SENGAJA tidak menawarkan jalan pintas "lanjut tanpa internet". Membiarkan
+/// pemilik membuat akun di sini berarti membuat akun owner kedua yang ikut
+/// tersinkron — dan akun ganda itu tidak bisa dibereskan dari dalam aplikasi.
+///
+/// Penyiapan pertama HARUS online. Setelahnya aplikasi jalan penuh offline.
+class _LayarPerluInternet extends StatefulWidget {
+  final Future<void> Function() onCobaLagi;
+
+  const _LayarPerluInternet({required this.onCobaLagi});
+
+  @override
+  State<_LayarPerluInternet> createState() => _LayarPerluInternetState();
+}
+
+class _LayarPerluInternetState extends State<_LayarPerluInternet> {
+  bool _sedangMencoba = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = Theme.of(context).colorScheme.primary;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: warna.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.wifi_off_rounded, size: 40, color: warna),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Perlu Internet',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Penyiapan pertama butuh koneksi internet untuk mengambil '
+                  'data akun dari server.\n\nSetelah ini, aplikasi bisa '
+                  'dipakai tanpa internet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  // Menarik seluruh data bisa memakan waktu lebih dari semenit
+                  // pada jaringan lambat. Tanpa penanda kemajuan, layar ini
+                  // tidak berubah sedikit pun selama proses berjalan dan
+                  // tombolnya terlihat rusak — pengguna akan menekan berulang.
+                  child: FilledButton.icon(
+                    onPressed: _sedangMencoba
+                        ? null
+                        : () async {
+                            setState(() => _sedangMencoba = true);
+                            try {
+                              await widget.onCobaLagi();
+                            } finally {
+                              if (mounted) {
+                                setState(() => _sedangMencoba = false);
+                              }
+                            }
+                          },
+                    icon: _sedangMencoba
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        _sedangMencoba ? 'Mengambil data…' : 'Coba Lagi',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Simple model for auth state
 class AuthState {
   final bool hasUser;
   final bool hasOwner;
   final bool isLoggedIn;
 
+  /// Pemasangan pertama, tapi server tidak bisa dihubungi.
+  ///
+  /// Bedanya dengan `hasUser: false` sangat penting: yang itu berarti
+  /// "sudah dipastikan ke server dan memang belum ada siapa-siapa", yang ini
+  /// berarti "belum tahu". Menyamakan keduanya membuat pemilik membuat akun
+  /// owner KEDUA di HP barunya.
+  final bool perluInternet;
+
   AuthState({
     required this.hasUser,
     required this.hasOwner,
     required this.isLoggedIn,
+    this.perluInternet = false,
   });
 }
