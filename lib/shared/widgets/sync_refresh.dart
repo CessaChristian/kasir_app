@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/sync/sync_service.dart';
 import 'app_toast.dart';
+import 'dialog_sync.dart';
 
 /// Bungkus daftar apa pun supaya bisa disegarkan dengan menarik dari atas.
 ///
@@ -25,7 +26,10 @@ class SyncRefresh extends StatelessWidget {
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async {
-        final hasil = await SyncService.instance.jalankan();
+        final hasil = await DialogSync.tampilkanSelama(
+          context,
+          SyncService.instance.jalankan,
+        );
         await sesudah?.call();
         if (!context.mounted) return;
 

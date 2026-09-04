@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
+
 import '../db.dart';
 import '../supabase/supabase_service.dart';
+import 'kemajuan_sync.dart';
 import 'sync_engine.dart';
 
 /// Pintu tunggal untuk menjalankan sinkronisasi dari mana pun di aplikasi.
@@ -26,6 +29,12 @@ class SyncService {
 
   Future<HasilSync>? _berjalan;
 
+  /// Kemajuan putaran yang sedang berjalan, atau null kalau tidak ada.
+  ///
+  /// Disiarkan lewat ValueNotifier supaya layar mana pun bisa ikut
+  /// mendengarkan tanpa perlu tahu siapa yang memulai sinkronnya.
+  final ValueNotifier<KemajuanSync?> kemajuan = ValueNotifier(null);
+
   /// True selagi satu putaran sinkron berlangsung.
   bool get sedangJalan => _berjalan != null;
 
@@ -38,9 +47,11 @@ class SyncService {
       // mati belum pernah punya sesi, dan tanpa percobaan ulang di sini ia
       // akan dianggap offline selamanya meski jaringannya sudah pulih.
       await SupabaseService.instance.pastikanTerhubung();
-      return await SyncEngine(db).jalankan();
+      return await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k)
+          .jalankan();
     } finally {
       _berjalan = null;
+      kemajuan.value = null;
     }
   }
 }

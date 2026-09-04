@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../app_database.dart';
+import 'kemajuan_sync.dart';
 import '../supabase/supabase_service.dart';
 
 /// Hasil satu putaran sinkronisasi.
@@ -67,7 +68,11 @@ class _Entitas {
 class SyncEngine {
   final AppDatabase _db;
 
-  SyncEngine(this._db);
+  /// Dipanggil setiap kali ada kemajuan, supaya lapisan tampilan bisa
+  /// menunjukkan apa yang sedang terjadi. Boleh null di test.
+  final void Function(KemajuanSync)? onKemajuan;
+
+  SyncEngine(this._db, {this.onKemajuan});
 
   SupabaseService get _supabase => SupabaseService.instance;
 
@@ -94,12 +99,12 @@ class SyncEngine {
       var ditarik = 0;
       // Tarik dulu semuanya, baru dorong. Mendorong lebih dulu bisa menimpa
       // perubahan server yang belum sempat dilihat perangkat ini.
-      for (final e in _entitas) {
-        ditarik += await _tarik(e);
+      for (var i = 0; i < _entitas.length; i++) {
+        ditarik += await _tarik(_entitas[i], i + 1);
       }
       var didorong = 0;
-      for (final e in _entitas) {
-        didorong += await _dorong(e);
+      for (var i = 0; i < _entitas.length; i++) {
+        didorong += await _dorong(_entitas[i], i + 1);
       }
       return HasilSync(ditarik: ditarik, didorong: didorong);
     } catch (e) {
@@ -107,11 +112,22 @@ class SyncEngine {
     }
   }
 
+  void _lapor(String tahap, String entitas, int urutan, int baris, int total) {
+    onKemajuan?.call(KemajuanSync(
+      tahap: tahap,
+      entitas: entitas,
+      entitasKe: urutan,
+      totalEntitas: _entitas.length,
+      baris: baris,
+      totalBaris: total,
+    ));
+  }
+
   // ------------------------------------------------------------------
   // TARIK / DORONG
   // ------------------------------------------------------------------
 
-  Future<int> _tarik(_Entitas e) async {
+  Future<int> _tarik(_Entitas e, int urutan) async {
     final sejak = await _waktuTarikTerakhir(e.nama);
 
     var query = _supabase.client!.from(e.nama).select();
@@ -119,11 +135,20 @@ class SyncEngine {
       query = query.gt('updated_at', sejak.toUtc().toIso8601String());
     }
     final baris = await query.order('updated_at');
+
+    _lapor('menarik', e.nama, urutan, 0, baris.length);
     if (baris.isEmpty) return 0;
 
     DateTime? paling;
+    var sudah = 0;
     for (final r in baris) {
       await e.simpanDariServer(r);
+      sudah++;
+      // Dilaporkan berkala saja — memanggil setState seribu kali justru
+      // membuat tampilan tersendat.
+      if (sudah % 25 == 0 || sudah == baris.length) {
+        _lapor('menarik', e.nama, urutan, sudah, baris.length);
+      }
       final u = DateTime.parse(r['updated_at'] as String);
       if (paling == null || u.isAfter(paling)) paling = u;
     }
@@ -131,8 +156,9 @@ class SyncEngine {
     return baris.length;
   }
 
-  Future<int> _dorong(_Entitas e) async {
+  Future<int> _dorong(_Entitas e, int urutan) async {
     final tertunda = await e.ambilTertunda();
+    _lapor('mengirim', e.nama, urutan, 0, tertunda.length);
     if (tertunda.isEmpty) return 0;
 
     // Dikirim per potongan. Satu permintaan berisi ratusan baris gampang
@@ -144,6 +170,8 @@ class SyncEngine {
       await _supabase.client!.from(e.nama).upsert(potongan);
       await e.tandaiTerkirim(
           [for (final r in potongan) r['id'] as String]);
+      _lapor('mengirim', e.nama, urutan,
+          (i + potongan.length).clamp(0, tertunda.length), tertunda.length);
     }
     return tertunda.length;
   }

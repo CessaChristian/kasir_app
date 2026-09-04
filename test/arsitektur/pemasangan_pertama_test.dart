@@ -104,4 +104,22 @@ void main() {
           'ada user, aplikasi harus jalan penuh tanpa internet.',
     );
   });
+
+  test('future pemeriksaan bisa diganti — tombol Coba Lagi harus berfungsi',
+      () {
+    expect(
+      main_.contains('late final Future<AuthState> _authFuture'),
+      isFalse,
+      reason: 'Field ini DIGANTI setiap kali "Coba Lagi" ditekan. Dengan '
+          '`final`, penggantian kedua melempar LateInitializationError dan '
+          'percobaan ulang gagal DIAM-DIAM: sinkronnya jalan, datanya masuk, '
+          'tapi layarnya tidak pernah berubah. Hanya terlihat di perangkat '
+          'sungguhan — build debug di emulator sempat lolos.',
+    );
+    expect(
+      RegExp(r'late\s+Future<AuthState>\s+_authFuture').hasMatch(main_),
+      isTrue,
+      reason: 'harus tetap `late`, hanya tanpa `final`',
+    );
+  });
 }

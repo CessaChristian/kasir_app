@@ -8,6 +8,7 @@ import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
+import 'shared/widgets/dialog_sync.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -84,7 +85,11 @@ class AuthFlowHandler extends StatefulWidget {
 }
 
 class _AuthFlowHandlerState extends State<AuthFlowHandler> {
-  late final Future<AuthState> _authFuture;
+  // BUKAN `late final`. Tombol "Coba Lagi" mengganti future ini, dan `final`
+  // membuat penggantian kedua melempar LateInitializationError — sehingga
+  // setiap percobaan ulang gagal diam-diam: sinkronnya jalan dan datanya
+  // masuk, tapi layarnya tidak pernah berubah.
+  late Future<AuthState> _authFuture;
 
   @override
   void initState() {
@@ -179,11 +184,14 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         if (state.perluInternet) {
           return _LayarPerluInternet(
             onCobaLagi: () async {
-              // Future-nya dibuat DULU lalu ditunggu, supaya tombol tahu
-              // kapan prosesnya selesai dan bisa menampilkan kemajuannya.
-              final baru = _checkAuthState();
-              setState(() => _authFuture = baru);
-              await baru;
+              // Dialog kemajuan menampilkan tabel apa yang sedang ditarik dan
+              // sudah berapa barisnya. Tanpa itu layar diam total selama
+              // lebih dari semenit dan tombolnya terlihat rusak.
+              await DialogSync.tampilkanSelama(context, () async {
+                final baru = _checkAuthState();
+                setState(() => _authFuture = baru);
+                await baru;
+              });
             },
           );
         }
