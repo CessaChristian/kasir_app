@@ -1,4 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- WAJIB untuk build RELEASE.
+
+         Flutter otomatis menambahkan izin ini di manifest debug dan profile
+         (untuk hot reload), tapi TIDAK di manifest utama yang dipakai
+         release. Tanpa baris ini, APK release sama sekali tidak bisa
+         mengakses jaringan: sinkronisasi selalu gagal dan aplikasi terus
+         menampilkan layar "Perlu Internet" meski WiFi menyala.
+
+         Gagalnya menyesatkan — build debug di emulator berjalan mulus, jadi
+         masalahnya baru terlihat setelah APK release dipasang di HP. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="Teras Inn"
         android:name="${applicationName}"
