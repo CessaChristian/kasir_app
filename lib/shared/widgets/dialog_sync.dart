@@ -107,8 +107,16 @@ class DialogSync extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      // "diperiksa", bukan "data baru". Server mengirim
+                      // setiap baris yang lebih baru dari penanda kita, dan
+                      // sebagian sudah sama persis dengan yang ada di sini —
+                      // menyebutnya data baru membuat pengguna mengira
+                      // daftarnya berubah padahal tidak.
                       Text(
-                        '${k.baris} dari ${k.totalBaris} data',
+                        k.perubahan > 0
+                            ? '${k.baris}/${k.totalBaris} diperiksa · '
+                                '${k.perubahan} diperbarui'
+                            : '${k.baris}/${k.totalBaris} diperiksa',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade700,

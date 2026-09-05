@@ -138,10 +138,11 @@ void main() {
     /// Pemakaian `SinceEpoch` yang SAH — bukan untuk primary key.
     /// Kalau menambah entri di sini, pastikan benar-benar bukan PK.
     const diizinkan = <String, String>{
-      'lib/features/business/pages/business_detail_page.dart':
-          'nama file logo, bukan primary key',
       'lib/data/app_database.dart':
           'konversi rentang tanggal ke epoch untuk query',
+      'lib/data/sync/sync_engine.dart':
+          'membandingkan updated_at lokal (detik) dengan server (mikrodetik) '
+          'untuk memutuskan versi mana yang menang saat menarik — bukan ID',
     };
 
     test('tidak ada pemakaian SinceEpoch di luar daftar yang diizinkan', () {

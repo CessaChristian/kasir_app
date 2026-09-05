@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
@@ -6,17 +7,36 @@ import '../supabase/supabase_service.dart';
 
 /// Hasil satu putaran sinkronisasi.
 class HasilSync {
-  final int ditarik;
+  /// Baris yang DITERIMA dari server.
+  ///
+  /// Sengaja dipisah dari [berubah]: server mengirim setiap baris yang lebih
+  /// baru dari penanda kita, dan sebagian di antaranya ternyata sudah sama
+  /// persis dengan yang ada di sini. Melaporkan angka ini ke pengguna sebagai
+  /// "data diperbarui" adalah kebohongan kecil yang bikin bingung — mereka
+  /// menekan segarkan pada daftar yang tidak berubah, lalu diberi tahu ada
+  /// belasan data baru.
+  final int diperiksa;
+
+  /// Baris yang BENAR-BENAR mengubah isi database lokal: baris baru, atau
+  /// baris yang versinya di server lebih baru. Ini yang layak ditampilkan.
+  final int berubah;
+
   final int didorong;
   final String? error;
 
-  const HasilSync({this.ditarik = 0, this.didorong = 0, this.error});
+  const HasilSync({
+    this.diperiksa = 0,
+    this.berubah = 0,
+    this.didorong = 0,
+    this.error,
+  });
 
   bool get berhasil => error == null;
 
   @override
-  String toString() =>
-      berhasil ? 'tarik $ditarik, dorong $didorong' : 'GAGAL: $error';
+  String toString() => berhasil
+      ? 'periksa $diperiksa, ubah $berubah, kirim $didorong'
+      : 'GAGAL: $error';
 }
 
 /// Satu tabel yang ikut disinkronkan.
@@ -31,8 +51,15 @@ class _Entitas {
   /// Baris lokal yang belum terkirim, sudah diubah jadi bentuk JSON server.
   final Future<List<Map<String, dynamic>>> Function() ambilTertunda;
 
-  /// Simpan satu baris dari server ke database lokal.
-  final Future<void> Function(Map<String, dynamic>) simpanDariServer;
+  /// Tulis satu baris dari server ke database lokal, TANPA pertimbangan
+  /// apa pun.
+  ///
+  /// Keputusan boleh-tidaknya menulis sengaja TIDAK ditaruh di sini,
+  /// melainkan terpusat di [SyncEngine._tarik]. Kalau setiap tabel memutuskan
+  /// sendiri, tujuh salinan aturan yang sama akan berbeda halus satu sama
+  /// lain — dan aturan inilah yang menentukan data pengguna hilang atau
+  /// selamat.
+  final Future<void> Function(Map<String, dynamic>) tulis;
 
   /// Tandai baris-baris ini sudah terkirim.
   final Future<void> Function(List<String>) tandaiTerkirim;
@@ -40,7 +67,7 @@ class _Entitas {
   const _Entitas({
     required this.nama,
     required this.ambilTertunda,
-    required this.simpanDariServer,
+    required this.tulis,
     required this.tandaiTerkirim,
   });
 }
@@ -96,23 +123,31 @@ class SyncEngine {
       return const HasilSync(error: 'offline atau perangkat belum didaftarkan');
     }
     try {
-      var ditarik = 0;
+      var diperiksa = 0;
+      var berubah = 0;
       // Tarik dulu semuanya, baru dorong. Mendorong lebih dulu bisa menimpa
       // perubahan server yang belum sempat dilihat perangkat ini.
       for (var i = 0; i < _entitas.length; i++) {
-        ditarik += await _tarik(_entitas[i], i + 1);
+        final h = await _tarik(_entitas[i], i + 1);
+        diperiksa += h.$1;
+        berubah += h.$2;
       }
       var didorong = 0;
       for (var i = 0; i < _entitas.length; i++) {
         didorong += await _dorong(_entitas[i], i + 1);
       }
-      return HasilSync(ditarik: ditarik, didorong: didorong);
+      return HasilSync(
+        diperiksa: diperiksa,
+        berubah: berubah,
+        didorong: didorong,
+      );
     } catch (e) {
       return HasilSync(error: e.toString());
     }
   }
 
-  void _lapor(String tahap, String entitas, int urutan, int baris, int total) {
+  void _lapor(String tahap, String entitas, int urutan, int baris, int total,
+      {int perubahan = 0}) {
     onKemajuan?.call(KemajuanSync(
       tahap: tahap,
       entitas: entitas,
@@ -120,6 +155,7 @@ class SyncEngine {
       totalEntitas: _entitas.length,
       baris: baris,
       totalBaris: total,
+      perubahan: perubahan,
     ));
   }
 
@@ -127,34 +163,167 @@ class SyncEngine {
   // TARIK / DORONG
   // ------------------------------------------------------------------
 
-  Future<int> _tarik(_Entitas e, int urutan) async {
-    final sejak = await _waktuTarikTerakhir(e.nama);
+  /// Menarik satu tabel. Mengembalikan (baris diterima, baris benar-benar
+  /// berubah).
+  ///
+  /// ── KENAPA VERSI SERVER TIDAK LANGSUNG DITIMPAKAN ──
+  ///
+  /// Sebelumnya baris server ditulis begitu saja lewat `insertOnConflictUpdate`
+  /// tanpa membandingkan apa pun, sekaligus menyetel `sync_status = 'synced'`.
+  /// Untuk baris yang punya perubahan lokal belum terkirim, akibatnya fatal
+  /// dan senyap:
+  ///
+  /// ```
+  /// 1. pengguna menambah gambar   -> lokal: image_path terisi, 'pending'
+  /// 2. pengguna menyegarkan       -> TARIK dulu, baru DORONG
+  /// 3. tarikan menimpa baris itu  -> image_path kembali NULL, jadi 'synced'
+  /// 4. giliran dorong             -> tidak ada lagi yang 'pending'
+  /// ```
+  ///
+  /// Gambarnya hilang dari layar DAN tidak pernah sampai ke server. Filenya
+  /// tetap ada di disk tanpa ada yang menunjuknya.
+  ///
+  /// ── ATURANNYA MURNI PERBANDINGAN WAKTU ──
+  ///
+  /// | keadaan                        | tindakan                            |
+  /// |--------------------------------|-------------------------------------|
+  /// | belum ada barisnya di sini     | tulis — ini data baru               |
+  /// | server lebih baru              | tulis — termasuk kalau isinya hapus |
+  /// | waktunya sama persis           | lewati — versinya memang sama       |
+  /// | lokal lebih baru               | lewati — jangan mundur              |
+  ///
+  /// Status `pending` sengaja TIDAK ikut jadi syarat, karena aturan waktu di
+  /// atas sudah menanganinya sendiri: baris `pending` yang lebih baru akan
+  /// dilewati sehingga statusnya tetap `pending` dan ikut terdorong di tahap
+  /// berikutnya. Sebaliknya, penghapusan dari server yang lebih baru tetap
+  /// menang — jadi produk yang dihapus pemilik tidak hidup lagi di HP kasir.
+  ///
+  /// Kasus seri (`waktunya sama persis`) memenangkan yang lokal. `updated_at`
+  /// lokal beresolusi DETIK, jadi dua perubahan dalam detik yang sama tidak
+  /// bisa dibedakan urutannya. Kalau ragu, yang belum terkirim lebih layak
+  /// diselamatkan: ia hanya ada di perangkat ini, sedangkan versi server
+  /// masih tersimpan di server dan bisa dikirim ulang.
+  Future<(int, int)> _tarik(_Entitas e, int urutan) async {
+    final sejak = await _kursorTarikTerakhir(e.nama);
 
     var query = _supabase.client!.from(e.nama).select();
     if (sejak != null) {
-      query = query.gt('updated_at', sejak.toUtc().toIso8601String());
+      query = query.gt('updated_at', sejak);
     }
     final baris = await query.order('updated_at');
+    return _gabungkan(e, baris, urutan);
+  }
 
+  /// Menggabungkan baris dari server ke database lokal, tanpa menyentuh
+  /// jaringan.
+  ///
+  /// Dipisah dari [_tarik] supaya aturan menang-kalah di bawah bisa diuji
+  /// melawan database sungguhan tanpa perlu server — aturan inilah yang
+  /// menentukan perubahan pengguna selamat atau hilang, jadi ia layak diuji
+  /// langsung, bukan lewat tiruan.
+  Future<(int, int)> _gabungkan(
+    _Entitas e,
+    List<Map<String, dynamic>> baris,
+    int urutan,
+  ) async {
     _lapor('menarik', e.nama, urutan, 0, baris.length);
-    if (baris.isEmpty) return 0;
+    if (baris.isEmpty) return (0, 0);
 
-    DateTime? paling;
+    String? kursorTertinggi;
+    var tertinggi = -1 << 62;
     var sudah = 0;
+    var berubah = 0;
+
     for (final r in baris) {
-      await e.simpanDariServer(r);
+      final waktuServer = r['updated_at'] as String;
+      final mikroServer = _mikro(waktuServer);
+      final lokal = await _keadaanLokal(e.nama, r['id'] as String);
+
+      if (lokal == null || _serverMenang(lokal, mikroServer)) {
+        await e.tulis(r);
+        berubah++;
+      }
+
       sudah++;
       // Dilaporkan berkala saja — memanggil setState seribu kali justru
       // membuat tampilan tersendat.
       if (sudah % 25 == 0 || sudah == baris.length) {
-        _lapor('menarik', e.nama, urutan, sudah, baris.length);
+        _lapor('menarik', e.nama, urutan, sudah, baris.length,
+            perubahan: berubah);
       }
-      final u = DateTime.parse(r['updated_at'] as String);
-      if (paling == null || u.isAfter(paling)) paling = u;
+
+      if (mikroServer > tertinggi) {
+        tertinggi = mikroServer;
+        kursorTertinggi = waktuServer;
+      }
     }
-    await _catatWaktuTarik(e.nama, paling!);
-    return baris.length;
+
+    await _catatKursorTarik(e.nama, kursorTertinggi!);
+    return (baris.length, berubah);
   }
+
+  /// Pintu masuk untuk test: menggabungkan baris server ke tabel bernama
+  /// [namaTabel]. Diperlukan karena `_Entitas` sengaja privat.
+  @visibleForTesting
+  Future<(int, int)> gabungkanTabel(
+    String namaTabel,
+    List<Map<String, dynamic>> baris,
+  ) =>
+      _gabungkan(_entitas.firstWhere((e) => e.nama == namaTabel), baris, 1);
+
+  /// Keadaan baris lokal yang dipakai untuk memutuskan menang-kalah.
+  ///
+  /// Dibaca lewat SQL mentah karena berlaku untuk ketujuh tabel; menuliskan
+  /// tujuh kueri drift yang identik hanya menambah tempat untuk salah ketik.
+  /// Kolom `updated_at` berisi DETIK epoch (bawaan drift), dikalikan sejuta
+  /// supaya sebanding dengan waktu server yang bermikrodetik.
+  Future<({int mikro, bool pending})?> _keadaanLokal(
+      String tabel, String id) async {
+    final baris = await _db.customSelect(
+      'SELECT updated_at, sync_status FROM $tabel WHERE id = ?',
+      variables: [Variable.withString(id)],
+    ).getSingleOrNull();
+    if (baris == null) return null;
+    return (
+      mikro: baris.read<int>('updated_at') * 1000000,
+      pending: baris.read<String>('sync_status') == 'pending',
+    );
+  }
+
+  /// Apakah versi server layak menimpa versi lokal.
+  ///
+  /// ── KENAPA BARIS `pending` DIBANDINGKAN PADA RESOLUSI DETIK ──
+  ///
+  /// Waktu lokal hanya beresolusi DETIK (bawaan drift), sedangkan server
+  /// menyimpan MIKRODETIK. Begitu baris server disalin ke sini, pecahannya
+  /// hilang — sehingga versi server selamanya terlihat "lebih baru" daripada
+  /// salinan lokalnya sendiri:
+  ///
+  /// ```
+  /// server : 10:04:11.430427
+  /// lokal  : 10:04:11.000000   <- salinan baris yang SAMA, pecahan terbuang
+  /// ```
+  ///
+  /// Untuk baris `synced` itu tidak berbahaya: tidak ada yang bisa hilang,
+  /// paling-paling barisnya ditulis ulang dengan isi yang sama. Tapi untuk
+  /// baris `pending` akibatnya fatal — pengguna yang mengedit pada detik yang
+  /// sama dengan cap waktu server akan kehilangan editnya, padahal dalam
+  /// kenyataan edit itu terjadi BELAKANGAN.
+  ///
+  /// Maka baris `pending` dibandingkan detik-lawan-detik: setara dengan
+  /// presisi yang memang dimiliki sisi lokal. Seri berarti lokal bertahan —
+  /// perubahan yang belum terkirim hanya ada di perangkat ini, sedangkan
+  /// versi server masih aman tersimpan di server.
+  static bool _serverMenang(
+      ({int mikro, bool pending}) lokal, int mikroServer) {
+    if (!lokal.pending) return mikroServer > lokal.mikro;
+    const sejuta = 1000000;
+    return (mikroServer ~/ sejuta) > (lokal.mikro ~/ sejuta);
+  }
+
+  /// Waktu ISO dari server jadi mikrodetik epoch, untuk dibandingkan.
+  static int _mikro(String iso) =>
+      DateTime.parse(iso).microsecondsSinceEpoch;
 
   Future<int> _dorong(_Entitas e, int urutan) async {
     final tertunda = await e.ambilTertunda();
@@ -228,7 +397,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db.into(_db.users).insertOnConflictUpdate(UsersCompanion(
                 id: Value(r['id'] as String),
                 username: Value(r['username'] as String),
@@ -271,7 +440,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db
               .into(_db.categories)
               .insertOnConflictUpdate(CategoriesCompanion(
@@ -309,7 +478,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db.into(_db.products).insertOnConflictUpdate(ProductsCompanion(
                 id: Value(r['id'] as String),
                 name: Value(r['name'] as String),
@@ -345,7 +514,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db.into(_db.shifts).insertOnConflictUpdate(ShiftsCompanion(
                 id: Value(r['id'] as String),
                 userId: Value(r['user_id'] as String),
@@ -383,7 +552,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db
               .into(_db.transactions)
               .insertOnConflictUpdate(TransactionsCompanion(
@@ -428,7 +597,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db
               .into(_db.transactionItems)
               .insertOnConflictUpdate(TransactionItemsCompanion(
@@ -470,7 +639,7 @@ class SyncEngine {
               }
           ];
         },
-        simpanDariServer: (r) async {
+        tulis: (r) async {
           await _db.into(_db.expenses).insertOnConflictUpdate(ExpensesCompanion(
                 id: Value(r['id'] as String),
                 shiftId: Value(r['shift_id'] as String),
@@ -491,17 +660,25 @@ class SyncEngine {
   // Penanda waktu & konversi
   // ------------------------------------------------------------------
 
-  Future<DateTime?> _waktuTarikTerakhir(String entitas) async {
+  /// Penanda posisi tarikan terakhir, berupa string ISO APA ADANYA dari
+  /// server.
+  ///
+  /// Sengaja tidak pernah diubah jadi `DateTime`. Drift menyimpan `DateTime`
+  /// dalam DETIK, sedangkan server memakai MIKRODETIK — sekali dikonversi,
+  /// `2026-09-04T10:04:11.430427` menyusut jadi `...11.000000`. Penanda yang
+  /// menyusut selalu lebih kecil dari nilai aslinya, sehingga baris terbaru
+  /// ikut tertarik lagi di SETIAP sinkronisasi, selamanya.
+  Future<String?> _kursorTarikTerakhir(String entitas) async {
     final baris = await (_db.select(_db.syncState)
           ..where((s) => s.entity.equals(entitas)))
         .getSingleOrNull();
-    return baris?.lastPulledAt;
+    return baris?.lastPulledCursor;
   }
 
-  Future<void> _catatWaktuTarik(String entitas, DateTime waktu) async {
+  Future<void> _catatKursorTarik(String entitas, String kursor) async {
     await _db.into(_db.syncState).insertOnConflictUpdate(SyncStateCompanion(
           entity: Value(entitas),
-          lastPulledAt: Value(waktu),
+          lastPulledCursor: Value(kursor),
         ));
   }
 

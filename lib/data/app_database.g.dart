@@ -5284,19 +5284,19 @@ class $SyncStateTable extends SyncState
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _lastPulledAtMeta = const VerificationMeta(
-    'lastPulledAt',
+  static const VerificationMeta _lastPulledCursorMeta = const VerificationMeta(
+    'lastPulledCursor',
   );
   @override
-  late final GeneratedColumn<DateTime> lastPulledAt = GeneratedColumn<DateTime>(
-    'last_pulled_at',
+  late final GeneratedColumn<String> lastPulledCursor = GeneratedColumn<String>(
+    'last_pulled_cursor',
     aliasedName,
     true,
-    type: DriftSqlType.dateTime,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   @override
-  List<GeneratedColumn> get $columns => [entity, lastPulledAt];
+  List<GeneratedColumn> get $columns => [entity, lastPulledCursor];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5317,12 +5317,12 @@ class $SyncStateTable extends SyncState
     } else if (isInserting) {
       context.missing(_entityMeta);
     }
-    if (data.containsKey('last_pulled_at')) {
+    if (data.containsKey('last_pulled_cursor')) {
       context.handle(
-        _lastPulledAtMeta,
-        lastPulledAt.isAcceptableOrUnknown(
-          data['last_pulled_at']!,
-          _lastPulledAtMeta,
+        _lastPulledCursorMeta,
+        lastPulledCursor.isAcceptableOrUnknown(
+          data['last_pulled_cursor']!,
+          _lastPulledCursorMeta,
         ),
       );
     }
@@ -5339,9 +5339,9 @@ class $SyncStateTable extends SyncState
         DriftSqlType.string,
         data['${effectivePrefix}entity'],
       )!,
-      lastPulledAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_pulled_at'],
+      lastPulledCursor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_pulled_cursor'],
       ),
     );
   }
@@ -5357,15 +5357,34 @@ class SyncStateData extends DataClass implements Insertable<SyncStateData> {
   /// Dinamai `entity`, bukan `tableName`, karena drift sudah memakai nama itu.
   final String entity;
 
-  /// Nilai `updated_at` tertinggi yang sudah berhasil ditarik.
-  final DateTime? lastPulledAt;
-  const SyncStateData({required this.entity, this.lastPulledAt});
+  /// Nilai `updated_at` tertinggi yang sudah berhasil ditarik, DISIMPAN APA
+  /// ADANYA sebagai string ISO dari server.
+  ///
+  /// SENGAJA `TextColumn`, bukan `DateTimeColumn`. Drift menyimpan `DateTime`
+  /// sebagai DETIK epoch, sedangkan PostgreSQL menyimpan sampai MIKRODETIK:
+  ///
+  /// ```
+  /// updated_at di server : 2026-09-04T10:04:11.430427+00:00
+  /// kalau lewat DateTime : 2026-09-04T10:04:11.000000   <- .430427 hilang
+  /// ```
+  ///
+  /// Watermark yang terpangkas selalu lebih kecil dari nilai aslinya, jadi
+  /// kueri `updated_at > watermark` terus-menerus mengambil ulang baris yang
+  /// sama di SETIAP sinkronisasi. Itu bukan cuma boros: digabung dengan
+  /// penimpaan baris lokal, baris `pending` yang belum terkirim ikut hancur —
+  /// persis penyebab gambar produk hilang setelah refresh.
+  ///
+  /// Nilai ini memang tidak pernah dipakai sebagai waktu, hanya dikirim balik
+  /// ke server sebagai penanda posisi. Menyimpannya sebagai teks sekaligus
+  /// menghilangkan konversi zona waktu yang tidak diperlukan.
+  final String? lastPulledCursor;
+  const SyncStateData({required this.entity, this.lastPulledCursor});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['entity'] = Variable<String>(entity);
-    if (!nullToAbsent || lastPulledAt != null) {
-      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt);
+    if (!nullToAbsent || lastPulledCursor != null) {
+      map['last_pulled_cursor'] = Variable<String>(lastPulledCursor);
     }
     return map;
   }
@@ -5373,9 +5392,9 @@ class SyncStateData extends DataClass implements Insertable<SyncStateData> {
   SyncStateCompanion toCompanion(bool nullToAbsent) {
     return SyncStateCompanion(
       entity: Value(entity),
-      lastPulledAt: lastPulledAt == null && nullToAbsent
+      lastPulledCursor: lastPulledCursor == null && nullToAbsent
           ? const Value.absent()
-          : Value(lastPulledAt),
+          : Value(lastPulledCursor),
     );
   }
 
@@ -5386,7 +5405,7 @@ class SyncStateData extends DataClass implements Insertable<SyncStateData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return SyncStateData(
       entity: serializer.fromJson<String>(json['entity']),
-      lastPulledAt: serializer.fromJson<DateTime?>(json['lastPulledAt']),
+      lastPulledCursor: serializer.fromJson<String?>(json['lastPulledCursor']),
     );
   }
   @override
@@ -5394,23 +5413,25 @@ class SyncStateData extends DataClass implements Insertable<SyncStateData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'entity': serializer.toJson<String>(entity),
-      'lastPulledAt': serializer.toJson<DateTime?>(lastPulledAt),
+      'lastPulledCursor': serializer.toJson<String?>(lastPulledCursor),
     };
   }
 
   SyncStateData copyWith({
     String? entity,
-    Value<DateTime?> lastPulledAt = const Value.absent(),
+    Value<String?> lastPulledCursor = const Value.absent(),
   }) => SyncStateData(
     entity: entity ?? this.entity,
-    lastPulledAt: lastPulledAt.present ? lastPulledAt.value : this.lastPulledAt,
+    lastPulledCursor: lastPulledCursor.present
+        ? lastPulledCursor.value
+        : this.lastPulledCursor,
   );
   SyncStateData copyWithCompanion(SyncStateCompanion data) {
     return SyncStateData(
       entity: data.entity.present ? data.entity.value : this.entity,
-      lastPulledAt: data.lastPulledAt.present
-          ? data.lastPulledAt.value
-          : this.lastPulledAt,
+      lastPulledCursor: data.lastPulledCursor.present
+          ? data.lastPulledCursor.value
+          : this.lastPulledCursor,
     );
   }
 
@@ -5418,55 +5439,55 @@ class SyncStateData extends DataClass implements Insertable<SyncStateData> {
   String toString() {
     return (StringBuffer('SyncStateData(')
           ..write('entity: $entity, ')
-          ..write('lastPulledAt: $lastPulledAt')
+          ..write('lastPulledCursor: $lastPulledCursor')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(entity, lastPulledAt);
+  int get hashCode => Object.hash(entity, lastPulledCursor);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is SyncStateData &&
           other.entity == this.entity &&
-          other.lastPulledAt == this.lastPulledAt);
+          other.lastPulledCursor == this.lastPulledCursor);
 }
 
 class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
   final Value<String> entity;
-  final Value<DateTime?> lastPulledAt;
+  final Value<String?> lastPulledCursor;
   final Value<int> rowid;
   const SyncStateCompanion({
     this.entity = const Value.absent(),
-    this.lastPulledAt = const Value.absent(),
+    this.lastPulledCursor = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SyncStateCompanion.insert({
     required String entity,
-    this.lastPulledAt = const Value.absent(),
+    this.lastPulledCursor = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : entity = Value(entity);
   static Insertable<SyncStateData> custom({
     Expression<String>? entity,
-    Expression<DateTime>? lastPulledAt,
+    Expression<String>? lastPulledCursor,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (entity != null) 'entity': entity,
-      if (lastPulledAt != null) 'last_pulled_at': lastPulledAt,
+      if (lastPulledCursor != null) 'last_pulled_cursor': lastPulledCursor,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
   SyncStateCompanion copyWith({
     Value<String>? entity,
-    Value<DateTime?>? lastPulledAt,
+    Value<String?>? lastPulledCursor,
     Value<int>? rowid,
   }) {
     return SyncStateCompanion(
       entity: entity ?? this.entity,
-      lastPulledAt: lastPulledAt ?? this.lastPulledAt,
+      lastPulledCursor: lastPulledCursor ?? this.lastPulledCursor,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5477,8 +5498,8 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
     if (entity.present) {
       map['entity'] = Variable<String>(entity.value);
     }
-    if (lastPulledAt.present) {
-      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt.value);
+    if (lastPulledCursor.present) {
+      map['last_pulled_cursor'] = Variable<String>(lastPulledCursor.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -5490,7 +5511,7 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
   String toString() {
     return (StringBuffer('SyncStateCompanion(')
           ..write('entity: $entity, ')
-          ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('lastPulledCursor: $lastPulledCursor, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9766,13 +9787,13 @@ typedef $$ExpensesTableProcessedTableManager =
 typedef $$SyncStateTableCreateCompanionBuilder =
     SyncStateCompanion Function({
       required String entity,
-      Value<DateTime?> lastPulledAt,
+      Value<String?> lastPulledCursor,
       Value<int> rowid,
     });
 typedef $$SyncStateTableUpdateCompanionBuilder =
     SyncStateCompanion Function({
       Value<String> entity,
-      Value<DateTime?> lastPulledAt,
+      Value<String?> lastPulledCursor,
       Value<int> rowid,
     });
 
@@ -9790,8 +9811,8 @@ class $$SyncStateTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get lastPulledAt => $composableBuilder(
-    column: $table.lastPulledAt,
+  ColumnFilters<String> get lastPulledCursor => $composableBuilder(
+    column: $table.lastPulledCursor,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9810,8 +9831,8 @@ class $$SyncStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get lastPulledAt => $composableBuilder(
-    column: $table.lastPulledAt,
+  ColumnOrderings<String> get lastPulledCursor => $composableBuilder(
+    column: $table.lastPulledCursor,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -9828,8 +9849,8 @@ class $$SyncStateTableAnnotationComposer
   GeneratedColumn<String> get entity =>
       $composableBuilder(column: $table.entity, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get lastPulledAt => $composableBuilder(
-    column: $table.lastPulledAt,
+  GeneratedColumn<String> get lastPulledCursor => $composableBuilder(
+    column: $table.lastPulledCursor,
     builder: (column) => column,
   );
 }
@@ -9866,21 +9887,21 @@ class $$SyncStateTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> entity = const Value.absent(),
-                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<String?> lastPulledCursor = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncStateCompanion(
                 entity: entity,
-                lastPulledAt: lastPulledAt,
+                lastPulledCursor: lastPulledCursor,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String entity,
-                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<String?> lastPulledCursor = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SyncStateCompanion.insert(
                 entity: entity,
-                lastPulledAt: lastPulledAt,
+                lastPulledCursor: lastPulledCursor,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

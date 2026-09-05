@@ -27,8 +27,27 @@ class SyncState extends Table {
   /// Dinamai `entity`, bukan `tableName`, karena drift sudah memakai nama itu.
   TextColumn get entity => text()();
 
-  /// Nilai `updated_at` tertinggi yang sudah berhasil ditarik.
-  DateTimeColumn get lastPulledAt => dateTime().nullable()();
+  /// Nilai `updated_at` tertinggi yang sudah berhasil ditarik, DISIMPAN APA
+  /// ADANYA sebagai string ISO dari server.
+  ///
+  /// SENGAJA `TextColumn`, bukan `DateTimeColumn`. Drift menyimpan `DateTime`
+  /// sebagai DETIK epoch, sedangkan PostgreSQL menyimpan sampai MIKRODETIK:
+  ///
+  /// ```
+  /// updated_at di server : 2026-09-04T10:04:11.430427+00:00
+  /// kalau lewat DateTime : 2026-09-04T10:04:11.000000   <- .430427 hilang
+  /// ```
+  ///
+  /// Watermark yang terpangkas selalu lebih kecil dari nilai aslinya, jadi
+  /// kueri `updated_at > watermark` terus-menerus mengambil ulang baris yang
+  /// sama di SETIAP sinkronisasi. Itu bukan cuma boros: digabung dengan
+  /// penimpaan baris lokal, baris `pending` yang belum terkirim ikut hancur —
+  /// persis penyebab gambar produk hilang setelah refresh.
+  ///
+  /// Nilai ini memang tidak pernah dipakai sebagai waktu, hanya dikirim balik
+  /// ke server sebagai penanda posisi. Menyimpannya sebagai teks sekaligus
+  /// menghilangkan konversi zona waktu yang tidak diperlukan.
+  TextColumn get lastPulledCursor => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {entity};
@@ -312,7 +331,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -566,6 +585,22 @@ class AppDatabase extends _$AppDatabase {
           if (from < 17 && to >= 17) {
             // v17 — buang dua kolom yang tidak lagi dipakai dari products.
             await m.alterTable(TableMigration(products));
+          }
+          if (from < 18 && to >= 18) {
+            // v18 — watermark sinkron disimpan sebagai teks, bukan DateTime.
+            //
+            // Tabel ini murni cache posisi tarikan; tidak ada data pengguna di
+            // dalamnya. Jadi dibuang dan dibuat ulang, bukan dikonversi —
+            // konversi hanya akan memindahkan nilai yang SUDAH terpangkas,
+            // yaitu nilai cacat yang justru mau dibuang.
+            //
+            // Akibatnya sinkronisasi berikutnya menarik satu kali penuh. Itu
+            // aman HANYA karena penimpaan baris `pending` sudah diperbaiki di
+            // rilis yang sama (lihat `SyncEngine.simpanDariServer`) — tanpa
+            // itu, tarikan penuh justru akan menghapus perubahan lokal yang
+            // belum terkirim di seluruh tabel.
+            await m.deleteTable('sync_state');
+            await m.createTable(syncState);
           }
         },
         beforeOpen: (details) async {

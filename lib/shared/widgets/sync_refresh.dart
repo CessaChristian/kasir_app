@@ -34,8 +34,13 @@ class SyncRefresh extends StatelessWidget {
         if (!context.mounted) return;
 
         if (hasil.berhasil) {
-          if (hasil.ditarik > 0) {
-            AppToast.success(context, '${hasil.ditarik} data diperbarui');
+          // Sengaja `berubah`, BUKAN `diperiksa`. Server mengirim setiap baris
+          // yang lebih baru dari penanda kita, dan sebagian ternyata sudah
+          // sama persis dengan yang tersimpan di sini. Memakai jumlah baris
+          // yang diterima membuat pengguna diberi tahu "12 data diperbarui"
+          // pada daftar yang sama sekali tidak berubah.
+          if (hasil.berubah > 0) {
+            AppToast.success(context, '${hasil.berubah} data diperbarui');
           } else if (hasil.didorong > 0) {
             AppToast.success(context, '${hasil.didorong} data terkirim');
           } else {

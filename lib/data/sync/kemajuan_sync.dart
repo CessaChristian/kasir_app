@@ -18,6 +18,14 @@ class KemajuanSync {
   final int baris;
   final int totalBaris;
 
+  /// Dari [baris] yang sudah diperiksa, berapa yang BENAR-BENAR mengubah isi
+  /// database lokal.
+  ///
+  /// Server mengirim setiap baris yang lebih baru dari penanda kita, dan
+  /// sebagian ternyata sudah sama persis dengan yang ada di sini. Angka inilah
+  /// yang jujur ditampilkan sebagai "diperbarui" — bukan [baris].
+  final int perubahan;
+
   const KemajuanSync({
     required this.tahap,
     required this.entitas,
@@ -25,6 +33,7 @@ class KemajuanSync {
     required this.totalEntitas,
     required this.baris,
     required this.totalBaris,
+    this.perubahan = 0,
   });
 
   /// Nama tabel dalam bahasa yang dimengerti pemilik warung.
