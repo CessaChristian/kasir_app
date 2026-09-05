@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app/app_shell.dart';
 import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
+import 'data/sync/sync_otomatis.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
 import 'shared/widgets/dialog_sync.dart';
@@ -36,10 +37,19 @@ void main() async {
   // Sinkron pertama dijalankan di latar belakang — TIDAK ditunggu.
   // Menunggunya berarti layar putih selama jaringan lambat, dan aplikasi
   // sudah punya seluruh datanya secara lokal.
+  // Dibaca sebelum runApp supaya label kesegaran data di halaman kasir tidak
+  // sempat berkedip "belum pernah disinkronkan" padahal sudah pernah.
+  await SyncService.instance.muatTerakhirBerhasil();
+
   unawaited(_sinkronAwal());
 
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
+
+  // Menyinkronkan sendiri setiap beberapa menit dan setiap kali aplikasi
+  // kembali aktif. Tanpa ini, perubahan harga dari HP pemilik baru sampai ke
+  // HP kasir kalau ada yang ingat menarik layar.
+  SyncOtomatis.instance.mulai();
 
   runApp(const MyApp());
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/db.dart';
+import '../../data/sync/sync_otomatis.dart';
+import '../../shared/widgets/label_sinkron.dart';
 import 'repositories/sales_repository.dart';
 import '../products/repositories/product_repository.dart';
 import '../../data/app_database.dart';
@@ -43,6 +45,24 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   String? _selectedCategoryId;
   String _searchQuery = '';
   final GlobalKey _cartIconKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Membuka halaman kasir adalah momen alami untuk memastikan harganya
+    // terbaru — jeda minimum di dalam penjadwal yang mencegah ini menembak
+    // berulang kali saat berpindah-pindah halaman.
+    SyncOtomatis.instance.picu('halaman kasir dibuka');
+  }
+
+  @override
+  void dispose() {
+    // Kalau tidak dibersihkan, meninggalkan halaman dengan keranjang berisi
+    // membuat penjadwal mengira pesanan masih disusun — dan sinkron otomatis
+    // berhenti selamanya.
+    SyncOtomatis.instance.sedangMenyusunPesanan = false;
+    super.dispose();
+  }
 
   bool _imageExists(String? path) {
     if (path == null || path.isEmpty) return false;
@@ -294,7 +314,14 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     setState(() => _cart.removeAt(index));
   }
 
-  void _clearCart() => setState(() => _cart.clear());
+  void _clearCart() {
+    setState(() => _cart.clear());
+    // Keranjang baru saja kosong — titik teraman untuk menyegarkan. Tanpa ini
+    // sinkron yang ditunda saat pesanan disusun bisa tertahan sepanjang jam
+    // ramai, karena keranjang nyaris tidak pernah kosong lebih dari sesaat.
+    SyncOtomatis.instance.sedangMenyusunPesanan = false;
+    SyncOtomatis.instance.lanjutkanYangTertunda();
+  }
 
   List<SaleLine> _cartToSaleLines() {
     return _cart.map((l) {
@@ -363,10 +390,23 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
+    // Ditetapkan di sini supaya SEMUA jalur perubahan keranjang tercakup —
+    // menambah, mengurangi, menghapus, membatalkan — tanpa perlu menyisipkan
+    // satu baris yang sama di enam tempat berbeda dan berisiko terlewat di
+    // salah satunya. Hanya penetapan bool, tidak memicu gambar ulang.
+    SyncOtomatis.instance.sedangMenyusunPesanan = _cart.isNotEmpty;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
+          // Seberapa segar datanya. Ditaruh paling atas di halaman kasir
+          // karena di sinilah harga basi merugikan uang sungguhan.
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: LabelSinkron(),
+          ),
+
           // Search Bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),

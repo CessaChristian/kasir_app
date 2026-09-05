@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
+import '../../../data/sync/sync_otomatis.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
@@ -199,6 +201,12 @@ class AuthRepository {
             userId: userId,
           ),
         );
+
+    // Awal kerja: pastikan kasir memulai dari daftar produk dan harga yang
+    // terbaru. Sengaja tidak ditunggu — shift tidak boleh gagal dibuka hanya
+    // karena jaringannya sedang mati.
+    unawaited(SyncOtomatis.instance.picu('shift dibuka', abaikanJeda: true));
+
     return shiftId;
   }
 

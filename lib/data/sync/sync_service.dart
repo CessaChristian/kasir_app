@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db.dart';
 import '../supabase/supabase_service.dart';
@@ -38,6 +39,33 @@ class SyncService {
   /// True selagi satu putaran sinkron berlangsung.
   bool get sedangJalan => _berjalan != null;
 
+  static const _kunciTerakhir = 'sync_terakhir_berhasil';
+
+  /// Kapan sinkronisasi terakhir BERHASIL, atau null kalau belum pernah.
+  ///
+  /// Dipakai untuk memberi tahu kasir seberapa segar datanya. Tanpa ini,
+  /// kegagalan sinkron sepenuhnya senyap: layar tetap menampilkan harga lama
+  /// dengan yakin, dan tidak ada yang menyadarinya sampai ada pelanggan
+  /// terlanjur dibayar dengan harga yang salah.
+  final ValueNotifier<DateTime?> terakhirBerhasil = ValueNotifier(null);
+
+  /// Baca penanda waktu yang tersimpan. Panggil sekali di `main()`.
+  ///
+  /// Disimpan di preferensi, bukan di database, supaya tidak perlu migrasi
+  /// skema hanya untuk satu penanda yang boleh hilang tanpa akibat.
+  Future<void> muatTerakhirBerhasil() async {
+    final p = await SharedPreferences.getInstance();
+    final teks = p.getString(_kunciTerakhir);
+    if (teks != null) terakhirBerhasil.value = DateTime.tryParse(teks);
+  }
+
+  Future<void> _catatBerhasil() async {
+    final sekarang = DateTime.now();
+    terakhirBerhasil.value = sekarang;
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kunciTerakhir, sekarang.toIso8601String());
+  }
+
   /// Jalankan satu putaran, atau ikut menunggu yang sedang berjalan.
   Future<HasilSync> jalankan() => _berjalan ??= _mulai();
 
@@ -47,8 +75,10 @@ class SyncService {
       // mati belum pernah punya sesi, dan tanpa percobaan ulang di sini ia
       // akan dianggap offline selamanya meski jaringannya sudah pulih.
       await SupabaseService.instance.pastikanTerhubung();
-      return await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k)
-          .jalankan();
+      final hasil =
+          await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
+      if (hasil.berhasil) await _catatBerhasil();
+      return hasil;
     } finally {
       _berjalan = null;
       kemajuan.value = null;
