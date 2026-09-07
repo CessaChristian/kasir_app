@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/db.dart';
 import '../../data/sync/sync_otomatis.dart';
+import '../../data/sync/sync_service.dart';
 import '../../shared/widgets/label_sinkron.dart';
 import 'repositories/sales_repository.dart';
 import '../products/repositories/product_repository.dart';
@@ -53,10 +54,24 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     // terbaru — jeda minimum di dalam penjadwal yang mencegah ini menembak
     // berulang kali saat berpindah-pindah halaman.
     SyncOtomatis.instance.picu('halaman kasir dibuka');
+    SyncService.instance.terakhirBerhasil.addListener(_sesudahSync);
+  }
+
+  /// Buang ingatan "gambar ini tidak ada" setiap kali sinkronisasi selesai.
+  ///
+  /// [_imageExistsCache] menyimpan hasil `File.existsSync()` supaya disk tidak
+  /// diperiksa setiap kali layar digambar ulang. Tapi sinkronisasi gambar
+  /// MENGUNDUH berkas baru — dan tanpa dibuang, jawaban "tidak ada" yang
+  /// terlanjur tersimpan membuat gambar yang baru saja sampai tetap tidak
+  /// muncul sampai halamannya dibuka ulang.
+  void _sesudahSync() {
+    if (!mounted || _imageExistsCache.isEmpty) return;
+    setState(_imageExistsCache.clear);
   }
 
   @override
   void dispose() {
+    SyncService.instance.terakhirBerhasil.removeListener(_sesudahSync);
     // Kalau tidak dibersihkan, meninggalkan halaman dengan keranjang berisi
     // membuat penjadwal mengira pesanan masih disusun — dan sinkron otomatis
     // berhenti selamanya.

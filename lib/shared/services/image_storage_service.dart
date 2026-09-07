@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
@@ -118,6 +119,22 @@ class ImageStorageService {
     }
 
     return p.join(subfolder, p.basename(hasil.path));
+  }
+
+  /// Objek [File] untuk path relatif, untuk diserahkan ke pengunggah.
+  Future<File> fileDari(String relatif) async => File(await lokasiPenuh(relatif));
+
+  /// Tulis gambar yang diunduh dari server ke lokasinya di [relatif].
+  ///
+  /// Dipakai sinkronisasi gambar: barisnya sudah sampai lebih dulu lewat sync
+  /// tabel, dan berkasnya menyusul. Foldernya dibuat kalau belum ada, karena
+  /// perangkat yang belum pernah menyimpan gambar sendiri belum punya
+  /// `products/`.
+  Future<void> simpanBytes(String relatif, Uint8List data) async {
+    final penuh = await lokasiPenuh(relatif);
+    final file = File(penuh);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(data, flush: true);
   }
 
   /// Hapus file gambar. Aman dipanggil untuk path yang sudah tidak ada.

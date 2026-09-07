@@ -5,6 +5,7 @@ import '../db.dart';
 import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
 import 'sync_engine.dart';
+import 'sync_gambar.dart';
 
 /// Pintu tunggal untuk menjalankan sinkronisasi dari mana pun di aplikasi.
 ///
@@ -77,8 +78,27 @@ class SyncService {
       await SupabaseService.instance.pastikanTerhubung();
       final hasil =
           await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
-      if (hasil.berhasil) await _catatBerhasil();
-      return hasil;
+      if (!hasil.berhasil) return hasil;
+
+      // Berkas gambar menyusul SETELAH barisnya selesai, dan kegagalannya
+      // tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
+      // bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
+      // belum sampai cuma berarti produknya tampil tanpa foto sementara.
+      final klien = SupabaseService.instance.client;
+      var lengkap = hasil;
+      if (klien != null) {
+        final g = await SyncGambar(db, klien,
+                onKemajuan: (k) => kemajuan.value = k)
+            .jalankan();
+        lengkap = hasil.denganGambar(
+          naik: g.diunggah,
+          turun: g.diunduh,
+          error: g.error,
+        );
+      }
+
+      await _catatBerhasil();
+      return lengkap;
     } finally {
       _berjalan = null;
       kemajuan.value = null;

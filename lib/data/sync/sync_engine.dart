@@ -22,21 +22,58 @@ class HasilSync {
   final int berubah;
 
   final int didorong;
+
+  /// Berkas gambar yang berpindah. Dipisah dari [berubah] karena sinkron
+  /// gambar berjalan sebagai tahap tersendiri dan boleh gagal sendirian.
+  final int gambarNaik;
+  final int gambarTurun;
+
+  /// Kegagalan sinkron BARIS. Kegagalan gambar tidak ditaruh di sini supaya
+  /// gambar yang gagal berpindah tidak membuat seluruh putaran dianggap gagal
+  /// — transaksinya sendiri sudah aman terkirim.
   final String? error;
+
+  /// Kegagalan sinkron GAMBAR, kalau ada.
+  final String? errorGambar;
 
   const HasilSync({
     this.diperiksa = 0,
     this.berubah = 0,
     this.didorong = 0,
+    this.gambarNaik = 0,
+    this.gambarTurun = 0,
     this.error,
+    this.errorGambar,
   });
 
   bool get berhasil => error == null;
 
+  /// Salin hasil ini sambil menambahkan hasil tahap gambar.
+  HasilSync denganGambar({
+    int naik = 0,
+    int turun = 0,
+    String? error,
+  }) =>
+      HasilSync(
+        diperiksa: diperiksa,
+        berubah: berubah,
+        didorong: didorong,
+        gambarNaik: naik,
+        gambarTurun: turun,
+        error: this.error,
+        errorGambar: error,
+      );
+
   @override
-  String toString() => berhasil
-      ? 'periksa $diperiksa, ubah $berubah, kirim $didorong'
-      : 'GAGAL: $error';
+  String toString() {
+    if (!berhasil) return 'GAGAL: $error';
+    final g = errorGambar != null
+        ? ', gambar GAGAL: $errorGambar'
+        : (gambarNaik > 0 || gambarTurun > 0)
+            ? ', gambar naik $gambarNaik turun $gambarTurun'
+            : '';
+    return 'periksa $diperiksa, ubah $berubah, kirim $didorong$g';
+  }
 }
 
 /// Satu tabel yang ikut disinkronkan.
@@ -152,7 +189,9 @@ class SyncEngine {
       tahap: tahap,
       entitas: entitas,
       entitasKe: urutan,
-      totalEntitas: _entitas.length,
+      // Termasuk tahap gambar yang dikerjakan SyncGambar setelah ini. Kalau
+      // dihitung 7 di sini lalu 8 di sana, bilah kemajuannya melompat mundur.
+      totalEntitas: KemajuanSync.totalTahap,
       baris: baris,
       totalBaris: total,
       perubahan: perubahan,
