@@ -91,6 +91,39 @@ void main() {
     expect(await berkas.ada('products/nyata.webp'), isTrue);
   });
 
+  test('BAHAYA: tabel produk kosong -> tidak boleh membuang apa pun', () async {
+    // Penghapusan diputuskan dengan membandingkan isi bucket terhadap daftar
+    // produk LOKAL. Kalau daftar itu kosong, kesimpulannya jadi "tidak ada satu
+    // pun berkas yang dirujuk" dan SELURUH isi bucket akan dibuang.
+    //
+    // Database lokal bisa kosong bukan hanya karena memang tidak ada produk:
+    // pemasangan baru sebelum tarikan pertama, atau database yang gagal dibuka
+    // dan dibuat ulang, sama-sama menghasilkan tabel kosong.
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+
+    expect(await mesin.bolehMembuang({}), isFalse,
+        reason: 'harganya beberapa berkas yatim yang tertinggal lebih lama; '
+            'taruhannya seluruh foto produk milik pengguna');
+  });
+
+  test('produk ada tapi semuanya tanpa gambar -> boleh membuang', () async {
+    // Bedanya dengan kasus di atas: di sini kita TAHU produknya sudah termuat,
+    // dan memang tidak ada satu pun yang memakai gambar. Berkas apa pun yang
+    // tersisa di server memang yatim.
+    await pasangProduk('Es Teh', null);
+    await pasangProduk('Kopi', null);
+
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+
+    expect(await mesin.bolehMembuang({}), isTrue);
+  });
+
+  test('ada rujukan -> boleh membuang', () async {
+    await pasangProduk('Kopi', 'products/a.webp');
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+    expect(await mesin.bolehMembuang({'products/a.webp'}), isTrue);
+  });
+
   test('path kosong tidak dianggap rujukan', () async {
     await pasangProduk('Aneh', '');
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);

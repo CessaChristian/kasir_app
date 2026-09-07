@@ -9,16 +9,22 @@ import 'kemajuan_sync.dart';
 class HasilSyncGambar {
   final int diunggah;
   final int diunduh;
+  final int dihapus;
   final String? error;
 
-  const HasilSyncGambar({this.diunggah = 0, this.diunduh = 0, this.error});
+  const HasilSyncGambar({
+    this.diunggah = 0,
+    this.diunduh = 0,
+    this.dihapus = 0,
+    this.error,
+  });
 
   bool get berhasil => error == null;
-  bool get adaPerubahan => diunggah > 0 || diunduh > 0;
+  bool get adaPerubahan => diunggah > 0 || diunduh > 0 || dihapus > 0;
 
   @override
   String toString() => berhasil
-      ? 'unggah $diunggah, unduh $diunduh'
+      ? 'unggah $diunggah, unduh $diunduh, hapus $dihapus'
       : 'GAGAL: $error';
 }
 
@@ -95,7 +101,17 @@ class SyncGambar {
         if (!await _berkas.ada(p)) turun.add(p);
       }
 
-      final total = naik.length + turun.length;
+      // Yang perlu DIBUANG: ada di server, tapi tidak ada satu pun baris yang
+      // menunjuknya — sisa dari produk yang fotonya sudah diganti.
+      //
+      // Aman dilakukan dari sini karena pembersihan berjalan SETELAH tarikan
+      // selesai, jadi daftar produk lokal sudah memuat perubahan dari
+      // perangkat lain.
+      final buang = await _bolehMembuangImpl(dirujuk)
+          ? diServer.difference(dirujuk).toList()
+          : <String>[];
+
+      final total = naik.length + turun.length + buang.length;
       if (total == 0) return const HasilSyncGambar();
 
       var selesai = 0;
@@ -123,7 +139,19 @@ class SyncGambar {
         _lapor(++selesai, total);
       }
 
-      return HasilSyncGambar(diunggah: diunggah, diunduh: diunduh);
+      var dihapus = 0;
+      if (buang.isNotEmpty) {
+        await _client.storage.from(bucket).remove(buang);
+        dihapus = buang.length;
+        selesai += buang.length;
+        _lapor(selesai, total);
+      }
+
+      return HasilSyncGambar(
+        diunggah: diunggah,
+        diunduh: diunduh,
+        dihapus: dihapus,
+      );
     } catch (e) {
       return HasilSyncGambar(error: e.toString());
     }
@@ -139,6 +167,33 @@ class SyncGambar {
       totalBaris: total,
       perubahan: baris,
     ));
+  }
+
+  /// Bolehkah membuang berkas yang tidak dirujuk siapa pun?
+  ///
+  /// ── KENAPA PENJAGA INI ADA ──
+  ///
+  /// Penghapusan diputuskan dengan membandingkan isi bucket terhadap daftar
+  /// produk LOKAL. Kalau daftar itu kosong, kesimpulannya jadi "tidak ada satu
+  /// pun berkas yang dirujuk" — dan seluruh isi bucket akan dibuang.
+  ///
+  /// Database lokal bisa kosong bukan hanya karena memang tidak ada produk:
+  /// pemasangan baru sebelum tarikan pertama, atau database yang gagal dibuka
+  /// dan dibuat ulang, sama-sama menghasilkan tabel kosong. Membedakan "tidak
+  /// ada produk" dari "produknya belum termuat" tidak mungkin dari sini.
+  ///
+  /// Maka kalau tabel produknya kosong, TIDAK ADA yang dibuang. Harganya cuma
+  /// beberapa berkas yatim yang tertinggal lebih lama; taruhannya seluruh foto
+  /// produk milik pengguna.
+  @visibleForTesting
+  Future<bool> bolehMembuang(Set<String> dirujuk) => _bolehMembuangImpl(dirujuk);
+
+  Future<bool> _bolehMembuangImpl(Set<String> dirujuk) async {
+    if (dirujuk.isNotEmpty) return true;
+    final jumlah = await _db.customSelect(
+      'SELECT COUNT(*) c FROM products',
+    ).getSingle();
+    return jumlah.read<int>('c') > 0;
   }
 
   /// Semua `image_path` yang masih dirujuk baris produk.

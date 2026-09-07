@@ -93,6 +93,7 @@ class SyncService {
         lengkap = hasil.denganGambar(
           naik: g.diunggah,
           turun: g.diunduh,
+          hapus: g.dihapus,
           error: g.error,
         );
       }

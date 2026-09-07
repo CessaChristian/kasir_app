@@ -53,16 +53,20 @@ on conflict (id) do update
 --  seperti pada tabel (lihat rls.sql): login staf diperiksa di dalam aplikasi,
 --  jadi server tidak tahu siapa yang sedang memegang HP.
 --
---  DELETE sengaja TIDAK diberikan. Berkas yatim — sisa gambar yang produknya
---  sudah diganti fotonya — memang akan menumpuk, tapi ukurannya puluhan KB dan
---  kuota gratisnya 1 GB. Menghapus berkas berdasarkan pandangan SATU perangkat
---  berisiko: perangkat lain yang lama tidak sinkron bisa saja masih memegang
---  baris yang menunjuk berkas itu. Pembersihan lebih cocok jadi tindakan
---  terpisah yang dijalankan sengaja, bukan efek samping sinkronisasi rutin.
+--  DELETE diberikan supaya berkas yatim — sisa gambar dari produk yang sudah
+--  diganti fotonya — ikut terbuang, bukan menumpuk selamanya.
+--
+--  Risikonya sudah ditimbang: menghapus berdasarkan pandangan SATU perangkat
+--  bisa membuang berkas yang perangkat lain masih pakai. Yang membuatnya aman
+--  di sini adalah pembersihan dijalankan SETELAH tarikan selesai, sehingga
+--  daftar produk lokal sudah memuat perubahan dari perangkat lain — dan
+--  aplikasi punya penjaga tambahan yang menolak menghapus apa pun kalau tabel
+--  produknya kosong (lihat SyncGambar).
 -- ---------------------------------------------------------------------
 drop policy if exists gambar_baca   on storage.objects;
 drop policy if exists gambar_tambah on storage.objects;
 drop policy if exists gambar_ubah   on storage.objects;
+drop policy if exists gambar_hapus  on storage.objects;
 
 create policy gambar_baca on storage.objects
   for select to authenticated
@@ -79,3 +83,7 @@ create policy gambar_ubah on storage.objects
   for update to authenticated
   using (bucket_id = 'product-images')
   with check (bucket_id = 'product-images');
+
+create policy gambar_hapus on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'product-images');
