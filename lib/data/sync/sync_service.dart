@@ -94,6 +94,7 @@ class SyncService {
           naik: g.diunggah,
           turun: g.diunduh,
           hapus: g.dihapus,
+          hapusLokal: g.dihapusLokal,
           error: g.error,
         );
       }

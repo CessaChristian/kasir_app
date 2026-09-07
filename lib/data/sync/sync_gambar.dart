@@ -9,22 +9,34 @@ import 'kemajuan_sync.dart';
 class HasilSyncGambar {
   final int diunggah;
   final int diunduh;
+
+  /// Berkas yatim yang dibuang dari server.
   final int dihapus;
+
+  /// Berkas yatim yang dibuang dari penyimpanan perangkat ini.
+  ///
+  /// Dihitung terpisah karena angkanya memang berbeda: perangkat yang MENGGANTI
+  /// foto sudah membuang berkas lamanya saat penyimpanan, sedangkan perangkat
+  /// lain baru membuangnya di sini.
+  final int dihapusLokal;
+
   final String? error;
 
   const HasilSyncGambar({
     this.diunggah = 0,
     this.diunduh = 0,
     this.dihapus = 0,
+    this.dihapusLokal = 0,
     this.error,
   });
 
   bool get berhasil => error == null;
-  bool get adaPerubahan => diunggah > 0 || diunduh > 0 || dihapus > 0;
+  bool get adaPerubahan =>
+      diunggah > 0 || diunduh > 0 || dihapus > 0 || dihapusLokal > 0;
 
   @override
   String toString() => berhasil
-      ? 'unggah $diunggah, unduh $diunduh, hapus $dihapus'
+      ? 'unggah $diunggah, unduh $diunduh, hapus $dihapus/$dihapusLokal'
       : 'GAGAL: $error';
 }
 
@@ -107,11 +119,27 @@ class SyncGambar {
       // Aman dilakukan dari sini karena pembersihan berjalan SETELAH tarikan
       // selesai, jadi daftar produk lokal sudah memuat perubahan dari
       // perangkat lain.
-      final buang = await _bolehMembuangImpl(dirujuk)
-          ? diServer.difference(dirujuk).toList()
+      final boleh = await _bolehMembuangImpl(dirujuk);
+
+      // Yang perlu DIBUANG DI SERVER: ada di sana, tapi tidak ada satu pun
+      // baris yang menunjuknya — sisa dari produk yang fotonya sudah diganti.
+      //
+      // Aman dilakukan dari sini karena pembersihan berjalan SETELAH tarikan
+      // selesai, jadi daftar produk lokal sudah memuat perubahan dari
+      // perangkat lain.
+      final buang = boleh ? diServer.difference(dirujuk).toList() : <String>[];
+
+      // Yang perlu DIBUANG DI SINI. Perangkat yang mengganti foto sudah
+      // membuang berkas lamanya saat menyimpan, tapi perangkat LAIN tidak —
+      // mereka mengunduh yang baru dan menyimpan yang lama selamanya. Tanpa
+      // pembersihan ini, penyimpanan HP kasir terus membengkak oleh foto yang
+      // tidak akan pernah ditampilkan lagi.
+      final buangLokal = boleh
+          ? (await _berkas.daftarBerkas()).difference(dirujuk).toList()
           : <String>[];
 
-      final total = naik.length + turun.length + buang.length;
+      final total =
+          naik.length + turun.length + buang.length + buangLokal.length;
       if (total == 0) return const HasilSyncGambar();
 
       var selesai = 0;
@@ -147,10 +175,16 @@ class SyncGambar {
         _lapor(selesai, total);
       }
 
+      for (final p in buangLokal) {
+        await _berkas.hapus(p);
+        _lapor(++selesai, total);
+      }
+
       return HasilSyncGambar(
         diunggah: diunggah,
         diunduh: diunduh,
         dihapus: dihapus,
+        dihapusLokal: buangLokal.length,
       );
     } catch (e) {
       return HasilSyncGambar(error: e.toString());

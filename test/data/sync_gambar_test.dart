@@ -124,6 +124,51 @@ void main() {
     expect(await mesin.bolehMembuang({'products/a.webp'}), isTrue);
   });
 
+  test('daftarBerkas melihat isi disk apa adanya', () async {
+    expect(await berkas.daftarBerkas(), isEmpty,
+        reason: 'folder belum ada -> himpunan kosong, bukan melempar');
+
+    await berkas.simpanBytes('products/a.webp', Uint8List.fromList([1]));
+    await berkas.simpanBytes('products/b.webp', Uint8List.fromList([2]));
+
+    expect(await berkas.daftarBerkas(), {'products/a.webp', 'products/b.webp'},
+        reason: 'bentuknya harus sama dengan isi products.image_path supaya '
+            'bisa langsung dibandingkan');
+  });
+
+  test('berkas lokal yang masih dirujuk TIDAK boleh terhapus', () async {
+    // Penjaga terpenting dari pembersihan lokal: yang dibuang hanya yang
+    // benar-benar tidak dipakai. Salah sedikit di sini berarti foto produk
+    // yang masih aktif lenyap dari HP.
+    await berkas.simpanBytes('products/dipakai.webp', Uint8List.fromList([1]));
+    await berkas.simpanBytes('products/yatim.webp', Uint8List.fromList([2]));
+    await pasangProduk('Kopi', 'products/dipakai.webp');
+
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+    final dirujuk = await mesin.pathDirujuk();
+    final diDisk = await berkas.daftarBerkas();
+
+    expect(diDisk.difference(dirujuk), {'products/yatim.webp'},
+        reason: 'hanya yang tidak dirujuk yang boleh masuk daftar buang');
+  });
+
+  test('berkas milik produk terhapus lunak TIDAK ikut dibuang', () async {
+    // Riwayat transaksi lama masih menampilkan produknya, dan penghapusan
+    // lunak bisa dibatalkan.
+    await berkas.simpanBytes('products/lama.webp', Uint8List.fromList([1]));
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          name: 'Kopi Lama',
+          price: 5000,
+          imagePath: const Value('products/lama.webp'),
+          deletedAt: Value(DateTime.now()),
+        ));
+
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+    final dirujuk = await mesin.pathDirujuk();
+
+    expect((await berkas.daftarBerkas()).difference(dirujuk), isEmpty);
+  });
+
   test('path kosong tidak dianggap rujukan', () async {
     await pasangProduk('Aneh', '');
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);

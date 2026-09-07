@@ -28,6 +28,7 @@ class HasilSync {
   final int gambarNaik;
   final int gambarTurun;
   final int gambarDihapus;
+  final int gambarDihapusLokal;
 
   /// Kegagalan sinkron BARIS. Kegagalan gambar tidak ditaruh di sini supaya
   /// gambar yang gagal berpindah tidak membuat seluruh putaran dianggap gagal
@@ -44,6 +45,7 @@ class HasilSync {
     this.gambarNaik = 0,
     this.gambarTurun = 0,
     this.gambarDihapus = 0,
+    this.gambarDihapusLokal = 0,
     this.error,
     this.errorGambar,
   });
@@ -55,6 +57,7 @@ class HasilSync {
     int naik = 0,
     int turun = 0,
     int hapus = 0,
+    int hapusLokal = 0,
     String? error,
   }) =>
       HasilSync(
@@ -64,6 +67,7 @@ class HasilSync {
         gambarNaik: naik,
         gambarTurun: turun,
         gambarDihapus: hapus,
+        gambarDihapusLokal: hapusLokal,
         error: this.error,
         errorGambar: error,
       );
@@ -73,9 +77,12 @@ class HasilSync {
     if (!berhasil) return 'GAGAL: $error';
     final g = errorGambar != null
         ? ', gambar GAGAL: $errorGambar'
-        : (gambarNaik > 0 || gambarTurun > 0 || gambarDihapus > 0)
+        : (gambarNaik > 0 ||
+                gambarTurun > 0 ||
+                gambarDihapus > 0 ||
+                gambarDihapusLokal > 0)
             ? ', gambar naik $gambarNaik turun $gambarTurun '
-                'hapus $gambarDihapus'
+                'hapus $gambarDihapus server / $gambarDihapusLokal lokal'
             : '';
     return 'periksa $diperiksa, ubah $berubah, kirim $didorong$g';
   }

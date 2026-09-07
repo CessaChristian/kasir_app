@@ -137,6 +137,23 @@ class ImageStorageService {
     await file.writeAsBytes(data, flush: true);
   }
 
+  /// Semua berkas gambar yang ada di disk, sebagai path RELATIF.
+  ///
+  /// Bentuknya sengaja sama dengan isi `products.image_path`, supaya bisa
+  /// langsung dibandingkan tanpa perlu menyusun ulang prefiks di pemanggil.
+  /// Folder yang belum ada mengembalikan himpunan kosong, bukan melempar —
+  /// perangkat yang belum pernah menyimpan gambar memang belum punya
+  /// foldernya.
+  Future<Set<String>> daftarBerkas({String subfolder = folderProduk}) async {
+    final dasar = await _folderDasar();
+    final folder = Directory(p.join(dasar.path, subfolder));
+    if (!folder.existsSync()) return {};
+    return {
+      for (final f in folder.listSync())
+        if (f is File) p.join(subfolder, p.basename(f.path)),
+    };
+  }
+
   /// Hapus file gambar. Aman dipanggil untuk path yang sudah tidak ada.
   Future<void> hapus(String relatif) async {
     final penuh = await lokasiPenuh(relatif);
