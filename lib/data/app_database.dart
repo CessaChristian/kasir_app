@@ -331,7 +331,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -602,6 +602,21 @@ class AppDatabase extends _$AppDatabase {
             await m.deleteTable('sync_state');
             await m.createTable(syncState);
           }
+          if (from < 19 && to >= 19) {
+            // v19 — buang dua izin peninggalan arsitektur multi-bisnis.
+            //
+            // `manage_business` dan `switch_business` mengatur pemilihan usaha
+            // aktif. Arsitektur itu sudah dihapus seluruhnya di v13, tapi baris
+            // seed-nya tertinggal — jadi setiap pemasangan masih menyemai dua
+            // izin yang tidak menjaga apa pun dan tidak bisa dipakai.
+            //
+            // Baris di `user_permissions` yang menunjuk keduanya ikut terbuang
+            // sendiri lewat ON DELETE CASCADE.
+            await customStatement(
+              "DELETE FROM permissions "
+              "WHERE code IN ('manage_business','switch_business')",
+            );
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -679,16 +694,6 @@ class AppDatabase extends _$AppDatabase {
         'code': 'view_all_shifts',
         'name': 'View All Shifts',
         'description': 'Ability to view shift data from all users'
-      },
-      {
-        'code': 'manage_business',
-        'name': 'Manage Business',
-        'description': 'Ability to create or edit business settings'
-      },
-      {
-        'code': 'switch_business',
-        'name': 'Switch Business',
-        'description': 'Ability to switch active business from UI'
       },
     ];
 

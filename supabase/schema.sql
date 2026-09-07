@@ -172,9 +172,20 @@ create index idx_expenses_shift            on public.expenses(shift_id);
 --  dan bisa dibaca siapa saja — RLS adalah satu-satunya yang berdiri di
 --  antara data ini dan internet.
 --
---  Untuk tahap uji coba sync, aturannya sengaja LONGGAR: cukup "sudah
---  login". Pengetatan per peran (POS hanya boleh tulis transaksi, owner
---  hanya boleh baca laporan) menyusul setelah bentuk fiturnya final.
+--  BERKAS INI TIDAK MEMBUAT SATU POLICY PUN. Ia hanya menyalakan RLS,
+--  sehingga tabel yang baru dibuat menolak SEMUA akses sampai
+--  `supabase/rls.sql` dijalankan.
+--
+--  Sengaja begitu. Sebelumnya di sini ada policy sementara `spike_*`
+--  berbunyi `using (true) with check (true)` — siapa pun yang berhasil
+--  login boleh melakukan apa saja. Kalau policy itu dibiarkan di berkas
+--  skema, setiap pemasangan baru akan lahir dalam keadaan terbuka, dan
+--  lupa menjalankan pengetatannya tidak menimbulkan gejala apa pun sampai
+--  ada yang menyalahgunakannya.
+--
+--  Gagal-tertutup lebih baik: kalau rls.sql terlupa, aplikasinya langsung
+--  tidak bisa membaca apa-apa dan kelalaian itu ketahuan dalam hitungan
+--  detik, bukan bulan.
 -- =====================================================================
 alter table public.users             enable row level security;
 alter table public.permissions       enable row level security;
@@ -186,15 +197,6 @@ alter table public.transactions      enable row level security;
 alter table public.transaction_items enable row level security;
 alter table public.expenses          enable row level security;
 
-do $$
-declare t text;
-begin
-  foreach t in array array[
-    'users','permissions','user_permissions','categories','products',
-    'shifts','transactions','transaction_items','expenses'
-  ] loop
-    execute format(
-      'create policy %I on public.%I for all to authenticated using (true) with check (true)',
-      'spike_'||t, t);
-  end loop;
-end $$;
+-- LANGKAH BERIKUTNYA YANG WAJIB: jalankan `supabase/rls.sql`.
+-- Tanpa itu, RLS menyala tanpa satu pun policy dan seluruh tabel menolak
+-- akses — termasuk dari aplikasi yang sah.

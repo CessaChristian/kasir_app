@@ -75,17 +75,10 @@ Halaman khusus (gaya Kasir Pintar Pro) untuk **memantau shift kasir**:
 > data shift kasir sampai **sinkronisasi** aktif. Halaman ini otomatis benar
 > begitu sync jalan.
 
-## Manajemen (owner) — `features/owner`, `features/business`, `features/settings`
+## Manajemen (owner) — `features/owner`
 
 - **Kelola Kasir** (`manage_cashiers`) — tambah/nonaktifkan kasir, atur izin per
   kasir, ganti PIN.
-- **Business** (`manage_business`) — daftar & detail usaha, edit profil
-  (alamat/telepon/logo). Nama usaha *hardcode* (tidak bisa diubah dari UI).
-- **Mode Device** (`manage_business`) — kunci device ke 1 usaha ("Cashier
-  Mode").
-- **Berpindah usaha** — lewat `BusinessSwitcher` di app bar (`switch_business`).
-  Saat owner/kasir pindah usaha, `BusinessSwitchService` menutup shift lama &
-  membuka shift baru bila perlu.
 
 ---
 

@@ -130,19 +130,28 @@ Setiap tabel data bisnis memakai pola yang sama:
 Detail lengkap: [database-schema.md](database-schema.md).
 
 ### d. Izin (permission) — 2 lapis
-Ada dua mekanisme cek izin (peninggalan evolusi menuju multi-business):
+Ada dua mekanisme cek izin yang berdampingan:
 
-1. **Global** — `SessionManager.hasPermission(code)`. Owner selalu `true`; kasir
-   sesuai daftar izin yang diaktifkan di DB (`user_permissions`). Dipakai untuk
-   memfilter menu drawer & sebagai penjaga di lapisan DB (`requirePermission`).
-2. **Kontekstual per-usaha** — `SessionManager.hasCurrentPermission(code)`.
-   Berdasar **role user di usaha aktif** (di-cache dari `user_business_roles`)
-   dicocokkan ke matriks role (`_rolePermissions`). Dipakai fitur yang terkait
-   usaha aktif (mis. `manage_business`, `view_all_shifts`).
+1. **Per-user** — `SessionManager.hasPermission(code)`. Owner selalu `true`;
+   kasir sesuai daftar izin yang diaktifkan di DB (`user_permissions`). Dipakai
+   untuk memfilter menu drawer & sebagai penjaga di lapisan DB
+   (`requirePermission`).
+2. **Per-role** — `SessionManager.hasCurrentPermission(code)`. Berdasar
+   `users.role` dicocokkan ke matriks tetap `_rolePermissions`.
 
-> Keduanya masih berdampingan saat ini. Kalau menambah pengecekan izin baru,
-> ikuti pola fitur sejenis yang sudah ada, dan lihat daftar kode izin di
-> [database-schema.md](database-schema.md).
+> Namanya menyesatkan: `hasCurrentPermission` dulu berarti "izin di usaha yang
+> sedang aktif", dibaca dari `user_business_roles`. Arsitektur multi-usaha
+> dihapus di v13 dan role kini hanya ada di satu tempat (`users.role`), tapi
+> nama fungsinya belum ikut diganti.
+
+> **Arah ke depan:** izin per-user akan diganti kapabilitas paten per role,
+> sehingga lapis pertama hilang dan tabel `user_permissions` ikut dibuang.
+> Sampai itu terjadi, JANGAN memakai izin sebagai tebakan role —
+> `hasPermission('manage_products')` TIDAK berarti "ini owner"; pakai
+> `SessionManager.isOwner`. Bug nyata pernah lahir dari situ.
+
+> Kalau menambah pengecekan izin baru, ikuti pola fitur sejenis yang sudah ada,
+> dan lihat daftar kode izin di [database-schema.md](database-schema.md).
 
 ### e. Keamanan
 - **PIN**: di-hash **PBKDF2-HMAC-SHA256, 120.000 iterasi** + salt acak, dengan

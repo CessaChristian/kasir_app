@@ -113,8 +113,6 @@ Di-*seed* lewat `_seedPermissions()` saat database dibuat:
 | `delete_own_transaction` / `delete_any_transaction` | Hapus transaksi sendiri / siapa pun |
 | `view_shift_reports` | Buka halaman Pantau Shift |
 | `view_all_shifts` | Lihat shift semua kasir (bukan hanya sendiri) |
-| `manage_business` | Kelola pengaturan usaha |
-| `switch_business` | Berpindah usaha aktif |
 
 Owner otomatis mendapat semua izin. Izin kasir diatur owner lewat halaman
 **Kelola Kasir → atur izin**.

@@ -154,7 +154,7 @@ class SessionManager {
       'view_all_expenses', 'edit_own_expense', 'edit_any_expense',
       'delete_own_transaction', 'delete_any_transaction',
       'view_shift_reports', 'view_all_shifts',
-      'manage_business', 'manage_cashiers', 'switch_business',
+      'manage_cashiers',
       // Existing permissions (backward compat)
       'open_close_shift', 'create_transaction', 'view_history', 'view_report',
     },
