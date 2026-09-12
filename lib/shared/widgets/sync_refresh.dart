@@ -46,6 +46,14 @@ class SyncRefresh extends StatelessWidget {
           } else {
             AppToast.info(context, 'Sudah yang terbaru');
           }
+        } else if (hasil.sebagian) {
+          // Sebagian tabel berhasil, sebagian tidak. Menyebutnya "gagal" saja
+          // keliru — data yang lolos memang sudah tersimpan — dan menyebutnya
+          // berhasil lebih keliru lagi.
+          AppToast.warning(
+            context,
+            'Sebagian data belum tersinkron — akan dicoba lagi',
+          );
         } else {
           // Offline bukan kesalahan pengguna: transaksinya tetap tersimpan
           // dan akan terkirim sendiri saat jaringan kembali.

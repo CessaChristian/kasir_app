@@ -72,9 +72,20 @@ class HasilSync {
         errorGambar: error,
       );
 
+  /// Ada yang berhasil walau ada juga yang gagal.
+  ///
+  /// Dulu tidak ada keadaan ini: satu kegagalan membatalkan seluruh putaran,
+  /// jadi hasilnya hanya "berhasil semua" atau "gagal semua". Sekarang tabel
+  /// yang sehat tetap terkirim, dan pengguna berhak diberi tahu yang mana
+  /// yang tidak.
+  bool get sebagian => !berhasil && (berubah > 0 || didorong > 0);
+
   @override
   String toString() {
-    if (!berhasil) return 'GAGAL: $error';
+    if (!berhasil) {
+      final n = berubah + didorong;
+      return n > 0 ? 'SEBAGIAN ($n lolos): $error' : 'GAGAL: $error';
+    }
     final g = errorGambar != null
         ? ', gambar GAGAL: $errorGambar'
         : (gambarNaik > 0 ||
@@ -86,6 +97,21 @@ class HasilSync {
             : '';
     return 'periksa $diperiksa, ubah $berubah, kirim $didorong$g';
   }
+}
+
+/// Dorongan satu tabel yang lolos sebagian.
+///
+/// Membawa jumlah yang BERHASIL terkirim, supaya baris sehat tetap terhitung
+/// walau ada baris beracun di tabel yang sama.
+class _GagalSebagian implements Exception {
+  final String tabel;
+  final int terkirim;
+  final Object penyebab;
+
+  _GagalSebagian(this.tabel, this.terkirim, this.penyebab);
+
+  @override
+  String toString() => penyebab.toString();
 }
 
 /// Satu tabel yang ikut disinkronkan.
@@ -171,28 +197,53 @@ class SyncEngine {
     if (!_supabase.online) {
       return const HasilSync(error: 'offline atau perangkat belum didaftarkan');
     }
+    var diperiksa = 0;
+    var berubah = 0;
+    var didorong = 0;
+    final gagal = <String>[];
+
+    // ── TARIK ──
+    //
+    // Berhenti di kegagalan PERTAMA, dan itu disengaja. Urutannya induk
+    // sebelum anak karena foreign key ditegakkan di database LOKAL: menulis
+    // `transaction_items` setelah `products` gagal ditarik akan melanggar FK
+    // dan menggagalkan barisnya satu per satu dengan pesan yang tidak ada
+    // hubungannya dengan penyebab sebenarnya.
+    //
+    // Tarik dulu semuanya, baru dorong. Mendorong lebih dulu bisa menimpa
+    // perubahan server yang belum sempat dilihat perangkat ini.
     try {
-      var diperiksa = 0;
-      var berubah = 0;
-      // Tarik dulu semuanya, baru dorong. Mendorong lebih dulu bisa menimpa
-      // perubahan server yang belum sempat dilihat perangkat ini.
       for (var i = 0; i < _entitas.length; i++) {
         final h = await _tarik(_entitas[i], i + 1);
         diperiksa += h.$1;
         berubah += h.$2;
       }
-      var didorong = 0;
-      for (var i = 0; i < _entitas.length; i++) {
-        didorong += await _dorong(_entitas[i], i + 1);
-      }
-      return HasilSync(
-        diperiksa: diperiksa,
-        berubah: berubah,
-        didorong: didorong,
-      );
     } catch (e) {
-      return HasilSync(error: e.toString());
+      gagal.add('tarik: $e');
     }
+
+    // ── DORONG ──
+    //
+    // Dijalankan MESKIPUN tarikan gagal. Ini pembalikan yang disengaja dari
+    // perilaku lama, dan alasannya soal apa yang bisa hilang: data server yang
+    // belum terbaca masih aman tersimpan di server, sedangkan transaksi yang
+    // belum terkirim HANYA ada di HP ini. Membatalkan pengiriman gara-gara
+    // pembacaan gagal berarti mempertaruhkan yang tidak punya salinan demi
+    // yang punya.
+    //
+    // Per tabel pula: tidak ada alasan `expenses` ikut mati karena `shifts`
+    // bermasalah. Anak yang gagal karena induknya belum naik pun tidak apa —
+    // barisnya tetap `pending` dan ikut lagi di putaran berikutnya.
+    final h = await _dorongSemua();
+    didorong += h.$1;
+    gagal.addAll(h.$2);
+
+    return HasilSync(
+      diperiksa: diperiksa,
+      berubah: berubah,
+      didorong: didorong,
+      error: gagal.isEmpty ? null : gagal.join(' | '),
+    );
   }
 
   void _lapor(String tahap, String entitas, int urutan, int baris, int total,
@@ -376,6 +427,30 @@ class SyncEngine {
   static int _mikro(String iso) =>
       DateTime.parse(iso).microsecondsSinceEpoch;
 
+  /// Mendorong SEMUA tabel. Mengembalikan (jumlah terkirim, daftar gagal).
+  ///
+  /// Satu tabel yang gagal tidak menghentikan yang lain. Anak yang ditolak
+  /// karena induknya belum naik pun tidak apa — barisnya tetap `pending` dan
+  /// ikut lagi di putaran berikutnya.
+  @visibleForTesting
+  Future<(int, List<String>)> dorongSemua() => _dorongSemua();
+
+  Future<(int, List<String>)> _dorongSemua() async {
+    var didorong = 0;
+    final gagal = <String>[];
+    for (var i = 0; i < _entitas.length; i++) {
+      try {
+        didorong += await _dorong(_entitas[i], i + 1);
+      } on _GagalSebagian catch (g) {
+        didorong += g.terkirim;
+        gagal.add('${g.tabel}: ${g.penyebab}');
+      } catch (e) {
+        gagal.add('${_entitas[i].nama}: $e');
+      }
+    }
+    return (didorong, gagal);
+  }
+
   Future<int> _dorong(_Entitas e, int urutan) async {
     final tertunda = await e.ambilTertunda();
     _lapor('mengirim', e.nama, urutan, 0, tertunda.length);
@@ -385,15 +460,81 @@ class SyncEngine {
     // melewati batas ukuran badan permintaan, dan kalau gagal seluruhnya
     // harus diulang dari nol.
     const ukuranPotongan = 100;
+    var terkirim = 0;
+    Object? galatTerakhir;
+
     for (var i = 0; i < tertunda.length; i += ukuranPotongan) {
       final potongan = tertunda.skip(i).take(ukuranPotongan).toList();
-      await _supabase.client!.from(e.nama).upsert(potongan);
-      await e.tandaiTerkirim(
-          [for (final r in potongan) r['id'] as String]);
+      try {
+        await _kirim(e, potongan);
+        terkirim += potongan.length;
+      } catch (_) {
+        // Potongan ditolak. Bisa jadi SELURUH isinya bermasalah, tapi jauh
+        // lebih sering cuma SATU baris — dan 99 baris sehat lainnya ikut
+        // tertahan tanpa sebab.
+        //
+        // Ini bukan dugaan: pernah terjadi di project ini, 78 baris
+        // berformat ID lama ditolak dengan
+        // `invalid input syntax for type uuid`, dan tabelnya macet setiap
+        // sync karena baris sehat di potongan yang sama tidak pernah lolos.
+        //
+        // Maka potongan yang gagal dipecah dan dicoba satu per satu. Hanya
+        // berjalan saat gagal, jadi jalur normal tidak ikut melambat.
+        final h = await _kirimSatuSatu(e, potongan);
+        terkirim += h.$1;
+        galatTerakhir ??= h.$2;
+      }
       _lapor('mengirim', e.nama, urutan,
           (i + potongan.length).clamp(0, tertunda.length), tertunda.length);
     }
-    return tertunda.length;
+
+    // Baris yang tetap ditolak SENGAJA dibiarkan `pending`, jadi ia dicoba
+    // lagi di sinkronisasi berikutnya. Menyerah diam-diam pada data transaksi
+    // jauh lebih berbahaya daripada berisik — dan biayanya terukur kecil:
+    // satu permintaan ~266 byte per baris beracun per putaran, karena baris
+    // sehat sudah lolos lewat percobaan satu per satu di atas.
+    if (galatTerakhir != null) {
+      throw _GagalSebagian(e.nama, terkirim, galatTerakhir);
+    }
+    return terkirim;
+  }
+
+  /// Pengganti pengirim untuk test.
+  ///
+  /// Perilaku yang paling penting di sini justru muncul saat GAGAL — baris
+  /// beracun, tabel yang ditolak, potongan yang separuh lolos. Semuanya
+  /// mustahil dipicu lewat server sungguhan tanpa merusak data, jadi jalur
+  /// pengirimannya dibuat bisa diganti.
+  @visibleForTesting
+  Future<void> Function(String tabel, List<Map<String, dynamic>> baris)?
+      pengirimUntukTest;
+
+  Future<void> _kirim(_Entitas e, List<Map<String, dynamic>> baris) async {
+    final pengganti = pengirimUntukTest;
+    if (pengganti != null) {
+      await pengganti(e.nama, baris);
+    } else {
+      await _supabase.client!.from(e.nama).upsert(baris);
+    }
+    await e.tandaiTerkirim([for (final r in baris) r['id'] as String]);
+  }
+
+  /// Mengembalikan (berapa yang lolos, galat pertama yang ditemui).
+  Future<(int, Object?)> _kirimSatuSatu(
+    _Entitas e,
+    List<Map<String, dynamic>> potongan,
+  ) async {
+    var lolos = 0;
+    Object? galat;
+    for (final baris in potongan) {
+      try {
+        await _kirim(e, [baris]);
+        lolos++;
+      } catch (err) {
+        galat ??= err;
+      }
+    }
+    return (lolos, galat);
   }
 
   /// Tandai baris sudah terkirim.
