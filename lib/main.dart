@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -10,6 +11,7 @@ import 'data/sync/sync_otomatis.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
 import 'shared/widgets/dialog_sync.dart';
+import 'shared/widgets/layar_build_salah.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -45,6 +47,18 @@ void main() async {
 
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
+
+  // APK release tanpa kredensial perangkat tidak akan pernah bisa login ke
+  // server. Ia tetap berjalan mulus dan diam — itulah bahayanya. Dihentikan
+  // di sini supaya ketahuan detik pertama, bukan seminggu kemudian saat
+  // pemilik menemukan HP-nya kosong.
+  //
+  // Build debug sengaja dikecualikan: menggarap tampilan tanpa server itu
+  // wajar dan sering.
+  if (kReleaseMode && !SupabaseConfig.adaKredensialPerangkat) {
+    runApp(const LayarBuildSalah());
+    return;
+  }
 
   // Menyinkronkan sendiri setiap beberapa menit dan setiap kali aplikasi
   // kembali aktif. Tanpa ini, perubahan harga dari HP pemilik baru sampai ke
