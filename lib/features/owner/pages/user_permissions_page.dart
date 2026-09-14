@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../data/db.dart';
 import '../../../data/app_database.dart';
+import '../../../data/sync/sync_service.dart';
+import '../../../shared/widgets/dialog_sync.dart';
 import '../../auth/repositories/permission_repository.dart';
 import '../../../shared/widgets/app_toast.dart';
 
@@ -61,8 +63,36 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
       );
 
       if (!mounted) return;
-      
-      AppToast.success(context, 'Akses kasir berhasil diperbarui');
+
+      // Kirim SEKARANG, jangan menunggu putaran otomatis berikutnya.
+      //
+      // Menyimpan saja sudah cukup untuk tidak kehilangan data — barisnya
+      // mengantre dengan `sync_status = 'pending'` dan pasti terkirim. Tapi
+      // putaran otomatis berjalan tiap lima menit, jadi HP kasir bisa selama
+      // itu belum tahu izinnya berubah. Bagi pemilik yang baru saja menekan
+      // Simpan dan melihat "berhasil", jeda itu tidak masuk akal: ia mengira
+      // sudah selesai, lalu kasirnya bilang tombolnya belum muncul.
+      //
+      // Ditunggu, bukan dilepas begitu saja, supaya pesan yang muncul
+      // menyatakan keadaan yang SEBENARNYA — bukan menebak.
+      final hasil = await DialogSync.tampilkanSelama(
+        context,
+        SyncService.instance.jalankan,
+      );
+
+      if (!mounted) return;
+
+      if (hasil.berhasil) {
+        AppToast.success(context, 'Akses kasir diperbarui & terkirim');
+      } else {
+        // Jangan sebut ini gagal. Perubahannya sudah tersimpan dan pasti
+        // terkirim begitu jaringan kembali — menyebutnya gagal justru membuat
+        // pemilik mengulang hal yang sudah berhasil.
+        AppToast.warning(
+          context,
+          'Tersimpan — akan terkirim ke HP kasir saat online',
+        );
+      }
 
       Navigator.pop(context);
     } catch (e) {
