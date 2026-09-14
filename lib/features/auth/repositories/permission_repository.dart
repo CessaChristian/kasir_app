@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
+import '../../../data/uuid_helper.dart';
 
 /// Repository for managing user permissions
 class PermissionRepository {
@@ -31,11 +32,18 @@ class PermissionRepository {
     required String permissionCode,
     required bool enabled,
   }) async {
+    // `id` turunan, bukan acak: identitas baris ini adalah pasangan
+    // (user, izin) itu sendiri. Kalau acak, HP owner dan HP kasir yang
+    // sama-sama menyetel izin yang sama menghasilkan dua baris berbeda, dan
+    // yang kedua ditolak batasan unik lalu tertahan selamanya saat sync.
     await _db.into(_db.userPermissions).insertOnConflictUpdate(
           UserPermissionsCompanion.insert(
+            id: uuidTurunan('$userId:$permissionCode'),
             userId: userId,
             permissionCode: permissionCode,
             enabled: Value(enabled),
+            updatedAt: Value(DateTime.now()),
+            syncStatus: const Value('pending'),
           ),
         );
   }

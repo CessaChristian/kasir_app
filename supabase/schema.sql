@@ -51,11 +51,23 @@ create table public.permissions (
   description text not null
 );
 
+-- Kunci primernya `id` tunggal, bukan pasangan (user_id, permission_code),
+-- supaya tabel ini cocok dengan mesin sinkronisasi yang mengandalkan satu
+-- kolom id. Pasangannya tetap dijaga UNIK.
+--
+-- `id` dihasilkan aplikasi secara TURUNAN dari pasangan itu, bukan acak:
+-- setiap perangkat membuat barisnya sendiri, dan id acak menghasilkan dua
+-- baris berbeda untuk pasangan yang sama — yang kedua ditolak batasan unik
+-- lalu tertahan selamanya tanpa sebab yang terlihat.
 create table public.user_permissions (
-  user_id         uuid    not null references public.users(id) on delete cascade,
-  permission_code text    not null references public.permissions(code) on delete cascade,
-  enabled         boolean not null default false,
-  primary key (user_id, permission_code)
+  id              uuid        primary key default gen_random_uuid(),
+  user_id         uuid        not null references public.users(id) on delete cascade,
+  permission_code text        not null references public.permissions(code) on delete cascade,
+  enabled         boolean     not null default false,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  deleted_at      timestamptz,
+  unique (user_id, permission_code)
 );
 
 -- ----------------------------------------------------------- categories
@@ -155,6 +167,7 @@ create index idx_products_updated          on public.products(updated_at);
 create index idx_products_category         on public.products(category_id) where deleted_at is null;
 create index idx_categories_updated        on public.categories(updated_at);
 create index idx_users_updated             on public.users(updated_at);
+create index idx_user_permissions_updated  on public.user_permissions(updated_at);
 create index idx_shifts_updated            on public.shifts(updated_at);
 create index idx_shifts_user_open          on public.shifts(user_id) where end_at is null;
 create index idx_tx_updated                on public.transactions(updated_at);

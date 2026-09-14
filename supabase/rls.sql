@@ -55,7 +55,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'users','categories','products','shifts',
+    'users','user_permissions','categories','products','shifts',
     'transactions','transaction_items','expenses'
   ] loop
     execute format(
@@ -79,9 +79,11 @@ end $$;
 --  Kalau nanti ikut disinkronkan, policy tulisnya ditambahkan saat itu —
 --  bukan dibuka sekarang "untuk berjaga-jaga".
 -- ---------------------------------------------------------------------
+-- `permissions` tetap baca-saja: katalog statis yang disemai lewat
+-- `supabase/izin.sql`, tidak ada yang menulisnya dari perangkat.
+-- `user_permissions` TIDAK lagi di sini — sejak v20 ia ikut disinkronkan dan
+-- sudah mendapat policy baca/tambah/ubah di blok sebelumnya.
 create policy baca_permissions on public.permissions
-  for select to authenticated using (true);
-create policy baca_user_permissions on public.user_permissions
   for select to authenticated using (true);
 
 -- ---------------------------------------------------------------------

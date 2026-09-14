@@ -185,6 +185,7 @@ class SyncEngine {
   /// yang sama dipakai saat menarik, dengan alasan yang sama.
   late final List<_Entitas> _entitas = [
     _users(),
+    _userPermissions(),
     _categories(),
     _products(),
     _shifts(),
@@ -612,6 +613,54 @@ class SyncEngine {
               ));
         },
         tandaiTerkirim: (ids) => _tandai('users', ids),
+      );
+
+  /// Izin per kasir.
+  ///
+  /// Sebelum v20 tabel ini TIDAK ikut sinkronisasi sama sekali — ia lahir
+  /// sebelum aturan sync ada, jadi tidak punya `updated_at` maupun
+  /// `sync_status`. Akibatnya izin kasir hanya hidup di HP tempat owner
+  /// mengaturnya, dan HP kasir yang dipasang ulang kehilangan seluruhnya:
+  /// menu Kasir pun tidak muncul.
+  ///
+  /// Ditempatkan tepat setelah `users` karena merujuknya lewat foreign key.
+  /// `permission_code` juga dirujuk ke tabel `permissions` yang TIDAK
+  /// disinkronkan — ia data statis yang disemai sama di setiap pemasangan,
+  /// dan harus ikut disemai di server (lihat `supabase/izin.sql`).
+  _Entitas _userPermissions() => _Entitas(
+        nama: 'user_permissions',
+        ambilTertunda: () async {
+          final r = await (_db.select(_db.userPermissions)
+                ..where((t) => t.syncStatus.equals('pending')))
+              .get();
+          return [
+            for (final up in r)
+              {
+                'id': up.id,
+                'user_id': up.userId,
+                'permission_code': up.permissionCode,
+                'enabled': up.enabled,
+                'created_at': _iso(up.createdAt),
+                'updated_at': _iso(up.updatedAt),
+                'deleted_at': _iso(up.deletedAt),
+              }
+          ];
+        },
+        tulis: (r) async {
+          await _db
+              .into(_db.userPermissions)
+              .insertOnConflictUpdate(UserPermissionsCompanion(
+                id: Value(r['id'] as String),
+                userId: Value(r['user_id'] as String),
+                permissionCode: Value(r['permission_code'] as String),
+                enabled: Value(r['enabled'] as bool),
+                createdAt: Value(_dt(r['created_at'])!),
+                updatedAt: Value(_dt(r['updated_at'])!),
+                deletedAt: Value(_dt(r['deleted_at'])),
+                syncStatus: const Value('synced'),
+              ));
+        },
+        tandaiTerkirim: (ids) => _tandai('user_permissions', ids),
       );
 
   _Entitas _categories() => _Entitas(

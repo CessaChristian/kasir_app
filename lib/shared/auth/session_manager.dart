@@ -146,39 +146,24 @@ class SessionManager {
   // Context-aware permission (Phase 1 multi-business)
   // =====================================
 
-  /// Hardcoded permission matrix per role (sesuai spec §5.3.2).
-  /// Future: pindahkan ke DB kalau butuh runtime override per-user.
-  static const _rolePermissions = <String, Set<String>>{
-    'owner': {
-      'view_dashboard', 'manage_products', 'manage_categories',
-      'view_all_expenses', 'edit_own_expense', 'edit_any_expense',
-      'delete_own_transaction', 'delete_any_transaction',
-      'view_shift_reports', 'view_all_shifts',
-      'manage_cashiers',
-      // Existing permissions (backward compat)
-      'open_close_shift', 'create_transaction', 'view_history', 'view_report',
-    },
-    'cashier': {
-      'view_dashboard',
-      'edit_own_expense',
-      'delete_own_transaction',
-      // Existing permissions (backward compat)
-      'open_close_shift', 'create_transaction', 'view_history',
-    },
-  };
-
-  /// Permission menurut role user yang sedang login.
+  /// Nama lama dari [hasPermission]. Keduanya kini menjawab dari sumber yang
+  /// SAMA.
   ///
-  /// Dulu role dibaca dari cache per-business yang diisi dari
-  /// `user_business_roles` — sumber kebenaran kedua di samping `users.role`.
-  /// Duplikasi itu dibuang di v13; role sekarang hanya ada satu tempat,
-  /// yaitu `users.role` yang sudah divalidasi ulang dari DB saat
-  /// [restoreSession] (anti-tamper).
-  bool hasCurrentPermission(String permission) {
-    final role = _currentSession?.role;
-    if (role == null) return false;
-    return _rolePermissions[role]?.contains(permission) ?? false;
-  }
+  /// ── KENAPA INI DULU BERBEDA, DAN KENAPA ITU BERBAHAYA ──
+  ///
+  /// Dulu fungsi ini membaca matriks role PATEN, sedangkan [hasPermission]
+  /// membaca `user_permissions` yang bisa diatur owner. Dua fungsi bernama
+  /// mirip, menjawab pertanyaan yang sama, dari sumber berbeda.
+  ///
+  /// Akibatnya nyata dan membingungkan: menu "Pantau Shift" dijaga fungsi ini,
+  /// sedangkan menu Produk/Kasir/Riwayat/Laporan dijaga [hasPermission]. Owner
+  /// yang menyalakan izin `view_shift_reports` di halaman Kelola Izin melihat
+  /// tombolnya TETAP tidak muncul — karena yang memeriksa bukan tabel yang
+  /// baru saja ia ubah. Tidak ada error, tidak ada penjelasan.
+  ///
+  /// Dibiarkan sebagai penerus panggilan, bukan dihapus, supaya pemanggil yang
+  /// ada tidak perlu diubah sekaligus. Untuk kode baru pakai [hasPermission].
+  bool hasCurrentPermission(String permission) => hasPermission(permission);
 
   /// Throw kalau no permission. Pakai ini di UI handler.
   void requireCurrentPermission(String permission) {

@@ -268,19 +268,65 @@ class Permissions extends Table {
 /// =======================
 /// TABLE: USER_PERMISSIONS
 /// =======================
+/// Izin yang didapat kasir baru, dan yang diisi ulang untuk kasir yang
+/// izinnya hilang.
+///
+/// `view_shift_reports` termasuk supaya kasir bisa melihat riwayat shift dan
+/// pendapatannya SENDIRI. Cakupannya dijaga izin terpisah `view_all_shifts`
+/// yang sengaja TIDAK diberikan, jadi ia tidak bisa mengintip kasir lain.
+///
+/// Ditaruh di sini, bukan di repository, karena dipakai dua tempat: saat
+/// membuat kasir baru dan saat migrasi mengisi ulang izin yang hilang. Dua
+/// daftar terpisah pasti akan berbeda cepat atau lambat.
+const _izinBawaanKasir = <String>[
+  'open_close_shift',
+  'create_transaction',
+  'view_history',
+  'view_shift_reports',
+];
+
+/// Dibaca repository supaya daftarnya hanya ada satu.
+const izinBawaanKasir = _izinBawaanKasir;
+
 class UserPermissions extends Table {
+  /// Primary key TURUNAN dari (user_id, permission_code), bukan acak.
+  ///
+  /// Tabel ini lahir sebelum aturan "setiap tabel wajib UUID + updated_at +
+  /// deleted_at + sync_status" ada, jadi ia memakai kunci gabungan dan tidak
+  /// punya satu pun kolom sync. Akibatnya ia TIDAK PERNAH ikut disinkronkan —
+  /// izin kasir hanya hidup di HP tempat owner mengaturnya, dan HP kasir yang
+  /// dipasang ulang kehilangan seluruh izinnya. Kasirnya lumpuh: menu Kasir
+  /// pun tidak muncul.
+  ///
+  /// Kenapa turunan, bukan acak: identitas baris ini ditentukan ISINYA — "izin
+  /// X milik user Y" hanya boleh ada satu. Dengan UUID acak, dua perangkat
+  /// yang membuat pasangan sama menghasilkan dua `id` berbeda, lalu batasan
+  /// unik menolak yang kedua dan barisnya tertahan selamanya. Dengan UUID
+  /// turunan, keduanya menghasilkan baris yang sama persis dan cukup saling
+  /// menimpa.
+  TextColumn get id => text()();
+
   TextColumn get userId => text()();
   TextColumn get permissionCode => text()();
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
 
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
+
   @override
   List<String> get customConstraints => [
+        'UNIQUE(user_id, permission_code)',
         'FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE',
         'FOREIGN KEY(permission_code) REFERENCES permissions(code) ON DELETE CASCADE',
       ];
 
   @override
-  Set<Column> get primaryKey => {userId, permissionCode};
+  Set<Column> get primaryKey => {id};
 }
 
 /// =======================
@@ -331,7 +377,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -616,6 +662,74 @@ class AppDatabase extends _$AppDatabase {
               "DELETE FROM permissions "
               "WHERE code IN ('manage_business','switch_business')",
             );
+          }
+          if (from < 20 && to >= 20) {
+            // v20 — `user_permissions` akhirnya ikut disinkronkan.
+            //
+            // Tabel ini lahir sebelum aturan sync ada: kunci gabungan, tanpa
+            // updated_at, tanpa sync_status. Jadi ia tidak pernah bisa ikut,
+            // dan izin kasir hanya hidup di HP tempat owner mengaturnya. HP
+            // kasir yang dipasang ulang kehilangan SELURUH izinnya — menu
+            // Kasir pun tidak muncul dan kasirnya tidak bisa berjualan.
+            // Terlihat langsung saat pengujian pemasangan baru.
+            //
+            // Dibuat ulang, bukan di-ALTER: kunci primernya berubah dari
+            // gabungan menjadi `id`, dan SQLite tidak bisa mengubah kunci
+            // primer di tempat.
+            final lama = await customSelect(
+              'SELECT user_id, permission_code, enabled FROM user_permissions',
+            ).get();
+
+            await customStatement('DROP TABLE user_permissions');
+            await m.createTable(userPermissions);
+
+            // `id` WAJIB turunan, bukan acak. Setiap HP menjalankan migrasi
+            // ini sendiri-sendiri; kalau id-nya acak, HP owner dan HP kasir
+            // menghasilkan dua id berbeda untuk pasangan yang SAMA. Keduanya
+            // lalu didorong ke server dan yang kedua ditolak batasan unik —
+            // barisnya tertahan selamanya tanpa sebab yang terlihat.
+            for (final r in lama) {
+              final uid = r.read<String>('user_id');
+              final kode = r.read<String>('permission_code');
+              await into(userPermissions).insert(
+                UserPermissionsCompanion.insert(
+                  id: uuidTurunan('$uid:$kode'),
+                  userId: uid,
+                  permissionCode: kode,
+                  enabled: Value(r.read<bool>('enabled')),
+                ),
+                mode: InsertMode.insertOrIgnore,
+              );
+            }
+
+            // Isi ulang izin bawaan untuk kasir yang TIDAK punya baris sama
+            // sekali. Tanpa ini, memperbaiki sync saja tidak menolong: HP yang
+            // terlanjur dipasang ulang datanya memang sudah lenyap, jadi
+            // kasirnya tetap lumpuh.
+            //
+            // Daftar kasirnya diambil SEKALI di awal. Kalau diperiksa ulang di
+            // tiap izin, penyisipan pertama membuat kasirnya "sudah punya
+            // baris" dan tiga izin berikutnya ikut terlewat.
+            final perluIsi = await customSelect(
+              "SELECT id FROM users WHERE role = 'cashier' "
+              "AND NOT EXISTS (SELECT 1 FROM user_permissions p "
+              "                WHERE p.user_id = users.id)",
+            ).get();
+
+            for (final u in perluIsi) {
+              final uid = u.read<String>('id');
+              for (final kode in _izinBawaanKasir) {
+                await into(userPermissions).insert(
+                  UserPermissionsCompanion.insert(
+                    id: uuidTurunan('$uid:$kode'),
+                    userId: uid,
+                    permissionCode: kode,
+                    enabled: const Value(true),
+                  ),
+                  mode: InsertMode.insertOrIgnore,
+                );
+              }
+            }
           }
         },
         beforeOpen: (details) async {

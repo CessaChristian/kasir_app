@@ -125,22 +125,22 @@ class CashierRepository {
 
   /// Set default permissions for a new cashier
   Future<void> _setDefaultCashierPermissions(String userId) async {
-    final defaultPermissions = {
-      'open_close_shift': true,
-      'create_transaction': true,
-      'view_history': true,
-      'view_report': false,
-      'manage_products': false,
-      'manage_cashiers': false,
-    };
-
-    for (final entry in defaultPermissions.entries) {
+    // Hanya izin yang MENYALA yang disisipkan. Baris `enabled: false` dan
+    // baris yang tidak ada sama sekali berperilaku persis sama — keduanya
+    // membuat `hasPermission` bernilai false — jadi menyimpannya cuma
+    // menambah baris yang harus ikut disinkronkan tanpa guna.
+    //
+    // Daftarnya diambil dari satu tetapan bersama supaya tidak berbeda dengan
+    // yang dipakai migrasi saat mengisi ulang izin yang hilang.
+    for (final kode in izinBawaanKasir) {
       await _db.into(_db.userPermissions).insert(
             UserPermissionsCompanion.insert(
+              id: uuidTurunan('$userId:$kode'),
               userId: userId,
-              permissionCode: entry.key,
-              enabled: Value(entry.value),
+              permissionCode: kode,
+              enabled: const Value(true),
             ),
+            mode: InsertMode.insertOrIgnore,
           );
     }
   }

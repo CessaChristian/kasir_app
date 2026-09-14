@@ -4382,6 +4382,15 @@ class $UserPermissionsTable extends UserPermissions
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $UserPermissionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
   @override
   late final GeneratedColumn<String> userId = GeneratedColumn<String>(
@@ -4417,8 +4426,64 @@ class $UserPermissionsTable extends UserPermissions
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
   @override
-  List<GeneratedColumn> get $columns => [userId, permissionCode, enabled];
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncStatusMeta = const VerificationMeta(
+    'syncStatus',
+  );
+  @override
+  late final GeneratedColumn<String> syncStatus = GeneratedColumn<String>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    permissionCode,
+    enabled,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    syncStatus,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4431,6 +4496,11 @@ class $UserPermissionsTable extends UserPermissions
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
     if (data.containsKey('user_id')) {
       context.handle(
         _userIdMeta,
@@ -4456,15 +4526,43 @@ class $UserPermissionsTable extends UserPermissions
         enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
       );
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('sync_status')) {
+      context.handle(
+        _syncStatusMeta,
+        syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
+      );
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {userId, permissionCode};
+  Set<GeneratedColumn> get $primaryKey => {id};
   @override
   UserPermission map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return UserPermission(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
       userId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}user_id'],
@@ -4477,6 +4575,22 @@ class $UserPermissionsTable extends UserPermissions
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
       )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      syncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_status'],
+      )!,
     );
   }
 
@@ -4487,28 +4601,67 @@ class $UserPermissionsTable extends UserPermissions
 }
 
 class UserPermission extends DataClass implements Insertable<UserPermission> {
+  /// Primary key TURUNAN dari (user_id, permission_code), bukan acak.
+  ///
+  /// Tabel ini lahir sebelum aturan "setiap tabel wajib UUID + updated_at +
+  /// deleted_at + sync_status" ada, jadi ia memakai kunci gabungan dan tidak
+  /// punya satu pun kolom sync. Akibatnya ia TIDAK PERNAH ikut disinkronkan —
+  /// izin kasir hanya hidup di HP tempat owner mengaturnya, dan HP kasir yang
+  /// dipasang ulang kehilangan seluruh izinnya. Kasirnya lumpuh: menu Kasir
+  /// pun tidak muncul.
+  ///
+  /// Kenapa turunan, bukan acak: identitas baris ini ditentukan ISINYA — "izin
+  /// X milik user Y" hanya boleh ada satu. Dengan UUID acak, dua perangkat
+  /// yang membuat pasangan sama menghasilkan dua `id` berbeda, lalu batasan
+  /// unik menolak yang kedua dan barisnya tertahan selamanya. Dengan UUID
+  /// turunan, keduanya menghasilkan baris yang sama persis dan cukup saling
+  /// menimpa.
+  final String id;
   final String userId;
   final String permissionCode;
   final bool enabled;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String syncStatus;
   const UserPermission({
+    required this.id,
     required this.userId,
     required this.permissionCode,
     required this.enabled,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.syncStatus,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
     map['user_id'] = Variable<String>(userId);
     map['permission_code'] = Variable<String>(permissionCode);
     map['enabled'] = Variable<bool>(enabled);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['sync_status'] = Variable<String>(syncStatus);
     return map;
   }
 
   UserPermissionsCompanion toCompanion(bool nullToAbsent) {
     return UserPermissionsCompanion(
+      id: Value(id),
       userId: Value(userId),
       permissionCode: Value(permissionCode),
       enabled: Value(enabled),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      syncStatus: Value(syncStatus),
     );
   }
 
@@ -4518,103 +4671,185 @@ class UserPermission extends DataClass implements Insertable<UserPermission> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return UserPermission(
+      id: serializer.fromJson<String>(json['id']),
       userId: serializer.fromJson<String>(json['userId']),
       permissionCode: serializer.fromJson<String>(json['permissionCode']),
       enabled: serializer.fromJson<bool>(json['enabled']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
   }
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
       'userId': serializer.toJson<String>(userId),
       'permissionCode': serializer.toJson<String>(permissionCode),
       'enabled': serializer.toJson<bool>(enabled),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'syncStatus': serializer.toJson<String>(syncStatus),
     };
   }
 
   UserPermission copyWith({
+    String? id,
     String? userId,
     String? permissionCode,
     bool? enabled,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? syncStatus,
   }) => UserPermission(
+    id: id ?? this.id,
     userId: userId ?? this.userId,
     permissionCode: permissionCode ?? this.permissionCode,
     enabled: enabled ?? this.enabled,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    syncStatus: syncStatus ?? this.syncStatus,
   );
   UserPermission copyWithCompanion(UserPermissionsCompanion data) {
     return UserPermission(
+      id: data.id.present ? data.id.value : this.id,
       userId: data.userId.present ? data.userId.value : this.userId,
       permissionCode: data.permissionCode.present
           ? data.permissionCode.value
           : this.permissionCode,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
     );
   }
 
   @override
   String toString() {
     return (StringBuffer('UserPermission(')
+          ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('permissionCode: $permissionCode, ')
-          ..write('enabled: $enabled')
+          ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('syncStatus: $syncStatus')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(userId, permissionCode, enabled);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    permissionCode,
+    enabled,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    syncStatus,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is UserPermission &&
+          other.id == this.id &&
           other.userId == this.userId &&
           other.permissionCode == this.permissionCode &&
-          other.enabled == this.enabled);
+          other.enabled == this.enabled &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.syncStatus == this.syncStatus);
 }
 
 class UserPermissionsCompanion extends UpdateCompanion<UserPermission> {
+  final Value<String> id;
   final Value<String> userId;
   final Value<String> permissionCode;
   final Value<bool> enabled;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> syncStatus;
   final Value<int> rowid;
   const UserPermissionsCompanion({
+    this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.permissionCode = const Value.absent(),
     this.enabled = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   UserPermissionsCompanion.insert({
+    required String id,
     required String userId,
     required String permissionCode,
     this.enabled = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
-  }) : userId = Value(userId),
+  }) : id = Value(id),
+       userId = Value(userId),
        permissionCode = Value(permissionCode);
   static Insertable<UserPermission> custom({
+    Expression<String>? id,
     Expression<String>? userId,
     Expression<String>? permissionCode,
     Expression<bool>? enabled,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? syncStatus,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (id != null) 'id': id,
       if (userId != null) 'user_id': userId,
       if (permissionCode != null) 'permission_code': permissionCode,
       if (enabled != null) 'enabled': enabled,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
   UserPermissionsCompanion copyWith({
+    Value<String>? id,
     Value<String>? userId,
     Value<String>? permissionCode,
     Value<bool>? enabled,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? syncStatus,
     Value<int>? rowid,
   }) {
     return UserPermissionsCompanion(
+      id: id ?? this.id,
       userId: userId ?? this.userId,
       permissionCode: permissionCode ?? this.permissionCode,
       enabled: enabled ?? this.enabled,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4622,6 +4857,9 @@ class UserPermissionsCompanion extends UpdateCompanion<UserPermission> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
     if (userId.present) {
       map['user_id'] = Variable<String>(userId.value);
     }
@@ -4630,6 +4868,18 @@ class UserPermissionsCompanion extends UpdateCompanion<UserPermission> {
     }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<String>(syncStatus.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -4640,9 +4890,14 @@ class UserPermissionsCompanion extends UpdateCompanion<UserPermission> {
   @override
   String toString() {
     return (StringBuffer('UserPermissionsCompanion(')
+          ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('permissionCode: $permissionCode, ')
           ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9019,16 +9274,26 @@ typedef $$PermissionsTableProcessedTableManager =
     >;
 typedef $$UserPermissionsTableCreateCompanionBuilder =
     UserPermissionsCompanion Function({
+      required String id,
       required String userId,
       required String permissionCode,
       Value<bool> enabled,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> syncStatus,
       Value<int> rowid,
     });
 typedef $$UserPermissionsTableUpdateCompanionBuilder =
     UserPermissionsCompanion Function({
+      Value<String> id,
       Value<String> userId,
       Value<String> permissionCode,
       Value<bool> enabled,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> syncStatus,
       Value<int> rowid,
     });
 
@@ -9041,6 +9306,11 @@ class $$UserPermissionsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get userId => $composableBuilder(
     column: $table.userId,
     builder: (column) => ColumnFilters(column),
@@ -9055,6 +9325,26 @@ class $$UserPermissionsTableFilterComposer
     column: $table.enabled,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$UserPermissionsTableOrderingComposer
@@ -9066,6 +9356,11 @@ class $$UserPermissionsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get userId => $composableBuilder(
     column: $table.userId,
     builder: (column) => ColumnOrderings(column),
@@ -9080,6 +9375,26 @@ class $$UserPermissionsTableOrderingComposer
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$UserPermissionsTableAnnotationComposer
@@ -9091,6 +9406,9 @@ class $$UserPermissionsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
   GeneratedColumn<String> get userId =>
       $composableBuilder(column: $table.userId, builder: (column) => column);
 
@@ -9101,6 +9419,20 @@ class $$UserPermissionsTableAnnotationComposer
 
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => column,
+  );
 }
 
 class $$UserPermissionsTableTableManager
@@ -9140,26 +9472,46 @@ class $$UserPermissionsTableTableManager
               $$UserPermissionsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String> id = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<String> permissionCode = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserPermissionsCompanion(
+                id: id,
                 userId: userId,
                 permissionCode: permissionCode,
                 enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                syncStatus: syncStatus,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
+                required String id,
                 required String userId,
                 required String permissionCode,
                 Value<bool> enabled = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserPermissionsCompanion.insert(
+                id: id,
                 userId: userId,
                 permissionCode: permissionCode,
                 enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                syncStatus: syncStatus,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
