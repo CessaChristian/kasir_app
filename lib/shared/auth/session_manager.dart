@@ -143,6 +143,63 @@ class SessionManager {
     izinBerubah.value++;
   }
 
+  /// Berisi alasan kalau sesi yang sedang berjalan DICABUT dari jarak jauh,
+  /// atau null selama sesinya masih sah.
+  ///
+  /// Layar yang sedang tampil mendengarkan ini lalu memaksa kembali ke halaman
+  /// login. Alasannya ikut dibawa supaya pengguna diberi tahu APA yang
+  /// terjadi — dilempar ke layar login tanpa penjelasan membuatnya mengira
+  /// aplikasinya rusak dan mencoba masuk berulang kali.
+  final ValueNotifier<String?> sesiDicabut = ValueNotifier(null);
+
+  /// Periksa ulang apakah akun yang sedang login masih boleh dipakai.
+  ///
+  /// ── KENAPA PERLU ──
+  ///
+  /// `is_active` hanya diperiksa di dua tempat: saat login, dan di
+  /// [restoreSession] yang HANYA berjalan sekali di `main()`. Selama sesi
+  /// berlangsung tidak ada satu pun kode yang memeriksanya lagi.
+  ///
+  /// Akibatnya penonaktifan kasir nyaris tidak berguna: pemilik mencabut
+  /// akses, datanya sampai ke HP kasir lewat sinkronisasi — dan kasirnya
+  /// TETAP bisa berjualan tanpa batas waktu selama aplikasinya tidak ditutup.
+  /// Menekan tombol Home pun tidak cukup; `restoreSession` baru jalan lagi
+  /// kalau proses aplikasinya benar-benar mati.
+  ///
+  /// Dipanggil setiap kali sinkronisasi berhasil, jadi pencabutan berlaku
+  /// dalam hitungan menit tanpa kasir perlu melakukan apa pun.
+  Future<void> periksaAkunMasihBerlaku() async {
+    final sesi = _currentSession;
+    if (sesi == null) return;
+
+    User? user;
+    try {
+      user = await (_dbx.select(_dbx.users)
+            ..where((u) => u.id.equals(sesi.userId))
+            ..limit(1))
+          .getSingleOrNull();
+    } catch (_) {
+      // Gagal membaca bukan alasan untuk mengeluarkan orang yang sedang
+      // bekerja. Kalau memang dicabut, putaran berikutnya akan menangkapnya.
+      return;
+    }
+
+    final alasan = user == null
+        ? 'Akun Anda sudah dihapus.'
+        : user.deletedAt != null
+            ? 'Akun Anda sudah dihapus.'
+            : !user.isActive
+                ? 'Akses Anda dinonaktifkan oleh pemilik.'
+                : null;
+    if (alasan == null) return;
+
+    await clearSession();
+    sesiDicabut.value = alasan;
+  }
+
+  /// Dipanggil layar setelah selesai memindahkan pengguna ke halaman login.
+  void tandaiPencabutanSudahDitangani() => sesiDicabut.value = null;
+
   /// Helper: ambil permissions dari DB.
   Future<List<String>> _getUserPermissionsFromDb(
       String userId, String role) async {

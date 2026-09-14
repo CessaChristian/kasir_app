@@ -3,6 +3,7 @@ import '../../../utils/crypto_utils.dart';
 import 'package:flutter/services.dart';
 import '../../../data/db.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/simpan_lalu_kirim.dart';
 import '../../../data/app_database.dart';
 import '../../auth/repositories/auth_repository.dart';
 import '../../auth/recovery/pages/save_recovery_code_page.dart';
@@ -319,7 +320,18 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
       ),
     );
 
-    if (result == true) _loadCashiers();
+    if (result != true) return;
+    _loadCashiers();
+    if (!mounted) return;
+
+    // Akun kasir baru HANYA ada di HP ini sampai terkirim. Tanpa dikirim
+    // sekarang, kasirnya tidak bisa login sama sekali sampai putaran otomatis
+    // berikutnya — dan pesan "berhasil" membuat pemilik mengira sudah selesai.
+    await kirimSekarang(
+      context,
+      pesanTerkirim: 'Kasir ditambahkan & terkirim',
+      pesanTertunda: 'Tersimpan — kasir bisa login setelah HP-nya online',
+    );
   }
 
   Future<void> _toggleCashierStatus(User cashier) async {
@@ -353,21 +365,26 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    try {
-      await _cashierRepo.toggleCashierStatus(cashier.id, !cashier.isActive);
-      _loadCashiers();
-      if (!mounted) return;
-      if (cashier.isActive) {
-        AppToast.warning(context, '${cashier.username} dinonaktifkan');
-      } else {
-        AppToast.success(context, '${cashier.username} diaktifkan');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.error(context, 'Gagal: $e');
-    }
+    final dinonaktifkan = cashier.isActive;
+
+    await simpanLaluKirim(
+      context,
+      simpan: () async {
+        await _cashierRepo.toggleCashierStatus(cashier.id, !cashier.isActive);
+        _loadCashiers();
+      },
+      // Kalimatnya sengaja menyebut HP kasir, bukan sekadar "berhasil".
+      // Pencabutan akses baru berlaku di sana, dan pemilik perlu tahu itu.
+      pesanTerkirim: dinonaktifkan
+          ? '${cashier.username} dinonaktifkan — akses dicabut'
+          : '${cashier.username} diaktifkan & terkirim',
+      pesanTertunda: dinonaktifkan
+          ? 'Tersimpan — akses baru tercabut di HP kasir setelah online'
+          : 'Tersimpan — berlaku di HP kasir setelah online',
+      pesanGagal: (e) => 'Gagal: $e',
+    );
   }
 
   void _openPermissionsPage(User cashier) {
@@ -529,9 +546,17 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
       ),
     );
 
-    if (result == true && mounted) {
-      AppToast.success(context, 'PIN ${cashier.username} berhasil diubah');
-    }
+    if (result != true || !mounted) return;
+
+    // PIN baru HANYA ada di HP ini sampai terkirim. Tanpa dikirim sekarang,
+    // kasirnya terkunci: PIN lamanya sudah tidak berlaku di sini, sedangkan
+    // PIN barunya belum sampai ke HP-nya.
+    await kirimSekarang(
+      context,
+      pesanTerkirim: 'PIN ${cashier.username} diubah & terkirim',
+      pesanTertunda:
+          'Tersimpan — PIN baru berlaku di HP kasir setelah online',
+    );
   }
 
   // Shared input field builder (matches auth page style)

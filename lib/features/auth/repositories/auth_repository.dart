@@ -33,7 +33,7 @@ class AuthRepository {
   }) async {
     // 1. Validate that no owner exists
     if (await hasOwner()) {
-      throw StateError('Owner account already exists');
+      throw StateError('Akun owner sudah ada.');
     }
 
     // 2. Validate PIN format
@@ -88,7 +88,7 @@ class AuthRepository {
 
     // 2. Check if user is active
     if (!user.isActive) {
-      throw StateError('User account is deactivated');
+      throw StateError('Akun Anda dinonaktifkan oleh pemilik.');
     }
 
     // 2b. S5: Cek apakah akun sedang ter-lock karena terlalu banyak gagal login.
@@ -250,7 +250,7 @@ class AuthRepository {
   Future<String> generateAndStoreRecoveryCodeForOwner(String userId) async {
     final owner = await getUserById(userId);
     if (owner == null || owner.role != 'owner') {
-      throw StateError('User is not an owner');
+      throw StateError('Akun ini bukan owner.');
     }
 
     // Generate recovery code (formatted with dashes)

@@ -35,6 +35,30 @@ class AppShellState extends State<AppShell> {
     // ini, izin yang baru turun dari server baru terlihat setelah pengguna
     // keluar dan masuk lagi.
     SessionManager.instance.izinBerubah.addListener(_izinBerubah);
+    SessionManager.instance.sesiDicabut.addListener(_sesiDicabut);
+  }
+
+  /// Sesi dicabut dari jarak jauh — pemilik menonaktifkan atau menghapus akun
+  /// ini, dan sinkronisasi baru saja membawa kabarnya.
+  ///
+  /// Dipaksa keluar, bukan sekadar diberi peringatan: selama masih di dalam
+  /// aplikasi, orang yang aksesnya sudah dicabut tetap bisa membuat transaksi.
+  ///
+  /// Keranjang yang sedang disusun ikut hilang. Itu disengaja — penonaktifan
+  /// adalah tindakan sengaja dan jarang, dan menundanya sampai transaksi
+  /// selesai membuka jendela di mana orang yang sudah dicabut masih berjualan.
+  /// Kalau ternyata salah pencet, pemilik tinggal mengaktifkan lagi; yang
+  /// hilang cuma input, bukan data yang sudah tersimpan.
+  void _sesiDicabut() {
+    final alasan = SessionManager.instance.sesiDicabut.value;
+    if (alasan == null || !mounted) return;
+    SessionManager.instance.tandaiPencabutanSudahDitangani();
+
+    AppToast.warning(context, alasan);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   void _izinBerubah() {
@@ -44,6 +68,7 @@ class AppShellState extends State<AppShell> {
   @override
   void dispose() {
     SessionManager.instance.izinBerubah.removeListener(_izinBerubah);
+    SessionManager.instance.sesiDicabut.removeListener(_sesiDicabut);
     super.dispose();
   }
 

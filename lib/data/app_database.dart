@@ -976,13 +976,13 @@ class AppDatabase extends _$AppDatabase {
     // DB layer juga reject jika permission tidak ada.
     SessionManager.instance.requirePermission('create_transaction');
 
-    if (lines.isEmpty) throw ArgumentError('Cart kosong');
+    if (lines.isEmpty) throw ArgumentError('Keranjang masih kosong');
 
     final total = lines.fold<int>(0, (s, l) => s + l.subtotal);
 
     if (paymentMethod == 'cash') {
       if (cashReceived == null) {
-        throw ArgumentError('Cash received wajib diisi untuk pembayaran cash');
+        throw ArgumentError('Uang diterima wajib diisi untuk pembayaran tunai');
       }
       if (cashReceived < total) {
         throw ArgumentError('Uang diterima kurang');

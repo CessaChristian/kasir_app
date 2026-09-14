@@ -41,7 +41,7 @@ class CashierRepository {
         .get();
 
     if (existing.isNotEmpty) {
-      throw StateError('Username already exists');
+      throw StateError('Username sudah dipakai.');
     }
 
     // 3. Generate salt and hash PIN

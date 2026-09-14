@@ -106,6 +106,13 @@ class SyncService {
       // dan tidak ada yang memberi tahu bahwa itu syaratnya.
       await SessionManager.instance.muatUlangIzin();
 
+      // Penonaktifan kasir hanya berlaku kalau ada yang memeriksanya ulang.
+      // `is_active` diperiksa saat login dan di restoreSession — keduanya
+      // tidak pernah terjadi lagi selama sesi berjalan, jadi tanpa baris ini
+      // kasir yang aksesnya sudah dicabut tetap bisa berjualan sampai
+      // aplikasinya benar-benar ditutup.
+      await SessionManager.instance.periksaAkunMasihBerlaku();
+
       await _catatBerhasil();
       return lengkap;
     } finally {
