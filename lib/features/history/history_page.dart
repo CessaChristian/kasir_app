@@ -653,11 +653,10 @@ class _HistoryPageState extends State<HistoryPage> {
           firstChild: Column(
             children: [
               ...transactions.map((tx) {
-                final canDelete = SessionManager.instance.canPerformActionOnRecord(
-                  anyPermission: 'delete_any_transaction',
-                  ownPermission: 'delete_own_transaction',
-                  recordOwnerId: tx.cashierUserId,
-                );
+                // Owner boleh menghapus transaksi siapa pun; kasir hanya
+                // miliknya sendiri. Aturan paten — lihat bolehUbahCatatan.
+                final canDelete =
+                    SessionManager.instance.bolehUbahCatatan(tx.cashierUserId);
                 return _TransactionCard(
                   transaction: tx,
                   onDelete: canDelete ? () => _confirmDeleteTransaction(tx) : null,

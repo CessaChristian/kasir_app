@@ -223,16 +223,27 @@ class SessionManager {
   /// Return true kalau:
   /// - User punya permission `*_any_*` (owner override), ATAU
   /// - User punya permission `*_own_*` AND recordOwnerId == currentUserId
-  bool canPerformActionOnRecord({
-    required String anyPermission,
-    required String ownPermission,
-    required String? recordOwnerId,
-  }) {
-    if (hasCurrentPermission(anyPermission)) return true;
-    if (hasCurrentPermission(ownPermission) &&
-        recordOwnerId == _currentSession?.userId) {
-      return true;
-    }
-    return false;
+  /// Bolehkah pengguna yang sedang login mengubah atau menghapus catatan
+  /// milik [pemilikCatatan]?
+  ///
+  /// ── ATURAN PATEN, TIDAK BISA DIATUR PER AKUN ──
+  ///
+  ///   owner       -> boleh, siapa pun pembuatnya
+  ///   selain owner -> hanya catatannya sendiri
+  ///
+  /// Dulu ini dijaga empat kode izin yang bisa dinyalakan satu-satu:
+  /// `edit_own_expense`, `edit_any_expense`, `delete_own_transaction`,
+  /// `delete_any_transaction`. Keempatnya dibuang karena bisa disetel ke
+  /// kombinasi yang tidak masuk akal — kasir yang diberi `delete_any_*` bisa
+  /// menghapus transaksi kasir lain, dan pemilik yang lupa menyalakan
+  /// `edit_any_*` justru tidak bisa membetulkan pengeluaran anak buahnya.
+  ///
+  /// Aturan di atas adalah yang sebenarnya dimaksud sejak awal, dan sekarang
+  /// tidak ada cara untuk menyetelnya keliru.
+  bool bolehUbahCatatan(String? pemilikCatatan) {
+    final sesi = _currentSession;
+    if (sesi == null) return false;
+    if (sesi.isOwner) return true;
+    return pemilikCatatan != null && pemilikCatatan == sesi.userId;
   }
 }

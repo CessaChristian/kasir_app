@@ -29,19 +29,28 @@
 --    membuat baris izin yang memakainya ditolak server, dan sinkronisasi
 --    tabel itu gagal tanpa sebab yang terlihat di layar.
 -- ---------------------------------------------------------------------
+-- Empat kode lama sengaja DIBUANG di v21, bukan sekadar tidak disemai:
+-- edit_own_expense, edit_any_expense, delete_own_transaction,
+-- delete_any_transaction. Keempatnya bisa disetel ke kombinasi yang tidak
+-- masuk akal — kasir yang diberi delete_any_* bisa menghapus transaksi kasir
+-- LAIN. Aturannya kini tetap: owner boleh mengubah catatan siapa pun, selain
+-- owner hanya catatannya sendiri.
+delete from public.user_permissions
+ where permission_code in ('edit_own_expense','edit_any_expense',
+                           'delete_own_transaction','delete_any_transaction');
+delete from public.permissions
+ where code in ('edit_own_expense','edit_any_expense',
+                'delete_own_transaction','delete_any_transaction');
+
 insert into public.permissions (code, name, description) values
-  ('open_close_shift', 'Open/Close Shift', 'Ability to start and end work shifts'),
-  ('create_transaction', 'Create Transaction', 'Ability to process sales transactions'),
-  ('view_history', 'View Transaction History', 'Ability to view past transactions'),
-  ('view_report', 'View Reports', 'Ability to view sales reports and analytics'),
-  ('manage_products', 'Manage Products', 'Ability to add, edit, and delete products'),
-  ('manage_cashiers', 'Manage Cashiers', 'Ability to add, edit, and manage cashier accounts'),
-  ('edit_own_expense', 'Edit Own Expense', 'Ability to edit expenses created by self'),
-  ('edit_any_expense', 'Edit Any Expense', 'Ability to edit any expense (owner override)'),
-  ('delete_own_transaction', 'Delete Own Transaction', 'Ability to soft-delete transactions created by self'),
-  ('delete_any_transaction', 'Delete Any Transaction', 'Ability to soft-delete any transaction (owner override)'),
-  ('view_shift_reports', 'View Shift Reports', 'Ability to view shift reports page'),
-  ('view_all_shifts', 'View All Shifts', 'Ability to view shift data from all users')
+  ('open_close_shift', 'Buka & Tutup Shift', 'Memulai dan mengakhiri jam kerja'),
+  ('create_transaction', 'Buat Transaksi', 'Melayani penjualan di halaman Kasir'),
+  ('view_history', 'Lihat Riwayat Transaksi', 'Membuka daftar transaksi yang sudah lewat'),
+  ('view_report', 'Lihat Laporan', 'Membuka analisis penjualan'),
+  ('manage_products', 'Kelola Produk', 'Menambah, mengubah, dan menghapus produk'),
+  ('manage_cashiers', 'Kelola Kasir', 'Menambah dan mengatur akun kasir'),
+  ('view_shift_reports', 'Lihat Laporan Shift', 'Membuka halaman Pantau Shift — hanya shift sendiri'),
+  ('view_all_shifts', 'Lihat Shift Semua Kasir', 'Melihat shift kasir lain, bukan hanya miliknya sendiri')
 on conflict (code) do update
   set name = excluded.name,
       description = excluded.description;

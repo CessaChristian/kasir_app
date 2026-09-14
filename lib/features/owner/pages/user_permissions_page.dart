@@ -111,7 +111,7 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Permissions: ${widget.user.username}'),
+        title: Text('Akses ${widget.user.username}'),
         centerTitle: true,
         actions: [
           if (!_isLoading)
@@ -123,7 +123,7 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('SAVE'),
+                  : const Text('SIMPAN'),
             ),
         ],
       ),

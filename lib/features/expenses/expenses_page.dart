@@ -201,11 +201,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     if (expenses.isEmpty)
                       _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
                     for (final e in expenses)
-                      _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.canPerformActionOnRecord(
-                        anyPermission: 'edit_any_expense',
-                        ownPermission: 'edit_own_expense',
-                        recordOwnerId: e.userId,
-                      )),
+                      _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.bolehUbahCatatan(e.userId)),
                     if (expenses.isNotEmpty)
                       _buildTotalCard(total, primaryColor),
                   ],

@@ -377,7 +377,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -656,8 +656,16 @@ class AppDatabase extends _$AppDatabase {
             // seed-nya tertinggal — jadi setiap pemasangan masih menyemai dua
             // izin yang tidak menjaga apa pun dan tidak bisa dipakai.
             //
-            // Baris di `user_permissions` yang menunjuk keduanya ikut terbuang
-            // sendiri lewat ON DELETE CASCADE.
+            // Baris anaknya dibuang lebih dulu. ON DELETE CASCADE tidak
+            // berlaku saat migrasi — SQLite mematikan penegakan foreign key
+            // sepanjang proses, jadi menghapus induknya saja meninggalkan
+            // baris yatim. Komentar lama di sini keliru; tidak ada akibat
+            // nyata waktu itu hanya karena kebetulan tidak ada satu pun baris
+            // yang menunjuk kedua izin tersebut.
+            await customStatement(
+              "DELETE FROM user_permissions "
+              "WHERE permission_code IN ('manage_business','switch_business')",
+            );
             await customStatement(
               "DELETE FROM permissions "
               "WHERE code IN ('manage_business','switch_business')",
@@ -731,6 +739,45 @@ class AppDatabase extends _$AppDatabase {
               }
             }
           }
+          if (from < 21 && to >= 21) {
+            // v21 — empat izin diganti aturan paten, dan sisanya
+            // diterjemahkan.
+            //
+            // `edit_own_expense`, `edit_any_expense`, `delete_own_transaction`,
+            // dan `delete_any_transaction` bisa disetel ke kombinasi yang tidak
+            // masuk akal: kasir yang diberi `delete_any_*` bisa menghapus
+            // transaksi kasir LAIN, sedangkan pemilik yang lupa menyalakan
+            // `edit_any_*` justru tidak bisa membetulkan pengeluaran anak
+            // buahnya sendiri.
+            //
+            // Aturannya kini tetap: owner boleh mengubah catatan siapa pun,
+            // selain owner hanya catatannya sendiri. Tidak ada lagi cara untuk
+            // menyetelnya keliru. Lihat `SessionManager.bolehUbahCatatan`.
+            //
+            // Baris anaknya dibuang LEBIH DULU dan secara eksplisit.
+            //
+            // ON DELETE CASCADE TIDAK berlaku di sini: SQLite mematikan
+            // penegakan foreign key selama migrasi, jadi menghapus induknya
+            // saja meninggalkan baris `user_permissions` yatim yang menunjuk
+            // kode yang sudah tidak ada. Terbukti saat menguji migrasi ini:
+            // `PRAGMA foreign_key_check` melaporkan 2 pelanggaran dan izin
+            // kasir tetap 3 baris padahal seharusnya tinggal 1.
+            const dipatenkan = "('edit_own_expense','edit_any_expense',"
+                "'delete_own_transaction','delete_any_transaction')";
+            await customStatement(
+              'DELETE FROM user_permissions WHERE permission_code IN '
+              '$dipatenkan',
+            );
+            await customStatement(
+              'DELETE FROM permissions WHERE code IN $dipatenkan',
+            );
+
+            // Nama dan keterangan yang tersisa ditulis ulang dalam bahasa
+            // Indonesia. Disemai ulang, bukan sekadar untuk pemasangan baru:
+            // pemasangan yang sudah ada masih menyimpan teks bahasa Inggris,
+            // dan halaman Kelola Izin membacanya dari tabel ini.
+            await _seedPermissions();
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -748,66 +795,54 @@ class AppDatabase extends _$AppDatabase {
       );
 
   Future<void> _seedPermissions() async {
+    // Bahasa Indonesia, karena yang membacanya pemilik warung — bukan
+    // pengembang. "Edit Any Expense (owner override)" tidak berarti apa-apa
+    // bagi orang yang sedang mengatur akses kasirnya.
+    //
+    // Empat kode dibuang di v21 dan diganti aturan paten: `edit_own_expense`,
+    // `edit_any_expense`, `delete_own_transaction`, `delete_any_transaction`.
+    // Sekarang owner selalu boleh mengubah catatan siapa pun, dan selain owner
+    // hanya catatannya sendiri — lihat `SessionManager.bolehUbahCatatan`.
     const permissionsData = [
       {
         'code': 'open_close_shift',
-        'name': 'Open/Close Shift',
-        'description': 'Ability to start and end work shifts'
+        'name': 'Buka & Tutup Shift',
+        'description': 'Memulai dan mengakhiri jam kerja'
       },
       {
         'code': 'create_transaction',
-        'name': 'Create Transaction',
-        'description': 'Ability to process sales transactions'
+        'name': 'Buat Transaksi',
+        'description': 'Melayani penjualan di halaman Kasir'
       },
       {
         'code': 'view_history',
-        'name': 'View Transaction History',
-        'description': 'Ability to view past transactions'
+        'name': 'Lihat Riwayat Transaksi',
+        'description': 'Membuka daftar transaksi yang sudah lewat'
       },
       {
         'code': 'view_report',
-        'name': 'View Reports',
-        'description': 'Ability to view sales reports and analytics'
+        'name': 'Lihat Laporan',
+        'description': 'Membuka analisis penjualan'
       },
       {
         'code': 'manage_products',
-        'name': 'Manage Products',
-        'description': 'Ability to add, edit, and delete products'
+        'name': 'Kelola Produk',
+        'description': 'Menambah, mengubah, dan menghapus produk'
       },
       {
         'code': 'manage_cashiers',
-        'name': 'Manage Cashiers',
-        'description': 'Ability to add, edit, and manage cashier accounts'
-      },
-      {
-        'code': 'edit_own_expense',
-        'name': 'Edit Own Expense',
-        'description': 'Ability to edit expenses created by self'
-      },
-      {
-        'code': 'edit_any_expense',
-        'name': 'Edit Any Expense',
-        'description': 'Ability to edit any expense (owner override)'
-      },
-      {
-        'code': 'delete_own_transaction',
-        'name': 'Delete Own Transaction',
-        'description': 'Ability to soft-delete transactions created by self'
-      },
-      {
-        'code': 'delete_any_transaction',
-        'name': 'Delete Any Transaction',
-        'description': 'Ability to soft-delete any transaction (owner override)'
+        'name': 'Kelola Kasir',
+        'description': 'Menambah dan mengatur akun kasir'
       },
       {
         'code': 'view_shift_reports',
-        'name': 'View Shift Reports',
-        'description': 'Ability to view shift reports page'
+        'name': 'Lihat Laporan Shift',
+        'description': 'Membuka halaman Pantau Shift — hanya shift sendiri'
       },
       {
         'code': 'view_all_shifts',
-        'name': 'View All Shifts',
-        'description': 'Ability to view shift data from all users'
+        'name': 'Lihat Shift Semua Kasir',
+        'description': 'Melihat shift kasir lain, bukan hanya miliknya sendiri'
       },
     ];
 
