@@ -43,7 +43,14 @@ class KemajuanSync {
     this.perubahan = 0,
   });
 
-  /// Nama tabel dalam bahasa yang dimengerti pemilik warung.
+  /// Nama tabel dalam bahasa manusia, untuk LOG — bukan untuk layar.
+  ///
+  /// Dulu dipakai popup kemajuan, tapi dibuang dari sana: "Mengambil
+  /// Transaksi · Tahap 6/9" tidak berarti apa-apa bagi pemilik warung, yang
+  /// bahkan tidak tahu aplikasinya punya sembilan tahap. Layar sekarang cukup
+  /// menampilkan persentase.
+  ///
+  /// Tetap berguna di [toString] saat menelusuri masalah sinkronisasi.
   String get namaRamah => const {
         'users': 'Akun',
         'user_permissions': 'Izin kasir',

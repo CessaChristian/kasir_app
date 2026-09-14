@@ -84,55 +84,22 @@ class DialogSync extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
+                // SENGAJA tanpa rincian: tidak menyebut tabel apa yang sedang
+                // dikerjakan, baris ke berapa, atau tahap ke berapa.
+                //
+                // "Mengambil Transaksi · 0/0 diperiksa · Tahap 6/9" tidak
+                // berarti apa-apa bagi pemilik warung — ia bahkan tidak tahu
+                // aplikasinya punya sembilan tahap. Yang benar-benar ingin ia
+                // ketahui cuma satu: masih jalan, dan sejauh mana.
                 Text(
-                  k == null
-                      ? 'Menghubungi server'
-                      : '${k.tahap == 'menarik' ? 'Mengambil' : 'Mengirim'} '
-                          '${k.namaRamah}',
+                  k == null ? 'Menghubungi server' : '${(k.rasio * 100).round()}%',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: k == null ? 13 : 15,
+                    fontWeight: k == null ? FontWeight.normal : FontWeight.w600,
+                    color: k == null ? Colors.grey.shade600 : warna,
+                  ),
                 ),
-                if (k != null) ...[
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: k.rasio,
-                      minHeight: 6,
-                      color: warna,
-                      backgroundColor: warna.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // "diperiksa", bukan "data baru". Server mengirim
-                      // setiap baris yang lebih baru dari penanda kita, dan
-                      // sebagian sudah sama persis dengan yang ada di sini —
-                      // menyebutnya data baru membuat pengguna mengira
-                      // daftarnya berubah padahal tidak.
-                      Text(
-                        k.perubahan > 0
-                            ? '${k.baris}/${k.totalBaris} diperiksa · '
-                                '${k.perubahan} diperbarui'
-                            : '${k.baris}/${k.totalBaris} diperiksa',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'Tahap ${k.entitasKe}/${k.totalEntitas}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             );
           },

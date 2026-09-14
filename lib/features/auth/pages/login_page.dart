@@ -9,6 +9,7 @@ import '../../../shared/auth/session_manager.dart';
 import '../recovery/pages/owner_recovery_page.dart';
 import '../../../app/app_shell.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/sync_refresh.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -97,10 +98,14 @@ class _LoginPageState extends State<LoginPage> {
                 itemBuilder: (_, i) {
                   final username = _availableUsernames[i];
                   return ListTile(
-                    leading: Icon(Icons.person_outline_rounded,
-                        color: Colors.grey.shade600),
-                    title: Text(username,
-                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                    leading: Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.grey.shade600,
+                    ),
+                    title: Text(
+                      username,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
                     onTap: () => Navigator.pop(ctx, username),
                   );
                 },
@@ -162,167 +167,180 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: viewInsets.bottom),
-          child: Column(
-            children: [
-              // ── Header / Logo ──
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 52, 24, 40),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(32),
+        // Halaman login pun perlu bisa disegarkan.
+        //
+        // Kasir yang akunnya baru diaktifkan kembali pemilik tidak bisa masuk
+        // sampai kabarnya sampai ke HP ini — dan di layar login tidak ada satu
+        // pun jalan untuk memintanya. Menunggu putaran otomatis bisa sampai
+        // lima menit, sementara orangnya berdiri di depan kasir mencoba
+        // berulang kali dan gagal terus tanpa tahu kenapa.
+        child: SyncRefresh(
+          sesudah: _loadUsernames,
+          child: SingleChildScrollView(
+            // WAJIB: tanpa ini gerakan menarik tidak terbaca saat isinya
+            // sudah muat di layar.
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(bottom: viewInsets.bottom),
+            child: Column(
+              children: [
+                // ── Header / Logo ──
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 52, 24, 40),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 110,
-                      height: 110,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      padding: const EdgeInsets.all(10),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: const BusinessLogo(size: 80),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      _brandName,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'POS Sistem',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                        letterSpacing: 2.0,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Form Section ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Form(
-                  key: _formKey,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        padding: const EdgeInsets.all(10),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: const BusinessLogo(size: 80),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       Text(
-                        'Masuk ke akun Anda',
+                        _brandName,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
+                          color: colorScheme.primary,
+                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Masukkan username dan PIN untuk melanjutkan',
+                        'POS Sistem',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           color: Colors.grey.shade500,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // ── Username ──
-                      _buildLabel('Username'),
-                      const SizedBox(height: 8),
-                      _buildUsernameTextField(),
-
-                      const SizedBox(height: 20),
-
-                      // ── PIN ──
-                      _buildLabel('PIN'),
-                      const SizedBox(height: 8),
-                      _buildPinField(),
-
-                      const SizedBox(height: 10),
-
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const OwnerRecoveryPage(),
-                            ),
-                          ),
-                          child: Text(
-                            'Lupa PIN Owner?',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // ── Tombol Login ──
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.shade300,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Masuk',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
+                          letterSpacing: 2.0,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                // ── Form Section ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Masuk ke akun Anda',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Masukkan username dan PIN untuk melanjutkan',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+
+                        // ── Username ──
+                        _buildLabel('Username'),
+                        const SizedBox(height: 8),
+                        _buildUsernameTextField(),
+
+                        const SizedBox(height: 20),
+
+                        // ── PIN ──
+                        _buildLabel('PIN'),
+                        const SizedBox(height: 8),
+                        _buildPinField(),
+
+                        const SizedBox(height: 10),
+
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const OwnerRecoveryPage(),
+                              ),
+                            ),
+                            child: Text(
+                              'Lupa PIN Owner?',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        // ── Tombol Login ──
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade300,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Masuk',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -387,7 +405,6 @@ class _LoginPageState extends State<LoginPage> {
           v == null || v.trim().isEmpty ? 'Username wajib diisi' : null,
     );
   }
-
 
   Widget _buildPinField() {
     final colorScheme = Theme.of(context).colorScheme;
