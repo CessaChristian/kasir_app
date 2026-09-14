@@ -1,4 +1,6 @@
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
@@ -94,6 +96,51 @@ class SessionManager {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();
     }
+  }
+
+  /// Bertambah setiap kali daftar izin sesi yang sedang berjalan BERUBAH.
+  ///
+  /// Layar yang menyaring menu berdasarkan izin mendengarkan ini supaya ikut
+  /// digambar ulang. Tanpa itu, izin yang baru turun dari server baru terlihat
+  /// setelah pengguna keluar dan masuk lagi.
+  final ValueNotifier<int> izinBerubah = ValueNotifier(0);
+
+  /// Baca ulang izin sesi yang sedang berjalan dari database.
+  ///
+  /// ── KENAPA PERLU ──
+  ///
+  /// Daftar izin dibaca SEKALI saat login lalu disimpan di dalam sesi.
+  /// Sinkronisasi memperbarui tabelnya, tapi sesi yang sedang berjalan tidak
+  /// tahu apa-apa. Akibatnya membingungkan di lapangan: pemilik bilang "sudah
+  /// saya beri izin", kasir menyegarkan, dan tombolnya tetap tidak muncul —
+  /// baru muncul setelah ia keluar dan masuk lagi, tanpa ada yang memberi tahu
+  /// bahwa itu syaratnya.
+  ///
+  /// Dipanggil setiap kali sinkronisasi berhasil. Owner sengaja dilewati:
+  /// izinnya tidak pernah berasal dari tabel, [hasPermission] selalu
+  /// menjawab true untuknya.
+  Future<void> muatUlangIzin() async {
+    final sesi = _currentSession;
+    if (sesi == null || sesi.isOwner) return;
+
+    List<String> baru;
+    try {
+      baru = await _getUserPermissionsFromDb(sesi.userId, sesi.role);
+    } catch (_) {
+      // Gagal membaca bukan alasan untuk mencabut izin yang sedang berlaku.
+      return;
+    }
+
+    if (baru.toSet().length == sesi.permissions.toSet().length &&
+        baru.toSet().containsAll(sesi.permissions)) {
+      return; // tidak berubah — jangan menggambar ulang layar tanpa alasan
+    }
+
+    _currentSession = sesi.copyWith(permissions: baru);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _sessionKey, json.encode(_currentSession!.toJson()));
+    izinBerubah.value++;
   }
 
   /// Helper: ambil permissions dari DB.

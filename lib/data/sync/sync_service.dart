@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../shared/auth/session_manager.dart';
 import '../db.dart';
 import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
@@ -98,6 +99,12 @@ class SyncService {
           error: g.error,
         );
       }
+
+      // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
+      // menyimpan daftarnya sejak login. Tanpa dibaca ulang di sini, izin yang
+      // baru diberikan pemilik tidak terlihat sampai kasir keluar-masuk lagi —
+      // dan tidak ada yang memberi tahu bahwa itu syaratnya.
+      await SessionManager.instance.muatUlangIzin();
 
       await _catatBerhasil();
       return lengkap;

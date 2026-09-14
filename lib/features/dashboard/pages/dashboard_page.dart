@@ -243,6 +243,27 @@ class DashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ── KENAPA DIBUNGKUS ValueListenableBuilder ──
+    //
+    // AppShell menyimpan halaman-halamannya sebagai instance `const`, jadi
+    // objek DashboardPage yang sama dipakai di setiap penggambaran. Flutter
+    // melihat widget-nya IDENTIK lalu melewati penggambaran ulang seluruh
+    // cabangnya — `setState` di AppShell tidak pernah sampai ke sini.
+    //
+    // Akibatnya terlihat langsung saat pengujian dua emulator: pemilik
+    // mencabut izin `view_report`, izinnya sampai ke HP kasir dan sesi sudah
+    // diperbarui, tapi kartu "Laporan" TETAP terpampang sampai aplikasi
+    // ditutup-buka. Kasir masih bisa menekannya.
+    //
+    // Mendengarkan langsung di sini memutus ketergantungan pada penggambaran
+    // ulang induknya.
+    return ValueListenableBuilder<int>(
+      valueListenable: SessionManager.instance.izinBerubah,
+      builder: (context, _, _) => _bangun(context),
+    );
+  }
+
+  Widget _bangun(BuildContext context) {
     final session = SessionManager.instance.currentSession;
     final colorScheme = Theme.of(context).colorScheme;
     final now = DateTime.now();

@@ -31,6 +31,20 @@ class AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    // Menu drawer dan Akses Cepat disaring berdasarkan izin. Tanpa mendengar
+    // ini, izin yang baru turun dari server baru terlihat setelah pengguna
+    // keluar dan masuk lagi.
+    SessionManager.instance.izinBerubah.addListener(_izinBerubah);
+  }
+
+  void _izinBerubah() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    SessionManager.instance.izinBerubah.removeListener(_izinBerubah);
+    super.dispose();
   }
 
   void navigateToPage(int index) {
