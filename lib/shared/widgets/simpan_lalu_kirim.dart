@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/sync/sync_service.dart';
+import 'alasan_terputus.dart';
 import 'app_toast.dart';
 import 'dialog_sync.dart';
 
@@ -88,10 +89,18 @@ Future<void> kirimSekarang(
 
   if (hasil.berhasil) {
     AppToast.success(context, pesanTerkirim);
-  } else {
-    // SENGAJA tidak disebut gagal. Perubahannya sudah tersimpan dan pasti
-    // terkirim begitu jaringan kembali; menyebutnya gagal justru membuat
-    // pemilik mengulang hal yang sudah berhasil.
-    AppToast.warning(context, pesanTertunda);
+    return;
   }
+
+  // SENGAJA tidak disebut gagal. Perubahannya sudah tersimpan dan pasti
+  // terkirim begitu jaringan kembali; menyebutnya gagal justru membuat
+  // pemilik mengulang hal yang sudah berhasil.
+  //
+  // Kecuali perangkatnya ditolak server: di situ "akan terkirim saat online"
+  // adalah janji yang tidak akan ditepati, karena HP ini sudah online.
+  final alasan = alasanTakPulihSendiri(hasil.sebabTerputus);
+  AppToast.warning(
+    context,
+    alasan == null ? pesanTertunda : 'Tersimpan, tapi belum terkirim — $alasan',
+  );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/sync/sync_service.dart';
+import 'alasan_terputus.dart';
 import 'app_toast.dart';
 import 'dialog_sync.dart';
 
@@ -57,7 +58,15 @@ class SyncRefresh extends StatelessWidget {
         } else {
           // Offline bukan kesalahan pengguna: transaksinya tetap tersimpan
           // dan akan terkirim sendiri saat jaringan kembali.
-          AppToast.warning(context, 'Gagal menyegarkan — periksa koneksi');
+          //
+          // Tapi "periksa koneksi" hanya benar untuk jaringan. Perangkat yang
+          // ditolak server diberi tahu penyebab sebenarnya — kalau tidak,
+          // kasir memburu masalah internet yang tidak ada.
+          final alasan = alasanTakPulihSendiri(hasil.sebabTerputus);
+          AppToast.warning(
+            context,
+            'Gagal menyegarkan — ${alasan ?? 'periksa koneksi'}',
+          );
         }
       },
       child: child,

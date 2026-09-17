@@ -38,6 +38,14 @@ class HasilSync {
   /// Kegagalan sinkron GAMBAR, kalau ada.
   final String? errorGambar;
 
+  /// Kenapa putaran ini tidak bisa menyambung sama sekali, atau null kalau
+  /// sempat tersambung.
+  ///
+  /// [error] untuk log; ini untuk layar. Dipisah supaya layar tidak perlu
+  /// menebak dari isi teks galat — tebakan seperti itu diam-diam rusak
+  /// begitu kalimat galatnya diubah.
+  final SebabTerputus? sebabTerputus;
+
   const HasilSync({
     this.diperiksa = 0,
     this.berubah = 0,
@@ -48,6 +56,7 @@ class HasilSync {
     this.gambarDihapusLokal = 0,
     this.error,
     this.errorGambar,
+    this.sebabTerputus,
   });
 
   bool get berhasil => error == null;
@@ -70,6 +79,7 @@ class HasilSync {
         gambarDihapusLokal: hapusLokal,
         error: this.error,
         errorGambar: error,
+        sebabTerputus: sebabTerputus,
       );
 
   /// Ada yang berhasil walau ada juga yang gagal.

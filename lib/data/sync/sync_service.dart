@@ -76,7 +76,19 @@ class SyncService {
       // Pastikan sesinya hidup DULU. Perangkat yang dipasang saat jaringan
       // mati belum pernah punya sesi, dan tanpa percobaan ulang di sini ia
       // akan dianggap offline selamanya meski jaringannya sudah pulih.
-      await SupabaseService.instance.pastikanTerhubung();
+      //
+      // Hasilnya dulu diabaikan dan SyncEngine yang menolak dengan pesan
+      // gabungan "offline atau belum didaftarkan". Akibatnya layar tidak bisa
+      // membedakan internet mati dari perangkat yang sudah dicabut, dan
+      // menyuruh kasir memeriksa koneksi untuk keduanya.
+      final supabase = SupabaseService.instance;
+      if (!await supabase.pastikanTerhubung()) {
+        final sebab = supabase.sebabTerputus ?? SebabTerputus.jaringan;
+        return HasilSync(
+          error: 'tidak tersambung: ${sebab.name}',
+          sebabTerputus: sebab,
+        );
+      }
       final hasil =
           await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
       if (!hasil.berhasil) return hasil;
@@ -85,7 +97,7 @@ class SyncService {
       // tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
       // bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
       // belum sampai cuma berarti produknya tampil tanpa foto sementara.
-      final klien = SupabaseService.instance.client;
+      final klien = supabase.client;
       var lengkap = hasil;
       if (klien != null) {
         final g = await SyncGambar(db, klien,

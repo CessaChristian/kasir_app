@@ -143,6 +143,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
           hasOwner: false,
           isLoggedIn: false,
           perluInternet: true,
+          sebabTerputus: hasil.sebabTerputus,
         );
       }
       // Periksa ULANG — server mungkin baru saja mengirimkan akunnya.
@@ -207,6 +208,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         // pembuatan akun owner sebelum dipastikan memang belum ada.
         if (state.perluInternet) {
           return _LayarPerluInternet(
+            sebab: state.sebabTerputus,
             onCobaLagi: () async {
               // Dialog kemajuan menampilkan tabel apa yang sedang ditarik dan
               // sudah berapa barisnya. Tanpa itu layar diam total selama
@@ -259,10 +261,16 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 /// tersinkron — dan akun ganda itu tidak bisa dibereskan dari dalam aplikasi.
 ///
 /// Penyiapan pertama HARUS online. Setelahnya aplikasi jalan penuh offline.
+///
+/// Judul dan isinya mengikuti [sebab]. HP yang ditolak server dulu juga
+/// diberi "Perlu Internet" dengan ikon wifi mati — padahal internetnya
+/// menyala, dan "Coba Lagi" tidak akan pernah berhasil sampai aksesnya
+/// dipulihkan dari sisi server.
 class _LayarPerluInternet extends StatefulWidget {
+  final SebabTerputus? sebab;
   final Future<void> Function() onCobaLagi;
 
-  const _LayarPerluInternet({required this.onCobaLagi});
+  const _LayarPerluInternet({required this.sebab, required this.onCobaLagi});
 
   @override
   State<_LayarPerluInternet> createState() => _LayarPerluInternetState();
@@ -274,6 +282,29 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
   @override
   Widget build(BuildContext context) {
     final warna = Theme.of(context).colorScheme.primary;
+    final (ikon, judul, isi) = switch (widget.sebab) {
+      SebabTerputus.ditolak => (
+        Icons.phonelink_lock_rounded,
+        'Perangkat Tidak Dikenali',
+        'Server menolak perangkat ini, jadi data akun belum bisa diambil.'
+            '\n\nIni bukan masalah internet — mengganti jaringan tidak akan '
+            'membantu. Akses perangkat ini mungkin sudah dicabut, atau '
+            'aplikasinya dipasang dengan pengaturan yang salah.',
+      ),
+      SebabTerputus.belumDisiapkan => (
+        Icons.app_settings_alt_rounded,
+        'Belum Disiapkan',
+        'Aplikasi ini belum disiapkan untuk tersambung ke server, jadi data '
+            'akun belum bisa diambil.',
+      ),
+      SebabTerputus.jaringan || null => (
+        Icons.wifi_off_rounded,
+        'Perlu Internet',
+        'Penyiapan pertama butuh koneksi internet untuk mengambil '
+            'data akun dari server.\n\nSetelah ini, aplikasi bisa '
+            'dipakai tanpa internet.',
+      ),
+    };
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -289,18 +320,19 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
                     color: warna.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.wifi_off_rounded, size: 40, color: warna),
+                  child: Icon(ikon, size: 40, color: warna),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Perlu Internet',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  judul,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Penyiapan pertama butuh koneksi internet untuk mengambil '
-                  'data akun dari server.\n\nSetelah ini, aplikasi bisa '
-                  'dipakai tanpa internet.',
+                  isi,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -369,10 +401,14 @@ class AuthState {
   /// owner KEDUA di HP barunya.
   final bool perluInternet;
 
+  /// Kenapa server tidak bisa dihubungi, kalau [perluInternet].
+  final SebabTerputus? sebabTerputus;
+
   AuthState({
     required this.hasUser,
     required this.hasOwner,
     required this.isLoggedIn,
     this.perluInternet = false,
+    this.sebabTerputus,
   });
 }
