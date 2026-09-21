@@ -93,6 +93,21 @@ class SyncGambar {
     this.onKemajuan,
   }) : _berkas = berkas ?? ImageStorageService();
 
+  /// Berkas semuda ini tidak pernah dibuang, walau belum dirujuk siapa pun.
+  ///
+  /// ── KENAPA PENJAGA INI ADA ──
+  ///
+  /// Foto yang baru dipilih di form produk sudah menjadi berkas, tapi barisnya
+  /// baru ditulis saat pemilik menekan "Simpan Perubahan". Di sela itu berkasnya
+  /// tidak dirujuk siapa pun — dan memilih foto justru MEMICU sinkron, karena
+  /// aplikasi berpindah ke galeri lalu kembali aktif. Tanpa jeda ini,
+  /// pembersihan membuang foto yang sedang dipegang pengguna: jalurnya tersimpan
+  /// ke database, berkasnya sudah lenyap, dan produknya tampil tanpa foto tanpa
+  /// penjelasan apa pun.
+  ///
+  /// Harganya hanya berkas yatim yang menumpang beberapa puluh menit lebih lama.
+  static const usiaAmanBerkasBaru = Duration(minutes: 30);
+
   Future<HasilSyncGambar> jalankan() async {
     try {
       final diServer = await _daftarServer();
@@ -135,7 +150,9 @@ class SyncGambar {
       // pembersihan ini, penyimpanan HP kasir terus membengkak oleh foto yang
       // tidak akan pernah ditampilkan lagi.
       final buangLokal = boleh
-          ? (await _berkas.daftarBerkas()).difference(dirujuk).toList()
+          ? (await _berkas.daftarBerkas(lebihTuaDari: usiaAmanBerkasBaru))
+              .difference(dirujuk)
+              .toList()
           : <String>[];
 
       final total =

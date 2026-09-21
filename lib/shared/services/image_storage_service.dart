@@ -144,13 +144,26 @@ class ImageStorageService {
   /// Folder yang belum ada mengembalikan himpunan kosong, bukan melempar —
   /// perangkat yang belum pernah menyimpan gambar memang belum punya
   /// foldernya.
-  Future<Set<String>> daftarBerkas({String subfolder = folderProduk}) async {
+  ///
+  /// [lebihTuaDari] menyaring berkas yang baru dibuat. Pemanggil yang hendak
+  /// MEMBUANG berkas wajib memakainya: berkas yang baru lahir bisa saja masih
+  /// dipegang layar yang sedang terbuka dan belum sempat dicatat ke database
+  /// — lihat [SyncGambar.usiaAmanBerkasBaru].
+  Future<Set<String>> daftarBerkas({
+    String subfolder = folderProduk,
+    Duration? lebihTuaDari,
+  }) async {
     final dasar = await _folderDasar();
     final folder = Directory(p.join(dasar.path, subfolder));
     if (!folder.existsSync()) return {};
+    final batas = lebihTuaDari == null
+        ? null
+        : DateTime.now().subtract(lebihTuaDari);
     return {
       for (final f in folder.listSync())
-        if (f is File) p.join(subfolder, p.basename(f.path)),
+        if (f is File &&
+            (batas == null || f.statSync().modified.isBefore(batas)))
+          p.join(subfolder, p.basename(f.path)),
     };
   }
 

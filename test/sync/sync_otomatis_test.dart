@@ -27,6 +27,21 @@ void main() {
     expect(s.alasanDilewati(sekarang: sekarang), 'keranjang sedang berisi');
   });
 
+  // Form produk yang terbuka menahan sinkron dengan alasan yang sama seperti
+  // keranjang: ada pekerjaan setengah jadi yang belum tercatat di database.
+  // Bedanya, yang dipertaruhkan di sini berkas foto — sinkron gambar membuang
+  // berkas yang belum dirujuk baris mana pun.
+  test('DITUNDA selagi form produk terbuka', () {
+    s.sedangMenyuntingProduk = true;
+    expect(s.alasanDilewati(sekarang: sekarang), 'form produk sedang terbuka');
+    expect(
+      s.alasanDilewati(sekarang: sekarang, abaikanJeda: true),
+      'form produk sedang terbuka',
+      reason: 'kembali aktif dari galeri tidak boleh menembus penjaga ini — '
+          'justru di situlah fotonya paling rawan dibuang',
+    );
+  });
+
   test('jeda minimum mencegah sinkron beruntun saat berpindah halaman',
       () async {
     await s.picu('halaman kasir dibuka');

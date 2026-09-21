@@ -169,6 +169,45 @@ void main() {
     expect((await berkas.daftarBerkas()).difference(dirujuk), isEmpty);
   });
 
+  // ── BERKAS YANG MASIH "DI TANGAN" PENGGUNA ──
+  //
+  // Foto yang baru dipilih di form produk sudah menjadi berkas, tapi BELUM
+  // dirujuk baris mana pun — barisnya baru ditulis saat pemilik menekan
+  // "Simpan Perubahan". Memilih foto membuat aplikasi berpindah ke galeri
+  // lalu kembali aktif, dan kembali aktif memicu sinkron. Tanpa penjaga usia,
+  // sinkron itu menyimpulkan fotonya sampah dan membuangnya saat formnya
+  // masih terbuka — persis seperti yang terjadi pada produk "Es Jeruk":
+  // jalurnya tersimpan di database, berkasnya sudah lenyap.
+
+  test('berkas yang baru dibuat TIDAK ikut didaftar untuk dibuang', () async {
+    await berkas.simpanBytes('products/baru.webp', Uint8List.fromList([1]));
+
+    expect(
+      await berkas.daftarBerkas(lebihTuaDari: const Duration(minutes: 30)),
+      isEmpty,
+      reason: 'berkas yang baru saja dibuat masih mungkin sedang dipegang form',
+    );
+    expect(await berkas.daftarBerkas(), {'products/baru.webp'},
+        reason: 'tanpa batas usia, berkasnya tetap terlihat apa adanya');
+  });
+
+  test('berkas lama tetap masuk daftar buangan', () async {
+    await berkas.simpanBytes('products/lama.webp', Uint8List.fromList([1]));
+    File(await berkas.lokasiPenuh('products/lama.webp'))
+        .setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 2)));
+
+    expect(
+      await berkas.daftarBerkas(lebihTuaDari: const Duration(minutes: 30)),
+      {'products/lama.webp'},
+      reason: 'penjaga usia tidak boleh membuat sampah lama jadi kebal',
+    );
+  });
+
+  test('SyncGambar memakai batas usia, bukan mendaftar semua berkas', () {
+    expect(SyncGambar.usiaAmanBerkasBaru.inMinutes, greaterThanOrEqualTo(10),
+        reason: 'form produk bisa terbuka beberapa menit sebelum disimpan');
+  });
+
   test('path kosong tidak dianggap rujukan', () async {
     await pasangProduk('Aneh', '');
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);

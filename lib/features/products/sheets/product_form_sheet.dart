@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../data/sync/sync_otomatis.dart';
+
 import '../../../shared/services/image_storage_service.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../data/db.dart';
@@ -65,6 +67,12 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   @override
   void initState() {
     super.initState();
+    // Tahan sinkron selama form terbuka. Foto yang baru dipilih sudah menjadi
+    // berkas tapi belum dirujuk baris mana pun sampai "Simpan Perubahan"
+    // ditekan — dan memilih foto justru memicu sinkron, karena aplikasi
+    // berpindah ke galeri lalu kembali aktif. Tanpa penahan ini, pembersihan
+    // berkas yatim membuang foto yang sedang dipegang pengguna.
+    SyncOtomatis.instance.sedangMenyuntingProduk = true;
     final p = widget.editing;
     _nameC = TextEditingController(text: p?.name ?? '');
     _priceC = TextEditingController(
@@ -78,6 +86,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   @override
   void dispose() {
+    SyncOtomatis.instance.sedangMenyuntingProduk = false;
+    // Lunasi sinkron yang tertunda selama form terbuka.
+    SyncOtomatis.instance.lanjutkanYangTertunda();
     _nameC.dispose();
     _priceC.dispose();
     _barcodeC.dispose();

@@ -64,6 +64,18 @@ class SyncOtomatis with WidgetsBindingObserver {
   /// transaksi selesai — momen paling aman untuk menyegarkan.
   bool sedangMenyusunPesanan = false;
 
+  /// True selagi form produk terbuka.
+  ///
+  /// Alasannya sama dengan keranjang — ada pekerjaan setengah jadi yang belum
+  /// tercatat di database — tapi yang dipertaruhkan berbeda: berkas foto yang
+  /// baru dipilih belum dirujuk baris mana pun, dan sinkron gambar membuang
+  /// berkas semacam itu.
+  bool sedangMenyuntingProduk = false;
+
+  /// Ada pekerjaan yang tidak boleh diganggu sinkron.
+  bool get _adaPekerjaanRawan =>
+      sedangMenyusunPesanan || sedangMenyuntingProduk;
+
   void mulai() {
     WidgetsBinding.instance.addObserver(this);
     _nyalakanTimer();
@@ -97,12 +109,13 @@ class SyncOtomatis with WidgetsBindingObserver {
     }
   }
 
-  /// Panggil saat keranjang baru saja dikosongkan (checkout selesai atau
-  /// dibatalkan), untuk melunasi sinkron yang tadi ditunda.
+  /// Panggil saat pekerjaan yang menahan sinkron selesai — keranjang
+  /// dikosongkan, atau form produk ditutup — untuk melunasi sinkron yang tadi
+  /// ditunda.
   void lanjutkanYangTertunda() {
     if (!_tertunda) return;
     _tertunda = false;
-    picu('keranjang kosong', abaikanJeda: true);
+    picu('pekerjaan rawan selesai', abaikanJeda: true);
   }
 
   /// Alasan kenapa sinkron kali ini dilewati, atau null kalau boleh jalan.
@@ -111,6 +124,7 @@ class SyncOtomatis with WidgetsBindingObserver {
   @visibleForTesting
   String? alasanDilewati({required DateTime sekarang, bool abaikanJeda = false}) {
     if (sedangMenyusunPesanan) return 'keranjang sedang berisi';
+    if (sedangMenyuntingProduk) return 'form produk sedang terbuka';
     if (SyncService.instance.sedangJalan) return 'sudah ada yang berjalan';
     if (!abaikanJeda &&
         _percobaanTerakhir != null &&
@@ -131,7 +145,7 @@ class SyncOtomatis with WidgetsBindingObserver {
     final dilewati =
         alasanDilewati(sekarang: DateTime.now(), abaikanJeda: abaikanJeda);
     if (dilewati != null) {
-      if (sedangMenyusunPesanan) _tertunda = true;
+      if (_adaPekerjaanRawan) _tertunda = true;
       return;
     }
     _percobaanTerakhir = DateTime.now();
@@ -145,5 +159,6 @@ class SyncOtomatis with WidgetsBindingObserver {
     _percobaanTerakhir = null;
     _tertunda = false;
     sedangMenyusunPesanan = false;
+    sedangMenyuntingProduk = false;
   }
 }
