@@ -1,3 +1,4 @@
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/sync/sync_otomatis.dart';
 
@@ -76,6 +77,108 @@ void main() {
       reason: 'tidak ada alasan yang cukup penting untuk mengubah grid di '
           'tengah kasir menyusun pesanan',
     );
+  });
+
+  // ── PERUBAHAN LOKAL LANGSUNG DIKIRIM ──
+  //
+  // Dulu perangkat yang MENGUBAH data ikut menunggu putaran lima menit, jadi
+  // pemilik harus menyegarkan HP-nya sendiri hanya supaya perubahannya naik ke
+  // server. Itu terbalik: yang mengubah seharusnya mengirim, yang ingin tahu
+  // yang menyegarkan.
+
+  group('perubahan lokal memicu kiriman', () {
+    test('beruntun digabung jadi SATU kiriman', () {
+      fakeAsync((waktu) {
+        var kirim = 0;
+        s.penggantiPicuUntukTest = (_) async => kirim++;
+
+        // Pemilik menghapus lima produk beruntun.
+        for (var i = 0; i < 5; i++) {
+          s.adaPerubahanLokal();
+          waktu.elapse(const Duration(milliseconds: 500));
+        }
+        expect(kirim, 0,
+            reason: 'selama perubahan masih berdatangan, jedanya diulang');
+
+        waktu.elapse(SyncOtomatis.jedaGabung + const Duration(seconds: 1));
+        expect(kirim, 1,
+            reason: 'lima penghapusan cukup satu perjalanan — satu kiriman '
+                'membawa SEMUA baris yang tertunda, bukan satu baris');
+      });
+    });
+
+    test('perubahan tunggal terkirim setelah jeda, bukan menunggu lima menit',
+        () {
+      fakeAsync((waktu) {
+        var kirim = 0;
+        s.penggantiPicuUntukTest = (_) async => kirim++;
+
+        s.adaPerubahanLokal();
+        waktu.elapse(SyncOtomatis.jedaGabung - const Duration(seconds: 1));
+        expect(kirim, 0, reason: 'belum sampai jedanya');
+
+        waktu.elapse(const Duration(seconds: 2));
+        expect(kirim, 1);
+      });
+    });
+
+    test('jedanya jauh lebih pendek dari putaran berkala', () {
+      expect(SyncOtomatis.jedaGabung, lessThan(SyncOtomatis.jarakBerkala),
+          reason: 'kalau tidak, HP lain yang menyegarkan sedetik kemudian '
+              'tetap melihat data lama — tujuan perubahan ini hilang');
+    });
+  });
+
+  // ── PENJAGA LINGKARAN ──
+  //
+  // Sinkron sendiri menulis ke tabel saat menyimpan data dari server. Tanpa
+  // penjaga ini, tulisan itu dianggap perubahan lokal dan memicu sinkron
+  // berikutnya: tarik -> tulis -> picu -> tarik, tanpa henti.
+  group('tulisan dari sinkron tidak boleh memicu apa-apa', () {
+    test('selagi sinkron berjalan, tulisan diabaikan', () {
+      expect(
+        s.perluKirimSetelahTulisan(
+          tabel: {'products'},
+          sinkronSedangJalan: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('di luar sinkron, tulisan pengguna ditanggapi', () {
+      expect(
+        s.perluKirimSetelahTulisan(
+          tabel: {'products'},
+          sinkronSedangJalan: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('penanda sync_state saja TIDAK ditanggapi, walau sinkron sudah usai',
+        () {
+      // Kabar tulisan datang lewat antrean, jadi bisa tiba setelah penanda
+      // "sedang sinkron" mati. Tanpa aturan ini, setiap putaran menjadwalkan
+      // putaran berikutnya — tiga detik sekali, selamanya.
+      expect(
+        s.perluKirimSetelahTulisan(
+          tabel: {'sync_state'},
+          sinkronSedangJalan: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('tulisan campuran tetap ditanggapi', () {
+      expect(
+        s.perluKirimSetelahTulisan(
+          tabel: {'sync_state', 'transactions'},
+          sinkronSedangJalan: false,
+        ),
+        isTrue,
+        reason: 'ada transaksi sungguhan di dalamnya',
+      );
+    });
   });
 
   test('jarak berkala lebih rapat dari batas basi', () {

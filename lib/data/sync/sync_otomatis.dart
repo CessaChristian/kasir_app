@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:drift/drift.dart' show TableUpdateQuery;
+
 import 'package:flutter/widgets.dart';
 
+import '../db.dart';
 import 'sync_service.dart';
 
 /// Menjalankan sinkronisasi dengan sendirinya, tanpa pengguna perlu menarik
@@ -47,6 +50,17 @@ class SyncOtomatis with WidgetsBindingObserver {
   /// Dianggap basi kalau sudah selama ini tidak berhasil sinkron.
   static const batasBasi = Duration(minutes: 30);
 
+  /// Jeda sepi sebelum perubahan lokal dikirim.
+  ///
+  /// Perubahan tidak dikirim seketika, melainkan menunggu sesaat dan mengulang
+  /// hitungan setiap ada perubahan baru. Menghapus lima produk beruntun jadi
+  /// SATU perjalanan, bukan lima — dan satu perjalanan itu membawa semua baris
+  /// yang tertunda, jadi tidak ada yang tertinggal.
+  ///
+  /// Sengaja sependek ini: HP lain yang menyegarkan beberapa detik kemudian
+  /// harus sudah melihat perubahannya, kalau tidak seluruh gunanya hilang.
+  static const jedaGabung = Duration(seconds: 3);
+
   Timer? _timer;
   DateTime? _percobaanTerakhir;
   bool _tertunda = false;
@@ -76,9 +90,83 @@ class SyncOtomatis with WidgetsBindingObserver {
   bool get _adaPekerjaanRawan =>
       sedangMenyusunPesanan || sedangMenyuntingProduk;
 
+  Timer? _penggabung;
+  StreamSubscription<void>? _pendengarTulisan;
+
+  /// Diganti test untuk mengamati penjadwalan tanpa menyentuh jaringan.
+  @visibleForTesting
+  Future<void> Function(String alasan)? penggantiPicuUntukTest;
+
+  /// Ada tulisan lokal — jadwalkan pengiriman setelah [jedaGabung] sepi.
+  ///
+  /// Perangkat yang MENGUBAH data yang mengirimkannya; perangkat yang ingin
+  /// tahu cukup menyegarkan. Sebelum ini keduanya harus menyegarkan, sehingga
+  /// pemilik yang baru menghapus produk masih harus menarik layarnya sendiri
+  /// hanya supaya penghapusan itu naik ke server.
+  void adaPerubahanLokal() {
+    _penggabung?.cancel();
+    _penggabung = Timer(jedaGabung, () {
+      final kirim =
+          penggantiPicuUntukTest ?? (a) => picu(a, abaikanJeda: true);
+      kirim('perubahan lokal');
+    });
+  }
+
+  /// Bolehkah tulisan yang baru terjadi ditanggapi?
+  ///
+  /// Dua penjaga, dan keduanya mencegah lingkaran yang sama — sinkron memicu
+  /// dirinya sendiri: tarik, tulis, picu, tarik, tanpa henti.
+  ///
+  /// 1. Selagi sinkron berjalan, semua tulisan diabaikan; tulisan itu hampir
+  ///    pasti berasal dari sinkron yang sedang menyimpan data server.
+  ///
+  /// 2. Tulisan yang HANYA menyentuh `sync_state` diabaikan juga. Tabel itu
+  ///    murni lokal — berisi penanda waktu sinkron — dan ditulis pada SETIAP
+  ///    putaran, termasuk putaran yang tidak menemukan apa-apa. Tanpa aturan
+  ///    kedua ini, penjaga pertama masih bisa lolos: kabar tulisan tiba lewat
+  ///    antrean, jadi bisa sampai sepersekian detik SETELAH sinkronnya selesai
+  ///    dan penandanya sudah mati.
+  ///
+  /// Harga penjaga pertama: tulisan pengguna yang jatuh TEPAT saat sinkron
+  /// berjalan ikut terlewat. Itu disengaja dan tidak berbahaya — barisnya tetap
+  /// `pending`, lalu ikut terkirim pada perubahan berikutnya atau pada putaran
+  /// berkala. Menebak-nebak asal tulisan lebih berisiko daripada menunggu.
+  @visibleForTesting
+  bool perluKirimSetelahTulisan({
+    required Set<String> tabel,
+    required bool sinkronSedangJalan,
+  }) {
+    if (sinkronSedangJalan) return false;
+    return tabel.any((t) => t != _tabelPenandaSinkron);
+  }
+
+  static const _tabelPenandaSinkron = 'sync_state';
+
   void mulai() {
     WidgetsBinding.instance.addObserver(this);
     _nyalakanTimer();
+
+    // Satu pendengar untuk SEMUA tulisan, bukan satu pemicu di tiap tempat
+    // yang menulis. Ada dua puluh tempat semacam itu hari ini, dan setiap
+    // fitur baru menambah satu lagi — cepat atau lambat ada yang terlewat.
+    //
+    // Sengaja MENDENGARKAN SEMUA TABEL, bukan daftar tabel yang disinkronkan.
+    // Daftar semacam itu pasti ketinggalan begitu ada tabel baru. Dua tabel
+    // yang tidak ikut sinkron pun tidak merepotkan: `sync_state` hanya ditulis
+    // saat sinkron berjalan (sudah dijaga di bawah), dan katalog `permissions`
+    // hanya ditulis sekali saat penyiapan.
+    _pendengarTulisan?.cancel();
+    _pendengarTulisan = db.tableUpdates(const TableUpdateQuery.any()).listen((
+      perubahan,
+    ) {
+      if (!perluKirimSetelahTulisan(
+        tabel: perubahan.map((p) => p.table).toSet(),
+        sinkronSedangJalan: SyncService.instance.sedangJalan,
+      )) {
+        return;
+      }
+      adaPerubahanLokal();
+    });
   }
 
   @visibleForTesting
@@ -86,6 +174,10 @@ class SyncOtomatis with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _timer = null;
+    _penggabung?.cancel();
+    _penggabung = null;
+    _pendengarTulisan?.cancel();
+    _pendengarTulisan = null;
   }
 
   void _nyalakanTimer() {
@@ -160,5 +252,8 @@ class SyncOtomatis with WidgetsBindingObserver {
     _tertunda = false;
     sedangMenyusunPesanan = false;
     sedangMenyuntingProduk = false;
+    _penggabung?.cancel();
+    _penggabung = null;
+    penggantiPicuUntukTest = null;
   }
 }
