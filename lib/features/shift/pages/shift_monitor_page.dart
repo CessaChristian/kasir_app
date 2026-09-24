@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/auth/session_manager.dart';
 import '../../reports/repositories/shift_report_repository.dart';
+import '../../../shared/widgets/sync_refresh.dart';
 import '../../reports/widgets/date_range_filter.dart';
 import 'shift_detail_page.dart';
 
@@ -103,9 +104,17 @@ class _ShiftMonitorPageState extends State<ShiftMonitorPage> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
+      // SyncRefresh, bukan RefreshIndicator telanjang. Yang lama hanya
+      // memanggil _load() — membaca ulang database LOKAL tanpa menanyakan
+      // apa pun ke server. Tarikannya terasa dan animasinya berputar, lalu
+      // pemilik menyimpulkan datanya memang sudah terbaru; padahal transaksi
+      // kasir yang baru masuk tidak pernah ikut terbawa.
+      body: SyncRefresh(
+        sesudah: _load,
         child: CustomScrollView(
+          // Wajib: tanpa ini tarikan tidak terbaca saat isinya pendek —
+          // justru keadaan yang paling sering terjadi di halaman ini.
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
