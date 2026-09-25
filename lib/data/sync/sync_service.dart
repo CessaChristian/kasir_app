@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../shared/auth/session_manager.dart';
 import '../db.dart';
+import '../perangkat/perangkat_repository.dart';
 import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
 import 'sync_engine.dart';
@@ -124,6 +125,19 @@ class SyncService {
       // kasir yang aksesnya sudah dicabut tetap bisa berjualan sampai
       // aplikasinya benar-benar ditutup.
       await SessionManager.instance.periksaAkunMasihBerlaku();
+
+      // Tandai perangkat ini masih dipakai, supaya pemilik bisa melihat mana
+      // yang aktif dan mana yang sudah lama diam di halaman Perangkat.
+      // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
+      // adalah catatan administratif, bukan data dagangan.
+      await PerangkatRepository.instance.hadir();
+
+      // Pencabutan perangkat ditolak di lapisan ATURAN TABEL, bukan saat
+      // login. Bedanya penting: permintaan baca dari perangkat yang dicabut
+      // dijawab "kosong", bukan galat — jadi tanpa pemeriksaan ini layarnya
+      // akan berkata "Sudah yang terbaru" dengan yakin sambil sebenarnya
+      // sudah terputus.
+      await PerangkatRepository.instance.periksaStatusSaya();
 
       await _catatBerhasil();
       return lengkap;

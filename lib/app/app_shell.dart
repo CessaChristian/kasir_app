@@ -11,6 +11,7 @@ import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
 import '../shared/constants/app_constants.dart';
+import '../features/perangkat/pages/daftar_perangkat_page.dart';
 import '../data/supabase/supabase_service.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
@@ -629,6 +630,20 @@ class AppShellState extends State<AppShell> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      _buildDrawerMenuItem(
+                        context,
+                        icon: Icons.devices_other_rounded,
+                        label: 'Daftar Perangkat',
+                        isSelected: false,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const DaftarPerangkatPage()),
+                          );
+                        },
+                      ),
                       _buildDrawerMenuItem(
                         context,
                         icon: Icons.phonelink_erase_rounded,

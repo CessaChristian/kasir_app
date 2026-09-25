@@ -17,7 +17,9 @@ import 'features/auth/pages/owner_setup_page.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/onboarding/repositories/onboarding_repository.dart';
 import 'features/onboarding/pages/onboarding_page.dart';
+import 'data/perangkat/perangkat_repository.dart';
 import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
+import 'features/perangkat/pages/layar_perangkat_dicabut.dart';
 import 'shared/auth/session_manager.dart';
 
 void main() async {
@@ -82,7 +84,15 @@ class MyApp extends StatelessWidget {
           ],
           locale: const Locale('id', 'ID'),
           theme: buildAppTheme(kSeedDineIn),
-          home: const AuthFlowHandler(),
+          // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
+          // dipasang di atas Navigator — bukan di satu halaman. Layar mana
+          // pun yang sedang terbuka akan tergantikan.
+          home: ValueListenableBuilder<bool>(
+            valueListenable: PerangkatRepository.instance.dicabut,
+            builder: (context, dicabut, child) => dicabut
+                ? const LayarPerangkatDicabut()
+                : const AuthFlowHandler(),
+          ),
         );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/supabase_service.dart';
 
 /// Layar pertama di HP yang belum pernah didaftarkan.
@@ -57,6 +58,24 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     if (!mounted) return;
 
     if (hasil == HasilDaftarPerangkat.berhasil) {
+      // Identitasnya sudah ada; sekarang catatkan ke daftar perangkat.
+      // Kuncinya disetorkan sekali lagi karena yang memutuskan boleh-tidaknya
+      // mendaftar adalah SERVER, bukan aplikasi — tanpa itu, siapa pun yang
+      // bisa meminta identitas anonim juga bisa mendaftarkan dirinya.
+      final diterima =
+          await PerangkatRepository.instance.daftarkan(_kunciC.text);
+
+      if (!diterima) {
+        // Jangan tinggalkan identitas yang tidak diakui siapa pun.
+        await SupabaseService.instance.lepaskanPerangkat();
+        if (!mounted) return;
+        setState(() {
+          _sedangMendaftar = false;
+          _galat = 'Kunci pemasangan salah. Periksa lagi email dan kuncinya.';
+        });
+        return;
+      }
+
       await widget.sesudahBerhasil();
       return;
     }
