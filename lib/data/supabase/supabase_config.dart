@@ -32,25 +32,16 @@ class SupabaseConfig {
   static const String url = 'https://ejvfbmmaiaqxcouiurws.supabase.co';
   static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqdmZibW1haWFxeGNvdWl1cndzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMzgwMjQsImV4cCI6MjEwMzgxNDAyNH0.UjQ1nyTjyNNPWlPajyYZUNYU55krz1KZmikOa5T_IfY';
 
-  /// Kredensial perangkat, HANYA untuk tahap uji coba.
-  ///
-  /// Ini SATU-SATUNYA rahasia sungguhan di antara keempat nilai: siapa pun
-  /// yang memilikinya bisa login sebagai perangkat yang sah. Tetap lewat
-  /// `--dart-define` bukan karena itu menyembunyikannya dari APK — sudah
-  /// terbukti tidak — melainkan supaya tidak ikut terbit ke repositori, yang
-  /// bersifat PUBLIK. Bedanya nyata: dari "harus punya APK dan tahu cara
-  /// membongkarnya" menjadi "cukup buka GitHub".
-  ///
-  /// Nanti diganti layar "Daftarkan Perangkat" yang diketik sekali oleh
-  /// pemilik saat menyiapkan HP. Setelah itu tidak ada rahasia tersisa di
-  /// dalam APK sama sekali.
-  static const String deviceEmail =
-      String.fromEnvironment('SUPABASE_DEVICE_EMAIL');
-  static const String devicePassword =
-      String.fromEnvironment('SUPABASE_DEVICE_PASSWORD');
-
-  static bool get adaKredensialPerangkat =>
-      deviceEmail.isNotEmpty && devicePassword.isNotEmpty;
+  // Kredensial perangkat SENGAJA tidak ada di sini lagi.
+  //
+  // Dulu email dan password perangkat ditanam saat build lewat --dart-define,
+  // sehingga setiap HP baru butuh APK sendiri dan rahasianya bisa dikorek dari
+  // berkas APK — sudah dibuktikan bisa. Sekarang perangkat mendapat
+  // identitasnya sendiri saat didaftarkan pemilik, dan identitas itu tidak
+  // pernah meninggalkan HP yang bersangkutan.
+  //
+  // Akibatnya APK tidak lagi memuat satu pun rahasia: `url` dan `anonKey` di
+  // atas memang dirancang publik.
 
   /// Selalu true sekarang, dan itu memang tujuannya — lihat catatan di atas.
   ///

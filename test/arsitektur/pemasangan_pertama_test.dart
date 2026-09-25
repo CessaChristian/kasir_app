@@ -44,8 +44,17 @@ void main() {
     );
 
     // Sinkron harus terjadi SEBELUM keputusan "tidak ada user" diambil.
+    //
+    // Penandanya `if (!hasUser)` — baris yang benar-benar memutuskan menuju
+    // layar Setup Akun Owner. Sengaja BUKAN sekadar teks 'hasUser: false':
+    // ada kepulangan lain yang memuatnya lebih dulu dan memang seharusnya
+    // mendahului sinkron, yaitu saat perangkatnya belum didaftarkan sama
+    // sekali. Perangkat tanpa identitas tidak punya apa pun untuk ditanyakan
+    // ke server.
     final posSync = badan.indexOf('SyncService.instance.jalankan()');
-    final posPutusan = badan.indexOf('hasUser: false');
+    final posPutusan = badan.indexOf('if (!hasUser)');
+    expect(posPutusan, isNot(-1),
+        reason: 'keputusan menuju onboarding harus lewat `if (!hasUser)`');
     expect(
       posSync < posPutusan,
       isTrue,

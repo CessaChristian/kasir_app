@@ -30,6 +30,22 @@ enum SebabTerputus {
   belumDisiapkan,
 }
 
+/// Hasil percobaan mendaftarkan perangkat dengan kunci pemasangan.
+enum HasilDaftarPerangkat {
+  berhasil,
+
+  /// Server menjawab dan menolak kuncinya. Mengulang dengan kunci yang sama
+  /// tidak akan berhasil.
+  kunciSalah,
+
+  /// Server tidak terjangkau. Pendaftaran WAJIB online — tanpa server, tidak
+  /// ada yang bisa memastikan kuncinya benar.
+  jaringan,
+
+  /// Kuncinya benar tapi identitas gagal dibuat.
+  gagal,
+}
+
 /// Kode penolakan dari server yang berarti kredensial perangkat ini TIDAK
 /// berlaku. Hanya kode-kode ini yang boleh disebut "ditolak".
 const _kodeDitolak = {
@@ -80,6 +96,17 @@ class SupabaseService {
   SupabaseService._();
   static final SupabaseService instance = SupabaseService._();
 
+  /// Penanda bahwa perangkat ini sudah pernah didaftarkan.
+  ///
+  /// Isinya identitas perangkat, bukan rahasia — identitas anonim tidak punya
+  /// email maupun password. Yang membuat HP ini tetap dikenali server adalah
+  /// SESI-nya, yang diperpanjang sendiri selama HP masih dipakai.
+  static const _kunciPerangkatId = 'supabase_perangkat_id';
+
+  // Dua kunci di bawah warisan cara lama, saat kredensial perangkat ditanam
+  // ke APK. Masih dibaca supaya HP yang sudah terpasang tidak putus saat
+  // aplikasinya diperbarui — dan dibuang begitu pemiliknya menekan
+  // "Lepaskan Perangkat" lalu mendaftar ulang.
   static const _kunciEmail = 'supabase_device_email';
   static const _kunciPassword = 'supabase_device_password';
 
@@ -170,24 +197,74 @@ class SupabaseService {
       return true;
     }
 
-    // 2. Belum pernah terdaftar — pakai kredensial dari build.
-    if (SupabaseConfig.adaKredensialPerangkat) {
-      return daftarkanPerangkat(
-        email: SupabaseConfig.deviceEmail,
-        password: SupabaseConfig.devicePassword,
-      );
-    }
-
-    // Tidak ada yang bisa dicoba. Kalau brankas tadi sempat mencoba dan
-    // ditolak, sebab itu yang dipertahankan.
+    // Tidak ada lagi kredensial bawaan build yang bisa dicoba. Perangkat yang
+    // belum punya sesi harus didaftarkan pemiliknya lewat kunci pemasangan.
     _sebabTerputus ??= SebabTerputus.belumDisiapkan;
     return false;
   }
 
-  /// Daftarkan perangkat ini. Dipanggil SEKALI saat menyiapkan HP.
+  /// Sudahkah perangkat ini didaftarkan?
   ///
-  /// Kredensialnya disimpan supaya login berikutnya otomatis — kasir tidak
-  /// pernah perlu mengetiknya.
+  /// Termasuk perangkat warisan yang kredensialnya masih tertanam dari cara
+  /// lama — supaya pembaruan aplikasi tidak memutus HP yang sedang dipakai.
+  Future<bool> sudahTerdaftar() async {
+    final id = await _brankas.read(key: _kunciPerangkatId);
+    if (id != null && id.isNotEmpty) return true;
+    final emailLama = await _brankas.read(key: _kunciEmail);
+    return emailLama != null && emailLama.isNotEmpty;
+  }
+
+  /// Daftarkan HP ini memakai kunci pemasangan yang diketik pemilik.
+  ///
+  /// ── KENAPA DUA LANGKAH ──
+  ///
+  /// Kunci pemasangan cuma untuk MEMBUKTIKAN bahwa yang memasang berhak. Ia
+  /// tidak dipakai seterusnya, dan sengaja tidak disimpan di HP — supaya HP
+  /// yang hilang tidak membawa serta kemampuan mendaftarkan dirinya lagi.
+  ///
+  /// Identitas yang dipakai sehari-hari justru yang anonim: tiap HP mendapat
+  /// satu yang berbeda. Itulah yang membuat "cabut satu HP" nanti mungkin —
+  /// kalau semua HP memakai akun yang sama, server tidak punya cara
+  /// membedakannya.
+  Future<HasilDaftarPerangkat> daftarkanDenganKunci({
+    required String email,
+    required String password,
+  }) async {
+    if (!_siap) return HasilDaftarPerangkat.gagal;
+    final auth = Supabase.instance.client.auth;
+
+    try {
+      await auth.signInWithPassword(email: email, password: password);
+    } catch (e) {
+      return golongkanGagalMasuk(e) == SebabTerputus.ditolak
+          ? HasilDaftarPerangkat.kunciSalah
+          : HasilDaftarPerangkat.jaringan;
+    }
+
+    try {
+      final hasil = await auth.signInAnonymously();
+      final id = hasil.user?.id;
+      if (id == null || id.isEmpty) {
+        await auth.signOut();
+        return HasilDaftarPerangkat.gagal;
+      }
+      await _brankas.write(key: _kunciPerangkatId, value: id);
+      _sebabTerputus = null;
+      return HasilDaftarPerangkat.berhasil;
+    } catch (e) {
+      // Jangan tinggalkan HP ini dalam keadaan masuk sebagai kunci
+      // pemasangan — kunci itu bukan identitas yang boleh dipakai bekerja.
+      await auth.signOut();
+      return golongkanGagalMasuk(e) == SebabTerputus.ditolak
+          ? HasilDaftarPerangkat.gagal
+          : HasilDaftarPerangkat.jaringan;
+    }
+  }
+
+  /// Jalur WARISAN: mendaftar memakai email + password perangkat.
+  ///
+  /// Dipertahankan hanya untuk HP yang sudah terpasang dengan cara lama.
+  /// Dihapus setelah semua perangkat dipindahkan.
   Future<bool> daftarkanPerangkat({
     required String email,
     required String password,
@@ -211,6 +288,7 @@ class SupabaseService {
 
   /// Lepaskan perangkat — dipakai kalau HP dialihkan atau dijual.
   Future<void> lepaskanPerangkat() async {
+    await _brankas.delete(key: _kunciPerangkatId);
     await _brankas.delete(key: _kunciEmail);
     await _brankas.delete(key: _kunciPassword);
     if (_siap) await Supabase.instance.client.auth.signOut();

@@ -11,6 +11,7 @@ import '../features/auth/pages/login_page.dart';
 import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
 import '../shared/constants/app_constants.dart';
+import '../data/supabase/supabase_service.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
@@ -228,6 +229,49 @@ class AppShellState extends State<AppShell> {
       if (!mounted) return;
       AppToast.error(context, 'Gagal keluar: $e');
     }
+  }
+
+  /// Lepaskan HP ini dari data toko.
+  ///
+  /// Yang dibuang HANYA identitas perangkatnya; database lokal tidak
+  /// disentuh. Itu yang membuat HP yang sudah terpasang bisa dipindahkan ke
+  /// cara pendaftaran yang baru tanpa kehilangan riwayat — tanpa ini, satu-
+  /// satunya jalan adalah memasang ulang aplikasi, dan itu menghapus semua
+  /// data lokal yang belum sempat terkirim.
+  Future<void> _lepaskanPerangkat(BuildContext context) async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Lepaskan Perangkat?'),
+        content: const Text(
+          'HP ini akan berhenti tersambung ke data toko sampai didaftarkan '
+          'ulang dengan kunci pemasangan.\n\n'
+          'Data yang sudah ada di HP ini TIDAK dihapus. Pastikan sudah '
+          'disinkronkan lebih dulu supaya tidak ada yang tertinggal.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lepaskan',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true) return;
+
+    await SupabaseService.instance.lepaskanPerangkat();
+    await SessionManager.instance.clearSession();
+    if (!context.mounted) return;
+
+    // Kembali ke akar: AuthFlowHandler akan melihat perangkat ini sudah tidak
+    // terdaftar dan menampilkan layar kunci pemasangan.
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   Widget _buildDrawerMenuItem(
@@ -561,6 +605,38 @@ class AppShellState extends State<AppShell> {
                       ),
                       // "Laporan Shift" dipindah jadi tab "Shift" di halaman
                       // Laporan — menghilangkan kebingungan dua menu laporan.
+                    ],
+
+                    // ── PERANGKAT — hak PATEN owner ──
+                    //
+                    // Sengaja dipagari `isOwner`, BUKAN sebuah izin. Izin bisa
+                    // diberikan pemilik ke kasir lewat Kelola Izin; hak ini
+                    // tidak boleh. Yang diatur di sini adalah perangkat mana
+                    // yang boleh menyentuh data toko — kalau kasir bisa
+                    // melepaskan perangkat, pagar itu kehilangan artinya.
+                    if (SessionManager.instance.currentSession?.isOwner ==
+                        true) ...[
+                      const SizedBox(height: 12),
+                      Divider(color: Colors.grey.shade300, height: 1),
+                      const SizedBox(height: 12),
+                      Text(
+                        'PERANGKAT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade400,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDrawerMenuItem(
+                        context,
+                        icon: Icons.phonelink_erase_rounded,
+                        label: 'Lepaskan Perangkat',
+                        isSelected: false,
+                        isDestructive: true,
+                        onTap: () => _lepaskanPerangkat(context),
+                      ),
                     ],
 
                     const SizedBox(height: 8),

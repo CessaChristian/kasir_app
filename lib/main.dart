@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -11,7 +10,6 @@ import 'data/sync/sync_otomatis.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
 import 'shared/widgets/dialog_sync.dart';
-import 'shared/widgets/layar_build_salah.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -19,6 +17,7 @@ import 'features/auth/pages/owner_setup_page.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/onboarding/repositories/onboarding_repository.dart';
 import 'features/onboarding/pages/onboarding_page.dart';
+import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
 import 'shared/auth/session_manager.dart';
 
 void main() async {
@@ -47,18 +46,6 @@ void main() async {
 
   // Try to restore session from SharedPreferences
   await SessionManager.instance.restoreSession();
-
-  // APK release tanpa kredensial perangkat tidak akan pernah bisa login ke
-  // server. Ia tetap berjalan mulus dan diam — itulah bahayanya. Dihentikan
-  // di sini supaya ketahuan detik pertama, bukan seminggu kemudian saat
-  // pemilik menemukan HP-nya kosong.
-  //
-  // Build debug sengaja dikecualikan: menggarap tampilan tanpa server itu
-  // wajar dan sering.
-  if (kReleaseMode && !SupabaseConfig.adaKredensialPerangkat) {
-    runApp(const LayarBuildSalah());
-    return;
-  }
 
   // Menyinkronkan sendiri setiap beberapa menit dan setiap kali aplikasi
   // kembali aktif. Tanpa ini, perubahan harga dari HP pemilik baru sampai ke
@@ -122,6 +109,18 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
   }
 
   Future<AuthState> _checkAuthState() async {
+    // Perangkat yang belum didaftarkan tidak punya identitas di server, jadi
+    // tidak ada gunanya menanyakan apa pun ke sana dulu. Pemiliknya harus
+    // mengetik kunci pemasangan lebih dulu.
+    if (!await SupabaseService.instance.sudahTerdaftar()) {
+      return AuthState(
+        hasUser: false,
+        hasOwner: false,
+        isLoggedIn: false,
+        perluDaftar: true,
+      );
+    }
+
     final onboardingRepo = OnboardingRepository();
     var hasUser = await onboardingRepo.hasAnyUser();
 
@@ -203,6 +202,17 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         }
 
         final state = snapshot.data!;
+
+        // Belum terdaftar — layar pertama yang dilihat HP baru.
+        if (state.perluDaftar) {
+          return DaftarkanPerangkatPage(
+            sesudahBerhasil: () async {
+              final baru = _checkAuthState();
+              setState(() => _authFuture = baru);
+              await baru;
+            },
+          );
+        }
 
         // Pemasangan pertama tapi server tak terjangkau — JANGAN tawarkan
         // pembuatan akun owner sebelum dipastikan memang belum ada.
@@ -404,11 +414,15 @@ class AuthState {
   /// Kenapa server tidak bisa dihubungi, kalau [perluInternet].
   final SebabTerputus? sebabTerputus;
 
+  /// Perangkat ini belum pernah didaftarkan dengan kunci pemasangan.
+  final bool perluDaftar;
+
   AuthState({
     required this.hasUser,
     required this.hasOwner,
     required this.isLoggedIn,
     this.perluInternet = false,
     this.sebabTerputus,
+    this.perluDaftar = false,
   });
 }

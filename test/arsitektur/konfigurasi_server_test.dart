@@ -59,15 +59,30 @@ void main() {
             'boleh menyentuh aplikasi, apalagi repositori publik.');
   });
 
-  test('kredensial perangkat TIDAK ditempel di kode', () {
-    // Ini satu-satunya rahasia sungguhan di antara keempat nilai, dan
-    // repositorinya publik. Menempelnya mengubah taruhan dari "harus punya
-    // APK dan tahu cara membongkarnya" menjadi "cukup buka GitHub".
-    final isi = File('lib/data/supabase/supabase_config.dart').readAsStringSync();
-    expect(isi, contains("String.fromEnvironment('SUPABASE_DEVICE_EMAIL')"));
-    expect(isi, contains("String.fromEnvironment('SUPABASE_DEVICE_PASSWORD')"));
-    expect(SupabaseConfig.adaKredensialPerangkat, isFalse,
-        reason: 'test berjalan tanpa --dart-define, jadi ini harus kosong — '
-            'kalau true, berarti kredensialnya tertulis di dalam kode');
+  test('APK tidak memuat kredensial perangkat sama sekali', () {
+    // Dulu email dan password perangkat ditanam saat build lewat
+    // --dart-define. Itu memaksa setiap HP baru dibuatkan APK sendiri, dan
+    // rahasianya tetap bisa dikorek dari berkas APK — sudah dibuktikan bisa.
+    //
+    // Sekarang perangkat mendapat identitasnya sendiri saat didaftarkan
+    // pemilik, jadi TIDAK BOLEH ada jalan apa pun yang mengembalikan
+    // kredensial ke dalam build.
+    final isi =
+        File('lib/data/supabase/supabase_config.dart').readAsStringSync();
+
+    for (final terlarang in const [
+      'SUPABASE_DEVICE_EMAIL',
+      'SUPABASE_DEVICE_PASSWORD',
+      'deviceEmail',
+      'devicePassword',
+    ]) {
+      expect(isi, isNot(contains(terlarang)),
+          reason: '"$terlarang" berarti kredensial perangkat kembali ditanam '
+              'ke APK — dan repositori ini publik');
+    }
+
+    // `url` dan `anonKey` justru HARUS tetap ada: keduanya memang dirancang
+    // publik, dan tanpa keduanya aplikasi tidak tahu harus menghubungi siapa.
+    expect(SupabaseConfig.tersedia, isTrue);
   });
 }
