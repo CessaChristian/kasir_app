@@ -97,7 +97,22 @@ class SupabaseService {
   SebabTerputus? get sebabTerputus => _sebabTerputus;
 
   /// True kalau koneksi Supabase aktif dan device sudah login.
-  bool get online => _siap && client?.auth.currentSession != null;
+  bool get online => _siap && sesiMasihBisaDipakai(client?.auth.currentSession);
+
+  /// Apakah tiket ini masih bisa dipakai menyentuh server?
+  ///
+  /// Sengaja BUKAN sekadar "tiketnya ada". Tiket punya masa berlaku, dan HP
+  /// yang didiamkan semalam membukanya lagi dengan tiket yang sudah mati —
+  /// lalu sinkronnya ditolak server dan pengguna diberi tahu "periksa
+  /// koneksi", padahal internetnya sehat dan yang perlu dilakukan cuma
+  /// menukar tiket.
+  ///
+  /// Masa berlakunya dibaca gotrue dari DALAM tiketnya sendiri, dengan margin
+  /// sepuluh detik supaya permintaan yang sedang berjalan tidak kedaluwarsa
+  /// di tengah jalan.
+  @visibleForTesting
+  static bool sesiMasihBisaDipakai(Session? sesi) =>
+      sesi != null && !sesi.isExpired;
 
 
   /// Null kalau aplikasi dibangun tanpa --dart-define, atau init gagal.
@@ -141,11 +156,19 @@ class SupabaseService {
     // Sebab dari percobaan sebelumnya tidak boleh terbawa: HP yang tadi
     // offline lalu dicabut harus dilaporkan dicabut, bukan offline.
     _sebabTerputus = null;
-    if (Supabase.instance.client.auth.currentSession != null) return true;
+    final sesi = Supabase.instance.client.auth.currentSession;
+    if (sesiMasihBisaDipakai(sesi)) return true;
+
+    // Tiketnya ada tapi sudah mati — tukar dulu. Ini jalur yang paling sering
+    // dilewati setiap pagi: HP menganggur semalam, tiketnya kedaluwarsa, dan
+    // penukarannya hampir selalu berhasil dalam sekejap.
+    if (sesi != null && await _tukarTiketBasi()) return true;
 
     // 1. Coba kredensial yang sudah tersimpan di Keystore.
     await _loginUlangDariBrankas();
-    if (Supabase.instance.client.auth.currentSession != null) return true;
+    if (sesiMasihBisaDipakai(Supabase.instance.client.auth.currentSession)) {
+      return true;
+    }
 
     // 2. Belum pernah terdaftar — pakai kredensial dari build.
     if (SupabaseConfig.adaKredensialPerangkat) {
@@ -193,6 +216,23 @@ class SupabaseService {
     if (_siap) await Supabase.instance.client.auth.signOut();
   }
 
+  /// Tukar tiket yang sudah mati dengan yang baru.
+  ///
+  /// Kegagalannya digolongkan seperti kegagalan login biasa, jadi perangkat
+  /// yang aksesnya dicabut ketahuan DI SINI — beberapa detik setelah tiket
+  /// lamanya habis — bukan setelah sinkronnya terlanjur ditolak server dengan
+  /// pesan yang salah alamat.
+  Future<bool> _tukarTiketBasi() async {
+    try {
+      await Supabase.instance.client.auth.refreshSession();
+      return sesiMasihBisaDipakai(
+          Supabase.instance.client.auth.currentSession);
+    } catch (e) {
+      _sebabTerputus = golongkanGagalMasuk(e);
+      return false;
+    }
+  }
+
   /// Email perangkat yang terdaftar, untuk ditampilkan di layar pengaturan.
   Future<String?> get emailPerangkat => _brankas.read(key: _kunciEmail);
 
@@ -200,7 +240,9 @@ class SupabaseService {
   /// diperbarui sendiri (mis. perangkat lama offline), login ulang memakai
   /// kredensial tersimpan.
   Future<void> _loginUlangDariBrankas() async {
-    if (Supabase.instance.client.auth.currentSession != null) return;
+    if (sesiMasihBisaDipakai(Supabase.instance.client.auth.currentSession)) {
+      return;
+    }
     final email = await _brankas.read(key: _kunciEmail);
     final password = await _brankas.read(key: _kunciPassword);
     if (email == null || password == null) return;
