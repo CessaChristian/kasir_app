@@ -33,6 +33,7 @@ class MonthlyReportTab extends StatelessWidget {
     final r = report!;
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

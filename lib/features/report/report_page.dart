@@ -15,6 +15,7 @@ import 'widgets/employee_card.dart';
 import 'monthly/monthly_report_tab.dart';
 import 'services/report_export_service.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
+import '../../shared/widgets/sync_refresh.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
@@ -665,8 +666,20 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
                   : TabBarView(
                   controller: _tabController,
                   children: [
-                    _isMonthly ? _buildMonthlyOverall() : _buildDailyOverall(),
-                    _buildEmployeeReport(),
+                    // Tiap tab dibungkus sendiri-sendiri, bukan TabBarView-nya.
+                    // TabBarView itu PageView — menggeser mendatar — jadi
+                    // tarikan tegak di dalamnya tidak sampai ke pembungkus
+                    // kalau dipasang di luar.
+                    SyncRefresh(
+                      sesudah: _loadReport,
+                      child: _isMonthly
+                          ? _buildMonthlyOverall()
+                          : _buildDailyOverall(),
+                    ),
+                    SyncRefresh(
+                      sesudah: _loadReport,
+                      child: _buildEmployeeReport(),
+                    ),
                   ],
                 ),
         ),
@@ -821,6 +834,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
     }
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1233,6 +1247,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: reports.length,
       itemBuilder: (context, index) {

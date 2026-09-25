@@ -182,35 +182,47 @@ class ReportEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
+    // Dibuat bisa di-scroll walau isinya sekepal, supaya tarik-segarkan tetap
+    // terbaca. Justru saat kosong itulah orang paling ingin menariknya —
+    // kalau tidak bisa, satu-satunya jalan adalah menutup aplikasi.
+    return LayoutBuilder(
+      builder: (context, batas) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: batas.maxHeight),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.analytics_outlined,
+                      size: 36, color: Colors.grey.shade400),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tidak Ada Data',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            child: Icon(Icons.analytics_outlined, size: 36, color: Colors.grey.shade400),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Tidak Ada Data',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
