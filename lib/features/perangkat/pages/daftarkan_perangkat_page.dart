@@ -41,7 +41,6 @@ class DaftarkanPerangkatPage extends StatefulWidget {
 }
 
 class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
-  final _emailC = TextEditingController();
   final _kunciC = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -51,7 +50,6 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
 
   @override
   void dispose() {
-    _emailC.dispose();
     _kunciC.dispose();
     super.dispose();
   }
@@ -63,64 +61,81 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
       _galat = null;
     });
 
-    if (widget.lengkapiSaja) {
-      final diterima = await PerangkatRepository.instance.daftarkanIdentitasIni(
-        _kunciC.text,
-      );
+    // Identitas dibuat hanya kalau HP ini memang belum punya. Yang sudah punya
+    // cukup dicatatkan — membuat identitas baru berarti meninggalkan yang lama
+    // sebagai baris yatim di daftar pengguna server.
+    if (!widget.lengkapiSaja) {
+      final hasil = await SupabaseService.instance.buatIdentitasBaru();
       if (!mounted) return;
-      if (diterima) {
-        await widget.sesudahBerhasil();
+      if (hasil != HasilDaftarPerangkat.berhasil) {
+        setState(() {
+          _sedangMendaftar = false;
+          _galat = hasil == HasilDaftarPerangkat.jaringan
+              ? 'Tidak bisa menghubungi server. Pendaftaran perangkat butuh '
+                    'internet — periksa koneksi lalu coba lagi.'
+              : 'Pendaftaran gagal. Coba lagi sebentar lagi.';
+        });
         return;
       }
+    }
+
+    // Di sinilah kuncinya benar-benar diperiksa, oleh server.
+    final diterima = await PerangkatRepository.instance.daftarkanIdentitasIni(
+      _kunciC.text,
+    );
+    if (!mounted) return;
+
+    if (!diterima) {
+      // Identitas yang tidak diakui siapa pun jangan ditinggalkan menggantung.
+      if (!widget.lengkapiSaja) {
+        await SupabaseService.instance.lepaskanPerangkat();
+      }
+      if (!mounted) return;
       setState(() {
         _sedangMendaftar = false;
-        _galat = 'Kunci pemasangan salah.';
+        _galat = 'Kunci pemasangan salah. Periksa lagi kuncinya.';
       });
       return;
     }
 
-    final hasil = await SupabaseService.instance.daftarkanDenganKunci(
-      email: _emailC.text.trim(),
-      password: _kunciC.text,
-    );
+    await _beriTahuBerhasil();
+    if (!mounted) return;
+    await widget.sesudahBerhasil();
+  }
 
+  /// Beri tahu pemilik bahwa HP ini sudah tercatat, dan dengan nama apa.
+  ///
+  /// Ditampilkan sebagai dialog, bukan pesan sekilas: layar ini langsung
+  /// berpindah setelahnya, dan pesan sekilas akan ikut hilang sebelum sempat
+  /// terbaca. Namanya disebut supaya pemilik tahu baris mana yang barusan
+  /// muncul di daftar — dan bisa langsung menggantinya kalau perlu.
+  Future<void> _beriTahuBerhasil() async {
+    final nama = await PerangkatRepository.instance.tebakNama();
     if (!mounted) return;
 
-    if (hasil == HasilDaftarPerangkat.berhasil) {
-      // Identitasnya sudah ada; sekarang catatkan ke daftar perangkat.
-      // Kuncinya disetorkan sekali lagi karena yang memutuskan boleh-tidaknya
-      // mendaftar adalah SERVER, bukan aplikasi — tanpa itu, siapa pun yang
-      // bisa meminta identitas anonim juga bisa mendaftarkan dirinya.
-      final diterima = await PerangkatRepository.instance.daftarkan(
-        _kunciC.text,
-      );
-
-      if (!diterima) {
-        // Jangan tinggalkan identitas yang tidak diakui siapa pun.
-        await SupabaseService.instance.lepaskanPerangkat();
-        if (!mounted) return;
-        setState(() {
-          _sedangMendaftar = false;
-          _galat = 'Kunci pemasangan salah. Periksa lagi email dan kuncinya.';
-        });
-        return;
-      }
-
-      await widget.sesudahBerhasil();
-      return;
-    }
-
-    setState(() {
-      _sedangMendaftar = false;
-      _galat = switch (hasil) {
-        HasilDaftarPerangkat.kunciSalah =>
-          'Kunci pemasangan salah. Periksa lagi email dan kuncinya.',
-        HasilDaftarPerangkat.jaringan =>
-          'Tidak bisa menghubungi server. Pendaftaran perangkat butuh '
-              'internet — periksa koneksi lalu coba lagi.',
-        _ => 'Pendaftaran gagal. Coba lagi sebentar lagi.',
-      };
-    });
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(
+          Icons.check_circle_rounded,
+          color: Colors.green.shade400,
+          size: 40,
+        ),
+        title: const Text('Perangkat Terdaftar'),
+        content: Text(
+          'Nama perangkat: $nama\n\n'
+          'HP ini sudah boleh menyentuh data toko.',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Lanjut'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -163,9 +178,9 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
                   const SizedBox(height: 10),
                   Text(
                     widget.lengkapiSaja
-                        ? 'HP ini belum tercatat di daftar perangkat. '
-                              'Masukkan kunci pemasangan dari pemilik untuk '
-                              'mencatatkannya. Data di HP ini tidak berubah.'
+                        ? 'Masukkan kunci pemasangan dari pemilik untuk '
+                              'menghubungkan HP ini ke data toko. Data di HP '
+                              'ini tidak berubah.'
                         : 'HP ini belum terdaftar. Masukkan kunci pemasangan '
                               'dari pemilik untuk menghubungkannya ke data toko.',
                     textAlign: TextAlign.center,
@@ -176,26 +191,6 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  // Email cuma dipakai saat identitasnya belum ada. Pada mode
-                  // lengkapi, yang memeriksa kunci adalah server — menanyakan
-                  // email di situ cuma menambah isian tanpa menambah jaminan.
-                  if (!widget.lengkapiSaja) ...[
-                    TextFormField(
-                      controller: _emailC,
-                      enabled: !_sedangMendaftar,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Email pemasangan',
-                        prefixIcon: Icon(Icons.alternate_email_rounded),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Email belum diisi'
-                          : null,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
                   TextFormField(
                     controller: _kunciC,
                     enabled: !_sedangMendaftar,

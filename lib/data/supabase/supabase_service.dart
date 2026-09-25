@@ -214,32 +214,27 @@ class SupabaseService {
     return emailLama != null && emailLama.isNotEmpty;
   }
 
-  /// Daftarkan HP ini memakai kunci pemasangan yang diketik pemilik.
+  /// Minta identitas baru untuk HP ini.
   ///
-  /// ── KENAPA DUA LANGKAH ──
+  /// ── KENAPA TIDAK ADA PEMERIKSAAN KUNCI DI SINI ──
   ///
-  /// Kunci pemasangan cuma untuk MEMBUKTIKAN bahwa yang memasang berhak. Ia
-  /// tidak dipakai seterusnya, dan sengaja tidak disimpan di HP — supaya HP
-  /// yang hilang tidak membawa serta kemampuan mendaftarkan dirinya lagi.
+  /// Identitas anonim itu gratis: siapa pun yang punya aplikasinya bisa
+  /// memintanya, dan memilikinya tidak membuktikan apa-apa. Yang menentukan
+  /// berhak atau tidak adalah SERVER, saat identitas itu didaftarkan ke daftar
+  /// perangkat dengan kunci pemasangan.
   ///
-  /// Identitas yang dipakai sehari-hari justru yang anonim: tiap HP mendapat
-  /// satu yang berbeda. Itulah yang membuat "cabut satu HP" nanti mungkin —
-  /// kalau semua HP memakai akun yang sama, server tidak punya cara
-  /// membedakannya.
-  Future<HasilDaftarPerangkat> daftarkanDenganKunci({
-    required String email,
-    required String password,
-  }) async {
+  /// Dulu di sini ada login memakai akun kunci lebih dulu. Itu dibuang karena
+  /// tidak pernah mengubah hasil: yang lolos di sini tetap ditolak server
+  /// kalau kuncinya salah, dan yang ditolak di sini tetap diterima kalau
+  /// kuncinya benar. Satu-satunya gunanya menolak lebih awal — dan harganya
+  /// dua layar pendaftaran yang menanyakan hal berbeda untuk maksud yang sama.
+  ///
+  /// Tiap HP mendapat identitas yang BERBEDA, dan itulah yang membuat
+  /// "cabut satu HP" mungkin: kalau semua memakai akun yang sama, server tidak
+  /// punya cara membedakannya.
+  Future<HasilDaftarPerangkat> buatIdentitasBaru() async {
     if (!_siap) return HasilDaftarPerangkat.gagal;
     final auth = Supabase.instance.client.auth;
-
-    try {
-      await auth.signInWithPassword(email: email, password: password);
-    } catch (e) {
-      return golongkanGagalMasuk(e) == SebabTerputus.ditolak
-          ? HasilDaftarPerangkat.kunciSalah
-          : HasilDaftarPerangkat.jaringan;
-    }
 
     try {
       final hasil = await auth.signInAnonymously();
@@ -252,9 +247,6 @@ class SupabaseService {
       _sebabTerputus = null;
       return HasilDaftarPerangkat.berhasil;
     } catch (e) {
-      // Jangan tinggalkan HP ini dalam keadaan masuk sebagai kunci
-      // pemasangan — kunci itu bukan identitas yang boleh dipakai bekerja.
-      await auth.signOut();
       return golongkanGagalMasuk(e) == SebabTerputus.ditolak
           ? HasilDaftarPerangkat.gagal
           : HasilDaftarPerangkat.jaringan;
