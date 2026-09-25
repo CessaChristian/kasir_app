@@ -69,17 +69,15 @@ drop policy if exists baca_perangkat on public.perangkat;
 create policy baca_perangkat on public.perangkat
   for select to authenticated using (true);
 
---  Mengubah nama/status HANYA boleh untuk perangkat LAIN.
+--  TIDAK ADA policy INSERT, UPDATE, maupun DELETE.
 --
---  Tanpa syarat ini, HP yang dicabut tinggal mengaktifkan dirinya sendiri dan
---  seluruh pencabutan jadi percuma.
+--  Semua perubahan lewat fungsi di bawah, supaya syaratnya tidak bisa
+--  dilangkahi — dan supaya syarat "ganti nama" bisa berbeda dari syarat
+--  "ubah status". Percobaan pertama memakai satu policy `id <> auth.uid()`
+--  untuk keduanya, dan akibatnya pemilik tidak bisa mengganti nama HP-nya
+--  sendiri: aturan yang dimaksudkan menjaga status ikut memblokir hal yang
+--  sama sekali tidak berbahaya.
 drop policy if exists ubah_perangkat_lain on public.perangkat;
-create policy ubah_perangkat_lain on public.perangkat
-  for update to authenticated
-  using (id <> auth.uid()) with check (id <> auth.uid());
-
---  Tidak ada policy INSERT maupun DELETE: keduanya hanya lewat fungsi di
---  bawah, supaya syaratnya tidak bisa dilangkahi.
 
 -- ---------------------------------------------------------------------
 --  3. Mendaftarkan perangkat — butuh kunci pemasangan
@@ -131,6 +129,69 @@ end $$;
 
 revoke all on function public.perangkat_hadir() from public;
 grant execute on function public.perangkat_hadir() to authenticated;
+
+-- ---------------------------------------------------------------------
+--  4b. Mengganti nama perangkat — termasuk perangkat sendiri
+--
+--  Nama cuma label untuk manusia; menggantinya tidak memberi akses apa pun.
+--  Maka perangkat sendiri BOLEH diganti namanya — justru itu yang paling
+--  sering dilakukan pemilik saat pertama menata daftarnya.
+-- ---------------------------------------------------------------------
+create or replace function public.ubah_nama_perangkat(p_id uuid, p_nama text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.perangkat where id = auth.uid() and status = 'aktif'
+  ) then
+    raise exception 'perangkat ini tidak berhak' using errcode = '42501';
+  end if;
+
+  update public.perangkat
+     set nama = coalesce(nullif(btrim(p_nama), ''), nama)
+   where id = p_id;
+end $$;
+
+revoke all on function public.ubah_nama_perangkat(uuid, text) from public;
+grant execute on function public.ubah_nama_perangkat(uuid, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+--  4c. Mencabut / memulihkan perangkat LAIN
+--
+--  Di sinilah larangan "bukan diri sendiri" berlaku, dan hanya di sini.
+--  Tanpa itu, HP yang dicabut tinggal memulihkan dirinya sendiri dan seluruh
+--  pencabutan jadi percuma.
+-- ---------------------------------------------------------------------
+create or replace function public.ubah_status_perangkat(
+  p_id    uuid,
+  p_aktif boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.perangkat where id = auth.uid() and status = 'aktif'
+  ) then
+    raise exception 'perangkat ini tidak berhak' using errcode = '42501';
+  end if;
+
+  if p_id = auth.uid() then
+    raise exception 'tidak boleh mengubah status sendiri' using errcode = '42501';
+  end if;
+
+  update public.perangkat
+     set status = case when p_aktif then 'aktif' else 'dicabut' end
+   where id = p_id;
+end $$;
+
+revoke all on function public.ubah_status_perangkat(uuid, boolean) from public;
+grant execute on function public.ubah_status_perangkat(uuid, boolean) to authenticated;
 
 -- ---------------------------------------------------------------------
 --  5. Melupakan perangkat — beserta identitasnya

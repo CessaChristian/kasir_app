@@ -21,7 +21,20 @@ class DaftarkanPerangkatPage extends StatefulWidget {
   /// Dipanggil setelah pendaftaran berhasil, untuk melanjutkan alur pembukaan.
   final Future<void> Function() sesudahBerhasil;
 
-  const DaftarkanPerangkatPage({super.key, required this.sesudahBerhasil});
+  /// HP ini SUDAH punya identitas, yang kurang cuma barisnya di daftar.
+  ///
+  /// Terjadi pada HP yang terpasang sebelum daftarnya dibuat di server, dan
+  /// pada HP yang barisnya dilupakan pemilik. Bedanya nyata: identitasnya
+  /// tidak dibuat ulang, jadi tidak ada identitas yatim yang ditinggalkan —
+  /// dan emailnya tidak perlu ditanyakan lagi, karena pada tahap ini yang
+  /// memeriksa kunci adalah server, bukan halaman login.
+  final bool lengkapiSaja;
+
+  const DaftarkanPerangkatPage({
+    super.key,
+    required this.sesudahBerhasil,
+    this.lengkapiSaja = false,
+  });
 
   @override
   State<DaftarkanPerangkatPage> createState() => _DaftarkanPerangkatPageState();
@@ -50,6 +63,22 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
       _galat = null;
     });
 
+    if (widget.lengkapiSaja) {
+      final diterima = await PerangkatRepository.instance.daftarkanIdentitasIni(
+        _kunciC.text,
+      );
+      if (!mounted) return;
+      if (diterima) {
+        await widget.sesudahBerhasil();
+        return;
+      }
+      setState(() {
+        _sedangMendaftar = false;
+        _galat = 'Kunci pemasangan salah.';
+      });
+      return;
+    }
+
     final hasil = await SupabaseService.instance.daftarkanDenganKunci(
       email: _emailC.text.trim(),
       password: _kunciC.text,
@@ -62,8 +91,9 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
       // Kuncinya disetorkan sekali lagi karena yang memutuskan boleh-tidaknya
       // mendaftar adalah SERVER, bukan aplikasi — tanpa itu, siapa pun yang
       // bisa meminta identitas anonim juga bisa mendaftarkan dirinya.
-      final diterima =
-          await PerangkatRepository.instance.daftarkan(_kunciC.text);
+      final diterima = await PerangkatRepository.instance.daftarkan(
+        _kunciC.text,
+      );
 
       if (!diterima) {
         // Jangan tinggalkan identitas yang tidak diakui siapa pun.
@@ -120,15 +150,24 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Daftarkan Perangkat',
+                  Text(
+                    widget.lengkapiSaja
+                        ? 'Lengkapi Pendaftaran'
+                        : 'Daftarkan Perangkat',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'HP ini belum terdaftar. Masukkan kunci pemasangan dari '
-                    'pemilik untuk menghubungkannya ke data toko.',
+                    widget.lengkapiSaja
+                        ? 'HP ini belum tercatat di daftar perangkat. '
+                              'Masukkan kunci pemasangan dari pemilik untuk '
+                              'mencatatkannya. Data di HP ini tidak berubah.'
+                        : 'HP ini belum terdaftar. Masukkan kunci pemasangan '
+                              'dari pemilik untuk menghubungkannya ke data toko.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -137,21 +176,26 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  TextFormField(
-                    controller: _emailC,
-                    enabled: !_sedangMendaftar,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Email pemasangan',
-                      prefixIcon: Icon(Icons.alternate_email_rounded),
-                      border: OutlineInputBorder(),
+                  // Email cuma dipakai saat identitasnya belum ada. Pada mode
+                  // lengkapi, yang memeriksa kunci adalah server — menanyakan
+                  // email di situ cuma menambah isian tanpa menambah jaminan.
+                  if (!widget.lengkapiSaja) ...[
+                    TextFormField(
+                      controller: _emailC,
+                      enabled: !_sedangMendaftar,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Email pemasangan',
+                        prefixIcon: Icon(Icons.alternate_email_rounded),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Email belum diisi'
+                          : null,
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Email belum diisi'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 14),
+                  ],
                   TextFormField(
                     controller: _kunciC,
                     enabled: !_sedangMendaftar,

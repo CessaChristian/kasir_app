@@ -32,12 +32,12 @@ void main() {
     }
   });
 
-  test('menu Lepaskan Perangkat dipagari isOwner, bukan hasPermission', () {
+  test('menu Daftar Perangkat dipagari isOwner, bukan hasPermission', () {
     final isi = File('lib/app/app_shell.dart').readAsStringSync();
 
-    // Yang dicari MENUNYA, bukan judul dialognya — keduanya memuat kalimat
-    // yang sama dan yang dialog muncul lebih dulu di berkas.
-    final i = isi.indexOf("label: 'Lepaskan Perangkat'");
+    // Yang dicari MENUNYA, bukan teks lain yang kebetulan memuat kalimat
+    // serupa di tempat lain dalam berkas.
+    final i = isi.indexOf("label: 'Daftar Perangkat'");
     expect(i, isNot(-1), reason: 'menunya harus ada di drawer');
 
     // Cari pagar terdekat DI ATAS menunya.
@@ -48,7 +48,7 @@ void main() {
     expect(
       posOwner > posIzin,
       isTrue,
-      reason: 'Menu Lepaskan Perangkat harus berada di dalam pagar isOwner. '
+      reason: 'Menu Daftar Perangkat harus berada di dalam pagar isOwner. '
           'Kalau yang terdekat justru hasPermission, hak ini bisa diberikan '
           'ke kasir — dan itu yang tidak boleh.',
     );

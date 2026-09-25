@@ -12,7 +12,6 @@ import '../features/auth/repositories/auth_repository.dart';
 import '../data/db.dart';
 import '../shared/constants/app_constants.dart';
 import '../features/perangkat/pages/daftar_perangkat_page.dart';
-import '../data/supabase/supabase_service.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
@@ -230,49 +229,6 @@ class AppShellState extends State<AppShell> {
       if (!mounted) return;
       AppToast.error(context, 'Gagal keluar: $e');
     }
-  }
-
-  /// Lepaskan HP ini dari data toko.
-  ///
-  /// Yang dibuang HANYA identitas perangkatnya; database lokal tidak
-  /// disentuh. Itu yang membuat HP yang sudah terpasang bisa dipindahkan ke
-  /// cara pendaftaran yang baru tanpa kehilangan riwayat — tanpa ini, satu-
-  /// satunya jalan adalah memasang ulang aplikasi, dan itu menghapus semua
-  /// data lokal yang belum sempat terkirim.
-  Future<void> _lepaskanPerangkat(BuildContext context) async {
-    final yakin = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Lepaskan Perangkat?'),
-        content: const Text(
-          'HP ini akan berhenti tersambung ke data toko sampai didaftarkan '
-          'ulang dengan kunci pemasangan.\n\n'
-          'Data yang sudah ada di HP ini TIDAK dihapus. Pastikan sudah '
-          'disinkronkan lebih dulu supaya tidak ada yang tertinggal.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Lepaskan',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-    if (yakin != true) return;
-
-    await SupabaseService.instance.lepaskanPerangkat();
-    await SessionManager.instance.clearSession();
-    if (!context.mounted) return;
-
-    // Kembali ke akar: AuthFlowHandler akan melihat perangkat ini sudah tidak
-    // terdaftar dan menampilkan layar kunci pemasangan.
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   Widget _buildDrawerMenuItem(
@@ -643,14 +599,6 @@ class AppShellState extends State<AppShell> {
                                 builder: (_) => const DaftarPerangkatPage()),
                           );
                         },
-                      ),
-                      _buildDrawerMenuItem(
-                        context,
-                        icon: Icons.phonelink_erase_rounded,
-                        label: 'Lepaskan Perangkat',
-                        isSelected: false,
-                        isDestructive: true,
-                        onTap: () => _lepaskanPerangkat(context),
                       ),
                     ],
 

@@ -164,7 +164,17 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
       if (mounted) AppToast.success(context, pesan);
       await _muat();
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal: $e');
+      if (!mounted) return;
+      // Fungsi servernya ditambahkan lewat berkas SQL yang dijalankan pemilik.
+      // Kalau berkasnya belum dijalankan ulang, pesan mentah dari PostgREST
+      // tidak berarti apa-apa bagi pemilik warung — yang dia butuhkan adalah
+      // tahu APA yang harus dilakukan.
+      AppToast.error(
+        context,
+        PerangkatRepository.belumDisiapkan(e)
+            ? 'Perlu menjalankan ulang supabase/perangkat.sql di Supabase'
+            : 'Gagal: $e',
+      );
     }
   }
 

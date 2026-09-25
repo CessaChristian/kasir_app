@@ -87,13 +87,48 @@ class MyApp extends StatelessWidget {
           // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
           // dipasang di atas Navigator — bukan di satu halaman. Layar mana
           // pun yang sedang terbuka akan tergantikan.
-          home: ValueListenableBuilder<bool>(
-            valueListenable: PerangkatRepository.instance.dicabut,
-            builder: (context, dicabut, child) => dicabut
-                ? const LayarPerangkatDicabut()
-                : const AuthFlowHandler(),
-          ),
+          home: const _PenjagaPerangkat(),
         );
+  }
+}
+
+/// Menentukan layar mana yang berlaku menurut keadaan PERANGKAT ini.
+///
+/// Dipasang di atas Navigator, bukan di satu halaman, karena dua keadaan di
+/// bawah membatalkan apa pun yang sedang terbuka — layar mana pun.
+///
+/// Urutannya disengaja: "dicabut" diperiksa lebih dulu daripada "belum
+/// terdaftar". Perangkat yang dicabut tidak boleh ditawari mendaftar ulang
+/// seolah dia cuma belum tercatat; pencabutan adalah keputusan pemilik, dan
+/// menampilkan layar kunci di situ akan terbaca sebagai jalan memutarinya.
+class _PenjagaPerangkat extends StatelessWidget {
+  const _PenjagaPerangkat();
+
+  @override
+  Widget build(BuildContext context) {
+    final perangkat = PerangkatRepository.instance;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: perangkat.dicabut,
+      builder: (context, dicabut, child) {
+        if (dicabut) return const LayarPerangkatDicabut();
+
+        return ValueListenableBuilder<bool>(
+          valueListenable: perangkat.belumTerdaftar,
+          builder: (context, belumTerdaftar, child) {
+            if (!belumTerdaftar) return const AuthFlowHandler();
+
+            // Identitasnya sudah ada; yang kurang cuma barisnya di daftar.
+            // Menyelesaikannya cukup mengubah penanda — pohon widget ini
+            // langsung kembali ke alur biasa tanpa perlu pindah halaman.
+            return DaftarkanPerangkatPage(
+              lengkapiSaja: true,
+              sesudahBerhasil: () async {},
+            );
+          },
+        );
+      },
+    );
   }
 }
 

@@ -91,6 +91,13 @@ class PerangkatRepository {
   /// siapa yang memeriksanya.
   final ValueNotifier<bool> dicabut = ValueNotifier(false);
 
+  /// True kalau perangkat ini PUNYA identitas tapi belum ada di daftar.
+  ///
+  /// Terjadi pada HP yang sudah terpasang sebelum daftarnya dibuat di server,
+  /// dan pada HP yang barisnya dilupakan pemilik. Keduanya perlu mendaftar
+  /// ulang — dan aplikasinya yang menawarkan, bukan pemilik yang harus ingat.
+  final ValueNotifier<bool> belumTerdaftar = ValueNotifier(false);
+
   /// Periksa keadaan perangkat ini dan siarkan kalau dicabut.
   ///
   /// SENGAJA hanya menyalakan penanda saat server berkata "dicabut" dengan
@@ -101,6 +108,7 @@ class PerangkatRepository {
   Future<void> periksaStatusSaya() async {
     final status = await statusSaya();
     dicabut.value = status == StatusPerangkatIni.dicabut;
+    belumTerdaftar.value = status == StatusPerangkatIni.takTerdaftar;
   }
 
   /// Galat yang berarti "daftarnya belum dibuat di server".
@@ -165,6 +173,17 @@ class PerangkatRepository {
     }
   }
 
+  /// Daftarkan identitas yang SUDAH dimiliki perangkat ini.
+  ///
+  /// Sengaja TIDAK membuat identitas baru: setiap identitas yang ditinggalkan
+  /// menjadi baris yatim di daftar pengguna server, dan HP yang mendaftar
+  /// ulang berkali-kali akan meninggalkan tumpukan.
+  Future<bool> daftarkanIdentitasIni(String kunci) async {
+    final berhasil = await daftarkan(kunci);
+    if (berhasil) await periksaStatusSaya();
+    return berhasil;
+  }
+
   /// Tandai perangkat ini masih dipakai. Dipanggil sesudah tiap sinkron.
   Future<void> hadir() async {
     final k = _klien;
@@ -207,14 +226,20 @@ class PerangkatRepository {
     return baris.map(Perangkat.dariBaris).toList();
   }
 
+  /// Semua perubahan lewat fungsi di server, bukan tulis langsung ke tabel.
+  ///
+  /// Sempat ditulis langsung, dan akibatnya pemilik tidak bisa mengganti nama
+  /// HP-nya sendiri: satu aturan tabel harus melayani dua hal dengan syarat
+  /// berbeda — ganti nama (aman untuk diri sendiri) dan ubah status (tidak
+  /// boleh untuk diri sendiri). Dipisah jadi dua fungsi, syaratnya jadi jelas.
   Future<void> ubahNama(String id, String nama) async {
-    await _klien?.from('perangkat').update({'nama': nama}).eq('id', id);
+    await _klien
+        ?.rpc('ubah_nama_perangkat', params: {'p_id': id, 'p_nama': nama});
   }
 
   Future<void> ubahStatus(String id, {required bool aktif}) async {
     await _klien
-        ?.from('perangkat')
-        .update({'status': aktif ? 'aktif' : 'dicabut'}).eq('id', id);
+        ?.rpc('ubah_status_perangkat', params: {'p_id': id, 'p_aktif': aktif});
   }
 
   Future<void> lupakan(String id) async {
