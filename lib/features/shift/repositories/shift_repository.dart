@@ -17,6 +17,10 @@ class ShiftRepository {
   ShiftRepository(this._db);
 
   /// Riwayat shift seorang kasir pada business aktif, terbaru dulu.
+  /// Shift beserta nama kasirnya. [userId] null = semua kasir (untuk owner).
+  Future<List<ShiftEntry>> getShiftsWithUser({String? userId}) =>
+      _db.getShiftsWithUser(userId: userId);
+
   Future<List<Shift>> getShiftsByUser(String userId) =>
       _db.getShiftsByUser(userId);
 

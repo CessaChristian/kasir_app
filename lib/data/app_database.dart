@@ -1226,6 +1226,56 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
+  /// Shift beserta nama kasirnya, terbaru dulu.
+  ///
+  /// [userId] null berarti SEMUA kasir — itulah yang dilihat owner di halaman
+  /// Pengeluaran. Diisi berarti dibatasi ke satu orang, yang dipakai kasir
+  /// untuk melihat riwayatnya sendiri.
+  Future<List<ShiftEntry>> getShiftsWithUser({String? userId}) async {
+    final kueri = select(shifts).join([
+      innerJoin(users, users.id.equalsExp(shifts.userId)),
+    ])
+      ..where(shifts.deletedAt.isNull());
+
+    if (userId != null) {
+      kueri.where(shifts.userId.equals(userId));
+    }
+    kueri.orderBy([OrderingTerm.desc(shifts.startAt)]);
+
+    final baris = await kueri.get();
+    return baris
+        .map((b) => ShiftEntry(
+              shift: b.readTable(shifts),
+              username: b.readTable(users).username,
+            ))
+        .toList();
+  }
+
+  /// Pengeluaran milik sekumpulan shift sekaligus, dikelompokkan per shift.
+  ///
+  /// Dulu tiap kartu riwayat memanggil [getExpensesByShift] sendiri-sendiri,
+  /// dan baru saat kartunya dibuka. Akibatnya halaman tidak pernah tahu shift
+  /// mana yang kosong, sehingga shift tanpa pengeluaran pun ikut terdaftar.
+  /// Satu kueri di depan menyelesaikan keduanya.
+  ///
+  /// Shift yang tidak punya pengeluaran TIDAK muncul sebagai kunci.
+  Future<Map<String, List<Expense>>> getExpensesForShifts(
+    List<String> shiftIds,
+  ) async {
+    if (shiftIds.isEmpty) return {};
+
+    final baris = await (select(expenses)
+          ..where((e) => e.shiftId.isIn(shiftIds) & e.deletedAt.isNull())
+          ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
+        .get();
+
+    final hasil = <String, List<Expense>>{};
+    for (final e in baris) {
+      hasil.putIfAbsent(e.shiftId, () => []).add(e);
+    }
+    return hasil;
+  }
+
   Future<List<Expense>> getExpensesByShift(String shiftId) async {
     return (select(expenses)
           ..where((e) =>

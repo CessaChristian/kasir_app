@@ -53,6 +53,14 @@ class ExpenseRepository {
   Future<List<Expense>> getExpensesByShift(String shiftId) =>
       _db.getExpensesByShift(shiftId);
 
+  /// Pengeluaran sekumpulan shift sekaligus, dikelompokkan per shift.
+  /// Shift tanpa pengeluaran tidak muncul sebagai kunci — itulah yang dipakai
+  /// halaman Pengeluaran untuk membuang shift kosong dari riwayat.
+  Future<Map<String, List<Expense>>> getExpensesForShifts(
+    List<String> shiftIds,
+  ) =>
+      _db.getExpensesForShifts(shiftIds);
+
   /// Rekap pengeluaran seluruh kasir beserta nama pencatatnya.
   /// Dipakai owner di halaman Laporan; rentang tanggal opsional.
   Future<List<ExpenseEntry>> getAllExpensesForOwner({

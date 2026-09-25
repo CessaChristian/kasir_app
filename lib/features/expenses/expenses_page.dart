@@ -19,7 +19,8 @@ class ExpensesPage extends StatefulWidget {
 class _ExpensesPageState extends State<ExpensesPage> {
   final _expenseRepo = ExpenseRepository(db);
   final _shiftRepo = ShiftRepository(db);
-  List<Shift> _pastShifts = [];
+  List<ShiftEntry> _pastShifts = [];
+  Map<String, List<Expense>> _expensesByShift = {};
   bool _loadingHistory = true;
 
   // Stream dibuat sekali di initState — stabil, tidak re-create tiap rebuild
@@ -44,15 +45,30 @@ class _ExpensesPageState extends State<ExpensesPage> {
       return;
     }
 
-    final shifts = await _shiftRepo.getShiftsByUser(session.userId);
+    // Owner mengawasi seluruh kasir, jadi ia melihat shift SEMUA akun —
+    // termasuk miliknya sendiri yang lama. Kasir hanya melihat miliknya.
+    final semua = await _shiftRepo.getShiftsWithUser(
+      userId: session.isOwner ? null : session.userId,
+    );
+
     // Pisahkan shift aktif (endAt null) dari history
-    final pastShifts = shifts
-        .where((s) => s.endAt != null && s.id != session.shiftId)
+    final selesai = semua
+        .where((e) => e.shift.endAt != null && e.shift.id != session.shiftId)
         .toList();
+
+    // Dimuat di depan, satu kueri untuk semua kartu. Selain lebih hemat, ini
+    // yang membuat halaman tahu shift mana yang kosong — shift tanpa
+    // pengeluaran tidak ada gunanya muncul di riwayat PENGELUARAN.
+    final perShift = await _expenseRepo.getExpensesForShifts(
+      selesai.map((e) => e.shift.id).toList(),
+    );
+    final berisi =
+        selesai.where((e) => perShift.containsKey(e.shift.id)).toList();
 
     if (mounted) {
       setState(() {
-        _pastShifts = pastShifts;
+        _pastShifts = berisi;
+        _expensesByShift = perShift;
         _loadingHistory = false;
       });
     }
@@ -240,10 +256,14 @@ class _ExpensesPageState extends State<ExpensesPage> {
           if (_loadingHistory)
             const Center(child: CircularProgressIndicator())
           else if (_pastShifts.isEmpty)
-            _buildEmptyCard('Belum ada riwayat shift sebelumnya.')
+            _buildEmptyCard('Belum ada pengeluaran tercatat.')
           else
-            for (final shift in _pastShifts)
-              _ShiftHistoryCard(shift: shift),
+            for (final entri in _pastShifts)
+              _ShiftHistoryCard(
+                entri: entri,
+                expenses: _expensesByShift[entri.shift.id] ?? const [],
+                tampilkanNama: SessionManager.instance.isOwner,
+              ),
         ],
       ),
     );
@@ -518,36 +538,36 @@ class _ExpensesPageState extends State<ExpensesPage> {
 }
 
 /// Widget kartu riwayat shift (bisa collapsed/expanded)
+///
+/// Pengeluaran DITERIMA sudah jadi, tidak dimuat sendiri. Halaman induk
+/// memuatnya sekali untuk semua kartu — kalau tiap kartu memuat sendiri,
+/// halaman tidak pernah tahu kartu mana yang kosong, dan nominalnya baru
+/// terlihat setelah kartunya dibuka.
 class _ShiftHistoryCard extends StatefulWidget {
-  final Shift shift;
+  final ShiftEntry entri;
+  final List<Expense> expenses;
 
-  const _ShiftHistoryCard({required this.shift});
+  /// Nama kasir hanya berguna untuk owner, yang melihat shift semua akun.
+  final bool tampilkanNama;
+
+  const _ShiftHistoryCard({
+    required this.entri,
+    required this.expenses,
+    required this.tampilkanNama,
+  });
 
   @override
   State<_ShiftHistoryCard> createState() => _ShiftHistoryCardState();
 }
 
 class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
-  final _expenseRepo = ExpenseRepository(db);
   bool _expanded = false;
-  List<Expense> _expenses = [];
-  bool _loaded = false;
-
-  Future<void> _loadExpenses() async {
-    if (_loaded) return;
-    final result = await _expenseRepo.getExpensesByShift(widget.shift.id);
-    if (mounted) {
-      setState(() {
-        _expenses = result;
-        _loaded = true;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final shift = widget.shift;
-    final total = _expenses.fold<int>(0, (s, e) => s + e.amount);
+    final shift = widget.entri.shift;
+    final expenses = widget.expenses;
+    final total = expenses.fold<int>(0, (s, e) => s + e.amount);
     final fmt = DateFormat('dd MMM yyyy');
     final timeFmt = DateFormat('HH:mm');
 
@@ -562,10 +582,7 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () async {
-              await _loadExpenses();
-              setState(() => _expanded = !_expanded);
-            },
+            onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
@@ -592,14 +609,16 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}',
+                          widget.tampilkanNama
+                              ? '${widget.entri.username} · ${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}'
+                              : '${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey.shade500),
                         ),
                       ],
                     ),
                   ),
-                  if (_loaded && total > 0)
+                  if (total > 0)
                     Text(
                       'Rp ${formatRupiah(total)}',
                       style: const TextStyle(
@@ -621,12 +640,7 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
           ),
           if (_expanded) ...[
             Divider(height: 1, color: Colors.grey.shade100),
-            if (!_loaded)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
-              )
-            else if (_expenses.isEmpty)
+            if (expenses.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(14),
                 child: Text(
@@ -640,7 +654,7 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    for (final e in _expenses)
+                    for (final e in expenses)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Row(

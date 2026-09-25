@@ -111,3 +111,16 @@ class ExpenseEntry {
 
   ExpenseEntry({required this.expense, required this.username});
 }
+
+/// Satu shift beserta nama kasir yang menjalankannya.
+///
+/// Owner melihat riwayat pengeluaran SELURUH kasir, jadi tiap barisnya harus
+/// bisa menyebut ini shift siapa — nama itu ada di tabel `users`, bukan di
+/// `shifts`, maka digabungkan di sini sekali saja alih-alih dicari ulang
+/// per kartu.
+class ShiftEntry {
+  final Shift shift;
+  final String username;
+
+  ShiftEntry({required this.shift, required this.username});
+}
