@@ -90,6 +90,15 @@ class SyncService {
           sebabTerputus: sebab,
         );
       }
+      // Diperiksa SEBELUM mesin sinkron jalan, bukan sesudah.
+      //
+      // Perangkat yang dicabut dan punya data tertunda akan SELALU gagal
+      // mengirim — dan kalau pemeriksaannya ditaruh setelah sinkron berhasil,
+      // justru perangkat itu yang tidak pernah sampai ke sana. Yang muncul
+      // cuma "periksa koneksi" selamanya, padahal jaringannya sehat dan
+      // penyebabnya sudah diketahui server sejak tadi.
+      await PerangkatRepository.instance.periksaStatusSaya();
+
       final hasil =
           await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
       if (!hasil.berhasil) return hasil;
@@ -131,13 +140,6 @@ class SyncService {
       // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
       // adalah catatan administratif, bukan data dagangan.
       await PerangkatRepository.instance.hadir();
-
-      // Pencabutan perangkat ditolak di lapisan ATURAN TABEL, bukan saat
-      // login. Bedanya penting: permintaan baca dari perangkat yang dicabut
-      // dijawab "kosong", bukan galat — jadi tanpa pemeriksaan ini layarnya
-      // akan berkata "Sudah yang terbaru" dengan yakin sambil sebenarnya
-      // sudah terputus.
-      await PerangkatRepository.instance.periksaStatusSaya();
 
       await _catatBerhasil();
       return lengkap;

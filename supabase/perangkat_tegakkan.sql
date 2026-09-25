@@ -61,3 +61,37 @@ begin
       'ubah_'||t, t);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------
+--  Berkas foto ikut dijaga
+--
+--  Tanpa ini, perangkat yang dicabut masih bisa menyentuh bucket foto. Dan
+--  akibatnya bukan sekadar bocor, tapi merusak: daftar produk di HP yang
+--  dicabut MEMBEKU sejak ia dicabut, sehingga foto yang ditambahkan pemilik
+--  sesudah itu terlihat olehnya sebagai "tidak dirujuk siapa pun" — lalu
+--  dibuang dari server.
+--
+--  Persis bentuk bug foto yang dulu: aturan pembersihan yang benar,
+--  dijalankan di atas gambaran dunia yang sudah kedaluwarsa.
+-- ---------------------------------------------------------------------
+drop policy if exists gambar_baca   on storage.objects;
+drop policy if exists gambar_tambah on storage.objects;
+drop policy if exists gambar_ubah   on storage.objects;
+drop policy if exists gambar_hapus  on storage.objects;
+
+create policy gambar_baca on storage.objects
+  for select to authenticated
+  using (bucket_id = 'product-images' and public.perangkat_aktif());
+
+create policy gambar_tambah on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'product-images' and public.perangkat_aktif());
+
+create policy gambar_ubah on storage.objects
+  for update to authenticated
+  using (bucket_id = 'product-images' and public.perangkat_aktif())
+  with check (bucket_id = 'product-images' and public.perangkat_aktif());
+
+create policy gambar_hapus on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'product-images' and public.perangkat_aktif());
