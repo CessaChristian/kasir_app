@@ -19,7 +19,6 @@ import 'features/onboarding/repositories/onboarding_repository.dart';
 import 'features/onboarding/pages/onboarding_page.dart';
 import 'data/perangkat/perangkat_repository.dart';
 import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
-import 'features/perangkat/pages/layar_perangkat_dicabut.dart';
 import 'shared/auth/session_manager.dart';
 
 void main() async {
@@ -94,13 +93,14 @@ class MyApp extends StatelessWidget {
 
 /// Menentukan layar mana yang berlaku menurut keadaan PERANGKAT ini.
 ///
-/// Dipasang di atas Navigator, bukan di satu halaman, karena dua keadaan di
-/// bawah membatalkan apa pun yang sedang terbuka — layar mana pun.
+/// Dipasang di atas Navigator, bukan di satu halaman, karena keadaan di bawah
+/// membatalkan apa pun yang sedang terbuka — layar mana pun.
 ///
-/// Urutannya disengaja: "dicabut" diperiksa lebih dulu daripada "belum
-/// terdaftar". Perangkat yang dicabut tidak boleh ditawari mendaftar ulang
-/// seolah dia cuma belum tercatat; pencabutan adalah keputusan pemilik, dan
-/// menampilkan layar kunci di situ akan terbaca sebagai jalan memutarinya.
+/// "Dicabut" dan "belum terdaftar" sengaja berakhir di layar yang SAMA, dan
+/// layar itu tidak menyebut sebabnya. Alasannya: bagi yang memegang HP, dua
+/// keadaan itu sama saja — yang dibutuhkan cuma kunci dari pemilik. Menjelaskan
+/// "kamu dicabut" tidak menolongnya berbuat apa-apa, dan pencabutan bukan
+/// urusan yang perlu dia tahu.
 class _PenjagaPerangkat extends StatelessWidget {
   const _PenjagaPerangkat();
 
@@ -111,16 +111,16 @@ class _PenjagaPerangkat extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: perangkat.dicabut,
       builder: (context, dicabut, child) {
-        if (dicabut) return const LayarPerangkatDicabut();
-
         return ValueListenableBuilder<bool>(
           valueListenable: perangkat.belumTerdaftar,
           builder: (context, belumTerdaftar, child) {
-            if (!belumTerdaftar) return const AuthFlowHandler();
+            if (!dicabut && !belumTerdaftar) return const AuthFlowHandler();
 
-            // Identitasnya sudah ada; yang kurang cuma barisnya di daftar.
-            // Menyelesaikannya cukup mengubah penanda — pohon widget ini
-            // langsung kembali ke alur biasa tanpa perlu pindah halaman.
+            // Identitasnya sudah ada; yang kurang cuma barisnya di daftar —
+            // entah belum pernah dicatat, atau dimatikan pemilik. Kunci yang
+            // benar mengembalikan keduanya, dan penanda di atas ikut berubah
+            // sendiri, jadi pohon widget ini langsung kembali ke alur biasa
+            // tanpa perlu pindah halaman.
             return DaftarkanPerangkatPage(
               lengkapiSaja: true,
               sesudahBerhasil: () async {},
