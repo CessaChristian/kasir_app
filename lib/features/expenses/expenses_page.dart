@@ -8,6 +8,42 @@ import '../shift/repositories/shift_repository.dart';
 import '../../data/app_database.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/sync_refresh.dart';
+
+/// Shift mana yang layak muncul di daftar "Riwayat Shift".
+///
+/// Dipisah dari halamannya supaya bisa diuji — dulu aturannya terkubur di
+/// dalam pemuat data, jadi satu-satunya cara memeriksanya adalah lewat
+/// emulator, dan dua kekeliruan di bawah lolos karenanya.
+///
+/// ── SHIFT YANG MASIH BERJALAN IKUT ──
+///
+/// Dulu syaratnya `endAt != null` — hanya shift yang sudah ditutup. Akibatnya
+/// pemilik tidak bisa melihat pengeluaran kasir yang sedang bertugas sampai
+/// kasirnya menekan "Akhiri Shift"; pengeluaran sore hari baru terlihat besok
+/// pagi. Untuk halaman yang gunanya mengawasi, itu titik buta.
+///
+/// ── SHIFT AKTIF SENDIRI TIDAK IKUT ──
+///
+/// Punya sendiri sudah tampil utuh di bagian "Shift Aktif" di atasnya.
+/// Menampilkannya lagi di riwayat hanya menduplikasi.
+///
+/// ── SHIFT KOSONG TIDAK IKUT ──
+///
+/// Ini riwayat PENGELUARAN. Shift tanpa satu pun catatan tidak menambah
+/// keterangan apa pun, dan dulu harus dibuka satu per satu untuk ketahuan
+/// kosong.
+List<ShiftEntry> riwayatLayakTampil({
+  required List<ShiftEntry> semua,
+  required Map<String, List<Expense>> perShift,
+  required String? shiftAktifSaya,
+}) {
+  return semua
+      .where((e) =>
+          e.shift.id != shiftAktifSaya &&
+          (perShift[e.shift.id]?.isNotEmpty ?? false))
+      .toList();
+}
 
 class ExpensesPage extends StatefulWidget {
   const ExpensesPage({super.key});
@@ -51,19 +87,21 @@ class _ExpensesPageState extends State<ExpensesPage> {
       userId: session.isOwner ? null : session.userId,
     );
 
-    // Pisahkan shift aktif (endAt null) dari history
-    final selesai = semua
-        .where((e) => e.shift.endAt != null && e.shift.id != session.shiftId)
+    final kandidat = semua
+        .where((e) => e.shift.id != session.shiftId)
         .toList();
 
     // Dimuat di depan, satu kueri untuk semua kartu. Selain lebih hemat, ini
     // yang membuat halaman tahu shift mana yang kosong — shift tanpa
     // pengeluaran tidak ada gunanya muncul di riwayat PENGELUARAN.
     final perShift = await _expenseRepo.getExpensesForShifts(
-      selesai.map((e) => e.shift.id).toList(),
+      kandidat.map((e) => e.shift.id).toList(),
     );
-    final berisi =
-        selesai.where((e) => perShift.containsKey(e.shift.id)).toList();
+    final berisi = riwayatLayakTampil(
+      semua: semua,
+      perShift: perShift,
+      shiftAktifSaya: session.shiftId,
+    );
 
     if (mounted) {
       setState(() {
@@ -197,74 +235,78 @@ class _ExpensesPageState extends State<ExpensesPage> {
               child: const Icon(Icons.add_rounded, color: Colors.white),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        children: [
-          // ---- Shift Aktif ----
-          if (hasActiveShift) ...[
-            _buildSectionHeader('Shift Aktif', isActive: true),
-            const SizedBox(height: 8),
-            StreamBuilder<List<Expense>>(
-              // Gunakan field yang stabil, bukan buat stream baru tiap build
-              stream: _expensesStream,
-              builder: (context, snapshot) {
-                final expenses = snapshot.data ?? [];
-                final total =
-                    expenses.fold<int>(0, (s, e) => s + e.amount);
+      body: SyncRefresh(
+        sesudah: _loadPastShifts,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: [
+            // ---- Shift Aktif ----
+            if (hasActiveShift) ...[
+              _buildSectionHeader('Shift Aktif', isActive: true),
+              const SizedBox(height: 8),
+              StreamBuilder<List<Expense>>(
+                // Gunakan field yang stabil, bukan buat stream baru tiap build
+                stream: _expensesStream,
+                builder: (context, snapshot) {
+                  final expenses = snapshot.data ?? [];
+                  final total =
+                      expenses.fold<int>(0, (s, e) => s + e.amount);
 
-                return Column(
+                  return Column(
+                    children: [
+                      if (expenses.isEmpty)
+                        _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
+                      for (final e in expenses)
+                        _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.bolehUbahCatatan(e.userId)),
+                      if (expenses.isNotEmpty)
+                        _buildTotalCard(total, primaryColor),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
                   children: [
-                    if (expenses.isEmpty)
-                      _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
-                    for (final e in expenses)
-                      _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.bolehUbahCatatan(e.userId)),
-                    if (expenses.isNotEmpty)
-                      _buildTotalCard(total, primaryColor),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-          ] else ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      color: Colors.orange.shade700),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Tidak ada shift aktif saat ini.',
-                      style: TextStyle(fontSize: 14),
+                    Icon(Icons.info_outline_rounded,
+                        color: Colors.orange.shade700),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Tidak ada shift aktif saat ini.',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
+              const SizedBox(height: 24),
+            ],
 
-          // ---- Riwayat Shift Sebelumnya ----
-          _buildSectionHeader('Riwayat Shift'),
-          const SizedBox(height: 8),
-          if (_loadingHistory)
-            const Center(child: CircularProgressIndicator())
-          else if (_pastShifts.isEmpty)
-            _buildEmptyCard('Belum ada pengeluaran tercatat.')
-          else
-            for (final entri in _pastShifts)
-              _ShiftHistoryCard(
-                entri: entri,
-                expenses: _expensesByShift[entri.shift.id] ?? const [],
-                tampilkanNama: SessionManager.instance.isOwner,
-              ),
-        ],
+            // ---- Riwayat Shift Sebelumnya ----
+            _buildSectionHeader('Riwayat Shift'),
+            const SizedBox(height: 8),
+            if (_loadingHistory)
+              const Center(child: CircularProgressIndicator())
+            else if (_pastShifts.isEmpty)
+              _buildEmptyCard('Belum ada pengeluaran tercatat.')
+            else
+              for (final entri in _pastShifts)
+                _ShiftHistoryCard(
+                  entri: entri,
+                  expenses: _expensesByShift[entri.shift.id] ?? const [],
+                  tampilkanNama: SessionManager.instance.isOwner,
+                ),
+          ],
+        ),
       ),
     );
   }

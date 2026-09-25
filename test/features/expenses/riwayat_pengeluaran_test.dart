@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/expenses/repositories/expense_repository.dart';
+import 'package:kasir_app/features/expenses/expenses_page.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 
 /// Mengunci dua aturan halaman Pengeluaran yang dulu dilanggar diam-diam.
@@ -145,5 +146,84 @@ void main() {
 
     final hasil = await shiftRepo.getShiftsWithUser();
     expect(hasil.map((e) => e.shift.id).contains('shift-c'), isFalse);
+  });
+
+  group('riwayatLayakTampil', () {
+    ShiftEntry entri(String id, {DateTime? selesai}) => ShiftEntry(
+          shift: Shift(
+            id: id,
+            userId: 'kasir-1',
+            startAt: DateTime(2026, 9, 25, 8),
+            endAt: selesai,
+            syncStatus: 'pending',
+            updatedAt: DateTime(2026, 9, 25, 8),
+          ),
+          username: 'sari',
+        );
+
+    Expense catatan(String shiftId) => Expense(
+          id: 'e-$shiftId',
+          shiftId: shiftId,
+          userId: 'kasir-1',
+          description: 'Beli gas',
+          amount: 1000,
+          createdAt: DateTime(2026, 9, 25, 9),
+          syncStatus: 'pending',
+          updatedAt: DateTime(2026, 9, 25, 9),
+        );
+
+    test('shift yang MASIH BERJALAN tetap tampil — titik buta owner', () {
+      // Dulu syaratnya `endAt != null`, jadi pemilik tidak bisa melihat
+      // pengeluaran kasir yang sedang bertugas sampai shiftnya ditutup.
+      final hasil = riwayatLayakTampil(
+        semua: [entri('berjalan')],
+        perShift: {
+          'berjalan': [catatan('berjalan')]
+        },
+        shiftAktifSaya: null,
+      );
+
+      expect(hasil.map((e) => e.shift.id), ['berjalan']);
+      expect(hasil.single.shift.endAt, isNull);
+    });
+
+    test('shift aktif MILIK SENDIRI tidak tampil — sudah ada di atasnya', () {
+      final hasil = riwayatLayakTampil(
+        semua: [entri('punyaku'), entri('lain', selesai: DateTime(2026, 9, 25, 16))],
+        perShift: {
+          'punyaku': [catatan('punyaku')],
+          'lain': [catatan('lain')],
+        },
+        shiftAktifSaya: 'punyaku',
+      );
+
+      expect(hasil.map((e) => e.shift.id), ['lain']);
+    });
+
+    test('shift tanpa pengeluaran tidak tampil', () {
+      final hasil = riwayatLayakTampil(
+        semua: [entri('isi', selesai: DateTime(2026, 9, 25, 16)), entri('kosong', selesai: DateTime(2026, 9, 25, 17))],
+        perShift: {
+          'isi': [catatan('isi')]
+        },
+        shiftAktifSaya: null,
+      );
+
+      expect(hasil.map((e) => e.shift.id), ['isi']);
+    });
+
+    test('urutan dari kueri dipertahankan', () {
+      final hasil = riwayatLayakTampil(
+        semua: [entri('a'), entri('b'), entri('c')],
+        perShift: {
+          'a': [catatan('a')],
+          'b': [catatan('b')],
+          'c': [catatan('c')],
+        },
+        shiftAktifSaya: null,
+      );
+
+      expect(hasil.map((e) => e.shift.id), ['a', 'b', 'c']);
+    });
   });
 }
