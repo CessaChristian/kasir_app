@@ -68,13 +68,16 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Ganti Nama Perangkat'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nama',
-            hintText: 'mis. HP Kasir Depan',
-            border: OutlineInputBorder(),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: c,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nama',
+              hintText: 'mis. HP Kasir Depan',
+              border: OutlineInputBorder(),
+            ),
           ),
         ),
         actions: [
@@ -99,11 +102,14 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text('Cabut ${p.nama}?'),
-          content: const Text(
-            'HP itu langsung berhenti bisa membaca maupun mengirim data — '
-            'tidak perlu menunggu.\n\n'
-            'Data yang sudah ada di HP itu tidak terhapus. Bisa dipulihkan '
-            'lagi kapan saja dari halaman ini.',
+          content: const SizedBox(
+            width: double.maxFinite,
+            child: Text(
+              'HP itu langsung berhenti bisa membaca maupun mengirim data — '
+              'tidak perlu menunggu.\n\n'
+              'Data yang sudah ada di HP itu tidak terhapus. Bisa dipulihkan '
+              'lagi kapan saja dari halaman ini.',
+            ),
           ),
           actions: [
             TextButton(
@@ -133,11 +139,14 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Lupakan ${p.nama}?'),
-        content: const Text(
-          'Barisnya dihapus dari daftar, beserta identitasnya di server.\n\n'
-          'Pakai ini untuk HP yang memang sudah tidak ada — rusak, dijual, '
-          'atau diganti. Untuk HP yang hilang, biarkan tercabut saja supaya '
-          'jejaknya tetap terlihat.',
+        content: const SizedBox(
+          width: double.maxFinite,
+          child: Text(
+            'Barisnya dihapus dari daftar, beserta identitasnya di server.\n\n'
+            'Pakai ini untuk HP yang memang sudah tidak ada — rusak, dijual, '
+            'atau diganti. Untuk HP yang hilang, biarkan tercabut saja supaya '
+            'jejaknya tetap terlihat.',
+          ),
         ),
         actions: [
           TextButton(

@@ -123,10 +123,13 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
           size: 40,
         ),
         title: const Text('Perangkat Terdaftar'),
-        content: Text(
-          'Nama perangkat: $nama\n\n'
-          'HP ini sudah boleh menyentuh data toko.',
-          textAlign: TextAlign.center,
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Text(
+            'Nama perangkat: $nama\n\n'
+            'HP ini sudah boleh menyentuh data toko.',
+            textAlign: TextAlign.center,
+          ),
         ),
         actions: [
           TextButton(

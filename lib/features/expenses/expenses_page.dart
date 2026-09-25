@@ -405,37 +405,40 @@ class _ExpensesPageState extends State<ExpensesPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Pengeluaran'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: descC,
-                decoration: const InputDecoration(
-                  labelText: 'Keterangan',
-                  border: OutlineInputBorder(),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: descC,
+                  decoration: const InputDecoration(
+                    labelText: 'Keterangan',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: amountC,
-                decoration: const InputDecoration(
-                  labelText: 'Jumlah (Rp)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amountC,
+                  decoration: const InputDecoration(
+                    labelText: 'Jumlah (Rp)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Wajib diisi';
+                    if (int.tryParse(v) == null || int.parse(v) <= 0) {
+                      return 'Masukkan angka valid';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Wajib diisi';
-                  if (int.tryParse(v) == null || int.parse(v) <= 0) {
-                    return 'Masukkan angka valid';
-                  }
-                  return null;
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -737,104 +740,107 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.add_card_rounded, color: primary),
                     ),
-                    child: Icon(Icons.add_card_rounded, color: primary),
-                  ),
-                  const SizedBox(width: 14),
-                  const Text(
-                    'Tambah Pengeluaran',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _descC,
-                textCapitalization: TextCapitalization.sentences,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Keterangan',
-                  hintText: 'Contoh: Beli es batu',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.description_outlined),
+                    const SizedBox(width: 14),
+                    const Text(
+                      'Tambah Pengeluaran',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _amountC,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _submit(),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  RupiahInputFormatter(),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Jumlah',
-                  prefixText: 'Rp ',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.payments_outlined),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _descC,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: 'Keterangan',
+                    hintText: 'Contoh: Beli es batu',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    prefixIcon: const Icon(Icons.description_outlined),
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
                 ),
-                validator: (v) {
-                  final amount = parseRupiah(v ?? '');
-                  if (amount == null || amount <= 0) return 'Masukkan jumlah valid';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(color: Colors.grey.shade300),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _amountC,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    RupiahInputFormatter(),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'Jumlah',
+                    prefixText: 'Rp ',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    prefixIcon: const Icon(Icons.payments_outlined),
+                  ),
+                  validator: (v) {
+                    final amount = parseRupiah(v ?? '');
+                    if (amount == null || amount <= 0) return 'Masukkan jumlah valid';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey.shade700,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
                         ),
+                        child: const Text('Batal'),
                       ),
-                      child: const Text('Batal'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Simpan',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      child: const Text('Simpan',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
