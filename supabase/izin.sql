@@ -105,17 +105,19 @@ create index if not exists idx_user_permissions_updated
   on public.user_permissions(updated_at);
 
 -- ---------------------------------------------------------------------
---  3. Akses
+--  3. Akses — SENGAJA TIDAK DIATUR DI SINI
 --
---  Sebelumnya tabel ini hanya boleh dibaca, karena memang tidak ada yang
---  menulisnya dari perangkat. Sekarang ia ikut disinkronkan.
---  Catatan: policy ini baru berlaku setelah `supabase/rls.sql` dijalankan.
+--  Berkas ini dulu membuat sendiri policy tulis untuk `user_permissions`,
+--  berbunyi `with check (true)` / `using (true)`. Policy itu sekarang milik
+--  `supabase/perangkat_tegakkan.sql`, yang memasang versi jauh lebih ketat:
+--  `public.perangkat_aktif()` — hanya perangkat yang terdaftar dan aktif.
+--
+--  Kenapa dicabut dari sini: berkas ini WAJAR dijalankan ulang, misalnya saat
+--  menambah izin baru ke katalog. Kalau ia masih ikut membuat policy, sekali
+--  dijalankan ulang ia akan menimpa versi ketat itu dengan versi longgar —
+--  tanpa galat, tanpa gejala, dan perangkat yang sudah dicabut bisa mengubah
+--  izin lagi. Kerusakan diam-diam seperti itu paling mahal dicari.
+--
+--  Satu policy, satu pemilik. Yang di sini cuma menyemai data.
+--  Urutan pemasangan: schema.sql → izin.sql → perangkat.sql → perangkat_tegakkan.sql
 -- ---------------------------------------------------------------------
-drop policy if exists tambah_user_permissions on public.user_permissions;
-drop policy if exists ubah_user_permissions   on public.user_permissions;
-
-create policy tambah_user_permissions on public.user_permissions
-  for insert to authenticated with check (true);
-
-create policy ubah_user_permissions on public.user_permissions
-  for update to authenticated using (true) with check (true);

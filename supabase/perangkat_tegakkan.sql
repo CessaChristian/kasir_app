@@ -1,20 +1,35 @@
 -- =====================================================================
 --  MENYALAKAN PENEGAKAN DAFTAR PERANGKAT
 --
---  JANGAN dijalankan sebelum gerbang ini terlewati:
+--  Sesudah ini, aturan di server berbunyi: boleh baca-tulis HANYA kalau
+--  perangkatnya terdaftar dan aktif. Ini keadaan TETAP — tidak ada berkas
+--  untuk melonggarkannya lagi, dan itu disengaja.
 --
---    Buka halaman Perangkat di aplikasi, pastikan SEMUA HP yang dipakai
---    sudah muncul di daftar dan berstatus aktif.
+--  ── KALAU SEMUA HP TERKUNCI ──
 --
---  Kalau dijalankan lebih dulu, setiap HP yang belum terdaftar akan langsung
---  terkunci — termasuk HP yang kamu pakai untuk membukanya lagi. Pulihnya
---  harus lewat dashboard, jadi pastikan kamu bisa membuka dashboard Supabase
---  saat menjalankan ini.
+--  Dua jalan pulih, dan keduanya TIDAK melonggarkan aturan apa pun:
 --
---  ── RENCANA MUNDUR ──
+--  1. Kalau yang kosong/salah adalah ISI tabel `perangkat` — misal barisnya
+--     terhapus — tidak perlu dashboard sama sekali. Buka aplikasinya: ia
+--     melihat dirinya tidak terdaftar lalu memunculkan layar kunci sendiri.
+--     Masukkan kunci pemasangan, barisnya dibuat lagi, akses kembali.
 --
---  Jalankan supabase/perangkat_longgarkan.sql. Satu perintah, tanpa perlu
---  menyentuh HP mana pun.
+--     Itu bisa karena dua hal yang sengaja dibiarkan longgar: `baca_perangkat`
+--     memakai `using (true)` sehingga perangkat tetap boleh membaca daftarnya
+--     walau barisnya hilang, dan `daftarkan_perangkat` adalah `security
+--     definer` sehingga berjalan sebagai pemilik dan tidak diperiksa RLS.
+--     Keduanya jangan diubah — di situlah jalan pulangnya.
+--
+--  2. Kalau yang rusak adalah ATURANNYA — misal fungsi `perangkat_aktif()`
+--     terhapus atau berganti nama, sehingga semua kueri galat — jalankan
+--     ulang BERKAS INI. Ia memakai `create or replace`, jadi memperbaiki
+--     dirinya sendiri.
+--
+--  Yang tetap perlu disiapkan sebelum menjalankannya pertama kali: buka
+--  halaman Perangkat, pastikan SEMUA HP sudah muncul dan berstatus aktif.
+--  Bukan karena sulit dipulihkan, tapi supaya warungnya tidak berhenti
+--  melayani sambil menunggu tiap HP didaftarkan satu-satu — dan pendaftaran
+--  itu butuh internet.
 -- =====================================================================
 
 --  Satu tempat bertanya "boleh tidak", supaya syaratnya tidak tersalin

@@ -1,55 +1,59 @@
 -- =====================================================================
---  PENGETATAN AKSES — menggantikan policy sementara `spike_*`
+--  SISA PENGETATAN AKSES
 --
 --  Jalankan SEKALI lewat SQL Editor di dashboard Supabase.
---  Aman dijalankan ulang: semuanya memakai `if exists` / `if not exists`.
+--  Aman dijalankan ulang: semuanya `if exists` / `revoke`.
 --
---  ── APA YANG BISA DAN TIDAK BISA DITEGAKKAN DI SINI ──
+--  ── BERKAS INI BUKAN LAGI PENGETATAN MENYELURUH ──
 --
---  Login staf (PIN) diperiksa di dalam aplikasi, terhadap tabel `users`
---  lokal — bukan ke server. Itu konsekuensi aplikasi yang harus jalan tanpa
---  internet. Akibatnya server TIDAK TAHU siapa yang sedang memegang HP; ia
---  hanya melihat "sebuah perangkat yang sah mengirim data".
+--  Dulu isinya menggantikan seluruh policy sementara `spike_*` untuk semua
+--  tabel. Itu sudah dikerjakan `supabase/perangkat_tegakkan.sql`, dan versinya
+--  lebih ketat — bukan `using (true)` melainkan `using (public.perangkat_aktif())`.
 --
---  Maka semua akun perangkat di sini sengaja BERIZIN SAMA. Aturan "kasir
---  tidak boleh mengubah harga" ditegakkan aplikasi, bukan berkas ini —
---  karena owner memang boleh memakai HP kasir, dan sebaliknya.
+--  Memakai berkas lama apa adanya justru MELONGGARKAN yang sudah terpasang,
+--  dan `create policy` dengan nama yang sudah ada akan gagal `42710` lalu
+--  membatalkan seluruh blok. Maka berkas ini ditulis ulang: isinya hanya
+--  yang benar-benar masih kurang, diperiksa langsung ke `pg_policies`.
 --
---  Yang tetap bisa ditegakkan server adalah aturan yang benar TANPA PEDULI
---  siapa yang login. Itu yang ditulis di bawah, dan nilainya nyata: aturan
---  ini tetap berlaku walau APK dibongkar dan kredensial perangkat dicuri.
+--  Keadaan server saat berkas ini ditulis (2026-09-28):
+--
+--    8 tabel data  → baca/tambah/ubah sudah `perangkat_aktif()`, DELETE nihil
+--    perangkat     → `baca_perangkat` sengaja `using (true)`, lihat di bawah
+--    permissions   → MASIH `spike_permissions` = ALL + true   ← yang ditambal
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
---  1. Buang policy sementara
+--  1. Tabel `permissions` — tutup rapat, tanpa pengganti
 --
---  Isinya `using (true) with check (true)` — siapa pun yang berhasil login
---  boleh melakukan apa saja pada semua tabel. Sengaja longgar untuk uji
---  coba sinkronisasi, dan tidak layak dipakai pengguna sungguhan.
+--  `spike_permissions` berbunyi `for all using (true)`: setiap perangkat yang
+--  berhasil login boleh membaca, menambah, mengubah, DAN MENGHAPUS katalog
+--  izin. Karena syaratnya `true` dan bukan `public.perangkat_aktif()`,
+--  perangkat yang sudah DICABUT pun masih bisa.
+--
+--  Ini satu-satunya tabel yang masih terbuka, dan kebetulan yang paling
+--  mahal kalau dihapus. `public.user_permissions.permission_code` menunjuk
+--  ke sini dengan `on delete cascade`, dan cascade dijalankan mesin
+--  database sebagai penegakan relasi — RLS TIDAK ikut memeriksanya. Jadi
+--  satu `delete from public.permissions` melenyapkan baris
+--  `user_permissions` secara fisik, menembus perlindungan "tidak ada policy
+--  DELETE" yang dipasang di tabel itu, dan tanpa meninggalkan nisan
+--  (`deleted_at`) sehingga perangkat lain tidak akan pernah tahu.
+--
+--  Policy-nya dibuang TANPA diganti, jadi tabelnya menolak semua akses dari
+--  perangkat. Itu aman: sudah diperiksa, aplikasi tidak pernah menyentuh
+--  tabel ini di server — `sync_engine.dart` hanya menyinkronkan
+--  `user_permissions`, dan tidak ada satu pun panggilan Supabase ke
+--  `permissions` di seluruh `lib/`. Isinya disemai dari dashboard lewat
+--  `supabase/izin.sql`, yang berjalan sebagai pemilik dan tidak butuh policy.
 -- ---------------------------------------------------------------------
-do $$
-declare t text;
-begin
-  foreach t in array array[
-    'users','permissions','user_permissions','categories','products',
-    'shifts','transactions','transaction_items','expenses'
-  ] loop
-    execute format('drop policy if exists %I on public.%I', 'spike_'||t, t);
-  end loop;
-end $$;
+drop policy if exists spike_permissions on public.permissions;
 
 -- ---------------------------------------------------------------------
---  2. Tabel yang ikut sinkronisasi: boleh baca, tambah, ubah — TIDAK hapus
+--  2. Sapu sisa policy sementara pada tabel data
 --
---  Penghapusan DELETE sengaja tidak diberi policy sama sekali. Seluruh
---  penghapusan di aplikasi ini bersifat lunak (kolom `deleted_at` diisi,
---  barisnya tetap ada), dan sudah diperiksa: tidak ada satu pun jalur di
---  kode yang mengirim DELETE ke server.
---
---  Artinya larangan ini tidak menghalangi apa pun yang sah, tapi menutup
---  kerusakan yang TIDAK BISA dipulihkan. Data masih bisa dikotori oleh
---  perangkat yang kredensialnya bocor — tapi tidak bisa dilenyapkan, dan
---  itu perbedaan kelas.
+--  `pg_policies` per 2026-09-28 sudah tidak menunjukkan satu pun, karena
+--  `perangkat_tegakkan.sql` membuangnya saat menimpa. Ditulis di sini supaya
+--  pemasangan lain yang pernah memakai `schema.sql` versi lama ikut bersih.
 -- ---------------------------------------------------------------------
 do $$
 declare t text;
@@ -58,95 +62,62 @@ begin
     'users','user_permissions','categories','products','shifts',
     'transactions','transaction_items','expenses'
   ] loop
-    execute format(
-      'create policy %I on public.%I for select to authenticated using (true)',
-      'baca_'||t, t);
-    execute format(
-      'create policy %I on public.%I for insert to authenticated with check (true)',
-      'tambah_'||t, t);
-    execute format(
-      'create policy %I on public.%I for update to authenticated using (true) with check (true)',
-      'ubah_'||t, t);
+    execute format('drop policy if exists %I on public.%I', 'spike_'||t, t);
   end loop;
 end $$;
 
 -- ---------------------------------------------------------------------
---  3. Tabel izin: baca saja
+--  3. Cabut hak DELETE sampai lapisan GRANT
 --
---  `permissions` adalah data seed statis. `user_permissions` belum ikut
---  sinkronisasi sama sekali (sudah diperiksa: nol penyebutan di
---  sync_engine.dart), jadi tidak ada yang perlu menulisnya dari perangkat.
---  Kalau nanti ikut disinkronkan, policy tulisnya ditambahkan saat itu —
---  bukan dibuka sekarang "untuk berjaga-jaga".
--- ---------------------------------------------------------------------
--- `permissions` tetap baca-saja: katalog statis yang disemai lewat
--- `supabase/izin.sql`, tidak ada yang menulisnya dari perangkat.
--- `user_permissions` TIDAK lagi di sini — sejak v20 ia ikut disinkronkan dan
--- sudah mendapat policy baca/tambah/ubah di blok sebelumnya.
-create policy baca_permissions on public.permissions
-  for select to authenticated using (true);
-
--- ---------------------------------------------------------------------
---  4. Cabut hak DELETE sampai ke lapisan GRANT
+--  RLS tanpa policy DELETE sudah menolak penghapusan — tapi menolaknya
+--  DIAM-DIAM: permintaannya sukses dengan "0 baris terpengaruh", persis
+--  seperti kalau barisnya memang tidak ada. Kalau suatu hari ada kode kita
+--  yang keliru mengirim DELETE, kita akan mengira penghapusannya berhasil.
 --
---  RLS tanpa policy DELETE sudah menolak penghapusan, tapi menolaknya
---  DIAM-DIAM: permintaan berhasil dengan "0 baris terpengaruh". Mencabut
---  di lapisan GRANT membuatnya gagal dengan pesan jelas, sehingga kalau
---  suatu hari ada kode yang keliru mengirim DELETE, kita mendengarnya
---  alih-alih mengira penghapusannya berhasil.
+--  Mencabutnya di lapisan GRANT membuatnya gagal BERSUARA (`42501
+--  insufficient_privilege`), jadi kekeliruan seperti itu terdengar.
+--
+--  Tidak ada yang sah terhalang: seluruh penghapusan di aplikasi ini lunak
+--  (`deleted_at` diisi lewat UPDATE). Fungsi `lupakan_perangkat` juga aman —
+--  ia `security definer`, berjalan sebagai pemilik, tidak lewat hak ini.
 -- ---------------------------------------------------------------------
 do $$
 declare t text;
 begin
   foreach t in array array[
     'users','permissions','user_permissions','categories','products',
-    'shifts','transactions','transaction_items','expenses'
+    'shifts','transactions','transaction_items','expenses','perangkat'
   ] loop
-    execute format('revoke delete on public.%I from authenticated, anon', t);
+    execute format('revoke delete on public.%I from anon, authenticated', t);
   end loop;
 end $$;
 
--- =====================================================================
---  5. BATASAN NILAI
+-- ---------------------------------------------------------------------
+--  4. `permissions` juga dicabut hak tulisnya
 --
---  Sudah diperiksa terhadap data yang ada sekarang: NOL pelanggaran di
---  seluruh tabel, termasuk 613 baris rincian transaksi. Jadi pemasangannya
---  tidak akan gagal dan tidak ada baris lama yang perlu diperbaiki dulu.
---
---  Gunanya: aturan ini berlaku pada tulisan dari mana pun, termasuk dari
---  perangkat yang kredensialnya bocor dan dari skrip yang salah tulis.
+--  Langkah 1 sudah membuat RLS menolak semuanya. Ini lapisan kedua, supaya
+--  penolakannya bersuara dan supaya niatnya terbaca jelas: tabel ini milik
+--  server, bukan milik perangkat.
+-- ---------------------------------------------------------------------
+revoke insert, update on public.permissions from anon, authenticated;
+
 -- =====================================================================
-alter table public.products
-  add constraint harga_produk_wajar check (price >= 0) not valid;
-
-alter table public.transactions
-  add constraint total_wajar         check (total >= 0)                       not valid,
-  add constraint uang_diterima_wajar check (cash_received is null or cash_received >= 0) not valid,
-  add constraint kembalian_wajar     check (change is null or change >= 0)    not valid;
-
-alter table public.transaction_items
-  add constraint jumlah_wajar   check (qty > 0)                       not valid,
-  add constraint harga_wajar    check (price_at_sale >= 0)            not valid,
-  add constraint subtotal_wajar check (subtotal >= 0)                 not valid,
-  -- Invarian uang yang paling berharga: subtotal WAJIB hasil kali jumlah
-  -- dan harga saat itu. Sudah dibuktikan berlaku pada 613 dari 613 baris.
-  -- Ini yang menghalangi perangkat yang dibajak menulis rincian dengan
-  -- angka yang tidak saling cocok.
-  add constraint subtotal_konsisten check (subtotal = qty * price_at_sale) not valid;
-
-alter table public.expenses
-  add constraint jumlah_pengeluaran_wajar check (amount > 0) not valid;
-
--- `not valid` di atas berarti batasan berlaku untuk tulisan BARU tanpa
--- memindai seluruh tabel saat dipasang. Baris lama sudah kita periksa
--- bersih, jadi sekalian disahkan — dijalankan terpisah supaya penguncian
--- tabelnya sesingkat mungkin.
-alter table public.products           validate constraint harga_produk_wajar;
-alter table public.transactions       validate constraint total_wajar;
-alter table public.transactions       validate constraint uang_diterima_wajar;
-alter table public.transactions       validate constraint kembalian_wajar;
-alter table public.transaction_items  validate constraint jumlah_wajar;
-alter table public.transaction_items  validate constraint harga_wajar;
-alter table public.transaction_items  validate constraint subtotal_wajar;
-alter table public.transaction_items  validate constraint subtotal_konsisten;
-alter table public.expenses           validate constraint jumlah_pengeluaran_wajar;
+--  PEMERIKSAAN SESUDAH DIJALANKAN
+--
+--  (a) `permissions` tidak boleh punya policy sama sekali, dan 8 tabel data
+--      tidak boleh punya satu pun baris DELETE:
+--
+--        select tablename, policyname, cmd, qual
+--        from pg_policies where schemaname = 'public'
+--        order by tablename, policyname;
+--
+--  (b) hak DELETE benar-benar tercabut:
+--
+--        select table_name, privilege_type
+--        from information_schema.role_table_grants
+--        where table_schema = 'public'
+--          and grantee in ('anon','authenticated')
+--          and privilege_type = 'DELETE';
+--
+--      Hasil yang benar: KOSONG.
+-- =====================================================================
