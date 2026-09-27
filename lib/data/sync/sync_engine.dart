@@ -351,8 +351,7 @@ class SyncEngine {
     String tabel,
     String kolom,
     String? sejak,
-    int dari,
-    int sampai,
+    int batas,
   )? penarikUntukTest;
 
   Future<(int, int)> _tarik(_Entitas e, int urutan) async {
@@ -379,20 +378,55 @@ class SyncEngine {
     }
   }
 
+  /// Menarik halaman demi halaman sampai habis.
+  ///
+  /// ── KENAPA BUKAN NOMOR HALAMAN (offset) ──
+  ///
+  /// Halaman ditandai NILAI baris terakhir, bukan posisinya. Dengan offset,
+  /// baris yang DIUBAH di server selagi kita menarik akan pindah ke ujung
+  /// urutan, dan semua baris sesudahnya bergeser maju satu — sehingga baris
+  /// yang tadinya tepat di awal halaman berikutnya terlewati, permanen.
+  ///
+  /// Itu justru terjadi saat datanya paling banyak: tarikan pertama sesudah
+  /// perangkat lama tidak sinkron, ketika halamannya memang lebih dari satu.
+  ///
+  /// Nilai tidak bisa bergeser seperti itu: baris yang diubah pindah ke
+  /// belakang batas yang sedang kita pegang, jadi ia tetap ikut tertarik.
   Future<(int, int)> _tarikBertahap(
     _Entitas e,
     int urutan,
     String? sejak,
     bool pakaiUrut,
   ) async {
+    final kolom = pakaiUrut ? kolomUrut : 'updated_at';
     final semua = <Map<String, dynamic>>[];
-    var dari = 0;
-    while (true) {
-      final halaman = await _halaman(e.nama, sejak, dari, pakaiUrut);
-      semua.addAll(halaman);
+    final terlihat = <String>{};
+    var batas = sejak;
+
+    // Batas putaran sebagai jaring pengaman: kalaupun suatu hari ada keadaan
+    // yang membuat batasnya tidak maju, sinkronnya berhenti alih-alih
+    // berputar selamanya.
+    for (var putaran = 0; putaran < 1000; putaran++) {
+      final halaman = await _halaman(e.nama, batas, pakaiUrut);
+      if (halaman.isEmpty) break;
+
+      var baru = 0;
+      for (final r in halaman) {
+        // `gte` membuat baris di batas ikut tertarik lagi — memang disengaja,
+        // supaya stempel kembar tidak membelah halaman dan menghilangkan
+        // baris. Yang sudah terlihat cukup dibuang di sini.
+        if (terlihat.add(r['id'] as String)) {
+          semua.add(r);
+          baru++;
+        }
+      }
+
       if (halaman.length < ukuranHalaman) break;
-      dari += halaman.length;
+      final akhir = halaman.last[kolom];
+      if (akhir is! String || baru == 0) break;
+      batas = akhir;
     }
+
     return _gabungkan(e, semua, urutan);
   }
 
@@ -400,26 +434,25 @@ class SyncEngine {
   Future<List<Map<String, dynamic>>> _halaman(
     String tabel,
     String? sejak,
-    int dari,
     bool pakaiUrut,
   ) async {
-    // Urutannya tetap dibutuhkan walau kolom urutan belum ada: paginasi tanpa
-    // urutan yang pasti bisa melewatkan atau menggandakan baris antar halaman.
+    // Urutannya tetap dibutuhkan walau kolom urutan belum ada: menarik
+    // bertahap tanpa urutan yang pasti bisa melewatkan baris antar halaman.
     final kolom = pakaiUrut ? kolomUrut : 'updated_at';
 
     final pengganti = penarikUntukTest;
     if (pengganti != null) {
-      return pengganti(tabel, kolom, sejak, dari, dari + ukuranHalaman - 1);
+      return pengganti(tabel, kolom, sejak, ukuranHalaman);
     }
 
     var query = _supabase.client!.from(tabel).select();
     if (sejak != null) {
       // `gte`, bukan `gt`: stempel kembar tidak boleh membuat baris terlewat.
-      // Barisnya yang persis di penanda ikut tertarik lagi, dan itu murah —
+      // Barisnya yang persis di batas ikut tertarik lagi, dan itu murah —
       // menggabungkannya tidak mengubah apa pun.
       query = query.gte(kolom, sejak);
     }
-    return query.order(kolom).range(dari, dari + ukuranHalaman - 1);
+    return query.order(kolom).limit(ukuranHalaman);
   }
 
   /// Penanda dimundurkan sejauh [jedaAman]. Null tetap null — artinya belum

@@ -46,7 +46,7 @@ void main() {
     server = [];
 
     mesin = SyncEngine(db);
-    mesin.penarikUntukTest = (tabel, kolom, sejak, dari, sampai) async {
+    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
       // Penyaringnya memakai KOLOM YANG DIMINTA ENGINE. Kalau engine masih
       // menyaring pada `updated_at`, test ini akan gagal — itulah gunanya.
       final cocok = server.where((r) {
@@ -58,8 +58,7 @@ void main() {
         ..sort((a, b) =>
             (a[kolom] as String).compareTo(b[kolom] as String));
 
-      if (dari >= cocok.length) return [];
-      return cocok.sublist(dari, (sampai + 1).clamp(0, cocok.length));
+      return cocok.take(batas).toList();
     };
 
     await db.into(db.users).insert(UsersCompanion.insert(
@@ -243,7 +242,7 @@ void main() {
     // Pembaruan aplikasi bisa sampai ke HP sebelum SQL-nya dijalankan.
     // Warung yang berhenti bisa menerima uang jauh lebih mahal daripada
     // sinkron yang boros, jadi enginenya harus mundur dengan selamat.
-    mesin.penarikUntukTest = (tabel, kolom, sejak, dari, sampai) async {
+    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
       if (kolom == 'server_urut') {
         throw PostgrestException(
           message: 'column $tabel.server_urut does not exist',
@@ -253,8 +252,7 @@ void main() {
       final cocok = server.toList()
         ..sort((a, b) =>
             (a['updated_at'] as String).compareTo(b['updated_at'] as String));
-      if (dari >= cocok.length) return [];
-      return cocok.sublist(dari, (sampai + 1).clamp(0, cocok.length));
+      return cocok.take(batas).toList();
     };
 
     final t = DateTime.utc(2026, 9, 28, 10);
@@ -269,5 +267,42 @@ void main() {
         .getSingleOrNull();
     expect(penanda?.lastPulledCursor, isNull,
         reason: 'penanda tidak boleh diisi dengan nilai yang salah arti');
+  });
+
+  test('baris yang DIUBAH selagi ditarik tidak menggeser baris lain hilang',
+      () async {
+    // Halaman ditandai NILAI, bukan posisi. Kalau ditandai posisi (offset),
+    // baris yang diubah di server selagi kita menarik pindah ke ujung urutan
+    // dan semua baris sesudahnya bergeser maju satu — sehingga baris yang
+    // tadinya tepat di awal halaman berikutnya terlewati, permanen.
+    //
+    // Itu justru terjadi saat datanya paling banyak: tarikan pertama sesudah
+    // perangkat lama tidak sinkron.
+    final dasar = DateTime.utc(2026, 9, 28, 8);
+    final jumlah = SyncEngine.ukuranHalaman * 2;
+    for (var i = 0; i < jumlah; i++) {
+      server.add(trx('t-$i',
+          diubah: dasar.add(Duration(seconds: i)),
+          tiba: dasar.add(Duration(seconds: i))));
+    }
+
+    // Sesudah halaman pertama terkirim, satu baris di AWAL diubah — persis
+    // keadaan yang membuat paginasi berbasis posisi kehilangan baris.
+    var halamanKe = 0;
+    final asli = mesin.penarikUntukTest!;
+    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
+      final hasil = await asli(tabel, kolom, sejak, batas);
+      if (halamanKe++ == 0) {
+        final pindah = server.firstWhere((r) => r['id'] == 't-3');
+        pindah['server_urut'] = iso(dasar.add(const Duration(days: 1)));
+      }
+      return hasil;
+    };
+
+    await tarikTransaksi();
+
+    expect(await db.select(db.transactions).get(), hasLength(jumlah),
+        reason: 'tidak boleh ada baris yang hilang hanya karena ada baris '
+            'lain yang berubah selagi tarikan berlangsung');
   });
 }
