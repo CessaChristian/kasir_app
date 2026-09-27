@@ -305,4 +305,33 @@ void main() {
         reason: 'tidak boleh ada baris yang hilang hanya karena ada baris '
             'lain yang berubah selagi tarikan berlangsung');
   });
+
+  test('sinkron kedua tanpa perubahan nyaris tidak menarik apa pun', () async {
+    // ── KENAPA TEST INI ADA ──
+    //
+    // Versi pertama `sync_urutan.sql` memberi cap "detik ini" ke SELURUH baris
+    // lama sekaligus. Penanda tiap perangkat lalu mendarat di gumpalan itu,
+    // dan jeda aman satu menit ke belakang mencakup seluruh isinya — sehingga
+    // setiap sinkron menarik ulang seluruh tabel, selamanya.
+    //
+    // Terlihat oleh pengguna sebagai "856 data diperbarui" yang muncul lagi
+    // dan lagi walau tidak ada yang berubah. Dan bukan sekadar berisik:
+    // sekitar 1 MB tiap lima menit dari dua perangkat menghabiskan kuota
+    // egress gratisan dalam sebulan.
+    final dasar = DateTime.utc(2026, 9, 1, 8);
+    for (var i = 0; i < 50; i++) {
+      // Tersebar wajar — seperti data sungguhan, dan seperti hasil
+      // `sync_urutan_perbaiki.sql`.
+      final t = dasar.add(Duration(hours: i));
+      server.add(trx('t-$i', diubah: t, tiba: t));
+    }
+
+    final pertama = await tarikTransaksi();
+    expect(pertama, 50);
+
+    final kedua = await tarikTransaksi();
+    expect(kedua, lessThanOrEqualTo(1),
+        reason: 'tanpa perubahan apa pun, tarikan kedua paling banyak '
+            'mengulang satu baris di batas penanda — bukan seluruh tabel');
+  });
 }

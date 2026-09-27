@@ -377,7 +377,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -795,6 +795,25 @@ class AppDatabase extends _$AppDatabase {
             // skema yang lebih tua daripada saat `sync_state` diperkenalkan,
             // dan SQLite menolak UPDATE ke tabel yang tidak ada saat kueri
             // disiapkan — sebelum WHERE mana pun sempat dievaluasi.
+            final adaSyncState = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'sync_state'",
+            ).get();
+            if (adaSyncState.isNotEmpty) {
+              await customStatement(
+                  'UPDATE sync_state SET last_pulled_cursor = NULL');
+            }
+          }
+
+          if (from < 23 && to >= 23) {
+            // v23 — penanda dikosongkan sekali lagi.
+            //
+            // `supabase/sync_urutan.sql` versi pertama memberi cap "detik ini"
+            // ke seluruh baris lama sekaligus, sehingga penanda tiap perangkat
+            // mendarat di gumpalan itu dan setiap sinkron menarik ulang
+            // seluruh tabel. `supabase/sync_urutan_perbaiki.sql` menyebar
+            // capnya kembali mengikuti `updated_at`, dan nilai penanda yang
+            // lama tidak lagi berarti apa-apa terhadap nilai yang baru.
             final adaSyncState = await customSelect(
               "SELECT 1 FROM sqlite_master "
               "WHERE type = 'table' AND name = 'sync_state'",

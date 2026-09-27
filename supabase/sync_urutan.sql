@@ -72,10 +72,31 @@ begin
     'users','user_permissions','categories','products','shifts',
     'transactions','transaction_items','expenses'
   ] loop
-    -- Kolomnya. Baris yang sudah ada ikut terisi saat kolomnya dibuat.
+    -- Kolomnya ditambahkan TANPA default dulu, lalu baris lama diisi dari
+    -- `updated_at`-nya sendiri.
+    --
+    -- Kalau langsung diberi `default clock_timestamp()`, PostgreSQL mengisi
+    -- SELURUH baris lama dengan nilai dari saat itu juga — seribu baris
+    -- bertahun-tahun lalu semuanya bercap "detik ini", berselisih hanya
+    -- mikrodetik. Penanda tarikan tiap perangkat lalu mendarat di gumpalan
+    -- itu, dan jeda aman satu menit ke belakang mencakup SELURUH isinya:
+    -- setiap sinkron menarik ulang seluruh tabel, selamanya.
+    --
+    -- `least(..., now())` menjaga dari jam perangkat yang KEDEPAN. Cap di masa
+    -- depan melempar penanda melewati kedatangan sungguhan berikutnya — persis
+    -- kebocoran yang sedang ditutup berkas ini.
     execute format(
-      'alter table public.%I add column if not exists server_urut '
-      'timestamptz not null default clock_timestamp()', t);
+      'alter table public.%I add column if not exists server_urut timestamptz', t);
+    execute format(
+      'update public.%I set server_urut = least(updated_at, now()) '
+      'where server_urut is null', t);
+    execute format(
+      'alter table public.%I alter column server_urut '
+      'set default clock_timestamp()', t);
+    execute format(
+      'update public.%I set server_urut = now() where server_urut is null', t);
+    execute format(
+      'alter table public.%I alter column server_urut set not null', t);
 
     -- Indeks: setiap tarikan menyaring dan mengurutkan berdasarkan kolom ini.
     -- Tanpa indeks, tiap sinkron memindai seluruh tabel.
