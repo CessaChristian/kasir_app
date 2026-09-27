@@ -377,7 +377,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 21;
+  int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -778,6 +778,33 @@ class AppDatabase extends _$AppDatabase {
             // dan halaman Kelola Izin membacanya dari tabel ini.
             await _seedPermissions();
           }
+          if (from < 22 && to >= 22) {
+            // v22 — penanda tarik dikosongkan supaya tiap perangkat menarik
+            // ulang sekali.
+            //
+            // Arti penandanya BERUBAH. Dulu berisi `updated_at` — jam perangkat
+            // saat baris diubah. Sekarang berisi `server_urut` — jam server saat
+            // baris tiba. Dua nilai itu tidak sebanding, dan membandingkannya
+            // akan melewatkan baris diam-diam.
+            //
+            // Dikosongkan, bukan dikonversi: tidak ada rumus yang benar untuk
+            // mengubah yang satu jadi yang lain. Menarik ulang aman karena
+            // menggabungkan bersifat idempoten — baris yang isinya sama
+            // dilewati, dan yang lokalnya lebih baru tetap menang.
+            // Tabelnya belum tentu ada: migrasi bisa dijalankan dari versi
+            // skema yang lebih tua daripada saat `sync_state` diperkenalkan,
+            // dan SQLite menolak UPDATE ke tabel yang tidak ada saat kueri
+            // disiapkan — sebelum WHERE mana pun sempat dievaluasi.
+            final adaSyncState = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'sync_state'",
+            ).get();
+            if (adaSyncState.isNotEmpty) {
+              await customStatement(
+                  'UPDATE sync_state SET last_pulled_cursor = NULL');
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {

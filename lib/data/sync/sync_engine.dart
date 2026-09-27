@@ -1,5 +1,8 @@
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, visibleForTesting;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show PostgrestException;
 
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
@@ -316,15 +319,116 @@ class SyncEngine {
   /// bisa dibedakan urutannya. Kalau ragu, yang belum terkirim lebih layak
   /// diselamatkan: ia hanya ada di perangkat ini, sedangkan versi server
   /// masih tersimpan di server dan bisa dikirim ulang.
+  /// Kolom URUTAN KEDATANGAN di server, diisi trigger, tidak bisa disetel
+  /// perangkat. Lihat `supabase/sync_urutan.sql`.
+  static const kolomUrut = 'server_urut';
+
+  /// Berapa jauh ke belakang tarikan mengulang dari penandanya.
+  ///
+  /// Stempel `server_urut` diberikan saat baris DITULIS, sedangkan barisnya
+  /// baru terlihat pembaca lain saat transaksinya COMMIT. Dua pengiriman yang
+  /// bersamaan bisa commit tidak sesuai urutan stempelnya: yang berstempel
+  /// lebih tua justru muncul belakangan. Tanpa jeda ini, baris seperti itu
+  /// terlewat permanen — persis kebocoran yang mau ditutup.
+  ///
+  /// Mengulang tidak merugikan: menggabungkan bersifat idempoten, baris yang
+  /// isinya sama dilewati. Satu menit jauh lebih lama dari umur transaksi
+  /// PostgREST mana pun, dan pada 500 transaksi/hari isinya nyaris nol baris.
+  static const jedaAman = Duration(minutes: 1);
+
+  /// Satu halaman tarikan. PostgREST memotong hasil di batas barisnya sendiri
+  /// (bawaan Supabase 1000) TANPA memberi tahu, jadi halamannya diminta
+  /// eksplisit dan diulang sampai habis.
+  static const ukuranHalaman = 500;
+
+  /// Pintu masuk untuk test: menggantikan permintaan ke server.
+  ///
+  /// Menerima kolom dan penanda yang BENAR-BENAR dipakai kueri, supaya test
+  /// bisa membuktikan enginenya menyaring pada kolom yang tepat — bukan
+  /// sekadar memercayai bahwa ia melakukannya.
+  @visibleForTesting
+  Future<List<Map<String, dynamic>>> Function(
+    String tabel,
+    String kolom,
+    String? sejak,
+    int dari,
+    int sampai,
+  )? penarikUntukTest;
+
   Future<(int, int)> _tarik(_Entitas e, int urutan) async {
     final sejak = await _kursorTarikTerakhir(e.nama);
 
-    var query = _supabase.client!.from(e.nama).select();
-    if (sejak != null) {
-      query = query.gt('updated_at', sejak);
+    try {
+      return await _tarikBertahap(e, urutan, _mundurkan(sejak), true);
+    } on PostgrestException catch (err) {
+      if (err.code != '42703') rethrow;
+
+      // Servernya belum dimigrasi — `supabase/sync_urutan.sql` belum
+      // dijalankan. Aplikasi TIDAK boleh ikut mati karenanya: pembaruan
+      // aplikasi bisa sampai ke HP sebelum perubahan databasenya dijalankan,
+      // dan warung yang berhenti bisa menerima uang jauh lebih mahal daripada
+      // sinkron yang boros.
+      //
+      // Seluruh tabel ditarik dan penandanya sengaja TIDAK disimpan. Itu
+      // memang boros, tapi tidak bisa kehilangan baris — dan keadaannya
+      // sementara sampai SQL-nya dijalankan.
+      debugPrint('[sync] ${e.nama}: kolom $kolomUrut belum ada di server. '
+          'Jalankan supabase/sync_urutan.sql. Sementara ini SELURUH tabel '
+          'ditarik tiap sinkron.');
+      return _tarikBertahap(e, urutan, null, false);
     }
-    final baris = await query.order('updated_at');
-    return _gabungkan(e, baris, urutan);
+  }
+
+  Future<(int, int)> _tarikBertahap(
+    _Entitas e,
+    int urutan,
+    String? sejak,
+    bool pakaiUrut,
+  ) async {
+    final semua = <Map<String, dynamic>>[];
+    var dari = 0;
+    while (true) {
+      final halaman = await _halaman(e.nama, sejak, dari, pakaiUrut);
+      semua.addAll(halaman);
+      if (halaman.length < ukuranHalaman) break;
+      dari += halaman.length;
+    }
+    return _gabungkan(e, semua, urutan);
+  }
+
+  /// Satu halaman baris dari server, terurut menurut kedatangannya.
+  Future<List<Map<String, dynamic>>> _halaman(
+    String tabel,
+    String? sejak,
+    int dari,
+    bool pakaiUrut,
+  ) async {
+    // Urutannya tetap dibutuhkan walau kolom urutan belum ada: paginasi tanpa
+    // urutan yang pasti bisa melewatkan atau menggandakan baris antar halaman.
+    final kolom = pakaiUrut ? kolomUrut : 'updated_at';
+
+    final pengganti = penarikUntukTest;
+    if (pengganti != null) {
+      return pengganti(tabel, kolom, sejak, dari, dari + ukuranHalaman - 1);
+    }
+
+    var query = _supabase.client!.from(tabel).select();
+    if (sejak != null) {
+      // `gte`, bukan `gt`: stempel kembar tidak boleh membuat baris terlewat.
+      // Barisnya yang persis di penanda ikut tertarik lagi, dan itu murah —
+      // menggabungkannya tidak mengubah apa pun.
+      query = query.gte(kolom, sejak);
+    }
+    return query.order(kolom).range(dari, dari + ukuranHalaman - 1);
+  }
+
+  /// Penanda dimundurkan sejauh [jedaAman]. Null tetap null — artinya belum
+  /// pernah menarik sama sekali, jadi ambil semuanya.
+  static String? _mundurkan(String? sejak) {
+    if (sejak == null) return null;
+    final t = DateTime.tryParse(sejak);
+    if (t == null) return sejak;
+    return t.subtract(jedaAman).toUtc().toIso8601String();
   }
 
   /// Menggabungkan baris dari server ke database lokal, tanpa menyentuh
@@ -365,14 +469,38 @@ class SyncEngine {
             perubahan: berubah);
       }
 
-      if (mikroServer > tertinggi) {
-        tertinggi = mikroServer;
-        kursorTertinggi = waktuServer;
+      // Penandanya mengikuti URUTAN KEDATANGAN, bukan `updated_at`. Dua
+      // kolom itu memang berbeda tugas, dan memakai `updated_at` di sini
+      // adalah sumber kebocoran yang ditutup `supabase/sync_urutan.sql`.
+      //
+      // Server yang belum dimigrasi tidak punya kolomnya. Dalam keadaan itu
+      // penandanya sengaja TIDAK dimajukan: lebih baik menarik ulang tiap
+      // kali daripada memajukannya dengan nilai yang salah arti dan
+      // melewatkan baris diam-diam.
+      final urut = r[kolomUrut];
+      if (urut is String) {
+        final mikroUrut = _mikro(urut);
+        if (mikroUrut > tertinggi) {
+          tertinggi = mikroUrut;
+          kursorTertinggi = urut;
+        }
       }
     }
 
-    await _catatKursorTarik(e.nama, kursorTertinggi!);
+    if (kursorTertinggi != null) {
+      await _catatKursorTarik(e.nama, kursorTertinggi);
+    }
     return (baris.length, berubah);
+  }
+
+  /// Pintu masuk untuk test: menjalankan tarikan lengkap — termasuk penanda,
+  /// jeda aman, dan paginasi — untuk satu tabel. Dipakai bersama
+  /// [penarikUntukTest], yang menggantikan permintaan ke server.
+  @visibleForTesting
+  Future<int> tarikUntukTest(String namaTabel) async {
+    final (jumlah, _) =
+        await _tarik(_entitas.firstWhere((e) => e.nama == namaTabel), 1);
+    return jumlah;
   }
 
   /// Pintu masuk untuk test: menggabungkan baris server ke tabel bernama

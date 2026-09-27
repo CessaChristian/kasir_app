@@ -44,6 +44,7 @@ void main() {
     String? gambar,
     required String updatedAt,
     String? deletedAt,
+    String? serverUrut,
   }) =>
       {
         'id': id,
@@ -56,6 +57,10 @@ void main() {
         'created_at': '2026-09-01T00:00:00+00:00',
         'updated_at': updatedAt,
         'deleted_at': deletedAt,
+        // Urutan kedatangan di server. Kalau tidak disebut, dianggap tiba
+        // bersamaan dengan saat diubah — cukup untuk kasus yang tidak sedang
+        // menguji penandanya.
+        'server_urut': serverUrut ?? updatedAt,
       };
 
   Future<void> pasangProdukLokal({
@@ -283,21 +288,28 @@ void main() {
 
   test('kursor tarikan disimpan UTUH dengan mikrodetiknya', () async {
     // Inti Bug 1. Kursor yang tersimpan sebagai DateTime menyusut ke detik,
-    // sehingga `updated_at > kursor` terus-menerus mengambil ulang baris yang
-    // sama di SETIAP sinkronisasi — dan tarikan berulang itulah yang
-    // menabrak perubahan lokal yang belum terkirim.
-    const waktu = '2026-09-04T10:04:11.430427+00:00';
+    // sehingga baris yang sama tertarik ulang di SETIAP sinkronisasi — dan
+    // tarikan berulang itulah yang menabrak perubahan lokal yang belum
+    // terkirim.
+    const tiba = '2026-09-04T10:04:11.430427+00:00';
 
     await mesin.gabungkanTabel('products', [
-      barisServer(id: 'p7', nama: 'Air Mineral', updatedAt: waktu),
+      barisServer(
+        id: 'p7',
+        nama: 'Air Mineral',
+        updatedAt: '2026-09-04T09:00:00+00:00',
+        serverUrut: tiba,
+      ),
     ]);
 
     final kursor = await (db.select(db.syncState)
           ..where((s) => s.entity.equals('products')))
         .getSingle();
 
-    expect(kursor.lastPulledCursor, waktu,
-        reason: 'mikrodetik WAJIB utuh; kalau terpangkas jadi 10:04:11, '
-            'baris ini akan tertarik ulang selamanya');
+    expect(kursor.lastPulledCursor, tiba,
+        reason: 'penanda mengikuti URUTAN KEDATANGAN (`server_urut`), bukan '
+            '`updated_at`. Memakai `updated_at` membuat baris yang tiba '
+            'terlambat terlewat permanen; mikrodetiknya juga wajib utuh, '
+            'kalau terpangkas baris ini tertarik ulang selamanya');
   });
 }
