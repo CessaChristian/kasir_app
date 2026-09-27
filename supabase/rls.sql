@@ -101,6 +101,28 @@ end $$;
 -- ---------------------------------------------------------------------
 revoke insert, update on public.permissions from anon, authenticated;
 
+-- ---------------------------------------------------------------------
+--  5. `rahasia` — dicabut SEMUANYA, bukan cuma DELETE
+--
+--  Tabel ini menyimpan sidik jari kunci pemasangan. Tidak ada apa pun di
+--  aplikasi yang boleh menyentuhnya: satu-satunya yang membacanya adalah
+--  `daftarkan_perangkat`, dan itu `security definer` — berjalan sebagai
+--  pemilik, tidak lewat hak ini sama sekali. Jadi mencabut semuanya tidak
+--  memutus apa pun yang sah.
+--
+--  Tabel ini sempat TERLEWAT dari daftar di langkah 3, dengan alasan "toh
+--  RLS-nya sudah nol policy". Alasan itu keliru, dan justru alasan yang
+--  dibantah berkas ini sendiri: RLS memang menolak, tapi menolaknya
+--  diam-diam. Dan kalau suatu hari ada yang menambahkan policy ke sini —
+--  misal untuk mengganti kunci dari aplikasi — hak yang tertinggal itu
+--  langsung hidup tanpa ada yang menyadarinya.
+--
+--  Penjaga `test/arsitektur/policy_tidak_longgar_test.dart` sekarang
+--  membandingkan daftar di berkas ini dengan seluruh `create table`, supaya
+--  tabel yang terlewat ketahuan sebagai test merah, bukan sebagai kejutan.
+-- ---------------------------------------------------------------------
+revoke all on public.rahasia from anon, authenticated;
+
 -- =====================================================================
 --  PEMERIKSAAN SESUDAH DIJALANKAN
 --
@@ -118,6 +140,16 @@ revoke insert, update on public.permissions from anon, authenticated;
 --        where table_schema = 'public'
 --          and grantee in ('anon','authenticated')
 --          and privilege_type = 'DELETE';
+--
+--      Hasil yang benar: KOSONG.
+--
+--  (c) `rahasia` tidak menyisakan hak apa pun:
+--
+--        select table_name, grantee, privilege_type
+--        from information_schema.role_table_grants
+--        where table_schema = 'public'
+--          and grantee in ('anon','authenticated')
+--          and table_name = 'rahasia';
 --
 --      Hasil yang benar: KOSONG.
 -- =====================================================================

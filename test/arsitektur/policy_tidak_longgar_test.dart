@@ -107,4 +107,53 @@ void main() {
           'dibenahi; data yang dihapus tidak.',
     );
   });
+
+  test('setiap tabel yang dibuat ikut dicabut haknya di rls.sql', () {
+    // ── KENAPA PENJAGA INI ADA ──
+    //
+    // Daftar tabel di `rls.sql` ditulis tangan, dan `rahasia` sempat
+    // terlewat — justru tabel yang menyimpan sidik jari kunci pemasangan.
+    // Alasan melewatkannya waktu itu: "toh RLS-nya sudah nol policy". Itu
+    // keliru, dan persis alasan yang dibantah berkas itu sendiri.
+    //
+    // Kelalaian jenis ini tidak bisa ketahuan sendiri: tidak ada gejala,
+    // tidak ada galat, dan baru berbahaya kalau suatu hari tabelnya diberi
+    // policy. Maka dibandingkan otomatis, bukan diingat-ingat.
+    final pembuat = ['supabase/schema.sql', 'supabase/perangkat.sql'];
+
+    String tanpaKomentar(String path) => File(path)
+        .readAsLinesSync()
+        .where((b) => !b.trimLeft().startsWith('--'))
+        .join('\n');
+
+    final dibuat = <String>{};
+    for (final f in pembuat) {
+      final r = RegExp(
+        r'create table\s+(?:if not exists\s+)?public\.(\w+)',
+        caseSensitive: false,
+      );
+      for (final m in r.allMatches(tanpaKomentar(f))) {
+        dibuat.add(m.group(1)!);
+      }
+    }
+
+    // Sanity: kalau regexnya berhenti cocok, penjaganya jadi lulus palsu.
+    expect(dibuat.length, greaterThanOrEqualTo(10),
+        reason: 'Pembacaan `create table` gagal — penjaga ini jadi tak berguna');
+
+    final rls = tanpaKomentar('supabase/rls.sql');
+    final terlewat = dibuat
+        .where((t) => !rls.contains("'$t'") && !rls.contains('public.$t'))
+        .toList()
+      ..sort();
+
+    expect(
+      terlewat,
+      isEmpty,
+      reason: 'Tabel ini dibuat tapi tidak disebut sama sekali di '
+          'supabase/rls.sql, jadi hak anon/authenticated-nya tidak pernah '
+          'dicabut. Tambahkan ke blok revoke — DELETE untuk tabel data, atau '
+          '`revoke all` kalau tabelnya murni milik server.',
+    );
+  });
 }
