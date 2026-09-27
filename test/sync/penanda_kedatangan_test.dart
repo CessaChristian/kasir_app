@@ -334,4 +334,45 @@ void main() {
         reason: 'tanpa perubahan apa pun, tarikan kedua paling banyak '
             'mengulang satu baris di batas penanda — bukan seluruh tabel');
   });
+
+  test('cap server berpecahan detik tidak ditulis ulang selamanya', () async {
+    // ── GEJALA YANG DIKUNCI ──
+    //
+    // Baris yang cap waktunya diberikan server sendiri punya pecahan detik.
+    // SQLite lokal hanya menyimpan detik bulat, jadi salinannya TIDAK AKAN
+    // PERNAH bisa menyamai pecahan itu — dan versi server selamanya terlihat
+    // lebih baru daripada salinannya sendiri:
+    //
+    //   server : 2026-09-03T07:19:37.57  ->  1788419977570000
+    //   lokal  : 2026-09-03T07:19:37     ->  1788419977000000
+    //
+    // Akibatnya barisnya ditulis ulang tiap sinkron dan dihitung sebagai
+    // "berubah", sehingga pengguna melihat "2 data diperbarui" berulang
+    // padahal tidak ada yang berubah sama sekali.
+    final kasar = DateTime.utc(2026, 9, 3, 7, 19, 37);
+    final berpecahan = kasar.add(const Duration(milliseconds: 570));
+
+    server.add({
+      ...trx('berpecahan', diubah: kasar, tiba: kasar),
+      'updated_at': iso(berpecahan),
+    });
+
+    final pertama = await tarikTransaksi();
+    expect(pertama, 1);
+    expect(await db.select(db.transactions).get(), hasLength(1));
+
+    // Tarikan berikutnya memang mengulang barisnya (jeda aman), tapi tidak
+    // boleh menganggapnya berubah lagi.
+    final (_, berubah) =
+        await mesin.gabungkanTabel('transactions', [
+      {
+        ...trx('berpecahan', diubah: kasar, tiba: kasar),
+        'updated_at': iso(berpecahan),
+      }
+    ]);
+
+    expect(berubah, 0,
+        reason: 'pecahan di bawah satu detik tidak bisa diamati dari sisi '
+            'lokal, jadi tidak boleh dianggap versi yang lebih baru');
+  });
 }

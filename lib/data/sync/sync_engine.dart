@@ -578,19 +578,37 @@ class SyncEngine {
   /// lokal  : 10:04:11.000000   <- salinan baris yang SAMA, pecahan terbuang
   /// ```
   ///
-  /// Untuk baris `synced` itu tidak berbahaya: tidak ada yang bisa hilang,
-  /// paling-paling barisnya ditulis ulang dengan isi yang sama. Tapi untuk
-  /// baris `pending` akibatnya fatal — pengguna yang mengedit pada detik yang
-  /// sama dengan cap waktu server akan kehilangan editnya, padahal dalam
+  /// Untuk baris `pending` akibatnya fatal — pengguna yang mengedit pada detik
+  /// yang sama dengan cap waktu server akan kehilangan editnya, padahal dalam
   /// kenyataan edit itu terjadi BELAKANGAN.
   ///
-  /// Maka baris `pending` dibandingkan detik-lawan-detik: setara dengan
-  /// presisi yang memang dimiliki sisi lokal. Seri berarti lokal bertahan —
-  /// perubahan yang belum terkirim hanya ada di perangkat ini, sedangkan
-  /// versi server masih aman tersimpan di server.
+  /// ── KENAPA BARIS `synced` SEKARANG IKUT DIBANDINGKAN PER DETIK ──
+  ///
+  /// Dulu baris `synced` dibandingkan mikrodetik-lawan-detik, dengan alasan
+  /// "paling-paling ditulis ulang dengan isi yang sama". Itu benar, tapi
+  /// akibatnya baris yang cap servernya berpecahan DITULIS ULANG SELAMANYA —
+  /// tiap sinkron, tanpa henti, karena salinan lokalnya tidak akan pernah bisa
+  /// menyamai pecahan itu:
+  ///
+  /// ```
+  /// server : 2026-09-03T07:19:37.57   ->  1788419977570000
+  /// lokal  : 2026-09-03T07:19:37      ->  1788419977000000   selalu lebih kecil
+  /// ```
+  ///
+  /// Selama penandanya `gt`, baris seperti itu tersaring keluar sesudah sekali
+  /// tertarik, jadi tidak terlihat. Begitu penandanya memakai jeda aman,
+  /// barisnya kembali masuk jangkauan tiap kali — dan pengguna melihat
+  /// "2 data diperbarui" berulang padahal tidak ada yang berubah. Penunjuk
+  /// yang berbohong seperti itu membuat orang berhenti mempercayainya, dan
+  /// penunjuk yang diabaikan sama saja dengan tidak ada.
+  ///
+  /// Membandingkan per detik TIDAK mengubah apa pun untuk baris yang ditulis
+  /// aplikasi: sisi lokal hanya punya detik, jadi yang didorong ke server pun
+  /// selalu berpecahan nol. Yang berubah hanya baris yang cap waktunya
+  /// diberikan server sendiri — dan untuk baris itu, perbedaan di bawah satu
+  /// detik memang tidak bisa diamati dari sini.
   static bool _serverMenang(
       ({int mikro, bool pending}) lokal, int mikroServer) {
-    if (!lokal.pending) return mikroServer > lokal.mikro;
     const sejuta = 1000000;
     return (mikroServer ~/ sejuta) > (lokal.mikro ~/ sejuta);
   }

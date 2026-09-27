@@ -263,11 +263,27 @@ void main() {
     expect(p.syncStatus, 'pending');
   });
 
-  test('baris synced tetap menerima versi server yang lebih baru sepersekian '
-      'detik', () async {
-    // Sisi sebaliknya: untuk baris yang TIDAK punya perubahan lokal, tidak ada
-    // yang bisa hilang — jadi perbandingannya tetap presisi penuh supaya
-    // perubahan dari perangkat lain tidak tertinggal.
+  test('baris synced TIDAK ditulis ulang oleh pecahan detik yang sama', () async {
+    // ── KEPUTUSAN INI PERNAH SEBALIKNYA ──
+    //
+    // Dulu baris `synced` dibandingkan presisi penuh, dengan alasan "tidak ada
+    // yang bisa hilang, paling-paling ditulis ulang dengan isi yang sama".
+    // Alasannya benar, tapi akibatnya tidak: salinan lokal TIDAK AKAN PERNAH
+    // bisa menyamai pecahan detik milik server, sehingga baris seperti ini
+    // ditulis ulang di SETIAP sinkron, selamanya, dan ikut terhitung sebagai
+    // "berubah".
+    //
+    // Selama penandanya `gt`, baris itu tersaring keluar sesudah sekali
+    // tertarik jadi tidak kelihatan. Begitu penandanya memakai jeda aman,
+    // pengguna melihat "2 data diperbarui" berulang padahal tidak ada yang
+    // berubah — penunjuk yang berbohong, dan penunjuk yang diabaikan sama saja
+    // dengan tidak ada.
+    //
+    // Yang ditukar: perubahan sisi-server yang mendarat di DETIK YANG SAMA
+    // dengan salinan lokal tidak akan terpakai. Itu menuntut dua penulisan ke
+    // baris yang sama dalam satu detik, dengan salah satunya dari SQL langsung
+    // — aplikasi selalu mengirim cap waktu berpecahan nol, karena sisi
+    // lokalnya memang hanya punya detik.
     await pasangProdukLokal(
       id: 'p9',
       nama: 'Lama',
@@ -275,7 +291,7 @@ void main() {
       syncStatus: 'synced',
     );
 
-    await mesin.gabungkanTabel('products', [
+    final (_, berubah) = await mesin.gabungkanTabel('products', [
       barisServer(
         id: 'p9',
         nama: 'Baru',
@@ -283,7 +299,31 @@ void main() {
       ),
     ]);
 
-    expect((await ambil('p9')).name, 'Baru');
+    expect(berubah, 0);
+    expect((await ambil('p9')).name, 'Lama');
+  });
+
+  test('baris synced TETAP menerima versi server yang detiknya lebih baru',
+      () async {
+    // Batas keputusan di atas: begitu detiknya benar-benar berbeda, versi
+    // server menang seperti biasa. Perubahan dari perangkat lain tidak boleh
+    // tertinggal — itu inti sinkronisasinya.
+    await pasangProdukLokal(
+      id: 'p10',
+      nama: 'Lama',
+      updatedAt: detik('2026-09-04T10:04:11Z'),
+      syncStatus: 'synced',
+    );
+
+    await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p10',
+        nama: 'Baru',
+        updatedAt: '2026-09-04T10:04:12.430427+00:00',
+      ),
+    ]);
+
+    expect((await ambil('p10')).name, 'Baru');
   });
 
   test('kursor tarikan disimpan UTUH dengan mikrodetiknya', () async {
