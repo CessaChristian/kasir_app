@@ -44,9 +44,9 @@ void main() {
       await SessionManager.instance.setSession(AuthSession.create(
         userId: 'owner-1',
         username: 'owner',
-        role: 'owner',
+        role: 'cashier',
         shiftId: null,
-        permissions: const [],
+        permissions: const ['create_transaction', 'manage_products'],
       ));
     });
 
@@ -95,6 +95,7 @@ void main() {
             priceAtSale: 15000,
           ),
         ],
+        kodePerangkat: 'TEST',
       );
 
       final items = await db.select(db.transactionItems).get();
@@ -122,13 +123,14 @@ void main() {
             priceAtSale: 5000,
           ),
         ],
+        kodePerangkat: 'TEST',
       );
 
       final tx = await db.select(db.transactions).getSingle();
       expect(tx.id, matches(uuidV4),
           reason: 'primary key harus UUID — dipakai untuk sync');
-      expect(tx.invoiceNo, matches(RegExp(r'^TRX/\d{2}/\d{2}/\d{2}/\d{4,}$')),
-          reason: 'nomor nota berformat TRX/dd/MM/yy/NNNN untuk struk');
+      expect(tx.invoiceNo, matches(RegExp(r'^TRX/\d{2}/\d{2}/\d{2}/[A-Z0-9]{4}-\d{4,}$')),
+          reason: 'nomor nota berformat TRX/dd/MM/yy/KODE-NNNN untuk struk');
       expect(tx.invoiceNo, isNot(tx.id),
           reason: 'keduanya peran berbeda, tidak boleh dicampur lagi');
     });

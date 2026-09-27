@@ -31,9 +31,9 @@ void main() {
     await SessionManager.instance.setSession(AuthSession.create(
       userId: 'owner-1',
       username: 'owner',
-      role: 'owner',
+      role: 'cashier',
       shiftId: null,
-      permissions: const [],
+      permissions: const ['create_transaction'],
     ));
   });
 
@@ -57,11 +57,16 @@ void main() {
           priceAtSale: 5000,
         ),
       ],
+      kodePerangkat: 'TEST',
     );
     return (id: id, nota: nota);
   }
 
-  String urutan(String nota) => nota.split('/').last;
+  /// Bagian urut saja, dari `TRX/dd/MM/yy/KODE-NNNN`.
+  String urutan(String nota) => nota.split('/').last.split('-').last;
+
+  /// Penanda perangkat saja.
+  String kode(String nota) => nota.split('/').last.split('-').first;
 
   test('nomor nota berurutan mulai dari 0001', () async {
     expect(urutan((await jual()).nota), '0001');
@@ -75,7 +80,7 @@ void main() {
     final mm = now.month.toString().padLeft(2, '0');
     final yy = (now.year % 100).toString().padLeft(2, '0');
 
-    expect((await jual()).nota, 'TRX/$dd/$mm/$yy/0001');
+    expect((await jual()).nota, 'TRX/$dd/$mm/$yy/TEST-0001');
   });
 
   test('nomor TIDAK dipakai ulang setelah transaksi dihapus', () async {
@@ -108,5 +113,55 @@ void main() {
           ..where((t) => t.id.equals(hasil.id)))
         .getSingle();
     expect(tx.invoiceNo, hasil.nota);
+  });
+
+  test('nomor memuat penanda perangkat', () async {
+    expect(kode((await jual()).nota), 'TEST');
+  });
+
+  test('dua perangkat pada urutan yang sama TIDAK bertabrakan', () async {
+    // Inilah tabrakan yang dulu terjadi: nomor dihitung dari jumlah transaksi
+    // hari ini di database MASING-MASING perangkat. Dua HP yang sama-sama
+    // baru mencatat nol transaksi akan sama-sama menerbitkan nomor ke-1.
+    final dariA = (await jual()).nota;
+
+    final dbB = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(dbB.close);
+    await dbB.into(dbB.users).insert(UsersCompanion.insert(
+          id: const Value('kasir-1'),
+          username: 'sari',
+          pinHash: 'h',
+          salt: 's',
+          role: 'cashier',
+        ));
+    await dbB.into(dbB.shifts).insert(ShiftsCompanion.insert(
+          id: const Value('shift-1'),
+          userId: 'kasir-1',
+        ));
+    await dbB.into(dbB.products).insert(ProductsCompanion.insert(
+          id: const Value('prod-1'),
+          name: 'Es Teh',
+          price: 5000,
+        ));
+    final dariB = await dbB.createSale(
+      transactionId: 'trx-b',
+      paymentMethod: 'cash',
+      cashReceived: 50000,
+      orderType: 'dine_in',
+      lines: [
+        SaleLine(
+          productId: 'prod-1',
+          productName: 'Es Teh',
+          qty: 1,
+          priceAtSale: 5000,
+        ),
+      ],
+      kodePerangkat: 'B7KM',
+    );
+
+    expect(urutan(dariA), urutan(dariB),
+        reason: 'urutannya memang sama — itulah sumber tabrakannya');
+    expect(dariA, isNot(dariB),
+        reason: 'penanda perangkat yang membedakannya');
   });
 }

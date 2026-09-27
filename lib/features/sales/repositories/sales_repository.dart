@@ -1,5 +1,6 @@
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
+import '../../../data/perangkat/kode_nota.dart';
 
 /// Satu-satunya pintu akses data transaksi penjualan.
 ///
@@ -31,16 +32,22 @@ class SalesRepository {
     int? cashReceived,
     String? cashierUserId,
     String? shiftId,
-  }) =>
-      _db.createSale(
-        transactionId: transactionId,
-        lines: lines,
-        paymentMethod: paymentMethod,
-        orderType: orderType,
-        cashReceived: cashReceived,
-        cashierUserId: cashierUserId,
-        shiftId: shiftId,
-      );
+  }) async {
+    // Penanda perangkat diambil di sini, bukan di halaman: halaman tidak
+    // perlu tahu nomor nota dibentuk dari apa, dan database tetap menerima
+    // nilai jadi sehingga bisa diuji tanpa brankas.
+    final kode = await KodeNota.ambil();
+    return _db.createSale(
+      transactionId: transactionId,
+      lines: lines,
+      paymentMethod: paymentMethod,
+      orderType: orderType,
+      cashReceived: cashReceived,
+      cashierUserId: cashierUserId,
+      shiftId: shiftId,
+      kodePerangkat: kode,
+    );
+  }
 
   /// Tandai transaksi terhapus. Item transaksinya ikut ditandai terhapus
   /// dalam satu transaction.

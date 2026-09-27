@@ -43,9 +43,9 @@ void main() {
     await SessionManager.instance.setSession(AuthSession.create(
       userId: 'kasir-1',
       username: 'sari',
-      role: 'owner', // owner = punya semua permission
+      role: 'cashier',
       shiftId: 'shift-1',
-      permissions: const [],
+      permissions: const ['create_transaction'],
     ));
   });
 
@@ -70,6 +70,7 @@ void main() {
           priceAtSale: 15000,
         ),
       ],
+      kodePerangkat: 'TEST',
     );
     return id;
   }

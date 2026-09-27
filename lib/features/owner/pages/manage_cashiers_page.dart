@@ -167,6 +167,9 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
         ),
       ),
     );
+    // Dibubarkan sesudah lembarnya tertutup; tanpa ini satu objek
+    // nyangkut di memori tiap kali dialog ini dibuka.
+    pinController.dispose();
 
     if (result != null && mounted) {
       Navigator.push(
@@ -319,6 +322,11 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
         ),
       ),
     );
+    // Dibubarkan sesudah lembarnya tertutup; tanpa ini satu objek
+    // nyangkut di memori tiap kali dialog ini dibuka.
+    usernameController.dispose();
+    pinController.dispose();
+    confirmPinController.dispose();
 
     if (result != true) return;
     _loadCashiers();
@@ -545,6 +553,10 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
         ),
       ),
     );
+    // Dibubarkan sesudah lembarnya tertutup; tanpa ini satu objek
+    // nyangkut di memori tiap kali dialog ini dibuka.
+    newPinController.dispose();
+    confirmPinController.dispose();
 
     if (result != true || !mounted) return;
 

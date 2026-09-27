@@ -7,6 +7,7 @@ import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
 import '../recovery/models/recovery_result.dart';
 import '../models/auth_session.dart';
+import '../../../shared/auth/session_manager.dart';
 
 /// Repository for authentication operations
 class AuthRepository {
@@ -215,10 +216,14 @@ class AuthRepository {
   /// For owners, returns all permission codes (always full access)
   /// For cashiers, returns only enabled permissions
   Future<List<String>> _getUserPermissions(String userId, String role) async {
-    // Owner has all permissions
+    // Owner has all permissions KECUALI yang memang bukan haknya —
+    // menjual dan membuka shift. Lihat SessionManager.izinBukanUntukOwner.
     if (role == 'owner') {
       final allPermissions = await _db.select(_db.permissions).get();
-      return allPermissions.map((p) => p.code).toList();
+      return allPermissions
+          .map((p) => p.code)
+          .where((k) => !SessionManager.izinBukanUntukOwner.contains(k))
+          .toList();
     }
 
     // Cashier: get enabled permissions only

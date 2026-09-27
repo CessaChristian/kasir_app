@@ -92,6 +92,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         ],
       ),
     );
+    c.dispose();
     if (nama == null || nama.isEmpty) return;
     await _jalankan(() => _repo.ubahNama(p.id, nama), 'Nama diperbarui');
   }

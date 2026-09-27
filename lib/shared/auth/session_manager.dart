@@ -205,7 +205,10 @@ class SessionManager {
       String userId, String role) async {
     if (role == 'owner') {
       final all = await _dbx.select(_dbx.permissions).get();
-      return all.map((p) => p.code).toList();
+      return all
+          .map((p) => p.code)
+          .where((k) => !izinBukanUntukOwner.contains(k))
+          .toList();
     }
     final perms = await (_dbx.select(_dbx.userPermissions)
           ..where((up) => up.userId.equals(userId))
@@ -219,10 +222,40 @@ class SessionManager {
   bool get isOwner => _currentSession?.isOwner ?? false;
   bool get isCashier => _currentSession?.isCashier ?? false;
 
-  /// Check permission. Owner always returns true.
+  /// Izin yang TIDAK pernah dimiliki owner, sekalipun ia pemilik toko.
+  ///
+  /// ── KENAPA ADA PENGECUALIAN ──
+  ///
+  /// Owner tidak menjalankan shift — `auth_repository.dart` memang tidak
+  /// pernah membukakan shift untuknya. Tapi menjual TIDAK butuh shift:
+  /// `createSale` menerima `shiftId` yang boleh kosong. Jadi selama owner
+  /// lolos semua izin, menu Kasir tetap muncul di HP-nya, dan transaksi yang
+  /// dibuat di sana tersimpan TANPA shift — tidak masuk laporan shift mana
+  /// pun, dan tidak terhitung di rekap kasir siapa pun.
+  ///
+  /// Itu juga sumber nomor nota kembar: nomornya dihitung dari jumlah
+  /// transaksi hari ini di perangkat masing-masing, jadi dua perangkat yang
+  /// sama-sama bisa menjual pasti bertabrakan cepat atau lambat.
+  ///
+  /// Dibuat daftar, bukan satu `if`, supaya kalau nanti ada izin lain yang
+  /// juga tidak masuk akal untuk owner, tempat menambahkannya sudah jelas.
+  static const izinBukanUntukOwner = <String>{
+    'create_transaction',
+    'open_close_shift',
+  };
+
+  /// Check permission. Owner always returns true, KECUALI
+  /// [izinBukanUntukOwner].
+  ///
+  /// Untuk owner jawabannya TIDAK boleh diambil dari daftar izin di sesinya.
+  /// Daftar itu diisi seluruh kode yang ada di tabel `permissions`, jadi ia
+  /// memuat `create_transaction` juga — versi pertama tambalan ini membaca
+  /// daftar tersebut dan akibatnya tidak mengubah apa pun.
   bool hasPermission(String permissionCode) {
     if (_currentSession == null) return false;
-    if (_currentSession!.isOwner) return true;
+    if (_currentSession!.isOwner) {
+      return !izinBukanUntukOwner.contains(permissionCode);
+    }
     return _currentSession!.permissions.contains(permissionCode);
   }
 

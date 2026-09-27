@@ -52,6 +52,7 @@ void main() {
   });
 
   Future<void> jual(String trxId) => db.createSale(
+          kodePerangkat: 'TEST',
         transactionId: trxId,
         paymentMethod: 'cash',
         cashReceived: 50000,

@@ -971,6 +971,7 @@ class AppDatabase extends _$AppDatabase {
     int? cashReceived,
     String? cashierUserId,
     String? shiftId,
+    required String kodePerangkat,
   }) async {
     // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
     // DB layer juga reject jika permission tidak ada.
@@ -995,7 +996,7 @@ class AppDatabase extends _$AppDatabase {
     late String invoiceNo;
     await transaction(() async {
       await _validasiProdukMasihAda(lines);
-      invoiceNo = await _nextInvoiceNo(DateTime.now());
+      invoiceNo = await _nextInvoiceNo(DateTime.now(), kodePerangkat);
 
       await into(transactions).insert(
         TransactionsCompanion(
@@ -1017,7 +1018,7 @@ class AppDatabase extends _$AppDatabase {
     return invoiceNo;
   }
 
-  /// Nomor nota berikutnya untuk hari ini: `TRX/dd/MM/yy/NNNN`.
+  /// Nomor nota berikutnya untuk hari ini: `TRX/dd/MM/yy/KODE-NNNN`.
   ///
   /// Menghitung SELURUH transaksi hari ini termasuk yang sudah ditandai
   /// terhapus. Itu disengaja: kalau yang terhapus tidak ikut dihitung, nomor
@@ -1027,7 +1028,12 @@ class AppDatabase extends _$AppDatabase {
   ///
   /// Dipanggil dari DALAM transaction milik [createSale] supaya menghitung dan
   /// menyimpan tidak bisa disela.
-  Future<String> _nextInvoiceNo(DateTime now) async {
+  /// [kodePerangkat] adalah penanda pendek milik HP ini. Tanpa itu, dua HP
+  /// yang sama-sama sudah mencatat 10 transaksi hari ini akan sama-sama
+  /// menerbitkan nomor ke-11 — dua struk berbeda dengan nomor sama, dan
+  /// server tidak menolaknya karena `invoice_no` tidak unik. Urutannya tetap
+  /// dihitung lokal supaya nomor nota tidak butuh internet.
+  Future<String> _nextInvoiceNo(DateTime now, String kodePerangkat) async {
     final awalHari = DateTime(now.year, now.month, now.day);
     final akhirHari = awalHari.add(const Duration(days: 1));
 
@@ -1042,7 +1048,7 @@ class AppDatabase extends _$AppDatabase {
     final dd = now.day.toString().padLeft(2, '0');
     final mm = now.month.toString().padLeft(2, '0');
     final yy = (now.year % 100).toString().padLeft(2, '0');
-    return 'TRX/$dd/$mm/$yy/$urut';
+    return 'TRX/$dd/$mm/$yy/$kodePerangkat-$urut';
   }
 
   /// Pastikan setiap produk di keranjang masih ada.

@@ -520,13 +520,20 @@ class _ExpensesPageState extends State<ExpensesPage> {
       ),
     );
 
+    // Nilainya dibaca SEBELUM controller-nya dibubarkan; membacanya sesudah
+    // itu melempar karena objeknya sudah dilepas.
+    final jumlah = amountC.text;
+    final keterangan = descC.text.trim();
+    amountC.dispose();
+    descC.dispose();
+
     if (confirmed != true || !mounted) return;
 
     try {
       await _expenseRepo.updateExpense(
         id: expense.id,
-        amount: int.parse(amountC.text),
-        description: descC.text.trim(),
+        amount: int.parse(jumlah),
+        description: keterangan,
       );
       if (mounted) AppToast.success(context, 'Pengeluaran berhasil diupdate');
     } catch (e) {

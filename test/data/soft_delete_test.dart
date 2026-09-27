@@ -41,9 +41,9 @@ void main() {
     await SessionManager.instance.setSession(AuthSession.create(
       userId: 'kasir-1',
       username: 'sari',
-      role: 'owner', // owner = punya semua permission
+      role: 'cashier',
       shiftId: 'shift-1',
-      permissions: const [],
+      permissions: const ['create_transaction', 'manage_products'],
     ));
   });
 
@@ -94,6 +94,7 @@ void main() {
             priceAtSale: 15000,
           ),
         ],
+        kodePerangkat: 'TEST',
       ),
       throwsA(isA<StateError>()),
       reason: 'checkout harus menolak produk yang sudah dihapus',
@@ -143,6 +144,7 @@ void main() {
           priceAtSale: 15000,
         ),
       ],
+      kodePerangkat: 'TEST',
     );
 
     await db.addExpense(
