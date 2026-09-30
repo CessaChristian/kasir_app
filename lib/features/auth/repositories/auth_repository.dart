@@ -10,6 +10,7 @@ import '../models/auth_session.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../data/sync/sync_engine.dart';
 import '../../../data/supabase/supabase_service.dart';
+import '../../../data/perangkat/perangkat_repository.dart';
 
 /// Repository for authentication operations
 class AuthRepository {
@@ -179,6 +180,17 @@ class AuthRepository {
     required String? shiftId,
     bool akhiriShift = true,
   }) async {
+    // Lepaskan tanda "perangkat ini memegang shift X" di server LEBIH DULU.
+    //
+    // Tanpa ini, perangkat yang sudah keluar tetap tercatat memegang shiftnya,
+    // dan perangkat lain akan ditolak selamanya saat hendak mengakhiri shift
+    // itu — ditahan oleh HP yang bahkan tidak ada yang memegangnya.
+    //
+    // Best-effort: `hadir` menelan galatnya sendiri. Kalau sedang offline,
+    // tandanya baru terlepas saat perangkat ini online lagi. Keluar dari akun
+    // tidak boleh gagal hanya karena jaringannya mati.
+    await PerangkatRepository.instance.hadir(null);
+
     if (shiftId == null || !akhiriShift) return;
     // End the shift by setting end_at
     final now = DateTime.now();
