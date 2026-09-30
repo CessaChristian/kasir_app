@@ -185,14 +185,34 @@ class PerangkatRepository {
   }
 
   /// Tandai perangkat ini masih dipakai. Dipanggil sesudah tiap sinkron.
-  Future<void> hadir() async {
+  /// [shiftId] adalah shift yang sedang dipegang perangkat ini, atau null
+  /// kalau tidak sedang memegang apa pun — owner, atau kasir yang sudah
+  /// keluar. Server memakainya untuk menolak pengakhiran shift yang masih
+  /// dipakai perangkat lain.
+  Future<void> hadir([String? shiftId]) async {
     final k = _klien;
     if (k == null) return;
     try {
-      await k.rpc('perangkat_hadir');
+      await k.rpc('perangkat_hadir', params: {'p_shift_id': shiftId});
     } catch (e) {
       if (!belumDisiapkan(e)) debugPrint('[perangkat] hadir gagal: $e');
     }
+  }
+
+  /// Apakah shift ini masih dipegang perangkat AKTIF selain perangkat ini.
+  ///
+  /// Dijawab server, bukan dihitung di sini, supaya jawabannya sama untuk
+  /// siapa pun yang bertanya. MELEMPAR kalau tidak bisa bertanya — pemanggil
+  /// yang memutuskan apa artinya, karena "tidak tahu" dan "tidak ada" adalah
+  /// dua hal yang sangat berbeda saat hendak menutup shift.
+  Future<bool> shiftDipegangPerangkatLain(String shiftId) async {
+    final k = _klien;
+    if (k == null) throw StateError('server tidak tersedia');
+    final hasil = await k.rpc(
+      'shift_dipegang_perangkat_lain',
+      params: {'p_shift_id': shiftId},
+    );
+    return hasil == true;
   }
 
   /// Keadaan perangkat ini menurut server.

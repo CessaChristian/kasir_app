@@ -139,7 +139,12 @@ class SyncService {
       // yang aktif dan mana yang sudah lama diam di halaman Perangkat.
       // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
       // adalah catatan administratif, bukan data dagangan.
-      await PerangkatRepository.instance.hadir();
+      // Shift yang sudah diakhiri dari perangkat lain harus ketahuan di
+      // sini, bukan dibiarkan sampai kasir menjual ke shift yang tutup.
+      await SessionManager.instance.periksaShiftMasihBerjalan();
+
+      await PerangkatRepository.instance
+          .hadir(SessionManager.instance.currentSession?.shiftId);
 
       await _catatBerhasil();
       return lengkap;

@@ -12,6 +12,8 @@ import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../widgets/active_shift_card.dart';
 import '../widgets/owner_shift_shortcut_card.dart';
+import '../../../data/perangkat/perangkat_repository.dart';
+import '../../../data/supabase/supabase_service.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -202,6 +204,19 @@ class DashboardPage extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
+    // Shift yang masih dipegang perangkat lain tidak boleh ditutup dari sini.
+    // Kalau ditutup, HP itu tetap bisa berjualan ke shift yang sudah tutup —
+    // dan rekapnya memuat penjualan yang terjadi sesudah jam tutupnya sendiri.
+    if (hasShift) {
+      final halangan = await _halanganMengakhiriShift(shiftId);
+      if (halangan != null) {
+        if (!context.mounted) return;
+        await _tawarkanKeluarSaja(context, session.userId, shiftId, halangan);
+        return;
+      }
+      if (!context.mounted) return;
+    }
+
     // Loading dialog
     showDialog(
       context: context,
@@ -225,7 +240,11 @@ class DashboardPage extends StatelessWidget {
 
     try {
       final authRepo = AuthRepository(db);
-      await authRepo.logout(userId: session.userId, shiftId: shiftId);
+      await authRepo.logout(
+        userId: session.userId,
+        shiftId: shiftId,
+        akhiriShift: true,
+      );
       await SessionManager.instance.clearSession();
 
       if (!context.mounted) return;
@@ -673,6 +692,84 @@ class DashboardPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// Alasan kenapa shift ini belum boleh diakhiri, atau null kalau boleh.
+  ///
+  /// Sengaja MENOLAK saat tidak bisa bertanya ke server. "Tidak tahu" dan
+  /// "tidak ada yang memegang" adalah dua hal yang sangat berbeda di sini:
+  /// menebak yang kedua berarti menutup shift yang mungkin masih dipakai
+  /// rekannya, dan kerusakannya baru ketahuan di rekap keesokan harinya.
+  ///
+  /// Menolak tidak menghalangi siapa pun bekerja — kasirnya tetap bisa
+  /// "Keluar", dan shiftnya diakhiri nanti saat ada internet.
+  Future<String?> _halanganMengakhiriShift(String shiftId) async {
+    if (!SupabaseService.instance.online) {
+      return 'Butuh internet untuk mengakhiri shift, supaya perangkat lain '
+          'yang mungkin masih memakai shift ini tidak ikut terputus.';
+    }
+    try {
+      final dipegang = await PerangkatRepository.instance
+          .shiftDipegangPerangkatLain(shiftId);
+      if (!dipegang) return null;
+      return 'Shift ini masih dipakai perangkat lain. Akhiri shiftnya dari '
+          'perangkat itu, atau keluar saja dari sini.';
+    } catch (_) {
+      return 'Tidak bisa memastikan ke server apakah perangkat lain masih '
+          'memakai shift ini. Coba lagi, atau keluar saja dari sini.';
+    }
+  }
+
+  /// Beri tahu shiftnya tidak bisa diakhiri, lalu tawarkan keluar saja.
+  ///
+  /// Keluar TIDAK menutup shift, jadi perangkat lain tidak terganggu sama
+  /// sekali — dan kasirnya tetap bisa menyerahkan HP ini ke orang lain.
+  Future<void> _tawarkanKeluarSaja(
+    BuildContext context,
+    String userId,
+    String shiftId,
+    String alasan,
+  ) async {
+    final keluar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.info_outline_rounded,
+            color: Theme.of(ctx).colorScheme.primary, size: 36),
+        title: const Text('Shift Belum Bisa Diakhiri'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Text(alasan, textAlign: TextAlign.center),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Keluar Saja',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (keluar != true || !context.mounted) return;
+
+    await AuthRepository(db).logout(
+      userId: userId,
+      shiftId: shiftId,
+      akhiriShift: false,
+    );
+    await SessionManager.instance.clearSession();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
     );
   }
 }

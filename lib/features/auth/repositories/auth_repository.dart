@@ -166,11 +166,20 @@ class AuthRepository {
   ///
   /// [shiftId] boleh null (mis. owner yang tidak menjalankan shift) — dalam
   /// kasus itu tidak ada shift yang perlu ditutup.
+  /// [akhiriShift] memisahkan dua perbuatan yang dulu tertumpuk jadi satu:
+  ///
+  ///   true   "Akhiri Shift"  -> shiftnya ditutup. Kerjaku selesai.
+  ///   false  "Keluar"        -> shiftnya DIBIARKAN terbuka. Cuma pinjam HP.
+  ///
+  /// Dulu keduanya menutup shift, padahal tombolnya dua dan namanya berbeda.
+  /// Akibatnya kasir yang cuma meminjam HP rekan lalu keluar ikut menutup
+  /// shift yang masih berjalan di HP-nya sendiri.
   Future<void> logout({
     required String userId,
     required String? shiftId,
+    bool akhiriShift = true,
   }) async {
-    if (shiftId == null) return;
+    if (shiftId == null || !akhiriShift) return;
     // End the shift by setting end_at
     final now = DateTime.now();
     await (_db.update(_db.shifts)..where((s) => s.id.equals(shiftId))).write(

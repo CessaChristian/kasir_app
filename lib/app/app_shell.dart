@@ -165,7 +165,11 @@ class AppShellState extends State<AppShell> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Anda akan mengakhiri sesi dan keluar dari aplikasi',
+                SessionManager.instance.currentSession?.shiftId == null
+                    ? 'Anda akan keluar dari aplikasi'
+                    : 'Anda keluar dari akun, tapi SHIFT TETAP BERJALAN. '
+                        'Untuk menutup shift, pakai tombol Akhiri Shift di '
+                        'halaman utama.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
               ),
@@ -214,7 +218,15 @@ class AppShellState extends State<AppShell> {
       final session = SessionManager.instance.currentSession;
       if (session != null) {
         final authRepo = AuthRepository(db);
-        await authRepo.logout(userId: session.userId, shiftId: session.shiftId);
+        // Sengaja TIDAK menutup shift. Ini tombol "Keluar", bukan
+        // "Akhiri Shift" — kasir yang cuma meminjam HP rekan harus bisa
+        // menyerahkannya kembali tanpa mematikan shift yang masih
+        // berjalan di HP-nya sendiri.
+        await authRepo.logout(
+          userId: session.userId,
+          shiftId: session.shiftId,
+          akhiriShift: false,
+        );
       }
 
       await SessionManager.instance.clearSession();
