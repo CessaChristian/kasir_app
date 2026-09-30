@@ -526,11 +526,12 @@ class SyncEngine {
     return (baris.length, berubah);
   }
 
-  /// Pintu masuk untuk test: menjalankan tarikan lengkap — termasuk penanda,
-  /// jeda aman, dan paginasi — untuk satu tabel. Dipakai bersama
-  /// [penarikUntukTest], yang menggantikan permintaan ke server.
-  @visibleForTesting
-  Future<int> tarikUntukTest(String namaTabel) async {
+  /// Menjalankan tarikan lengkap — termasuk penanda, jeda aman, dan paginasi
+  /// — untuk SATU tabel saja.
+  ///
+  /// Dipakai saat login untuk menanyakan shift terbuka ke server sebelum
+  /// memutuskan membuat yang baru, dan oleh test bersama [penarikUntukTest].
+  Future<int> tarikTabel(String namaTabel) async {
     final (jumlah, _) =
         await _tarik(_entitas.firstWhere((e) => e.nama == namaTabel), 1);
     return jumlah;

@@ -8,6 +8,8 @@ import '../../../utils/security/hash_utils.dart';
 import '../recovery/models/recovery_result.dart';
 import '../models/auth_session.dart';
 import '../../../shared/auth/session_manager.dart';
+import '../../../data/sync/sync_engine.dart';
+import '../../../data/supabase/supabase_service.dart';
 
 /// Repository for authentication operations
 class AuthRepository {
@@ -185,15 +187,44 @@ class AuthRepository {
         .getSingleOrNull();
   }
 
-  /// Buka shift baru untuk user, atau pakai shift yang masih terbuka.
-  Future<String> _startShift(String userId) async {
-    final existing = await (_db.select(_db.shifts)
-          ..where((s) => s.userId.equals(userId))
-          ..where((s) => s.endAt.isNull())
-          ..limit(1))
-        .getSingleOrNull();
+  /// Berapa lama menunggu server sebelum login dilanjutkan tanpanya.
+  ///
+  /// Login TIDAK BOLEH gagal atau menggantung hanya karena jaringannya lambat:
+  /// warung harus tetap bisa melayani saat internet mati.
+  static const _jedaTungguShift = Duration(seconds: 4);
 
-    if (existing != null) return existing.id;
+  /// Buka shift baru untuk user, atau pakai shift yang masih terbuka.
+  ///
+  /// ── KENAPA SERVER DITANYA DULU ──
+  ///
+  /// Dulu yang dilihat hanya database LOKAL. Kalau kasir yang sama login di
+  /// HP kedua sebelum HP itu sempat menarik shift buatan HP pertama, lahirlah
+  /// shift KEDUA untuk orang yang sama. Akibatnya transaksinya terpecah ke dua
+  /// shift, dan "Akhiri Shift" hanya menutup salah satunya — yang lain
+  /// menggantung "Berlangsung" selamanya, dan sekarang ikut terlihat di
+  /// halaman Pengeluaran milik pemilik.
+  ///
+  /// Menariknya lebih dulu menutup kasus yang paling sering: dua HP
+  /// sama-sama online, kasir berpindah HP.
+  Future<String> _startShift(String userId) async {
+    await _tarikShiftDariServer();
+
+    // Urutannya WAJIB pasti. Tanpa `orderBy`, kalau ada dua shift terbuka,
+    // yang terpilih mengikuti urutan penyimpanan — dan itu bisa berbeda di
+    // tiap HP, sehingga dua perangkat memakai shift yang berbeda walau
+    // datanya sudah sama persis. Yang paling awal dimulai dipilih di mana pun.
+    final terbuka = await (_db.select(_db.shifts)
+          ..where((s) =>
+              s.userId.equals(userId) &
+              s.endAt.isNull() &
+              s.deletedAt.isNull())
+          ..orderBy([(s) => OrderingTerm.asc(s.startAt)]))
+        .get();
+
+    if (terbuka.isNotEmpty) {
+      await _tutupShiftHantu(terbuka.skip(1));
+      return terbuka.first.id;
+    }
 
     final shiftId = newUuid();
     await _db.into(_db.shifts).insert(
@@ -209,6 +240,59 @@ class AuthRepository {
     unawaited(SyncOtomatis.instance.picu('shift dibuka', abaikanJeda: true));
 
     return shiftId;
+  }
+
+  /// Menarik tabel `shifts` dari server, sebisanya.
+  ///
+  /// Gagal DIABAIKAN dengan sengaja. Internet mati, server lambat, perangkat
+  /// baru dicabut — apa pun sebabnya, kasir tetap harus bisa masuk dan
+  /// melayani. Kalau tarikannya tidak jadi, keputusannya cukup memakai data
+  /// lokal seperti sebelumnya; paling buruk lahir shift kedua, dan itu
+  /// disatukan sendiri saat login berikutnya.
+  Future<void> _tarikShiftDariServer() async {
+    try {
+      if (!SupabaseService.instance.online) return;
+      await SyncEngine(_db).tarikTabel('shifts').timeout(_jedaTungguShift);
+    } catch (_) {
+      // Sengaja dibisukan — lihat catatan di atas.
+    }
+  }
+
+  /// Menutup shift terbuka yang KOSONG dan bukan yang sedang dipakai.
+  ///
+  /// ── KENAPA HANYA YANG KOSONG ──
+  ///
+  /// Shift yang sudah dipakai jualan TIDAK disentuh, karena dua hal: HP lain
+  /// mungkin masih aktif memakainya, dan angkanya sudah masuk laporan. Menutup
+  /// shift berisi dari belakang layar berarti mengubah pembukuan tanpa ada
+  /// yang memintanya.
+  ///
+  /// Yang kosong tidak punya risiko itu — tidak ada yang bisa salah hitung
+  /// dari shift tanpa satu pun catatan. Dan justru yang kosong inilah yang
+  /// menggantung "Berlangsung" selamanya di halaman Pengeluaran pemilik.
+  Future<void> _tutupShiftHantu(Iterable<Shift> lain) async {
+    for (final s in lain) {
+      final adaTransaksi = await (_db.select(_db.transactions)
+            ..where((t) => t.shiftId.equals(s.id) & t.deletedAt.isNull())
+            ..limit(1))
+          .getSingleOrNull();
+      if (adaTransaksi != null) continue;
+
+      final adaPengeluaran = await (_db.select(_db.expenses)
+            ..where((e) => e.shiftId.equals(s.id) & e.deletedAt.isNull())
+            ..limit(1))
+          .getSingleOrNull();
+      if (adaPengeluaran != null) continue;
+
+      final sekarang = DateTime.now();
+      await (_db.update(_db.shifts)..where((t) => t.id.equals(s.id))).write(
+        ShiftsCompanion(
+          endAt: Value(sekarang),
+          updatedAt: Value(sekarang),
+          syncStatus: const Value('pending'),
+        ),
+      );
+    }
   }
 
   /// Get user permissions

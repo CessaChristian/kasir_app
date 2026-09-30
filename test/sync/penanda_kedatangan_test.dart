@@ -101,7 +101,7 @@ void main() {
       };
 
   Future<int> tarikTransaksi() async {
-    final hasil = await mesin.tarikUntukTest('transactions');
+    final hasil = await mesin.tarikTabel('transactions');
     return hasil;
   }
 
