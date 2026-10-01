@@ -54,11 +54,13 @@ void main() {
         reason: 'produk tanpa gambar tidak boleh ikut');
   });
 
-  test('produk yang sudah dihapus lunak TETAP dihitung', () async {
-    // Berkasnya masih dibutuhkan: riwayat transaksi lama menampilkan
-    // produknya, dan penghapusan lunak bisa dibatalkan. Berkas baru boleh
-    // dianggap tidak terpakai kalau TIDAK ADA baris sama sekali yang
-    // menunjuknya.
+  test('produk yang sudah dihapus TIDAK dihitung', () async {
+    // Dulu dihitung dengan alasan riwayat menampilkan fotonya dan hapusan
+    // bisa dipulihkan. Dua-duanya tidak benar: riwayat tidak pernah
+    // menampilkan foto, dan tidak ada fitur pulihkan. Akibatnya foto produk
+    // yang dihapus tidak pernah tersapu, sekalipun barisnya sudah dibuang
+    // dari server.
+    await pasangProduk('Kopi', 'products/aktif.webp');
     await db.into(db.products).insert(ProductsCompanion.insert(
           name: 'Kopi Lama',
           price: 5000,
@@ -68,7 +70,7 @@ void main() {
 
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
 
-    expect(await mesin.pathDirujuk(), {'products/lama.webp'});
+    expect(await mesin.pathDirujuk(), {'products/aktif.webp'});
   });
 
   test('simpanBytes membuat foldernya kalau belum ada', () async {
@@ -152,9 +154,7 @@ void main() {
         reason: 'hanya yang tidak dirujuk yang boleh masuk daftar buang');
   });
 
-  test('berkas milik produk terhapus lunak TIDAK ikut dibuang', () async {
-    // Riwayat transaksi lama masih menampilkan produknya, dan penghapusan
-    // lunak bisa dibatalkan.
+  test('berkas milik produk yang dihapus IKUT dibuang', () async {
     await berkas.simpanBytes('products/lama.webp', Uint8List.fromList([1]));
     await db.into(db.products).insert(ProductsCompanion.insert(
           name: 'Kopi Lama',
@@ -166,7 +166,31 @@ void main() {
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
     final dirujuk = await mesin.pathDirujuk();
 
-    expect((await berkas.daftarBerkas()).difference(dirujuk), isEmpty);
+    expect((await berkas.daftarBerkas()).difference(dirujuk),
+        {'products/lama.webp'},
+        reason: 'foto produk yang sudah dihapus tidak akan pernah ditampilkan '
+            'lagi, jadi harus tersapu — kalau tidak, kuota Storage terisi '
+            'foto yang tidak terpakai selamanya');
+  });
+
+  test('SEMUA produk dihapus -> tetap boleh membuang', () async {
+    // Bedakan dari HP baru yang tabelnya benar-benar kosong. Di sini barisnya
+    // ADA — semuanya bekas hapusan — jadi kita tahu daftar produknya sudah
+    // termuat, dan foto-fotonya memang yatim.
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          name: 'Kopi Lama',
+          price: 5000,
+          imagePath: const Value('products/lama.webp'),
+          deletedAt: Value(DateTime.now()),
+        ));
+
+    final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
+    final dirujuk = await mesin.pathDirujuk();
+
+    expect(dirujuk, isEmpty);
+    expect(await mesin.bolehMembuang(dirujuk), isTrue,
+        reason: 'pengaman "tabel kosong" hanya untuk HP yang produknya belum '
+            'termuat, bukan untuk toko yang menghapus semua produknya');
   });
 
   // ── BERKAS YANG MASIH "DI TANGAN" PENGGUNA ──

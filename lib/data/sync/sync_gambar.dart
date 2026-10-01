@@ -247,18 +247,32 @@ class SyncGambar {
     return jumlah.read<int>('c') > 0;
   }
 
-  /// Semua `image_path` yang masih dirujuk baris produk.
+  /// Semua `image_path` milik produk yang MASIH AKTIF.
   ///
-  /// Produk yang sudah dihapus lunak SENGAJA ikut: riwayat transaksi lama
-  /// masih menampilkan produknya, dan pemilik bisa memulihkan penghapusan.
-  /// Berkasnya baru boleh dianggap tidak terpakai kalau tidak ada baris sama
-  /// sekali yang menunjuknya.
+  /// ── PRODUK YANG SUDAH DIHAPUS TIDAK IKUT ──
+  ///
+  /// Dulu ikut, dengan dua alasan: "riwayat transaksi lama masih menampilkan
+  /// produknya" dan "pemilik bisa memulihkan penghapusan". Dua-duanya sudah
+  /// tidak benar — riwayat dan laporan tidak pernah menampilkan foto (struk
+  /// cuma menyalin nama dan harga), dan aplikasi tidak punya fitur pulihkan.
+  /// Satu-satunya tempat foto tampil, halaman Produk dan Kasir, memang sudah
+  /// menyaring produk yang dihapus.
+  ///
+  /// Akibat ikut dihitung: foto produk yang dihapus TIDAK PERNAH tersapu —
+  /// bahkan sesudah barisnya dibuang dari server, karena di HP barisnya tetap
+  /// ada sebagai bekas hapusan. Kuota Storage 1 GB terisi foto yang tidak
+  /// akan pernah ditampilkan lagi.
+  ///
+  /// HP yang belum menarik kabar hapusnya tidak kehilangan apa-apa: fotonya
+  /// masih tersimpan di HP itu sendiri, dan baru ikut dibersihkan sesudah HP
+  /// itu tahu produknya memang sudah dihapus.
   @visibleForTesting
   Future<Set<String>> pathDirujuk() => _pathDirujuk();
 
   Future<Set<String>> _pathDirujuk() async {
     final baris = await (_db.select(_db.products)
-          ..where((p) => p.imagePath.isNotNull()))
+          ..where((p) => p.imagePath.isNotNull())
+          ..where((p) => p.deletedAt.isNull()))
         .get();
     return {
       for (final p in baris)
