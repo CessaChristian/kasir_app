@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show PostgrestException;
+    show PostgrestException, SupabaseClient;
 
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
@@ -180,6 +180,10 @@ class _Entitas {
 /// ada), jadi penghapusan terkirim sebagai perubahan biasa. Baris yang
 /// benar-benar lenyap tidak bisa diberitahukan ke perangkat lain — server
 /// hanya melihat ketiadaan, dan ketiadaan tidak bisa dikirim.
+/// Baris terakhir sebuah halaman tarikan: capnya dan id-nya. Halaman
+/// berikutnya mulai SESUDAH pasangan ini.
+typedef PenandaHalaman = ({String nilai, String id});
+
 class SyncEngine {
   final AppDatabase _db;
 
@@ -190,6 +194,12 @@ class SyncEngine {
   SyncEngine(this._db, {this.onKemajuan});
 
   SupabaseService get _supabase => SupabaseService.instance;
+
+  /// Pintu masuk untuk test: klien sungguhan yang mengarah ke server palsu,
+  /// supaya test bisa memeriksa PERMINTAAN yang benar-benar dikirim —
+  /// arah urutan dan filternya — bukan cuma hasil olahan server palsu.
+  @visibleForTesting
+  SupabaseClient? klienUntukTest;
 
   /// URUTAN PENTING — induk sebelum anak.
   ///
@@ -346,11 +356,16 @@ class SyncEngine {
   /// Menerima kolom dan penanda yang BENAR-BENAR dipakai kueri, supaya test
   /// bisa membuktikan enginenya menyaring pada kolom yang tepat — bukan
   /// sekadar memercayai bahwa ia melakukannya.
+  ///
+  /// [sejak] hanya dipakai halaman pertama (`kolom >= sejak`). Halaman
+  /// berikutnya memakai [setelah]: baris yang urutan `(kolom, id)`-nya
+  /// sesudah baris terakhir halaman sebelumnya.
   @visibleForTesting
   Future<List<Map<String, dynamic>>> Function(
     String tabel,
     String kolom,
     String? sejak,
+    PenandaHalaman? setelah,
     int batas,
   )? penarikUntukTest;
 
@@ -392,6 +407,18 @@ class SyncEngine {
   ///
   /// Nilai tidak bisa bergeser seperti itu: baris yang diubah pindah ke
   /// belakang batas yang sedang kita pegang, jadi ia tetap ikut tertarik.
+  ///
+  /// ── KENAPA PENANDANYA PASANGAN (cap, id), BUKAN CAP SAJA ──
+  ///
+  /// Banyak baris bisa punya cap yang PERSIS sama — misalnya ratusan item
+  /// struk yang diunggah dalam satu kiriman. Dengan cap saja, halaman
+  /// berikutnya mulai lagi dari cap yang sama dan mendapat 500 baris yang
+  /// sama persis; tarikannya macet di situ, dan sisa gumpalan beserta SEMUA
+  /// baris sesudahnya tidak pernah tertarik. Ini benar-benar terjadi: HP
+  /// yang dipasang dari nol kehilangan 109 item struk, tanpa pesan apa pun.
+  ///
+  /// `id` itu unik, jadi pasangan (cap, id) selalu maju — sebesar apa pun
+  /// gumpalan bercap sama.
   Future<(int, int)> _tarikBertahap(
     _Entitas e,
     int urutan,
@@ -401,30 +428,26 @@ class SyncEngine {
     final kolom = pakaiUrut ? kolomUrut : 'updated_at';
     final semua = <Map<String, dynamic>>[];
     final terlihat = <String>{};
-    var batas = sejak;
+    PenandaHalaman? setelah;
 
     // Batas putaran sebagai jaring pengaman: kalaupun suatu hari ada keadaan
-    // yang membuat batasnya tidak maju, sinkronnya berhenti alih-alih
+    // yang membuat penandanya tidak maju, sinkronnya berhenti alih-alih
     // berputar selamanya.
     for (var putaran = 0; putaran < 1000; putaran++) {
-      final halaman = await _halaman(e.nama, batas, pakaiUrut);
+      final halaman = await _halaman(e.nama, sejak, setelah, pakaiUrut);
       if (halaman.isEmpty) break;
 
-      var baru = 0;
       for (final r in halaman) {
-        // `gte` membuat baris di batas ikut tertarik lagi — memang disengaja,
-        // supaya stempel kembar tidak membelah halaman dan menghilangkan
-        // baris. Yang sudah terlihat cukup dibuang di sini.
-        if (terlihat.add(r['id'] as String)) {
-          semua.add(r);
-          baru++;
-        }
+        // Baris yang PINDAH ke belakang selagi kita menarik (diubah di
+        // server) bisa terlihat dua kali. Cukup dibuang di sini.
+        if (terlihat.add(r['id'] as String)) semua.add(r);
       }
 
       if (halaman.length < ukuranHalaman) break;
-      final akhir = halaman.last[kolom];
-      if (akhir is! String || baru == 0) break;
-      batas = akhir;
+      final akhir = halaman.last;
+      final nilai = akhir[kolom];
+      if (nilai is! String) break;
+      setelah = (nilai: nilai, id: akhir['id'] as String);
     }
 
     return _gabungkan(e, semua, urutan);
@@ -434,6 +457,7 @@ class SyncEngine {
   Future<List<Map<String, dynamic>>> _halaman(
     String tabel,
     String? sejak,
+    PenandaHalaman? setelah,
     bool pakaiUrut,
   ) async {
     // Urutannya tetap dibutuhkan walau kolom urutan belum ada: menarik
@@ -442,17 +466,31 @@ class SyncEngine {
 
     final pengganti = penarikUntukTest;
     if (pengganti != null) {
-      return pengganti(tabel, kolom, sejak, ukuranHalaman);
+      return pengganti(tabel, kolom, sejak, setelah, ukuranHalaman);
     }
 
-    var query = _supabase.client!.from(tabel).select();
-    if (sejak != null) {
+    var query = (klienUntukTest ?? _supabase.client!).from(tabel).select();
+    if (setelah != null) {
+      // "Sesudah baris terakhir": capnya lebih besar, ATAU capnya sama tapi
+      // id-nya lebih besar. Capnya dijadikan UTC berakhiran Z dan diapit
+      // kutip — titik dua, titik, dan tanda plus punya arti sendiri di
+      // dalam filter `or` PostgREST.
+      final v = DateTime.parse(setelah.nilai).toUtc().toIso8601String();
+      query = query.or('$kolom.gt."$v",'
+          'and($kolom.eq."$v",id.gt."${setelah.id}")');
+    } else if (sejak != null) {
       // `gte`, bukan `gt`: stempel kembar tidak boleh membuat baris terlewat.
       // Barisnya yang persis di batas ikut tertarik lagi, dan itu murah —
       // menggabungkannya tidak mengubah apa pun.
       query = query.gte(kolom, sejak);
     }
-    return query.order(kolom).limit(ukuranHalaman);
+    // `ascending: true` WAJIB ditulis: bawaan `order()` di pustaka ini
+    // justru TURUN. Dulu tidak ditulis, dan tarikan yang lebih dari satu
+    // halaman cuma mendapat 500 baris TERBARU — sisanya tidak pernah sampai.
+    return query
+        .order(kolom, ascending: true)
+        .order('id', ascending: true)
+        .limit(ukuranHalaman);
   }
 
   /// Penanda dimundurkan sejauh [jedaAman]. Null tetap null — artinya belum

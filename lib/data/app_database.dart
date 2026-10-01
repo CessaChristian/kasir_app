@@ -389,7 +389,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -855,6 +855,29 @@ class AppDatabase extends _$AppDatabase {
             ).get();
             if (adaItem.isNotEmpty) {
               await m.alterTable(TableMigration(transactionItems));
+            }
+          }
+
+          if (from < 25 && to >= 25) {
+            // v25 — penanda dikosongkan sekali lagi, karena tarikan lama
+            // MELEWATKAN baris secara permanen.
+            //
+            // Dua kesalahan di penarikan bertahap (`SyncEngine._halaman`):
+            // urutannya TURUN (bawaan `order()` di pustaka postgrest), dan
+            // halaman berikutnya ditandai cap saja tanpa id. Tarikan yang
+            // lebih dari satu halaman cuma mendapat baris terbaru, lalu
+            // penandanya melompat melewati sisanya. Terbukti di HP yang
+            // dipasang dari nol: 514 item struk dari 633.
+            //
+            // Menarik ulang dari nol mengisi yang bolong. Baris yang sudah
+            // ada dan isinya sama dilewati, jadi aman.
+            final adaSyncState = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'sync_state'",
+            ).get();
+            if (adaSyncState.isNotEmpty) {
+              await customStatement(
+                  'UPDATE sync_state SET last_pulled_cursor = NULL');
             }
           }
 

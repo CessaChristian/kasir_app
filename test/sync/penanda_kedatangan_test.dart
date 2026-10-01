@@ -30,6 +30,15 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 /// Perbaikannya memisahkan dua tugas yang dulu ditumpuk di satu kolom:
 /// `updated_at` tetap menentukan siapa menang saat bentrok, `server_urut`
 /// — diisi trigger di server — menentukan sampai mana kita sudah menarik.
+/// Urutan (cap, id) seperti `order by kolom, id` di server: cap dibandingkan
+/// sebagai WAKTU, bukan teks, lalu id sebagai pemecah seri.
+int bandingkanKunci(
+    String kolom, Map<String, dynamic> r, String nilai, String id) {
+  final beda = DateTime.parse(r[kolom] as String)
+      .compareTo(DateTime.parse(nilai));
+  return beda != 0 ? beda : (r['id'] as String).compareTo(id);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -46,17 +55,20 @@ void main() {
     server = [];
 
     mesin = SyncEngine(db);
-    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
+    mesin.penarikUntukTest = (tabel, kolom, sejak, setelah, batas) async {
       // Penyaringnya memakai KOLOM YANG DIMINTA ENGINE. Kalau engine masih
       // menyaring pada `updated_at`, test ini akan gagal — itulah gunanya.
       final cocok = server.where((r) {
-        if (sejak == null) return true;
         final nilai = r[kolom] as String?;
         if (nilai == null) return true;
+        if (setelah != null) {
+          return bandingkanKunci(kolom, r, setelah.nilai, setelah.id) > 0;
+        }
+        if (sejak == null) return true;
         return !DateTime.parse(nilai).isBefore(DateTime.parse(sejak));
       }).toList()
-        ..sort((a, b) =>
-            (a[kolom] as String).compareTo(b[kolom] as String));
+        ..sort((a, b) => bandingkanKunci(
+            kolom, a, b[kolom] as String, b['id'] as String));
 
       return cocok.take(batas).toList();
     };
@@ -242,16 +254,20 @@ void main() {
     // Pembaruan aplikasi bisa sampai ke HP sebelum SQL-nya dijalankan.
     // Warung yang berhenti bisa menerima uang jauh lebih mahal daripada
     // sinkron yang boros, jadi enginenya harus mundur dengan selamat.
-    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
+    mesin.penarikUntukTest = (tabel, kolom, sejak, setelah, batas) async {
       if (kolom == 'server_urut') {
         throw PostgrestException(
           message: 'column $tabel.server_urut does not exist',
           code: '42703',
         );
       }
-      final cocok = server.toList()
-        ..sort((a, b) =>
-            (a['updated_at'] as String).compareTo(b['updated_at'] as String));
+      final cocok = server
+          .where((r) =>
+              setelah == null ||
+              bandingkanKunci(kolom, r, setelah.nilai, setelah.id) > 0)
+          .toList()
+        ..sort((a, b) => bandingkanKunci(
+            kolom, a, b[kolom] as String, b['id'] as String));
       return cocok.take(batas).toList();
     };
 
@@ -290,8 +306,8 @@ void main() {
     // keadaan yang membuat paginasi berbasis posisi kehilangan baris.
     var halamanKe = 0;
     final asli = mesin.penarikUntukTest!;
-    mesin.penarikUntukTest = (tabel, kolom, sejak, batas) async {
-      final hasil = await asli(tabel, kolom, sejak, batas);
+    mesin.penarikUntukTest = (tabel, kolom, sejak, setelah, batas) async {
+      final hasil = await asli(tabel, kolom, sejak, setelah, batas);
       if (halamanKe++ == 0) {
         final pindah = server.firstWhere((r) => r['id'] == 't-3');
         pindah['server_urut'] = iso(dasar.add(const Duration(days: 1)));
@@ -374,5 +390,35 @@ void main() {
     expect(berubah, 0,
         reason: 'pecahan di bawah satu detik tidak bisa diamati dari sisi '
             'lokal, jadi tidak boleh dianggap versi yang lebih baru');
+  });
+
+  test('gumpalan bercap SAMA yang lebih besar dari satu halaman tertarik utuh',
+      () async {
+    // ── BUG YANG DIKUNCI ──
+    //
+    // Ketahuan saat menguji HP yang dipasang dari nol: 109 dari 611 item
+    // struk tidak pernah sampai. Semuanya bercap waktu sama persis — sisa
+    // migrasi lama yang menyentuh semua baris di detik yang sama.
+    //
+    // Halaman ditandai NILAI baris terakhir saja. Dalam gumpalan bercap sama,
+    // nilai itu tidak pernah maju: halaman berikutnya meminta "yang capnya
+    // >= X" dan server mengembalikan baris-baris yang itu-itu juga, sehingga
+    // mesinnya menyimpulkan "tidak ada yang baru" lalu berhenti. Sinkron
+    // tetap melapor berhasil.
+    final sama = DateTime.utc(2026, 9, 4, 13, 54, 59);
+    final jumlah = SyncEngine.ukuranHalaman + SyncEngine.ukuranHalaman ~/ 2;
+    for (var i = 0; i < jumlah; i++) {
+      server.add(trx('g-${i.toString().padLeft(4, '0')}',
+          diubah: sama, tiba: sama));
+    }
+    // Ditambah yang datang SESUDAH gumpalan — tidak boleh ikut tertahan.
+    final sesudah = DateTime.utc(2026, 9, 24, 12);
+    server.add(trx('sesudah-gumpalan', diubah: sesudah, tiba: sesudah));
+
+    await tarikTransaksi();
+
+    expect(await db.select(db.transactions).get(), hasLength(jumlah + 1),
+        reason: 'baris yang bercap sama tidak boleh membuat halaman berhenti '
+            'maju — penanda halaman harus memakai id sebagai pemecah seri');
   });
 }
