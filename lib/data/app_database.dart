@@ -161,10 +161,22 @@ class Transactions extends Table {
 class TransactionItems extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get transactionId => text()();
-  // FK ditambahkan di v14. Efeknya: produk yang pernah terjual tidak bisa
-  // dihapus PERMANEN — menghapusnya akan meninggalkan item yatim dan
-  // merusak riwayat penjualan. Soft delete tetap boleh.
-  TextColumn get productId => text().references(Products, #id)();
+  // SENGAJA tanpa foreign key ke products (dilepas di v24).
+  //
+  // Di v14 sempat dipasang dengan alasan "membuang produk yang pernah laku
+  // akan merusak riwayat penjualan". Alasan itu tidak berlaku: item struk
+  // MENYALIN nama dan harganya sendiri (`productName`, `priceAtSale`), dan
+  // tidak ada satu pun laporan yang mencari produk lewat kolom ini — "produk
+  // terlaris" pun mengelompokkan berdasarkan nama salinan. Struk lama tetap
+  // utuh walau produknya sudah tidak ada.
+  //
+  // Yang justru ditimbulkan rantai ini: produk tidak pernah bisa dibuang dari
+  // server, dan kalau dibuang pun, HP yang baru dipasang akan MENOLAK item
+  // struk lama yang menunjuknya — riwayatnya bolong tanpa pesan apa pun.
+  //
+  // Validitas id saat berjualan tetap dijaga aplikasi:
+  // `_validasiProdukMasihAda` di dalam `createSale`.
+  TextColumn get productId => text()();
   TextColumn get productName => text().withDefault(const Constant(''))();
 
   IntColumn get qty => integer()();
@@ -377,7 +389,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -821,6 +833,28 @@ class AppDatabase extends _$AppDatabase {
             if (adaSyncState.isNotEmpty) {
               await customStatement(
                   'UPDATE sync_state SET last_pulled_cursor = NULL');
+            }
+          }
+
+          if (from < 24 && to >= 24) {
+            // v24 — rantai `transaction_items.product_id -> products` dilepas.
+            //
+            // SQLite tidak bisa mencopot foreign key dari tabel yang sudah
+            // ada; satu-satunya jalan adalah membangun ulang tabelnya dengan
+            // skema terbaru. Isinya disalin utuh — tidak ada baris yang
+            // dibuang, karena justru item yang produknya sudah tiada kini SAH.
+            //
+            // Lihat catatan di kolom `TransactionItems.productId`.
+            //
+            // Dicek dulu tabelnya ada: migrasi bisa berangkat dari skema yang
+            // lebih tua daripada saat tabel ini diperkenalkan, dan membangun
+            // ulang tabel yang belum ada akan gagal.
+            final adaItem = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'transaction_items'",
+            ).get();
+            if (adaItem.isNotEmpty) {
+              await m.alterTable(TableMigration(transactionItems));
             }
           }
 

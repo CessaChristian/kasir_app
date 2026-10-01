@@ -127,7 +127,10 @@ create table public.transactions (
 create table public.transaction_items (
   id             uuid primary key default gen_random_uuid(),
   transaction_id uuid        not null references public.transactions(id) on delete cascade,
-  product_id     uuid        not null references public.products(id),
+  -- SENGAJA tanpa rantai ke products: item menyalin nama & harganya sendiri
+  -- di bawah, jadi struk tetap utuh walau produknya sudah dibuang. Lihat
+  -- `supabase/buang_sampah.sql` dan migrasi v24 di aplikasi.
+  product_id     uuid        not null,
   -- Nama dan harga SENGAJA disalin: struk lama harus tetap benar walau
   -- produknya kelak diganti nama atau naik harga.
   product_name   text        not null default '',

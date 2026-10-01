@@ -101,7 +101,6 @@ void main() {
 
   test('4. ON DELETE CASCADE benar-benar jalan pada transaction_items',
       () async {
-    // Produknya harus benar-benar ada — sejak v14 product_id punya FK.
     // Sebelumnya test ini menunjuk 'prod-1' yang tidak pernah dibuat, dan
     // database menerimanya tanpa protes.
     await db.into(db.products).insert(ProductsCompanion.insert(
@@ -130,7 +129,18 @@ void main() {
         reason: 'item ikut terhapus otomatis lewat ON DELETE CASCADE');
   });
 
-  test('5. produk yang pernah terjual TIDAK bisa dihapus permanen', () async {
+  test('5. produk yang pernah terjual BOLEH dibuang, struknya tetap utuh',
+      () async {
+    // ── ATURAN INI PERNAH SEBALIKNYA ──
+    //
+    // Sejak v14 sampai v23, membuang produk yang pernah laku DITOLAK, dengan
+    // alasan "item struknya jadi yatim dan riwayat penjualan rusak". Alasan
+    // itu tidak pernah benar: item struk menyalin nama dan harganya sendiri,
+    // dan tidak ada laporan yang mencari produk lewat `product_id`.
+    //
+    // Yang justru ditimbulkan larangan itu: produk tidak pernah bisa dibuang
+    // dari server, dan HP baru yang menarik riwayat lama akan menolak item
+    // yang produknya sudah tiada — riwayatnya bolong diam-diam. Dilepas di v24.
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
           name: 'Nasi Goreng',
@@ -151,16 +161,15 @@ void main() {
           subtotal: 15000,
         ));
 
-    // Sebelum v14 hapus permanen ini LOLOS dan meninggalkan item yatim.
-    // Sekarang FK menahannya: riwayat penjualan tidak boleh rusak diam-diam.
-    await expectLater(
-      (db.delete(db.products)..where((p) => p.id.equals('prod-1'))).go(),
-      throwsA(anything),
-      reason: 'menghapus produk yang punya item transaksi harus ditolak',
-    );
+    await (db.delete(db.products)..where((p) => p.id.equals('prod-1'))).go();
 
-    final produk = await db.select(db.products).get();
-    expect(produk, hasLength(1), reason: 'produknya harus tetap ada');
+    expect(await db.select(db.products).get(), isEmpty);
+
+    final item = await db.select(db.transactionItems).getSingle();
+    expect(item.productName, 'Nasi Goreng',
+        reason: 'struk lama harus tetap menyebut nama produknya walau '
+            'produknya sudah dibuang — itulah gunanya salinan nama');
+    expect(item.priceAtSale, 15000);
   });
 
   test('6. soft delete produk terjual TETAP boleh — FK tidak menghalangi',
@@ -228,25 +237,31 @@ void main() {
     expect(await db.select(db.transactions).get(), isEmpty);
   });
 
-  test('9. item transaksi dengan product_id hantu DITOLAK', () async {
+  test('9. item struk yang produknya sudah tiada DITERIMA', () async {
+    // Inilah syarat HP yang baru dipasang bisa menarik riwayat lama. Begitu
+    // produknya dibuang dari server, item struk lamanya tetap ikut tertarik
+    // — dan kalau ditolak di sini, riwayat HP itu bolong tanpa pesan apa pun.
+    //
+    // Validitas `product_id` saat BERJUALAN tetap dijaga aplikasi lewat
+    // `_validasiProdukMasihAda` di `createSale`; yang dilepas cuma rantai
+    // di tingkat database.
     await db.into(db.transactions).insert(TransactionsCompanion.insert(
           id: const Value('trx-1'),
           total: 1000,
           paymentMethod: 'cash',
         ));
 
-    await expectLater(
-      db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
-            id: const Value('item-hantu'),
-            transactionId: 'trx-1',
-            productId: 'produk-yang-tidak-ada',
-            qty: 1,
-            priceAtSale: 1000,
-            subtotal: 1000,
-          )),
-      throwsA(anything),
-      reason: 'product_id ngawur harus ditolak database',
-    );
-    expect(await db.select(db.transactionItems).get(), isEmpty);
+    await db.into(db.transactionItems).insert(TransactionItemsCompanion.insert(
+          id: const Value('item-lama'),
+          transactionId: 'trx-1',
+          productId: 'produk-yang-sudah-dibuang',
+          productName: const Value('Es Kopi Susu'),
+          qty: 1,
+          priceAtSale: 1000,
+          subtotal: 1000,
+        ));
+
+    final item = await db.select(db.transactionItems).getSingle();
+    expect(item.productName, 'Es Kopi Susu');
   });
 }

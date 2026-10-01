@@ -3434,9 +3434,6 @@ class $TransactionItemsTable extends TransactionItems
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES products (id)',
-    ),
   );
   static const VerificationMeta _productNameMeta = const VerificationMeta(
     'productName',
@@ -6205,29 +6202,6 @@ final class $$ProductsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
-
-  static MultiTypedResultKey<$TransactionItemsTable, List<TransactionItem>>
-  _transactionItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.transactionItems,
-    aliasName: $_aliasNameGenerator(
-      db.products.id,
-      db.transactionItems.productId,
-    ),
-  );
-
-  $$TransactionItemsTableProcessedTableManager get transactionItemsRefs {
-    final manager = $$TransactionItemsTableTableManager(
-      $_db,
-      $_db.transactionItems,
-    ).filter((f) => f.productId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _transactionItemsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
 }
 
 class $$ProductsTableFilterComposer
@@ -6310,31 +6284,6 @@ class $$ProductsTableFilterComposer
           ),
     );
     return composer;
-  }
-
-  Expression<bool> transactionItemsRefs(
-    Expression<bool> Function($$TransactionItemsTableFilterComposer f) f,
-  ) {
-    final $$TransactionItemsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.transactionItems,
-      getReferencedColumn: (t) => t.productId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$TransactionItemsTableFilterComposer(
-            $db: $db,
-            $table: $db.transactionItems,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
   }
 }
 
@@ -6486,31 +6435,6 @@ class $$ProductsTableAnnotationComposer
     );
     return composer;
   }
-
-  Expression<T> transactionItemsRefs<T extends Object>(
-    Expression<T> Function($$TransactionItemsTableAnnotationComposer a) f,
-  ) {
-    final $$TransactionItemsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.transactionItems,
-      getReferencedColumn: (t) => t.productId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$TransactionItemsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.transactionItems,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$ProductsTableTableManager
@@ -6526,7 +6450,7 @@ class $$ProductsTableTableManager
           $$ProductsTableUpdateCompanionBuilder,
           (Product, $$ProductsTableReferences),
           Product,
-          PrefetchHooks Function({bool categoryId, bool transactionItemsRefs})
+          PrefetchHooks Function({bool categoryId})
         > {
   $$ProductsTableTableManager(_$AppDatabase db, $ProductsTable table)
     : super(
@@ -6603,72 +6527,47 @@ class $$ProductsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback:
-              ({categoryId = false, transactionItemsRefs = false}) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (transactionItemsRefs) db.transactionItems,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (categoryId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.categoryId,
-                                    referencedTable: $$ProductsTableReferences
-                                        ._categoryIdTable(db),
-                                    referencedColumn: $$ProductsTableReferences
-                                        ._categoryIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
-                        }
+          prefetchHooksCallback: ({categoryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (categoryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.categoryId,
+                                referencedTable: $$ProductsTableReferences
+                                    ._categoryIdTable(db),
+                                referencedColumn: $$ProductsTableReferences
+                                    ._categoryIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
 
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (transactionItemsRefs)
-                        await $_getPrefetchedData<
-                          Product,
-                          $ProductsTable,
-                          TransactionItem
-                        >(
-                          currentTable: table,
-                          referencedTable: $$ProductsTableReferences
-                              ._transactionItemsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$ProductsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).transactionItemsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.productId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
+                    return state;
                   },
-                );
+              getPrefetchedDataCallback: (items) async {
+                return [];
               },
+            );
+          },
         ),
       );
 }
@@ -6685,7 +6584,7 @@ typedef $$ProductsTableProcessedTableManager =
       $$ProductsTableUpdateCompanionBuilder,
       (Product, $$ProductsTableReferences),
       Product,
-      PrefetchHooks Function({bool categoryId, bool transactionItemsRefs})
+      PrefetchHooks Function({bool categoryId})
     >;
 typedef $$UsersTableCreateCompanionBuilder =
     UsersCompanion Function({
@@ -8672,35 +8571,6 @@ typedef $$TransactionItemsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$TransactionItemsTableReferences
-    extends
-        BaseReferences<_$AppDatabase, $TransactionItemsTable, TransactionItem> {
-  $$TransactionItemsTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $ProductsTable _productIdTable(_$AppDatabase db) =>
-      db.products.createAlias(
-        $_aliasNameGenerator(db.transactionItems.productId, db.products.id),
-      );
-
-  $$ProductsTableProcessedTableManager get productId {
-    final $_column = $_itemColumn<String>('product_id')!;
-
-    final manager = $$ProductsTableTableManager(
-      $_db,
-      $_db.products,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_productIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
-
 class $$TransactionItemsTableFilterComposer
     extends Composer<_$AppDatabase, $TransactionItemsTable> {
   $$TransactionItemsTableFilterComposer({
@@ -8717,6 +8587,11 @@ class $$TransactionItemsTableFilterComposer
 
   ColumnFilters<String> get transactionId => $composableBuilder(
     column: $table.transactionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get productId => $composableBuilder(
+    column: $table.productId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8764,29 +8639,6 @@ class $$TransactionItemsTableFilterComposer
     column: $table.syncStatus,
     builder: (column) => ColumnFilters(column),
   );
-
-  $$ProductsTableFilterComposer get productId {
-    final $$ProductsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.productId,
-      referencedTable: $db.products,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ProductsTableFilterComposer(
-            $db: $db,
-            $table: $db.products,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$TransactionItemsTableOrderingComposer
@@ -8805,6 +8657,11 @@ class $$TransactionItemsTableOrderingComposer
 
   ColumnOrderings<String> get transactionId => $composableBuilder(
     column: $table.transactionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get productId => $composableBuilder(
+    column: $table.productId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8852,29 +8709,6 @@ class $$TransactionItemsTableOrderingComposer
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
   );
-
-  $$ProductsTableOrderingComposer get productId {
-    final $$ProductsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.productId,
-      referencedTable: $db.products,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ProductsTableOrderingComposer(
-            $db: $db,
-            $table: $db.products,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$TransactionItemsTableAnnotationComposer
@@ -8893,6 +8727,9 @@ class $$TransactionItemsTableAnnotationComposer
     column: $table.transactionId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get productId =>
+      $composableBuilder(column: $table.productId, builder: (column) => column);
 
   GeneratedColumn<String> get productName => $composableBuilder(
     column: $table.productName,
@@ -8926,29 +8763,6 @@ class $$TransactionItemsTableAnnotationComposer
     column: $table.syncStatus,
     builder: (column) => column,
   );
-
-  $$ProductsTableAnnotationComposer get productId {
-    final $$ProductsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.productId,
-      referencedTable: $db.products,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ProductsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.products,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$TransactionItemsTableTableManager
@@ -8962,9 +8776,16 @@ class $$TransactionItemsTableTableManager
           $$TransactionItemsTableAnnotationComposer,
           $$TransactionItemsTableCreateCompanionBuilder,
           $$TransactionItemsTableUpdateCompanionBuilder,
-          (TransactionItem, $$TransactionItemsTableReferences),
+          (
+            TransactionItem,
+            BaseReferences<
+              _$AppDatabase,
+              $TransactionItemsTable,
+              TransactionItem
+            >,
+          ),
           TransactionItem,
-          PrefetchHooks Function({bool productId})
+          PrefetchHooks Function()
         > {
   $$TransactionItemsTableTableManager(
     _$AppDatabase db,
@@ -9040,56 +8861,9 @@ class $$TransactionItemsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$TransactionItemsTableReferences(db, table, e),
-                ),
-              )
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: ({productId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (productId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.productId,
-                                referencedTable:
-                                    $$TransactionItemsTableReferences
-                                        ._productIdTable(db),
-                                referencedColumn:
-                                    $$TransactionItemsTableReferences
-                                        ._productIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
-
-                    return state;
-                  },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -9104,9 +8878,12 @@ typedef $$TransactionItemsTableProcessedTableManager =
       $$TransactionItemsTableAnnotationComposer,
       $$TransactionItemsTableCreateCompanionBuilder,
       $$TransactionItemsTableUpdateCompanionBuilder,
-      (TransactionItem, $$TransactionItemsTableReferences),
+      (
+        TransactionItem,
+        BaseReferences<_$AppDatabase, $TransactionItemsTable, TransactionItem>,
+      ),
       TransactionItem,
-      PrefetchHooks Function({bool productId})
+      PrefetchHooks Function()
     >;
 typedef $$PermissionsTableCreateCompanionBuilder =
     PermissionsCompanion Function({

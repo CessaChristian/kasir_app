@@ -156,4 +156,35 @@ void main() {
           '`revoke all` kalau tabelnya murni milik server.',
     );
   });
+
+  test('buang_sampah tidak bisa dipanggil dari HP', () {
+    // ── KENAPA PENJAGA INI ADA ──
+    //
+    // `buang_sampah` menghapus PERMANEN dan berjalan sebagai pemilik
+    // database, jadi tidak terhalang pencabutan hak DELETE untuk HP.
+    // Supabase otomatis memberi hak EXECUTE ke `anon` dan `authenticated`
+    // untuk setiap fungsi baru di skema public — kalau pencabutannya hilang,
+    // HP mana pun, termasuk yang kuncinya bocor, bisa memicu pembuangan
+    // lewat API dengan jeda nol.
+    final isi = File('supabase/buang_sampah.sql')
+        .readAsLinesSync()
+        .where((b) => !b.trimLeft().startsWith('--'))
+        .join('\n')
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    expect(
+      isi,
+      contains('revoke all on function public.buang_sampah(interval) '
+          'from anon, authenticated'),
+      reason: 'hak memanggil buang_sampah harus dicabut dari anon dan '
+          'authenticated — hanya dashboard dan pg_cron yang boleh',
+    );
+    expect(
+      RegExp(r'grant\s+\w+\s+on\s+function\s+public\.buang_sampah')
+          .hasMatch(isi),
+      isFalse,
+      reason: 'buang_sampah tidak boleh diberi hak ke peran mana pun',
+    );
+  });
 }
