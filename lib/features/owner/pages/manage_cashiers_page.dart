@@ -571,6 +571,163 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
     );
   }
 
+  Future<void> _showRenameDialog(User cashier) async {
+    final namaController = TextEditingController(text: cashier.username);
+    final formKey = GlobalKey<FormState>();
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    String? galat;
+    var menyimpan = false;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLembar) => Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      width: 60, height: 60,
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(Icons.edit_rounded, color: primaryColor, size: 28),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('Ganti Nama',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Nama baru juga dipakai di semua riwayat shift, '
+                      'pengeluaran, dan laporan akun ini.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputField(
+                      controller: namaController,
+                      label: 'Username Baru',
+                      hint: 'Masukkan username',
+                      icon: Icons.person_outline_rounded,
+                      validator: (v) {
+                        final n = (v ?? '').trim();
+                        if (n.isEmpty) return 'Username wajib diisi';
+                        if (n.length < CashierRepository.panjangNamaMin) {
+                          return 'Minimal ${CashierRepository.panjangNamaMin} karakter';
+                        }
+                        if (n.length > CashierRepository.panjangNamaMaks) {
+                          return 'Maksimal ${CashierRepository.panjangNamaMaks} karakter';
+                        }
+                        return null;
+                      },
+                    ),
+                    if (galat != null) ...[
+                      const SizedBox(height: 12),
+                      Text(galat!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, color: Colors.red)),
+                    ],
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: menyimpan ? null : () => Navigator.pop(ctx, false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: menyimpan
+                                ? null
+                                : () async {
+                                    if (!formKey.currentState!.validate()) return;
+                                    setLembar(() {
+                                      menyimpan = true;
+                                      galat = null;
+                                    });
+                                    try {
+                                      await _cashierRepo.gantiNamaKasir(
+                                          cashier.id, namaController.text);
+                                      if (ctx.mounted) Navigator.pop(ctx, true);
+                                    } on StateError catch (e) {
+                                      setLembar(() {
+                                        menyimpan = false;
+                                        galat = e.message;
+                                      });
+                                    } on ArgumentError catch (e) {
+                                      setLembar(() {
+                                        menyimpan = false;
+                                        galat = '${e.message}';
+                                      });
+                                    }
+                                  },
+                            icon: const Icon(Icons.check_rounded, size: 18),
+                            label: Text(menyimpan ? 'Memeriksa…' : 'Simpan Nama',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    namaController.dispose();
+
+    if (result != true || !mounted) return;
+    await _loadCashiers();
+    if (!mounted) return;
+
+    await kirimSekarang(
+      context,
+      pesanTerkirim: 'Nama diganti & terkirim',
+      pesanTertunda: 'Tersimpan — nama baru muncul di HP lain setelah online',
+    );
+  }
+
   // Shared input field builder (matches auth page style)
   Widget _buildInputField({
     required TextEditingController controller,
@@ -691,13 +848,41 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
           ? Center(child: CircularProgressIndicator(color: colorScheme.primary, strokeWidth: 2))
           : _cashiers.isEmpty
               ? _buildEmptyState(colorScheme)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  itemCount: _cashiers.length,
-                  itemBuilder: (context, index) {
-                    return _buildCashierCard(_cashiers[index], colorScheme);
-                  },
+              : _buildDaftarKasir(colorScheme),
+    );
+  }
+
+  /// Akun aktif di atas; akun nonaktif dilipat di bawah supaya daftar tetap
+  /// rapi. Akun tidak pernah dihapus (satu akun = satu orang), jadi karyawan
+  /// yang sudah keluar menumpuk di sini.
+  Widget _buildDaftarKasir(ColorScheme colorScheme) {
+    final aktif = _cashiers.where((c) => c.isActive).toList();
+    final nonaktif = _cashiers.where((c) => !c.isActive).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      children: [
+        for (final c in aktif) _buildCashierCard(c, colorScheme),
+        if (nonaktif.isNotEmpty)
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+              childrenPadding: EdgeInsets.zero,
+              title: Text(
+                'Akun nonaktif (${nonaktif.length})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
                 ),
+              ),
+              children: [
+                for (final c in nonaktif) _buildCashierCard(c, colorScheme),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -831,6 +1016,11 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _actionIcon(
+                  icon: Icons.edit_rounded,
+                  tooltip: 'Ganti Nama',
+                  onTap: () => _showRenameDialog(cashier),
+                ),
                 _actionIcon(
                   icon: Icons.lock_reset_rounded,
                   tooltip: 'Ganti PIN',

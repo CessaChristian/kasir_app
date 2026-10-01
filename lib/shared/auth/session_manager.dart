@@ -86,6 +86,7 @@ class SessionManager {
 
       // Overwrite role + permissions dengan nilai DB (anti-tamper)
       _currentSession = session.copyWith(
+        username: user.username,
         role: user.role,
         permissions: freshPermissions,
       );
@@ -98,12 +99,13 @@ class SessionManager {
     }
   }
 
-  /// Bertambah setiap kali daftar izin sesi yang sedang berjalan BERUBAH.
+  /// Bertambah setiap kali isi sesi yang sedang berjalan BERUBAH: daftar
+  /// izinnya, atau namanya diganti owner.
   ///
-  /// Layar yang menyaring menu berdasarkan izin mendengarkan ini supaya ikut
-  /// digambar ulang. Tanpa itu, izin yang baru turun dari server baru terlihat
+  /// Layar yang menampilkan menu & nama mendengarkan ini supaya ikut digambar
+  /// ulang. Tanpa itu, perubahan yang baru turun dari server baru terlihat
   /// setelah pengguna keluar dan masuk lagi.
-  final ValueNotifier<int> izinBerubah = ValueNotifier(0);
+  final ValueNotifier<int> sesiBerubah = ValueNotifier(0);
 
   /// Baca ulang izin sesi yang sedang berjalan dari database.
   ///
@@ -140,7 +142,7 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
         _sessionKey, json.encode(_currentSession!.toJson()));
-    izinBerubah.value++;
+    sesiBerubah.value++;
   }
 
   /// Berisi alasan kalau sesi yang sedang berjalan DICABUT dari jarak jauh,
@@ -191,7 +193,15 @@ class SessionManager {
             : !user.isActive
                 ? 'Akses Anda dinonaktifkan oleh pemilik.'
                 : null;
-    if (alasan == null) return;
+    if (alasan == null) {
+      // Owner mengganti nama akun ini dari HP lain: nama di menu ikut
+      // berganti tanpa perlu login ulang.
+      if (user!.username != sesi.username) {
+        await setSession(sesi.copyWith(username: user.username));
+        sesiBerubah.value++;
+      }
+      return;
+    }
 
     await clearSession();
     sesiDicabut.value = alasan;

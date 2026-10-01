@@ -277,7 +277,7 @@ class DashboardPage extends StatelessWidget {
     // Mendengarkan langsung di sini memutus ketergantungan pada penggambaran
     // ulang induknya.
     return ValueListenableBuilder<int>(
-      valueListenable: SessionManager.instance.izinBerubah,
+      valueListenable: SessionManager.instance.sesiBerubah,
       builder: (context, _, _) => _bangun(context),
     );
   }

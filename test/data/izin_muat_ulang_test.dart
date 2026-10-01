@@ -97,15 +97,15 @@ void main() {
 
   test('layar diberi tahu HANYA kalau izinnya benar-benar berubah', () async {
     await beriIzin('create_transaction');
-    final awal = SessionManager.instance.izinBerubah.value;
+    final awal = SessionManager.instance.sesiBerubah.value;
 
     await SessionManager.instance.muatUlangIzin();
-    expect(SessionManager.instance.izinBerubah.value, awal,
+    expect(SessionManager.instance.sesiBerubah.value, awal,
         reason: 'daftarnya sama — jangan menggambar ulang layar tanpa alasan');
 
     await beriIzin('view_history');
     await SessionManager.instance.muatUlangIzin();
-    expect(SessionManager.instance.izinBerubah.value, greaterThan(awal));
+    expect(SessionManager.instance.sesiBerubah.value, greaterThan(awal));
   });
 
   test('owner dilewati — izinnya tidak pernah dari tabel', () async {
@@ -123,11 +123,11 @@ void main() {
       shiftId: null,
       permissions: const [],
     ));
-    final awal = SessionManager.instance.izinBerubah.value;
+    final awal = SessionManager.instance.sesiBerubah.value;
 
     await SessionManager.instance.muatUlangIzin();
 
-    expect(SessionManager.instance.izinBerubah.value, awal);
+    expect(SessionManager.instance.sesiBerubah.value, awal);
     expect(SessionManager.instance.hasPermission('apa_saja'), isTrue,
         reason: 'owner selalu true, tanpa perlu satu baris pun di tabel');
   });

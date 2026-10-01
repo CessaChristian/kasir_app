@@ -55,13 +55,14 @@ class AuthSession {
 
   /// Copy dengan field baru — dipakai SessionManager saat re-validate dari DB.
   AuthSession copyWith({
+    String? username,
     String? role,
     List<String>? permissions,
     String? shiftId,
   }) {
     return AuthSession(
       userId: userId,
-      username: username,
+      username: username ?? this.username,
       role: role ?? this.role,
       shiftId: shiftId ?? this.shiftId,
       permissions: permissions ?? this.permissions,
