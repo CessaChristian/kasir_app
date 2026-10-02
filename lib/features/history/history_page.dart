@@ -11,6 +11,29 @@ import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
+/// Judul tanggal di Riwayat, untuk SEMUA akun: "Jumat, 02/10/2026".
+///
+/// Sengaja tanpa "Hari Ini" / "Kemarin": dibaca lewat tengah malam, dua kata
+/// itu menunjuk hari yang berbeda dari yang dimaksud kasir.
+String labelTanggalRiwayat(DateTime tanggal) =>
+    DateFormat('EEEE, dd/MM/yyyy', 'id_ID').format(tanggal);
+
+/// Saringan periode hanya untuk yang boleh melihat ke belakang. Kasir yang
+/// cakupannya shift berjalan selalu melihat SEMUA transaksi shift itu —
+/// saringan bulan bisa menyembunyikan transaksi shift yang dimulai di bulan
+/// sebelumnya.
+List<Transaction> saringPeriodeRiwayat(
+  List<Transaction> semua, {
+  required JenisCakupan cakupan,
+  required DateTime? bulan,
+}) {
+  if (cakupan == JenisCakupan.shiftAktif || bulan == null) return semua;
+  return semua
+      .where((tx) =>
+          tx.createdAt.year == bulan.year && tx.createdAt.month == bulan.month)
+      .toList();
+}
+
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -59,13 +82,11 @@ class _HistoryPageState extends State<HistoryPage> {
             return _buildEmptyState();
           }
           
-          // Filter transactions by selected month
-          final transactions = _selectedMonth == null
-              ? allTransactions
-              : allTransactions.where((tx) {
-                  return tx.createdAt.year == _selectedMonth!.year &&
-                         tx.createdAt.month == _selectedMonth!.month;
-                }).toList();
+          final transactions = saringPeriodeRiwayat(
+            allTransactions,
+            cakupan: _cakupan.jenis,
+            bulan: _selectedMonth,
+          );
 
           // Group transactions by date
           final grouped = <String, List<Transaction>>{};
@@ -87,8 +108,11 @@ class _HistoryPageState extends State<HistoryPage> {
 
           return Column(
             children: [
-              // Month filter
-              _buildMonthFilter(monthlyTotal, transactions.length),
+              // Periode & total hanya untuk yang boleh melihat ke belakang.
+              // Kasir tanpa izin Lihat Riwayat Lengkap cuma punya shift yang
+              // sedang berjalan — tidak ada yang perlu dipilih.
+              if (_cakupan.jenis != JenisCakupan.shiftAktif)
+                _buildMonthFilter(monthlyTotal, transactions.length),
               
               // Transactions list
               Expanded(
@@ -619,7 +643,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _formatDate(date),
+                        labelTanggalRiwayat(date),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -681,20 +705,6 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final txDate = DateTime(date.year, date.month, date.day);
-
-    if (txDate == today) {
-      return 'Hari Ini';
-    } else if (txDate == yesterday) {
-      return 'Kemarin';
-    } else {
-      return DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(date);
-    }
-  }
 }
 
 class _TransactionCard extends StatelessWidget {
