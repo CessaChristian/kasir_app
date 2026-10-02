@@ -352,4 +352,43 @@ void main() {
             'terlambat terlewat permanen; mikrodetiknya juga wajib utuh, '
             'kalau terpangkas baris ini tertarik ulang selamanya');
   });
+  test('baris terhapus yang belum pernah ada di sini TIDAK dihitung berubah',
+      () async {
+    // Gejalanya terlihat di emulator: baris yang sudah dibuang buang sampah
+    // lokal tapi masih tertarik ulang dari server dilaporkan "25 data
+    // diperbarui" di SETIAP sinkron, padahal tidak ada yang berubah di layar.
+    final hasil = await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p-sampah',
+        nama: 'Teh lama',
+        updatedAt: '2026-08-01T10:00:00+00:00',
+        deletedAt: '2026-08-01T10:00:00+00:00',
+      ),
+    ]);
+
+    expect(hasil, (1, 0));
+    expect((await ambil('p-sampah')).deletedAt, isNotNull,
+        reason: 'tetap ditulis, supaya baris lain yang merujuknya tetap sah');
+  });
+
+  test('penghapusan baris yang ADA di sini tetap dihitung berubah', () async {
+    await pasangProdukLokal(
+      id: 'p-ada',
+      nama: 'Es Jeruk',
+      updatedAt: detik('2026-09-04T09:00:00Z'),
+      syncStatus: 'synced',
+    );
+
+    final hasil = await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p-ada',
+        nama: 'Es Jeruk',
+        updatedAt: '2026-09-04T11:00:00+00:00',
+        deletedAt: '2026-09-04T11:00:00+00:00',
+      ),
+    ]);
+
+    expect(hasil, (1, 1),
+        reason: 'produk ini hilang dari layar — itu perubahan nyata');
+  });
 }

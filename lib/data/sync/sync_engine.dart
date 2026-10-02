@@ -529,7 +529,13 @@ class SyncEngine {
 
       if (lokal == null || _serverMenang(lokal, mikroServer)) {
         await e.tulis(r);
-        berubah++;
+        // Baris yang belum pernah ada di sini dan datang sudah terhapus tidak
+        // terlihat di mana pun — bukan "data diperbarui" bagi pemakai. Tetap
+        // ditulis supaya rujukan baris lain kepadanya sah; buang sampah lokal
+        // yang membersihkannya nanti. Tanpa pengecualian ini, baris yang
+        // sudah dibuang di sini tapi masih tertarik ulang dari server
+        // dilaporkan sebagai perubahan di SETIAP sinkron.
+        if (lokal != null || r['deleted_at'] == null) berubah++;
       }
 
       sudah++;
