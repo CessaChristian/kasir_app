@@ -9,13 +9,12 @@ import '../products/repositories/product_repository.dart';
 import '../../data/app_database.dart';
 import '../../data/uuid_helper.dart';
 import '../../utils/currency_formatter.dart';
-import '../../data/models/sale_line.dart';
 import '../../shared/auth/session_manager.dart';
 import 'dart:io';
 
 import '../../shared/services/image_storage_service.dart';
 import '../../shared/widgets/sync_refresh.dart';
-import 'models/cart_item.dart';
+import 'models/keranjang.dart';
 import 'cart_page.dart';
 import '../../shared/widgets/error_state_widget.dart';
 
@@ -26,20 +25,11 @@ class SalesPage extends StatefulWidget {
   State<SalesPage> createState() => _SalesPageState();
 }
 
-class _CartLine {
-  final Product product;
-  int qty;
-  String? notes;
-
-  _CartLine({required this.product, required this.qty, this.notes});
-
-  int get subtotal => product.price * qty;
-}
-
 class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   final _salesRepo = SalesRepository(db);
   final _productRepo = ProductRepository(db);
-  final List<_CartLine> _cart = [];
+  final _keranjang = Keranjang();
+  bool _keranjangTadinyaBerisi = false;
   final Set<String> _addingProducts = {};
   // C4: Cache hasil File.existsSync agar tidak blocking main thread setiap rebuild
   final Map<String, bool> _imageExistsCache = {};
@@ -55,6 +45,23 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     // berulang kali saat berpindah-pindah halaman.
     SyncOtomatis.instance.picu('halaman kasir dibuka');
     SyncService.instance.terakhirBerhasil.addListener(_sesudahSync);
+    _keranjang.addListener(_keranjangBerubah);
+  }
+
+  /// Satu titik untuk SEMUA perubahan keranjang — dari halaman ini maupun
+  /// dari halaman Keranjang yang memakai objek yang sama.
+  void _keranjangBerubah() {
+    final berisi = !_keranjang.isEmpty;
+    // Sinkron otomatis ditunda selama pesanan disusun.
+    SyncOtomatis.instance.sedangMenyusunPesanan = berisi;
+    // Keranjang yang baru saja kosong adalah titik teraman untuk menyegarkan.
+    // Tanpa ini sinkron yang tertunda bisa tertahan sepanjang jam ramai,
+    // karena keranjang nyaris tidak pernah kosong lebih dari sesaat.
+    if (_keranjangTadinyaBerisi && !berisi) {
+      SyncOtomatis.instance.lanjutkanYangTertunda();
+    }
+    _keranjangTadinyaBerisi = berisi;
+    if (mounted) setState(() {});
   }
 
   /// Buang ingatan "gambar ini tidak ada" setiap kali sinkronisasi selesai.
@@ -72,6 +79,9 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     SyncService.instance.terakhirBerhasil.removeListener(_sesudahSync);
+    _keranjang
+      ..removeListener(_keranjangBerubah)
+      ..dispose();
     // Kalau tidak dibersihkan, meninggalkan halaman dengan keranjang berisi
     // membuat penjadwal mengira pesanan masih disusun — dan sinkron otomatis
     // berhenti selamanya.
@@ -84,8 +94,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     return _imageExistsCache.putIfAbsent(
         path, () => ImageStorageService.adaSync(path));
   }
-
-  int get _total => _cart.fold(0, (s, l) => s + l.subtotal);
 
   Future<void> _playAddToCartAnimation(Offset startPosition) async {
     HapticFeedback.lightImpact();
@@ -283,71 +291,24 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     _addingProducts.add(p.id);
 
     try {
-      final idx = _cart.indexWhere((x) => x.product.id == p.id);
-
-      if (idx != -1) {
-        await _playAddToCartAnimation(tapPosition);
-        if (!mounted) return;
-        setState(() => _cart[idx].qty += 1);
-        return;
-      }
-
-      // Produk baru → tanya level pedas jika ada
+      // Level pedas hanya ditanyakan saat produk PERTAMA kali masuk.
       String? notes;
-      if (p.hasSpicyOption) {
+      if (!_keranjang.sudahAda(p.id) && p.hasSpicyOption) {
         notes = await _showSpicySheet(p);
       }
 
       if (!mounted) return;
       await _playAddToCartAnimation(tapPosition);
       if (!mounted) return;
-      setState(() {
-        _cart.add(_CartLine(product: p, qty: 1, notes: notes));
-      });
+      _keranjang.tambah(
+        idProduk: p.id,
+        nama: p.name,
+        harga: p.price,
+        catatan: notes,
+      );
     } finally {
       _addingProducts.remove(p.id);
     }
-  }
-
-  void _incQty(int index) {
-    if (index >= _cart.length) return;
-    _cart[index].qty += 1;
-  }
-
-  void _decQty(int index) {
-    setState(() {
-      final q = _cart[index].qty - 1;
-      if (q <= 0) {
-        _cart.removeAt(index);
-      } else {
-        _cart[index].qty = q;
-      }
-    });
-  }
-
-  void _removeItem(int index) {
-    setState(() => _cart.removeAt(index));
-  }
-
-  void _clearCart() {
-    setState(() => _cart.clear());
-    // Keranjang baru saja kosong — titik teraman untuk menyegarkan. Tanpa ini
-    // sinkron yang ditunda saat pesanan disusun bisa tertahan sepanjang jam
-    // ramai, karena keranjang nyaris tidak pernah kosong lebih dari sesaat.
-    SyncOtomatis.instance.sedangMenyusunPesanan = false;
-    SyncOtomatis.instance.lanjutkanYangTertunda();
-  }
-
-  List<SaleLine> _cartToSaleLines() {
-    return _cart.map((l) {
-      return SaleLine(
-        productId: l.product.id,
-        productName: l.product.name,
-        qty: l.qty,
-        priceAtSale: l.product.price,
-        notes: l.notes,
-      );
-    }).toList();
   }
 
   Future<void> _checkout(
@@ -362,7 +323,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
       await _salesRepo.createSale(
         transactionId: newUuid(),
-        lines: _cartToSaleLines(),
+        lines: _keranjang.baris,
         paymentMethod: isCash ? 'cash' : 'qris',
         orderType: orderType,
         cashReceived: cashReceived,
@@ -370,7 +331,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
         shiftId: session?.shiftId,
       );
 
-      _clearCart();
+      _keranjang.kosongkan();
     } catch (e) {
       rethrow;
     }
@@ -383,19 +344,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => CartPage(
-        cartItems: _cart.map((item) {
-          return CartItem(
-            productId: item.product.id,
-            productName: item.product.name,
-            pricePerUnit: item.product.price,
-            qty: item.qty,
-            notes: item.notes,
-          );
-        }).toList(),
-        onClearCart: () => setState(_clearCart),
-        onIncrement: (index) => setState(() => _incQty(index)),
-        onDecrement: (index) => setState(() => _decQty(index)),
-        onRemoveItem: (index) => setState(() => _removeItem(index)),
+        keranjang: _keranjang,
         onCheckout: _checkout,
       ),
     );
@@ -404,12 +353,6 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-
-    // Ditetapkan di sini supaya SEMUA jalur perubahan keranjang tercakup —
-    // menambah, mengurangi, menghapus, membatalkan — tanpa perlu menyisipkan
-    // satu baris yang sama di enam tempat berbeda dan berisiko terlewat di
-    // salah satunya. Hanya penetapan bool, tidak memicu gambar ulang.
-    SyncOtomatis.instance.sedangMenyusunPesanan = _cart.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -871,7 +814,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                           size: 24,
                         ),
                       ),
-                      if (_cart.isNotEmpty)
+                      if (!_keranjang.isEmpty)
                         Positioned(
                           right: 4,
                           top: 4,
@@ -882,7 +825,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                               shape: BoxShape.circle,
                             ),
                             child: Text(
-                              '${_cart.length}',
+                              '${_keranjang.jumlahBaris}',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -909,7 +852,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Rp ${formatRupiah(_total)}',
+                        'Rp ${formatRupiah(_keranjang.total)}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/app_toast.dart';
-import 'models/cart_item.dart';
+import '../../data/models/sale_line.dart';
+import 'models/keranjang.dart';
 import 'sheets/cash_payment_sheet.dart';
 import 'widgets/payment_success_dialog.dart';
 
@@ -45,21 +46,15 @@ extension OrderTypeExt on OrderType {
 }
 
 class CartPage extends StatefulWidget {
-  final List<CartItem> cartItems;
-  final VoidCallback onClearCart;
-  final Function(int index) onIncrement;
-  final Function(int index) onDecrement;
-  final Function(int index) onRemoveItem;
+  /// Objek yang SAMA dengan milik halaman Kasir — bukan salinan. Perubahan di
+  /// sini langsung terlihat di sana, dan sebaliknya.
+  final Keranjang keranjang;
   final Future<void> Function(
       PaymentMethod paymentMethod, int? cashReceived, String orderType) onCheckout;
 
   const CartPage({
     super.key,
-    required this.cartItems,
-    required this.onClearCart,
-    required this.onIncrement,
-    required this.onDecrement,
-    required this.onRemoveItem,
+    required this.keranjang,
     required this.onCheckout,
   });
 
@@ -70,58 +65,35 @@ class CartPage extends StatefulWidget {
 class _CartPageState extends State<CartPage> {
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   OrderType _orderType = OrderType.dineIn;
-  late List<CartItem> _localCartItems;
   bool _isProcessing = false;
+
+  Keranjang get _keranjang => widget.keranjang;
+  int get _total => _keranjang.total;
 
   @override
   void initState() {
     super.initState();
-    _localCartItems = List.from(widget.cartItems);
+    _keranjang.addListener(_berubah);
   }
 
-  int get _total => _localCartItems.fold(0, (s, item) => s + item.subtotal);
-
-  void _handleClearCart() {
-    setState(() => _localCartItems.clear());
-    widget.onClearCart();
+  @override
+  void dispose() {
+    _keranjang.removeListener(_berubah);
+    super.dispose();
   }
 
-  void _handleIncrement(int index) {
-    if (index >= _localCartItems.length) return;
-    final item = _localCartItems[index];
-    // Tombol + di-disable secara visual jika sudah max — guard ini hanya backup
-    setState(() {
-      _localCartItems[index] = item.copyWith(qty: item.qty + 1);
-    });
-    widget.onIncrement(index);
+  void _berubah() {
+    if (mounted) setState(() {});
   }
 
-  void _handleDecrement(int index) {
-    setState(() {
-      if (index < _localCartItems.length) {
-        if (_localCartItems[index].qty <= 1) {
-          _localCartItems.removeAt(index);
-        } else {
-          _localCartItems[index] = _localCartItems[index]
-              .copyWith(qty: _localCartItems[index].qty - 1);
-        }
-      }
-    });
-    widget.onDecrement(index);
-  }
-
-  void _handleRemoveItem(int index) {
-    setState(() {
-      if (index < _localCartItems.length) {
-        _localCartItems.removeAt(index);
-      }
-    });
-    widget.onRemoveItem(index);
-  }
+  void _handleClearCart() => _keranjang.kosongkan();
+  void _handleIncrement(int index) => _keranjang.tambahSatu(index);
+  void _handleDecrement(int index) => _keranjang.kurangiSatu(index);
+  void _handleRemoveItem(int index) => _keranjang.hapus(index);
 
   Future<void> _handleCheckout() async {
     if (_isProcessing) return;
-    if (_localCartItems.isEmpty) {
+    if (_keranjang.isEmpty) {
       if (!mounted) return;
       AppToast.warning(context, 'Keranjang masih kosong');
       return;
@@ -352,7 +324,7 @@ class _CartPageState extends State<CartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = _localCartItems.isEmpty;
+    final isEmpty = _keranjang.isEmpty;
 
     // M-C: Cegah swipe-down / back button menutup CartPage saat transaksi
     // sedang diproses. Tanpa ini, user bisa secara tidak sengaja menutup
@@ -422,9 +394,9 @@ class _CartPageState extends State<CartPage> {
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          itemCount: _localCartItems.length,
+                          itemCount: _keranjang.jumlahBaris,
                           itemBuilder: (context, index) {
-                            final item = _localCartItems[index];
+                            final item = _keranjang.baris[index];
                             return _buildCartItem(item, index);
                           },
                         ),
@@ -472,7 +444,7 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  Widget _buildCartItem(CartItem item, int index) {
+  Widget _buildCartItem(SaleLine item, int index) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Container(
@@ -530,7 +502,7 @@ class _CartPageState extends State<CartPage> {
                 Row(
                   children: [
                     Text(
-                      'Rp ${formatRupiah(item.pricePerUnit)} × ${item.qty}',
+                      'Rp ${formatRupiah(item.priceAtSale)} × ${item.qty}',
                       style:
                           TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
@@ -615,7 +587,7 @@ class _CartPageState extends State<CartPage> {
 
   Widget _buildPaymentSection() {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final isEmpty = _localCartItems.isEmpty;
+    final isEmpty = _keranjang.isEmpty;
 
     return Container(
       decoration: BoxDecoration(
