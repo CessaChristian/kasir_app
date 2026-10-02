@@ -944,6 +944,8 @@ class SyncEngine {
                 'barcode': p.barcode,
                 'category_id': p.categoryId,
                 'has_spicy_option': p.hasSpicyOption,
+                'has_sweet_option': p.hasSweetOption,
+                'has_ice_option': p.hasIceOption,
                 'image_path': p.imagePath,
                 'created_at': _iso(p.createdAt),
                 'updated_at': _iso(p.updatedAt),
@@ -959,6 +961,11 @@ class SyncEngine {
                 barcode: Value(r['barcode'] as String?),
                 categoryId: Value(r['category_id'] as String?),
                 hasSpicyOption: Value(r['has_spicy_option'] as bool),
+                // `?? false`: server yang belum menjalankan
+                // `supabase/produk_pilihan.sql` tidak punya kolomnya.
+                hasSweetOption:
+                    Value((r['has_sweet_option'] as bool?) ?? false),
+                hasIceOption: Value((r['has_ice_option'] as bool?) ?? false),
                 imagePath: Value(r['image_path'] as String?),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),

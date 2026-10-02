@@ -113,6 +113,8 @@ void main() {
       name: 'Mie Goreng Spesial',
       price: 18000,
       hasSpicyOption: false,
+      hasSweetOption: false,
+      hasIceOption: false,
     );
 
     final p = await db.select(db.products).getSingle();

@@ -88,6 +88,8 @@ create table public.products (
   barcode          text,
   category_id      uuid        references public.categories(id),
   has_spicy_option boolean     not null default false,
+  has_sweet_option boolean     not null default false,
+  has_ice_option   boolean     not null default false,
   -- Path RELATIF di Supabase Storage, mis. 'products/<uuid>.webp'.
   -- Jangan simpan URL penuh: domain project bisa berubah.
   image_path       text,

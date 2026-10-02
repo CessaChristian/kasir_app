@@ -57,6 +57,8 @@ class ProductRepository {
     String? barcode,
     String? categoryId,
     required bool hasSpicyOption,
+    required bool hasSweetOption,
+    required bool hasIceOption,
     String? imagePath,
   }) =>
       _db.upsertProduct(
@@ -66,6 +68,8 @@ class ProductRepository {
         barcode: barcode,
         categoryId: categoryId,
         hasSpicyOption: hasSpicyOption,
+        hasSweetOption: hasSweetOption,
+        hasIceOption: hasIceOption,
         imagePath: imagePath,
       );
 

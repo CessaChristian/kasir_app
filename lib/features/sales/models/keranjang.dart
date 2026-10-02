@@ -22,17 +22,18 @@ class Keranjang extends ChangeNotifier {
   bool get isEmpty => _baris.isEmpty;
   int get total => _baris.fold(0, (s, b) => s + b.subtotal);
 
-  bool sudahAda(String idProduk) => _indeks(idProduk) != -1;
-
-  /// Produk yang sudah ada menambah jumlahnya — harga dan catatannya tetap
-  /// yang pertama kali dicatat. Produk baru masuk dengan jumlah satu.
+  /// Produk yang SAMA dengan pilihan yang SAMA menambah jumlah baris itu —
+  /// harganya tetap yang pertama kali dicatat. Pilihan berbeda (catatan
+  /// berbeda) jadi baris baru: satu transaksi bisa berisi Mie Goreng "Sedang"
+  /// dan Mie Goreng "Pedas".
   void tambah({
     required String idProduk,
     required String nama,
     required int harga,
     String? catatan,
   }) {
-    final i = _indeks(idProduk);
+    final i = _baris.indexWhere(
+        (b) => b.productId == idProduk && b.notes == catatan);
     if (i != -1) {
       _baris[i] = _baris[i].copyWith(qty: _baris[i].qty + 1);
     } else {
@@ -79,9 +80,6 @@ class Keranjang extends ChangeNotifier {
     _baris.clear();
     notifyListeners();
   }
-
-  int _indeks(String idProduk) =>
-      _baris.indexWhere((b) => b.productId == idProduk);
 
   bool _sah(int indeks) => indeks >= 0 && indeks < _baris.length;
 }

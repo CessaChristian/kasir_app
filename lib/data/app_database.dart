@@ -86,7 +86,13 @@ class Products extends Table {
   TextColumn get categoryId =>
       text().nullable().references(Categories, #id)();
 
+  // Tiga kelompok pilihan yang ditanyakan di halaman Kasir. Lihat
+  // `features/sales/models/pilihan_produk.dart` (v28 menambah Manis dan Es).
   BoolColumn get hasSpicyOption =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get hasSweetOption =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get hasIceOption =>
       boolean().withDefault(const Constant(false))();
   TextColumn get imagePath => text().nullable()();
 
@@ -388,7 +394,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -923,6 +929,29 @@ class AppDatabase extends _$AppDatabase {
             await _seedPermissions();
           }
 
+          if (from < 28 && to >= 28) {
+            // v28 — produk mendapat dua kelompok pilihan baru: Manis dan Es.
+            //
+            // Dicek dulu tabelnya ada (migrasi bisa berangkat dari skema yang
+            // lebih tua — sama seperti v24), lalu per kolom: beberapa migrasi
+            // lama membangun ulang tabel produk dari skema TERBARU, jadi
+            // pemasangan yang berangkat dari sana sudah memiliki kolomnya.
+            final adaProduk = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'products'",
+            ).get();
+            for (final kolom in [
+              if (adaProduk.isNotEmpty) products.hasSweetOption,
+              if (adaProduk.isNotEmpty) products.hasIceOption,
+            ]) {
+              final ada = await customSelect(
+                "SELECT 1 FROM pragma_table_info('products') WHERE name = ?",
+                variables: [Variable.withString(kolom.name)],
+              ).get();
+              if (ada.isEmpty) await m.addColumn(products, kolom);
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1064,6 +1093,8 @@ class AppDatabase extends _$AppDatabase {
     String? barcode,
     String? categoryId,
     required bool hasSpicyOption,
+    required bool hasSweetOption,
+    required bool hasIceOption,
     String? imagePath,
   }) async {
     SessionManager.instance.requirePermission('manage_products');
@@ -1074,6 +1105,8 @@ class AppDatabase extends _$AppDatabase {
       barcode: Value(barcode),
       categoryId: Value(categoryId),
       hasSpicyOption: Value(hasSpicyOption),
+      hasSweetOption: Value(hasSweetOption),
+      hasIceOption: Value(hasIceOption),
       imagePath: Value(imagePath),
       updatedAt: Value(DateTime.now()),
       syncStatus: const Value('pending'),

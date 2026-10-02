@@ -15,8 +15,11 @@ import 'dart:io';
 import '../../shared/services/image_storage_service.dart';
 import '../../shared/widgets/sync_refresh.dart';
 import 'models/keranjang.dart';
+import 'models/pilihan_produk.dart';
+import 'sheets/pilihan_produk_sheet.dart';
 import 'cart_page.dart';
 import '../../shared/widgets/error_state_widget.dart';
+import '../../shared/widgets/ikon_pilihan_produk.dart';
 
 class SalesPage extends StatefulWidget {
   const SalesPage({super.key});
@@ -171,130 +174,19 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     animationController.dispose();
   }
 
-  /// Tampilkan pilihan level pedas, return pilihan atau null jika dibatalkan
-  Future<String?> _showSpicySheet(Product p) async {
-    return showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                p.name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Pilih tingkat kepedasan:',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 16),
-              for (final option in [
-                ('Tidak Pedas', 1, const Color(0xFF94A3B8)),
-                ('Sedang', 2, const Color(0xFFF59E0B)),
-                ('Pedas', 3, const Color(0xFFDC2626)),
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Material(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => Navigator.pop(ctx, option.$1),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        child: Row(
-                          children: [
-                            // Heat level dots indicator (3 dots)
-                            Row(
-                              children: List.generate(
-                                3,
-                                (i) => Container(
-                                  width: 8,
-                                  height: 8,
-                                  margin: const EdgeInsets.only(right: 4),
-                                  decoration: BoxDecoration(
-                                    color: i < option.$2
-                                        ? option.$3
-                                        : Colors.grey.shade200,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Text(
-                              option.$1,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Spacer(),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 18,
-                              color: Colors.grey.shade400,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 4),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey.shade500,
-                  ),
-                  child: const Text('Lewati'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _addToCart(Product p, Offset tapPosition) async {
     // Lock per-produk: cegah tap ganda sebelum setState selesai
     if (_addingProducts.contains(p.id)) return;
     _addingProducts.add(p.id);
 
     try {
-      // Level pedas hanya ditanyakan saat produk PERTAMA kali masuk.
+      // Produk yang punya pilihan ditanyakan SETIAP kali diketuk: pilihan
+      // berbeda jadi baris baru. Menambah jumlah dengan pilihan yang sama
+      // dilakukan lewat tombol + di keranjang.
       String? notes;
-      if (!_keranjang.sudahAda(p.id) && p.hasSpicyOption) {
-        notes = await _showSpicySheet(p);
+      if (kelompokUntuk(p).isNotEmpty) {
+        notes = await tanyaPilihanProduk(context, p);
+        if (notes == null) return; // lembar ditutup = batal
       }
 
       if (!mounted) return;
@@ -658,11 +550,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (p.hasSpicyOption) ...[
-                const SizedBox(width: 3),
-                const Icon(Icons.local_fire_department_rounded,
-                    size: 13, color: Colors.deepOrange),
-              ],
+              IkonPilihanProduk(produk: p),
             ],
           ),
         ],
@@ -702,11 +590,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (p.hasSpicyOption) ...[
-                const SizedBox(width: 3),
-                const Icon(Icons.local_fire_department_rounded,
-                    size: 13, color: Colors.deepOrange),
-              ],
+              IkonPilihanProduk(produk: p),
             ],
           ),
         ],

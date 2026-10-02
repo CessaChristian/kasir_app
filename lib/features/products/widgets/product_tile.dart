@@ -4,6 +4,7 @@ import '../../../shared/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import '../../../data/app_database.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../sales/models/pilihan_produk.dart';
 
 /// Product card/tile widget
 class ProductTile extends StatelessWidget {
@@ -93,11 +94,11 @@ class ProductTile extends StatelessWidget {
                               icon: Icons.qr_code_rounded,
                               label: product.barcode!,
                             ),
-                          // Spicy Badge
-                          if (product.hasSpicyOption)
+                          // Kelompok pilihan yang ditanyakan di halaman Kasir
+                          if (kelompokUntuk(product).isNotEmpty)
                             _buildBadge(
-                              icon: Icons.local_fire_department_rounded,
-                              label: 'Ada pilihan pedas',
+                              icon: Icons.tune_rounded,
+                              label: 'Pilihan: ${kelompokUntuk(product).map((k) => k.label).join(', ')}',
                             ),
                         ],
                       ),

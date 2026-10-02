@@ -541,6 +541,36 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _hasSweetOptionMeta = const VerificationMeta(
+    'hasSweetOption',
+  );
+  @override
+  late final GeneratedColumn<bool> hasSweetOption = GeneratedColumn<bool>(
+    'has_sweet_option',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_sweet_option" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _hasIceOptionMeta = const VerificationMeta(
+    'hasIceOption',
+  );
+  @override
+  late final GeneratedColumn<bool> hasIceOption = GeneratedColumn<bool>(
+    'has_ice_option',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_ice_option" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _imagePathMeta = const VerificationMeta(
     'imagePath',
   );
@@ -607,6 +637,8 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     barcode,
     categoryId,
     hasSpicyOption,
+    hasSweetOption,
+    hasIceOption,
     imagePath,
     createdAt,
     updatedAt,
@@ -662,6 +694,24 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         hasSpicyOption.isAcceptableOrUnknown(
           data['has_spicy_option']!,
           _hasSpicyOptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('has_sweet_option')) {
+      context.handle(
+        _hasSweetOptionMeta,
+        hasSweetOption.isAcceptableOrUnknown(
+          data['has_sweet_option']!,
+          _hasSweetOptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('has_ice_option')) {
+      context.handle(
+        _hasIceOptionMeta,
+        hasIceOption.isAcceptableOrUnknown(
+          data['has_ice_option']!,
+          _hasIceOptionMeta,
         ),
       );
     }
@@ -728,6 +778,14 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.bool,
         data['${effectivePrefix}has_spicy_option'],
       )!,
+      hasSweetOption: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_sweet_option'],
+      )!,
+      hasIceOption: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_ice_option'],
+      )!,
       imagePath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}image_path'],
@@ -764,6 +822,8 @@ class Product extends DataClass implements Insertable<Product> {
   final String? barcode;
   final String? categoryId;
   final bool hasSpicyOption;
+  final bool hasSweetOption;
+  final bool hasIceOption;
   final String? imagePath;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -776,6 +836,8 @@ class Product extends DataClass implements Insertable<Product> {
     this.barcode,
     this.categoryId,
     required this.hasSpicyOption,
+    required this.hasSweetOption,
+    required this.hasIceOption,
     this.imagePath,
     required this.createdAt,
     required this.updatedAt,
@@ -795,6 +857,8 @@ class Product extends DataClass implements Insertable<Product> {
       map['category_id'] = Variable<String>(categoryId);
     }
     map['has_spicy_option'] = Variable<bool>(hasSpicyOption);
+    map['has_sweet_option'] = Variable<bool>(hasSweetOption);
+    map['has_ice_option'] = Variable<bool>(hasIceOption);
     if (!nullToAbsent || imagePath != null) {
       map['image_path'] = Variable<String>(imagePath);
     }
@@ -819,6 +883,8 @@ class Product extends DataClass implements Insertable<Product> {
           ? const Value.absent()
           : Value(categoryId),
       hasSpicyOption: Value(hasSpicyOption),
+      hasSweetOption: Value(hasSweetOption),
+      hasIceOption: Value(hasIceOption),
       imagePath: imagePath == null && nullToAbsent
           ? const Value.absent()
           : Value(imagePath),
@@ -843,6 +909,8 @@ class Product extends DataClass implements Insertable<Product> {
       barcode: serializer.fromJson<String?>(json['barcode']),
       categoryId: serializer.fromJson<String?>(json['categoryId']),
       hasSpicyOption: serializer.fromJson<bool>(json['hasSpicyOption']),
+      hasSweetOption: serializer.fromJson<bool>(json['hasSweetOption']),
+      hasIceOption: serializer.fromJson<bool>(json['hasIceOption']),
       imagePath: serializer.fromJson<String?>(json['imagePath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -860,6 +928,8 @@ class Product extends DataClass implements Insertable<Product> {
       'barcode': serializer.toJson<String?>(barcode),
       'categoryId': serializer.toJson<String?>(categoryId),
       'hasSpicyOption': serializer.toJson<bool>(hasSpicyOption),
+      'hasSweetOption': serializer.toJson<bool>(hasSweetOption),
+      'hasIceOption': serializer.toJson<bool>(hasIceOption),
       'imagePath': serializer.toJson<String?>(imagePath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -875,6 +945,8 @@ class Product extends DataClass implements Insertable<Product> {
     Value<String?> barcode = const Value.absent(),
     Value<String?> categoryId = const Value.absent(),
     bool? hasSpicyOption,
+    bool? hasSweetOption,
+    bool? hasIceOption,
     Value<String?> imagePath = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -887,6 +959,8 @@ class Product extends DataClass implements Insertable<Product> {
     barcode: barcode.present ? barcode.value : this.barcode,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
+    hasSweetOption: hasSweetOption ?? this.hasSweetOption,
+    hasIceOption: hasIceOption ?? this.hasIceOption,
     imagePath: imagePath.present ? imagePath.value : this.imagePath,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -905,6 +979,12 @@ class Product extends DataClass implements Insertable<Product> {
       hasSpicyOption: data.hasSpicyOption.present
           ? data.hasSpicyOption.value
           : this.hasSpicyOption,
+      hasSweetOption: data.hasSweetOption.present
+          ? data.hasSweetOption.value
+          : this.hasSweetOption,
+      hasIceOption: data.hasIceOption.present
+          ? data.hasIceOption.value
+          : this.hasIceOption,
       imagePath: data.imagePath.present ? data.imagePath.value : this.imagePath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -924,6 +1004,8 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
+          ..write('hasSweetOption: $hasSweetOption, ')
+          ..write('hasIceOption: $hasIceOption, ')
           ..write('imagePath: $imagePath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -941,6 +1023,8 @@ class Product extends DataClass implements Insertable<Product> {
     barcode,
     categoryId,
     hasSpicyOption,
+    hasSweetOption,
+    hasIceOption,
     imagePath,
     createdAt,
     updatedAt,
@@ -957,6 +1041,8 @@ class Product extends DataClass implements Insertable<Product> {
           other.barcode == this.barcode &&
           other.categoryId == this.categoryId &&
           other.hasSpicyOption == this.hasSpicyOption &&
+          other.hasSweetOption == this.hasSweetOption &&
+          other.hasIceOption == this.hasIceOption &&
           other.imagePath == this.imagePath &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -971,6 +1057,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String?> barcode;
   final Value<String?> categoryId;
   final Value<bool> hasSpicyOption;
+  final Value<bool> hasSweetOption;
+  final Value<bool> hasIceOption;
   final Value<String?> imagePath;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -984,6 +1072,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
+    this.hasSweetOption = const Value.absent(),
+    this.hasIceOption = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -998,6 +1088,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
+    this.hasSweetOption = const Value.absent(),
+    this.hasIceOption = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1013,6 +1105,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? barcode,
     Expression<String>? categoryId,
     Expression<bool>? hasSpicyOption,
+    Expression<bool>? hasSweetOption,
+    Expression<bool>? hasIceOption,
     Expression<String>? imagePath,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1027,6 +1121,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (barcode != null) 'barcode': barcode,
       if (categoryId != null) 'category_id': categoryId,
       if (hasSpicyOption != null) 'has_spicy_option': hasSpicyOption,
+      if (hasSweetOption != null) 'has_sweet_option': hasSweetOption,
+      if (hasIceOption != null) 'has_ice_option': hasIceOption,
       if (imagePath != null) 'image_path': imagePath,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -1043,6 +1139,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String?>? barcode,
     Value<String?>? categoryId,
     Value<bool>? hasSpicyOption,
+    Value<bool>? hasSweetOption,
+    Value<bool>? hasIceOption,
     Value<String?>? imagePath,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -1057,6 +1155,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       barcode: barcode ?? this.barcode,
       categoryId: categoryId ?? this.categoryId,
       hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
+      hasSweetOption: hasSweetOption ?? this.hasSweetOption,
+      hasIceOption: hasIceOption ?? this.hasIceOption,
       imagePath: imagePath ?? this.imagePath,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1086,6 +1186,12 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     }
     if (hasSpicyOption.present) {
       map['has_spicy_option'] = Variable<bool>(hasSpicyOption.value);
+    }
+    if (hasSweetOption.present) {
+      map['has_sweet_option'] = Variable<bool>(hasSweetOption.value);
+    }
+    if (hasIceOption.present) {
+      map['has_ice_option'] = Variable<bool>(hasIceOption.value);
     }
     if (imagePath.present) {
       map['image_path'] = Variable<String>(imagePath.value);
@@ -1117,6 +1223,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
+          ..write('hasSweetOption: $hasSweetOption, ')
+          ..write('hasIceOption: $hasIceOption, ')
           ..write('imagePath: $imagePath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -6108,6 +6216,8 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<String?> barcode,
       Value<String?> categoryId,
       Value<bool> hasSpicyOption,
+      Value<bool> hasSweetOption,
+      Value<bool> hasIceOption,
       Value<String?> imagePath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -6123,6 +6233,8 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String?> barcode,
       Value<String?> categoryId,
       Value<bool> hasSpicyOption,
+      Value<bool> hasSweetOption,
+      Value<bool> hasIceOption,
       Value<String?> imagePath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -6186,6 +6298,16 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasSweetOption => $composableBuilder(
+    column: $table.hasSweetOption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasIceOption => $composableBuilder(
+    column: $table.hasIceOption,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6272,6 +6394,16 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get hasSweetOption => $composableBuilder(
+    column: $table.hasSweetOption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasIceOption => $composableBuilder(
+    column: $table.hasIceOption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get imagePath => $composableBuilder(
     column: $table.imagePath,
     builder: (column) => ColumnOrderings(column),
@@ -6344,6 +6476,16 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasSweetOption => $composableBuilder(
+    column: $table.hasSweetOption,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasIceOption => $composableBuilder(
+    column: $table.hasIceOption,
     builder: (column) => column,
   );
 
@@ -6422,6 +6564,8 @@ class $$ProductsTableTableManager
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
+                Value<bool> hasSweetOption = const Value.absent(),
+                Value<bool> hasIceOption = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -6435,6 +6579,8 @@ class $$ProductsTableTableManager
                 barcode: barcode,
                 categoryId: categoryId,
                 hasSpicyOption: hasSpicyOption,
+                hasSweetOption: hasSweetOption,
+                hasIceOption: hasIceOption,
                 imagePath: imagePath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -6450,6 +6596,8 @@ class $$ProductsTableTableManager
                 Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
+                Value<bool> hasSweetOption = const Value.absent(),
+                Value<bool> hasIceOption = const Value.absent(),
                 Value<String?> imagePath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -6463,6 +6611,8 @@ class $$ProductsTableTableManager
                 barcode: barcode,
                 categoryId: categoryId,
                 hasSpicyOption: hasSpicyOption,
+                hasSweetOption: hasSweetOption,
+                hasIceOption: hasIceOption,
                 imagePath: imagePath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

@@ -14,6 +14,7 @@ import '../../../data/app_database.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../utils/currency_formatter.dart';
 import '../category_manager.dart';
+import '../../sales/models/pilihan_produk.dart';
 
 class FormResult {
   final String name;
@@ -21,6 +22,8 @@ class FormResult {
   final String? barcode;
   final String? categoryId;
   final bool hasSpicyOption;
+  final bool hasSweetOption;
+  final bool hasIceOption;
   final String? imagePath;
 
   FormResult({
@@ -29,6 +32,8 @@ class FormResult {
     required this.barcode,
     this.categoryId,
     required this.hasSpicyOption,
+    required this.hasSweetOption,
+    required this.hasIceOption,
     this.imagePath,
   });
 }
@@ -53,6 +58,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   Category? _selectedCategory;
   bool _categoryInitialized = false;
   bool _hasSpicyOption = false;
+  bool _hasSweetOption = false;
+  bool _hasIceOption = false;
   String? _imagePath;
   final _imageStorage = ImageStorageService();
 
@@ -80,6 +87,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     );
     _barcodeC = TextEditingController(text: p?.barcode ?? '');
     _hasSpicyOption = p?.hasSpicyOption ?? false;
+    _hasSweetOption = p?.hasSweetOption ?? false;
+    _hasIceOption = p?.hasIceOption ?? false;
     _imagePath = p?.imagePath;
   }
 
@@ -112,14 +121,16 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     final p = widget.editing;
 
     // Mode Tambah: kotor kalau user sudah mengisi atau mengubah apa pun.
-    // hasSpicyOption/imagePath ikut dicek — sebelumnya terlewat,
-    // sehingga toggle dan foto bisa hilang tanpa peringatan.
+    // Sakelar pilihan dan foto ikut dicek — sebelumnya terlewat,
+    // sehingga sakelar dan foto bisa hilang tanpa peringatan.
     if (p == null) {
       return _nameC.text.trim().isNotEmpty ||
           parseRupiah(_priceC.text) != null ||
           _currentBarcode != null ||
           _selectedCategory != null ||
           _hasSpicyOption ||
+          _hasSweetOption ||
+          _hasIceOption ||
           _imagePath != null;
     }
 
@@ -139,6 +150,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         _currentBarcode != p.barcode ||
         categoryChanged ||
         _hasSpicyOption != p.hasSpicyOption ||
+        _hasSweetOption != p.hasSweetOption ||
+        _hasIceOption != p.hasIceOption ||
         _imagePath != p.imagePath;
   }
 
@@ -175,6 +188,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         barcode: _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim(),
         categoryId: _selectedCategory?.id,
         hasSpicyOption: _hasSpicyOption,
+        hasSweetOption: _hasSweetOption,
+        hasIceOption: _hasIceOption,
         imagePath: _imagePath,
       ),
     );
@@ -512,17 +527,41 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                 ),
                 const SizedBox(height: 10),
 
-                // ---- Pilihan Level Pedas ----
+                // ---- Pilihan yang ditanyakan di halaman Kasir ----
                 _buildToggle(
                   title: 'Ada pilihan level pedas',
                   subtitle: _hasSpicyOption
-                      ? 'Tidak Pedas / Normal / Pedas'
+                      ? KelompokPilihan.pedas.daftar.join(' / ')
                       : 'Produk tidak punya pilihan kepedasan',
                   icon: Icons.local_fire_department_rounded,
                   value: _hasSpicyOption,
                   primaryColor: primaryColor,
                   activeColor: Colors.deepOrange,
                   onChanged: (v) => setState(() => _hasSpicyOption = v),
+                ),
+                const SizedBox(height: 8),
+                _buildToggle(
+                  title: 'Ada pilihan tingkat manis',
+                  subtitle: _hasSweetOption
+                      ? KelompokPilihan.manis.daftar.join(' / ')
+                      : 'Produk tidak punya pilihan gula',
+                  icon: Icons.cookie_rounded,
+                  value: _hasSweetOption,
+                  primaryColor: primaryColor,
+                  activeColor: Colors.brown,
+                  onChanged: (v) => setState(() => _hasSweetOption = v),
+                ),
+                const SizedBox(height: 8),
+                _buildToggle(
+                  title: 'Ada pilihan es',
+                  subtitle: _hasIceOption
+                      ? KelompokPilihan.es.daftar.join(' / ')
+                      : 'Produk tidak punya pilihan es',
+                  icon: Icons.ac_unit_rounded,
+                  value: _hasIceOption,
+                  primaryColor: primaryColor,
+                  activeColor: Colors.lightBlue,
+                  onChanged: (v) => setState(() => _hasIceOption = v),
                 ),
                 const SizedBox(height: 8),
 

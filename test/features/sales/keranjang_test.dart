@@ -29,16 +29,32 @@ void main() {
     expect(diberiTahu, 3);
   });
 
-  test('menambah produk yang sudah ada tidak mengubah catatannya', () {
-    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000, catatan: 'Level 3');
-    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000);
-    expect(k.baris.single.notes, 'Level 3');
+  test('produk sama dengan pilihan BERBEDA jadi baris baru', () {
+    // Satu transaksi bisa berisi Mie Goreng "Sedang" dan Mie Goreng "Pedas".
+    // Dulu keduanya tergabung jadi satu baris dengan catatan yang pertama.
+    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000,
+        catatan: 'Pedas: Sedang');
+    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000,
+        catatan: 'Pedas: Ekstra Pedas');
+    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000,
+        catatan: 'Pedas: Sedang');
+
+    expect(k.baris.map((b) => (b.notes, b.qty)), [
+      ('Pedas: Sedang', 2),
+      ('Pedas: Ekstra Pedas', 1),
+    ]);
+    expect(k.total, 45000);
   });
 
-  test('sudahAda dipakai halaman untuk memutuskan bertanya level pedas', () {
-    expect(k.sudahAda('mie'), isFalse);
-    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000);
-    expect(k.sudahAda('mie'), isTrue);
+  test('tombol + di keranjang menambah baris itu dengan pilihan yang sama', () {
+    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000,
+        catatan: 'Pedas: Sedang');
+    k.tambah(idProduk: 'mie', nama: 'Mie', harga: 15000,
+        catatan: 'Pedas: Pedas');
+    k.tambahSatu(1);
+    expect(k.baris[1].qty, 2);
+    expect(k.baris[1].notes, 'Pedas: Pedas');
+    expect(k.baris[0].qty, 1);
   });
 
   test('tambah satu, kurangi satu, dan hilang saat jumlahnya habis', () {
