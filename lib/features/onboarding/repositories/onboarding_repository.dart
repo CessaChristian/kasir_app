@@ -37,7 +37,7 @@ class OnboardingRepository {
   /// Check apakah ada user sama sekali di DB.
   Future<bool> hasAnyUser() async {
     final result = await (_dbx.select(_dbx.users)
-          ..where((u) => u.deletedAt.isNull() & u.isActive.equals(true))
+          ..where((u) => u.isActive.equals(true))
           ..limit(1))
         .get();
     return result.isNotEmpty;

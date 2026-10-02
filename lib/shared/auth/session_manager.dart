@@ -76,7 +76,7 @@ class SessionManager {
           .getSingleOrNull();
 
       if (user == null || !user.isActive) {
-        // User dihapus atau dinonaktifkan setelah session dibuat
+        // Akun dinonaktifkan (atau barisnya tidak ada) setelah sesi dibuat
         await clearSession();
         return;
       }
@@ -187,12 +187,10 @@ class SessionManager {
     }
 
     final alasan = user == null
-        ? 'Akun Anda sudah dihapus.'
-        : user.deletedAt != null
-            ? 'Akun Anda sudah dihapus.'
-            : !user.isActive
-                ? 'Akses Anda dinonaktifkan oleh pemilik.'
-                : null;
+        ? 'Akun Anda sudah tidak ada.'
+        : !user.isActive
+            ? 'Akses Anda dinonaktifkan oleh pemilik.'
+            : null;
     if (alasan == null) {
       // Owner mengganti nama akun ini dari HP lain: nama di menu ikut
       // berganti tanpa perlu login ulang.

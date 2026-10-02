@@ -40,8 +40,8 @@ create table public.users (
   login_attempts        integer     not null default 0,
   login_locked_until    timestamptz,
   created_at            timestamptz not null default now(),
-  updated_at            timestamptz not null default now(),
-  deleted_at            timestamptz
+  updated_at            timestamptz not null default now()
+  -- Sengaja tanpa deleted_at: akun tidak pernah dihapus, hanya dinonaktifkan.
 );
 
 -- ---------------------------------------------------------- permissions

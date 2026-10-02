@@ -228,10 +228,10 @@ class Users extends Table {
       integer().withDefault(const Constant(0))();
   DateTimeColumn get loginLockedUntil => dateTime().nullable()();
 
-  // Sync-friendly (NEW in v10 — siap untuk Phase 2 sync)
+  // Sengaja TANPA `deleted_at`: akun tidak pernah dihapus — satu akun untuk
+  // satu orang. Karyawan yang keluar dinonaktifkan lewat `isActive`.
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
 
@@ -389,7 +389,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -878,6 +878,24 @@ class AppDatabase extends _$AppDatabase {
             if (adaSyncState.isNotEmpty) {
               await customStatement(
                   'UPDATE sync_state SET last_pulled_cursor = NULL');
+            }
+          }
+
+          if (from < 26 && to >= 26) {
+            // v26 — kolom `users.deleted_at` dicopot. Akun tidak pernah
+            // dihapus; karyawan yang keluar dinonaktifkan.
+            //
+            // DROP COLUMN, bukan membangun ulang tabel: `users` ditunjuk
+            // banyak tabel lain, dan membangun ulang tabel induk berarti
+            // membuang tabel lamanya dulu. Dicek dulu kolomnya ada, karena
+            // pemasangan yang berangkat dari v10/v12 sudah membangun tabel
+            // ini dari skema terbaru — tanpa kolom itu.
+            final kolom = await customSelect(
+              "SELECT 1 FROM pragma_table_info('users') "
+              "WHERE name = 'deleted_at'",
+            ).get();
+            if (kolom.isNotEmpty) {
+              await customStatement('ALTER TABLE users DROP COLUMN deleted_at');
             }
           }
 

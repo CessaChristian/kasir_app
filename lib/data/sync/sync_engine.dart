@@ -814,7 +814,6 @@ class SyncEngine {
                 'login_locked_until': _iso(u.loginLockedUntil),
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
-                'deleted_at': _iso(u.deletedAt),
               }
           ];
         },
@@ -836,7 +835,6 @@ class SyncEngine {
                 loginLockedUntil: Value(_dt(r['login_locked_until'])),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
-                deletedAt: Value(_dt(r['deleted_at'])),
                 syncStatus: const Value('synced'),
               ));
         },

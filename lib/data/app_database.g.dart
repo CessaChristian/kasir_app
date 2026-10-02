@@ -1316,17 +1316,6 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
-  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
-    'deletedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
-    'deleted_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -1357,7 +1346,6 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     loginAttempts,
     loginLockedUntil,
     updatedAt,
-    deletedAt,
     syncStatus,
   ];
   @override
@@ -1497,12 +1485,6 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
-    if (data.containsKey('deleted_at')) {
-      context.handle(
-        _deletedAtMeta,
-        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
-      );
-    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -1582,10 +1564,6 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
-      deletedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}deleted_at'],
-      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sync_status'],
@@ -1616,7 +1594,6 @@ class User extends DataClass implements Insertable<User> {
   final int loginAttempts;
   final DateTime? loginLockedUntil;
   final DateTime updatedAt;
-  final DateTime? deletedAt;
   final String syncStatus;
   const User({
     required this.id,
@@ -1635,7 +1612,6 @@ class User extends DataClass implements Insertable<User> {
     required this.loginAttempts,
     this.loginLockedUntil,
     required this.updatedAt,
-    this.deletedAt,
     required this.syncStatus,
   });
   @override
@@ -1669,9 +1645,6 @@ class User extends DataClass implements Insertable<User> {
       map['login_locked_until'] = Variable<DateTime>(loginLockedUntil);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
-    if (!nullToAbsent || deletedAt != null) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt);
-    }
     map['sync_status'] = Variable<String>(syncStatus);
     return map;
   }
@@ -1706,9 +1679,6 @@ class User extends DataClass implements Insertable<User> {
           ? const Value.absent()
           : Value(loginLockedUntil),
       updatedAt: Value(updatedAt),
-      deletedAt: deletedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(deletedAt),
       syncStatus: Value(syncStatus),
     );
   }
@@ -1741,7 +1711,6 @@ class User extends DataClass implements Insertable<User> {
         json['loginLockedUntil'],
       ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
   }
@@ -1765,7 +1734,6 @@ class User extends DataClass implements Insertable<User> {
       'loginAttempts': serializer.toJson<int>(loginAttempts),
       'loginLockedUntil': serializer.toJson<DateTime?>(loginLockedUntil),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
-      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
   }
@@ -1787,7 +1755,6 @@ class User extends DataClass implements Insertable<User> {
     int? loginAttempts,
     Value<DateTime?> loginLockedUntil = const Value.absent(),
     DateTime? updatedAt,
-    Value<DateTime?> deletedAt = const Value.absent(),
     String? syncStatus,
   }) => User(
     id: id ?? this.id,
@@ -1814,7 +1781,6 @@ class User extends DataClass implements Insertable<User> {
         ? loginLockedUntil.value
         : this.loginLockedUntil,
     updatedAt: updatedAt ?? this.updatedAt,
-    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     syncStatus: syncStatus ?? this.syncStatus,
   );
   User copyWithCompanion(UsersCompanion data) {
@@ -1851,7 +1817,6 @@ class User extends DataClass implements Insertable<User> {
           ? data.loginLockedUntil.value
           : this.loginLockedUntil,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -1877,7 +1842,6 @@ class User extends DataClass implements Insertable<User> {
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
         .toString();
@@ -1901,7 +1865,6 @@ class User extends DataClass implements Insertable<User> {
     loginAttempts,
     loginLockedUntil,
     updatedAt,
-    deletedAt,
     syncStatus,
   );
   @override
@@ -1924,7 +1887,6 @@ class User extends DataClass implements Insertable<User> {
           other.loginAttempts == this.loginAttempts &&
           other.loginLockedUntil == this.loginLockedUntil &&
           other.updatedAt == this.updatedAt &&
-          other.deletedAt == this.deletedAt &&
           other.syncStatus == this.syncStatus);
 }
 
@@ -1945,7 +1907,6 @@ class UsersCompanion extends UpdateCompanion<User> {
   final Value<int> loginAttempts;
   final Value<DateTime?> loginLockedUntil;
   final Value<DateTime> updatedAt;
-  final Value<DateTime?> deletedAt;
   final Value<String> syncStatus;
   final Value<int> rowid;
   const UsersCompanion({
@@ -1965,7 +1926,6 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
     this.updatedAt = const Value.absent(),
-    this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1986,7 +1946,6 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
     this.updatedAt = const Value.absent(),
-    this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : username = Value(username),
@@ -2010,7 +1969,6 @@ class UsersCompanion extends UpdateCompanion<User> {
     Expression<int>? loginAttempts,
     Expression<DateTime>? loginLockedUntil,
     Expression<DateTime>? updatedAt,
-    Expression<DateTime>? deletedAt,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
   }) {
@@ -2032,7 +1990,6 @@ class UsersCompanion extends UpdateCompanion<User> {
       if (loginAttempts != null) 'login_attempts': loginAttempts,
       if (loginLockedUntil != null) 'login_locked_until': loginLockedUntil,
       if (updatedAt != null) 'updated_at': updatedAt,
-      if (deletedAt != null) 'deleted_at': deletedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
     });
@@ -2055,7 +2012,6 @@ class UsersCompanion extends UpdateCompanion<User> {
     Value<int>? loginAttempts,
     Value<DateTime?>? loginLockedUntil,
     Value<DateTime>? updatedAt,
-    Value<DateTime?>? deletedAt,
     Value<String>? syncStatus,
     Value<int>? rowid,
   }) {
@@ -2076,7 +2032,6 @@ class UsersCompanion extends UpdateCompanion<User> {
       loginAttempts: loginAttempts ?? this.loginAttempts,
       loginLockedUntil: loginLockedUntil ?? this.loginLockedUntil,
       updatedAt: updatedAt ?? this.updatedAt,
-      deletedAt: deletedAt ?? this.deletedAt,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
     );
@@ -2135,9 +2090,6 @@ class UsersCompanion extends UpdateCompanion<User> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
-    if (deletedAt.present) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
-    }
     if (syncStatus.present) {
       map['sync_status'] = Variable<String>(syncStatus.value);
     }
@@ -2166,7 +2118,6 @@ class UsersCompanion extends UpdateCompanion<User> {
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6604,7 +6555,6 @@ typedef $$UsersTableCreateCompanionBuilder =
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
       Value<DateTime> updatedAt,
-      Value<DateTime?> deletedAt,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -6626,7 +6576,6 @@ typedef $$UsersTableUpdateCompanionBuilder =
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
       Value<DateTime> updatedAt,
-      Value<DateTime?> deletedAt,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -6797,11 +6746,6 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
-    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7000,11 +6944,6 @@ class $$UsersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
-    column: $table.deletedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -7083,9 +7022,6 @@ class $$UsersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get deletedAt =>
-      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   GeneratedColumn<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
@@ -7242,7 +7178,6 @@ class $$UsersTableTableManager
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
-                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UsersCompanion(
@@ -7262,7 +7197,6 @@ class $$UsersTableTableManager
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
                 updatedAt: updatedAt,
-                deletedAt: deletedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),
@@ -7284,7 +7218,6 @@ class $$UsersTableTableManager
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
-                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UsersCompanion.insert(
@@ -7304,7 +7237,6 @@ class $$UsersTableTableManager
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
                 updatedAt: updatedAt,
-                deletedAt: deletedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),

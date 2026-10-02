@@ -78,16 +78,6 @@ void main() {
             'mengira aplikasinya rusak');
   });
 
-  test('akun dihapus lunak -> sesi dicabut', () async {
-    await (db.update(db.users)..where((u) => u.id.equals('u-budi')))
-        .write(UsersCompanion(deletedAt: Value(DateTime.now())));
-
-    await SessionManager.instance.periksaAkunMasihBerlaku();
-
-    expect(SessionManager.instance.isLoggedIn, isFalse);
-    expect(SessionManager.instance.sesiDicabut.value, contains('dihapus'));
-  });
-
   test('baris user lenyap -> sesi dicabut', () async {
     await (db.delete(db.users)..where((u) => u.id.equals('u-budi'))).go();
 
