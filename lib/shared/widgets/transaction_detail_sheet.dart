@@ -11,7 +11,14 @@ import '../../shared/widgets/dashed_divider.dart';
 class TransactionDetailSheet extends StatefulWidget {
   final Transaction transaction;
 
-  const TransactionDetailSheet({super.key, required this.transaction});
+  /// Nama akun yang membatalkan — hanya untuk transaksi yang dibatalkan.
+  final String? namaPembatal;
+
+  const TransactionDetailSheet({
+    super.key,
+    required this.transaction,
+    this.namaPembatal,
+  });
 
   @override
   State<TransactionDetailSheet> createState() => _TransactionDetailSheetState();
@@ -29,7 +36,11 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
   }
 
   Future<void> _loadItems() async {
-    final items = await _salesRepo.getTransactionItems(widget.transaction.id);
+    // Struk yang dibatalkan tetap menampilkan isinya sebagai bukti.
+    final items = await _salesRepo.getTransactionItems(
+      widget.transaction.id,
+      termasukBatal: widget.transaction.deletedAt != null,
+    );
     if (mounted) {
       setState(() {
         _items = items;
@@ -112,6 +123,9 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
           ),
 
           Divider(color: Colors.grey.shade200, height: 1),
+
+          if (tx.deletedAt != null)
+            InfoPembatalan(transaksi: tx, namaPembatal: widget.namaPembatal),
 
           // Receipt Content
           Flexible(
@@ -403,6 +417,57 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
               color: primaryColor,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Keterangan pembatalan: kapan, oleh siapa, dan alasannya.
+class InfoPembatalan extends StatelessWidget {
+  final Transaction transaksi;
+  final String? namaPembatal;
+  final bool ringkas;
+
+  const InfoPembatalan({
+    super.key,
+    required this.transaksi,
+    this.namaPembatal,
+    this.ringkas = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final kapan =
+        DateFormat('dd/MM/yyyy HH:mm').format(transaksi.deletedAt!.toLocal());
+    // Transaksi yang terhapus SEBELUM fitur pembatalan tidak punya catatan.
+    final alasan = transaksi.cancelReason ??
+        'Alasan tidak tercatat (dihapus sebelum fitur pembatalan)';
+    final oleh = namaPembatal != null ? ' · oleh $namaPembatal' : '';
+
+    final teks = Text(
+      ringkas ? '$alasan$oleh' : 'Dibatalkan $kapan$oleh\n$alasan',
+      style: TextStyle(fontSize: ringkas ? 12 : 13, color: Colors.red.shade700),
+      maxLines: ringkas ? 2 : null,
+      overflow: ringkas ? TextOverflow.ellipsis : null,
+    );
+    if (ringkas) return teks;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.block_rounded, size: 18, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: teks),
         ],
       ),
     );

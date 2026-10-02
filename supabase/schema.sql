@@ -121,7 +121,12 @@ create table public.transactions (
                               check (order_type in ('dine_in','take_away','delivery')),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  deleted_at      timestamptz
+  -- Untuk transaksi, `deleted_at` berarti DIBATALKAN — bukan sampah. Baris
+  -- ini disimpan selamanya sebagai bukti, dan tidak pernah dibuang
+  -- `buang_sampah`. Siapa dan kenapa: dua kolom di bawah.
+  deleted_at      timestamptz,
+  cancelled_by_user_id uuid   references public.users(id),
+  cancel_reason   text
 );
 
 -- ---------------------------------------------------- transaction_items

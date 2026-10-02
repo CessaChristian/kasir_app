@@ -98,7 +98,8 @@ void main() {
     expect(await repo.getShiftRevenue('shift-1'), 30000,
         reason: 'prasyarat: dua transaksi terhitung');
 
-    await db.softDeleteTransaction(dibuang);
+    await db.batalkanTransaksi(dibuang,
+        olehUserId: 'kasir-1', alasan: 'Salah input');
 
     // Inilah bug yang diperbaiki: tanpa filter deletedAt, hasilnya tetap 30000
     // dan kasir melihat pendapatan shift lebih besar dari kenyataan.

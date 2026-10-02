@@ -86,7 +86,7 @@ void main() {
     await db.customUpdate("UPDATE transactions SET sync_status='synced'");
     await db.customUpdate("UPDATE transaction_items SET sync_status='synced'");
 
-    await db.softDeleteTransaction(id);
+    await db.batalkanTransaksi(id, olehUserId: 'kasir-1', alasan: 'Salah input');
 
     final tx = await db.select(db.transactions).getSingle();
     final item = await db.select(db.transactionItems).getSingle();

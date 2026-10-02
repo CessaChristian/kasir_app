@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/error_state_widget.dart';
 import '../../data/db.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/crypto_utils.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
-import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
@@ -29,8 +30,11 @@ List<Transaction> saringPeriodeRiwayat(
 }) {
   if (cakupan == JenisCakupan.shiftAktif || bulan == null) return semua;
   return semua
-      .where((tx) =>
-          tx.createdAt.year == bulan.year && tx.createdAt.month == bulan.month)
+      .where(
+        (tx) =>
+            tx.createdAt.year == bulan.year &&
+            tx.createdAt.month == bulan.month,
+      )
       .toList();
 }
 
@@ -48,12 +52,27 @@ class _HistoryPageState extends State<HistoryPage> {
   // yang dibuat ulang tiap build membuat daftarnya berkedip.
   final _cakupan = CakupanRiwayat.dariSesi();
   late final _riwayat = _salesRepo.watchRiwayat(_cakupan);
+
+  /// Untuk menampilkan siapa yang membatalkan sebuah transaksi.
+  Map<String, String> _namaAkun = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _salesRepo.namaAkun().then((m) {
+      if (mounted) setState(() => _namaAkun = m);
+    });
+  }
+
   // Track which date sections are expanded (today expanded by default)
   final Set<String> _expandedDates = {};
   bool _initialized = false;
-  
+
   // Month filter - null means show all
-  DateTime? _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _selectedMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +92,9 @@ class _HistoryPageState extends State<HistoryPage> {
           }
 
           if (!snapshot.hasData) {
-            return Center(child: CircularProgressIndicator(color: primaryColor));
+            return Center(
+              child: CircularProgressIndicator(color: primaryColor),
+            );
           }
 
           final allTransactions = snapshot.data ?? [];
@@ -81,7 +102,7 @@ class _HistoryPageState extends State<HistoryPage> {
           if (allTransactions.isEmpty) {
             return _buildEmptyState();
           }
-          
+
           final transactions = saringPeriodeRiwayat(
             allTransactions,
             cakupan: _cakupan.jenis,
@@ -95,7 +116,8 @@ class _HistoryPageState extends State<HistoryPage> {
             grouped.putIfAbsent(dateKey, () => []).add(tx);
           }
 
-          final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+          final sortedKeys = grouped.keys.toList()
+            ..sort((a, b) => b.compareTo(a));
 
           // Initialize: expand today's section by default
           if (!_initialized && sortedKeys.isNotEmpty) {
@@ -104,7 +126,9 @@ class _HistoryPageState extends State<HistoryPage> {
           }
 
           // Calculate monthly total
-          final monthlyTotal = transactions.fold<int>(0, (sum, tx) => sum + tx.total);
+          // Transaksi yang dibatalkan tetap tampil, tapi TIDAK dihitung.
+          final aktif = transactions.where((tx) => tx.deletedAt == null);
+          final monthlyTotal = aktif.fold<int>(0, (sum, tx) => sum + tx.total);
 
           return Column(
             children: [
@@ -112,15 +136,15 @@ class _HistoryPageState extends State<HistoryPage> {
               // Kasir tanpa izin Lihat Riwayat Lengkap cuma punya shift yang
               // sedang berjalan — tidak ada yang perlu dipilih.
               if (_cakupan.jenis != JenisCakupan.shiftAktif)
-                _buildMonthFilter(monthlyTotal, transactions.length),
-              
+                _buildMonthFilter(monthlyTotal, aktif.length),
+
               // Transactions list
               Expanded(
                 child: transactions.isEmpty
                     ? _buildNoTransactionsForMonth()
                     : SyncRefresh(
                         child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                           itemCount: sortedKeys.length,
                           itemBuilder: (context, index) {
@@ -130,8 +154,9 @@ class _HistoryPageState extends State<HistoryPage> {
                             final isExpanded = _expandedDates.contains(dateKey);
 
                             // Calculate daily total
-                            final dailyTotal = dayTransactions.fold<int>(
-                              0, (sum, tx) => sum + tx.total);
+                            final dailyTotal = dayTransactions
+                                .where((tx) => tx.deletedAt == null)
+                                .fold<int>(0, (sum, tx) => sum + tx.total);
 
                             return _buildDaySection(
                               date: date,
@@ -141,8 +166,8 @@ class _HistoryPageState extends State<HistoryPage> {
                               isExpanded: isExpanded,
                             );
                           },
+                        ),
                       ),
-                    ),
               ),
             ],
           );
@@ -154,7 +179,8 @@ class _HistoryPageState extends State<HistoryPage> {
   String _formatMonthDisplay() {
     if (_selectedMonth == null) return 'Semua Waktu';
     final now = DateTime.now();
-    if (_selectedMonth!.year == now.year && _selectedMonth!.month == now.month) {
+    if (_selectedMonth!.year == now.year &&
+        _selectedMonth!.month == now.month) {
       return 'Bulan Ini';
     }
     return DateFormat('MMMM yyyy', 'id_ID').format(_selectedMonth!);
@@ -172,9 +198,18 @@ class _HistoryPageState extends State<HistoryPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final months = [
-              'Januari', 'Februari', 'Maret', 'April',
-              'Mei', 'Juni', 'Juli', 'Agustus',
-              'September', 'Oktober', 'November', 'Desember',
+              'Januari',
+              'Februari',
+              'Maret',
+              'April',
+              'Mei',
+              'Juni',
+              'Juli',
+              'Agustus',
+              'September',
+              'Oktober',
+              'November',
+              'Desember',
             ];
             final now = DateTime.now();
 
@@ -205,18 +240,25 @@ class _HistoryPageState extends State<HistoryPage> {
                         IconButton(
                           onPressed: () => setModalState(() => tempYear--),
                           icon: const Icon(Icons.chevron_left_rounded),
-                          style: IconButton.styleFrom(backgroundColor: Colors.grey.shade100),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.grey.shade100,
+                          ),
                         ),
                         Text(
                           '$tempYear',
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         IconButton(
                           onPressed: tempYear < now.year
                               ? () => setModalState(() => tempYear++)
                               : null,
                           icon: const Icon(Icons.chevron_right_rounded),
-                          style: IconButton.styleFrom(backgroundColor: Colors.grey.shade100),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.grey.shade100,
+                          ),
                         ),
                       ],
                     ),
@@ -227,17 +269,19 @@ class _HistoryPageState extends State<HistoryPage> {
                     child: GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 2.4,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 2.4,
+                          ),
                       itemCount: 12,
                       itemBuilder: (context, index) {
                         final monthNum = index + 1;
                         final isSelected = tempMonth == monthNum;
-                        final isFuture = tempYear == now.year && monthNum > now.month;
+                        final isFuture =
+                            tempYear == now.year && monthNum > now.month;
 
                         return Material(
                           color: Colors.transparent,
@@ -245,14 +289,15 @@ class _HistoryPageState extends State<HistoryPage> {
                             borderRadius: BorderRadius.circular(10),
                             onTap: isFuture
                                 ? null
-                                : () => setModalState(() => tempMonth = monthNum),
+                                : () =>
+                                      setModalState(() => tempMonth = monthNum),
                             child: Container(
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? primaryColor
                                     : isFuture
-                                        ? Colors.grey.shade50
-                                        : Colors.grey.shade100,
+                                    ? Colors.grey.shade50
+                                    : Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               alignment: Alignment.center,
@@ -260,12 +305,14 @@ class _HistoryPageState extends State<HistoryPage> {
                                 months[index],
                                 style: TextStyle(
                                   fontSize: 13,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                   color: isSelected
                                       ? Colors.white
                                       : isFuture
-                                          ? Colors.grey.shade400
-                                          : const Color(0xFF1A1A1A),
+                                      ? Colors.grey.shade400
+                                      : const Color(0xFF1A1A1A),
                                 ),
                               ),
                             ),
@@ -290,9 +337,17 @@ class _HistoryPageState extends State<HistoryPage> {
                               foregroundColor: Colors.grey.shade700,
                               side: BorderSide(color: Colors.grey.shade300),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            child: const Text('Semua Waktu', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Semua Waktu',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -302,16 +357,29 @@ class _HistoryPageState extends State<HistoryPage> {
                           child: ElevatedButton(
                             onPressed: () {
                               Navigator.pop(context);
-                              setState(() => _selectedMonth = DateTime(tempYear, tempMonth));
+                              setState(
+                                () => _selectedMonth = DateTime(
+                                  tempYear,
+                                  tempMonth,
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            child: const Text('Pilih Periode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Pilih Periode',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -357,7 +425,10 @@ class _HistoryPageState extends State<HistoryPage> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: _showMonthPicker,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -366,7 +437,11 @@ class _HistoryPageState extends State<HistoryPage> {
                           color: primaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.date_range_rounded, color: primaryColor, size: 20),
+                        child: Icon(
+                          Icons.date_range_rounded,
+                          color: primaryColor,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -375,17 +450,26 @@ class _HistoryPageState extends State<HistoryPage> {
                           children: [
                             Text(
                               'Periode Riwayat',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               _formatMonthDisplay(),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade500),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.grey.shade500,
+                      ),
                     ],
                   ),
                 ),
@@ -411,7 +495,11 @@ class _HistoryPageState extends State<HistoryPage> {
                     color: primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(Icons.insights_rounded, size: 17, color: primaryColor),
+                  child: Icon(
+                    Icons.insights_rounded,
+                    size: 17,
+                    color: primaryColor,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -438,7 +526,10 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
                     Text(
                       '$transactionCount transaksi',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                      ),
                     ),
                   ],
                 ),
@@ -449,7 +540,7 @@ class _HistoryPageState extends State<HistoryPage> {
       ),
     );
   }
-  
+
   Widget _buildNoTransactionsForMonth() {
     return Center(
       child: Column(
@@ -480,16 +571,13 @@ class _HistoryPageState extends State<HistoryPage> {
           const SizedBox(height: 4),
           Text(
             'Belum ada transaksi di bulan ini',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
         ],
       ),
     );
   }
-  
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -522,55 +610,193 @@ class _HistoryPageState extends State<HistoryPage> {
             _cakupan.jenis == JenisCakupan.shiftAktif
                 ? 'Transaksi di shift ini akan muncul di sini'
                 : 'Transaksi akan muncul di sini',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
         ],
       ),
     );
   }
-  
-  Future<void> _confirmDeleteTransaction(Transaction tx) async {
-    final confirmed = await showDialog<bool>(
+
+  /// "3 transaksi · 1 dibatalkan" — yang dibatalkan tidak dihitung.
+  String _ringkasJumlah(List<Transaction> daftar) {
+    final batal = daftar.where((tx) => tx.deletedAt != null).length;
+    final aktif = daftar.length - batal;
+    return batal == 0
+        ? '$aktif transaksi'
+        : '$aktif transaksi · $batal dibatalkan';
+  }
+
+  /// Panjang maksimal alasan "Lainnya".
+  static const _panjangAlasanMaks = 100;
+
+  static const _daftarAlasan = [
+    'Salah input',
+    'Pelanggan batal',
+    'Pembayaran gagal',
+    'Lainnya',
+  ];
+
+  /// Batalkan transaksi: pilih alasan, dan — untuk kasir — masukkan PIN owner.
+  ///
+  /// Tulisan PIN sengaja tidak menyebut PIN siapa. Kesalahan (PIN salah,
+  /// terkunci) ditampilkan di dalam lembar supaya kasir bisa mencoba lagi
+  /// tanpa memilih ulang alasannya.
+  Future<void> _batalkan(Transaction tx) async {
+    final pinC = TextEditingController();
+    final lainnyaC = TextEditingController();
+    final perluPin = _salesRepo.perluPinOwner;
+    String? alasan;
+    String? galat;
+    var memproses = false;
+
+    final berhasil = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Transaksi?'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Tindakan ini akan:'),
-            SizedBox(height: 8),
-            Text('• Mengurangi total penjualan'),
-            Text('• Mengubah laporan shift'),
-            SizedBox(height: 8),
-            Text('Tidak dapat di-undo.',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Hapus Transaksi'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLembar) {
+          final teksAlasan = alasan == 'Lainnya'
+              ? lainnyaC.text.trim()
+              : (alasan ?? '');
+          final siap =
+              teksAlasan.isNotEmpty &&
+              (!perluPin || pinC.text.length == CryptoUtils.pinLength) &&
+              !memproses;
+
+          Future<void> kirim() async {
+            setLembar(() {
+              memproses = true;
+              galat = null;
+            });
+            try {
+              await _salesRepo.batalkanTransaksi(
+                tx,
+                alasan: alasan == 'Lainnya'
+                    ? 'Lainnya: $teksAlasan'
+                    : teksAlasan,
+                pinOwner: perluPin ? pinC.text : null,
+              );
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            } on StateError catch (e) {
+              pinC.clear();
+              setLembar(() {
+                memproses = false;
+                galat = e.message;
+              });
+            } on ArgumentError catch (e) {
+              setLembar(() {
+                memproses = false;
+                galat = '${e.message}';
+              });
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              20 + MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Batalkan Transaksi',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${tx.invoiceNo} · Rp ${formatRupiah(tx.total)}\n'
+                  'Transaksi tetap tersimpan dengan tanda DIBATALKAN dan tidak '
+                  'dihitung di total.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Alasan',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final a in _daftarAlasan)
+                      ChoiceChip(
+                        label: Text(a),
+                        selected: alasan == a,
+                        onSelected: (_) => setLembar(() => alasan = a),
+                      ),
+                  ],
+                ),
+                if (alasan == 'Lainnya') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: lainnyaC,
+                    maxLength: _panjangAlasanMaks,
+                    onChanged: (_) => setLembar(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Tulis alasannya',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+                if (perluPin) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Masukkan PIN',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: pinC,
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: CryptoUtils.pinLength,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (_) => setLembar(() {}),
+                    decoration: const InputDecoration(
+                      hintText: '• • • • • •',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                  ),
+                ],
+                if (galat != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    galat!,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: siap ? kirim : null,
+                    child: Text(
+                      memproses ? 'Memproses…' : 'Batalkan Transaksi',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
+    pinC.dispose();
+    lainnyaC.dispose();
 
-    if (confirmed != true || !mounted) return;
-
-    try {
-      await _salesRepo.softDeleteTransaction(tx.id);
-      if (mounted) AppToast.success(context, 'Transaksi berhasil dihapus');
-    } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal hapus: $e');
+    if (berhasil == true && mounted) {
+      AppToast.success(context, 'Transaksi dibatalkan');
     }
   }
 
@@ -582,7 +808,7 @@ class _HistoryPageState extends State<HistoryPage> {
     required bool isExpanded,
   }) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -609,14 +835,14 @@ class _HistoryPageState extends State<HistoryPage> {
               boxShadow: isExpanded
                   ? [
                       BoxShadow(
-                        color: primaryColor.withValues(alpha:0.3),
+                        color: primaryColor.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha:0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -628,7 +854,9 @@ class _HistoryPageState extends State<HistoryPage> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isExpanded ? Colors.white.withValues(alpha:0.2) : primaryColor.withValues(alpha:0.1),
+                    color: isExpanded
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -647,14 +875,18 @@ class _HistoryPageState extends State<HistoryPage> {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: isExpanded ? Colors.white : const Color(0xFF1A1A1A),
+                          color: isExpanded
+                              ? Colors.white
+                              : const Color(0xFF1A1A1A),
                         ),
                       ),
                       Text(
-                        '${transactions.length} transaksi',
+                        _ringkasJumlah(transactions),
                         style: TextStyle(
                           fontSize: 12,
-                          color: isExpanded ? Colors.white.withValues(alpha:0.8) : Colors.grey.shade500,
+                          color: isExpanded
+                              ? Colors.white.withValues(alpha: 0.8)
+                              : Colors.grey.shade500,
                         ),
                       ),
                     ],
@@ -670,28 +902,33 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
                   color: isExpanded ? Colors.white : Colors.grey.shade500,
                 ),
               ],
             ),
           ),
         ),
-        
+
         // Transaction cards (animated)
         AnimatedCrossFade(
           duration: const Duration(milliseconds: 200),
-          crossFadeState: isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          crossFadeState: isExpanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
           firstChild: Column(
             children: [
               ...transactions.map((tx) {
-                // Owner boleh menghapus transaksi siapa pun; kasir hanya
-                // miliknya sendiri. Aturan paten — lihat bolehUbahCatatan.
-                final canDelete =
-                    SessionManager.instance.bolehUbahCatatan(tx.cashierUserId);
+                // Aturannya di SalesRepository.bolehDibatalkan: owner semua,
+                // kasir hanya miliknya di shift yang sedang berjalan.
                 return _TransactionCard(
                   transaction: tx,
-                  onDelete: canDelete ? () => _confirmDeleteTransaction(tx) : null,
+                  namaPembatal: _namaAkun[tx.cancelledByUserId],
+                  onBatalkan: _salesRepo.bolehDibatalkan(tx)
+                      ? () => _batalkan(tx)
+                      : null,
                 );
               }),
               const SizedBox(height: 8),
@@ -699,135 +936,192 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           secondChild: const SizedBox.shrink(),
         ),
-        
+
         const SizedBox(height: 8),
       ],
     );
   }
-
 }
 
 class _TransactionCard extends StatelessWidget {
   final Transaction transaction;
-  final VoidCallback? onDelete;
+  final String? namaPembatal;
 
-  const _TransactionCard({required this.transaction, this.onDelete});
+  /// Null kalau akun ini tidak boleh membatalkan transaksi ini.
+  final VoidCallback? onBatalkan;
+
+  const _TransactionCard({
+    required this.transaction,
+    this.namaPembatal,
+    this.onBatalkan,
+  });
+
+  bool get _batal => transaction.deletedAt != null;
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final isCash = transaction.paymentMethod == 'cash';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+    // Transaksi yang dibatalkan tetap tampil sebagai bukti, dipudarkan.
+    return Opacity(
+      opacity: _batal ? 0.6 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: _batal ? Colors.grey.shade50 : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _showDetail(context),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                // Icon
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isCash ? Colors.green.shade50 : primaryColor.withValues(alpha:0.1),
-                    borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showDetail(context),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  // Icon
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isCash
+                          ? Colors.green.shade50
+                          : primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isCash ? Icons.payments_rounded : Icons.qr_code_rounded,
+                      color: isCash ? Colors.green.shade600 : primaryColor,
+                      size: 22,
+                    ),
                   ),
-                  child: Icon(
-                    isCash ? Icons.payments_rounded : Icons.qr_code_rounded,
-                    color: isCash ? Colors.green.shade600 : primaryColor,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Rp ${formatRupiah(transaction.total)}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1A1A1A),
+                  const SizedBox(width: 12),
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Rp ${formatRupiah(transaction.total)}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF1A1A1A),
+                                  decoration: _batal
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
                               ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isCash ? Colors.green.shade50 : primaryColor.withValues(alpha:0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isCash ? 'Cash' : 'QRIS',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isCash ? Colors.green.shade700 : primaryColor,
+                            if (_batal) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'DIBATALKAN',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isCash
+                                    ? Colors.green.shade50
+                                    : primaryColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                isCash ? 'Cash' : 'QRIS',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isCash
+                                      ? Colors.green.shade700
+                                      : primaryColor,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('HH:mm').format(transaction.createdAt),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade500,
+                          ],
                         ),
-                      ),
-                      if (isCash && transaction.cashReceived != null) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
-                          'Bayar: Rp ${formatRupiah(transaction.cashReceived!)} • Kembali: Rp ${formatRupiah(transaction.change ?? 0)}',
+                          DateFormat('HH:mm').format(transaction.createdAt),
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: Colors.grey.shade500,
                           ),
                         ),
+                        if (_batal) ...[
+                          const SizedBox(height: 2),
+                          InfoPembatalan(
+                            transaksi: transaction,
+                            namaPembatal: namaPembatal,
+                            ringkas: true,
+                          ),
+                        ] else if (isCash &&
+                            transaction.cashReceived != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Bayar: Rp ${formatRupiah(transaction.cashReceived!)} • Kembali: Rp ${formatRupiah(transaction.change ?? 0)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onBatalkan != null)
+                        IconButton(
+                          icon: Icon(
+                            Icons.block_rounded,
+                            size: 18,
+                            color: Colors.red.shade400,
+                          ),
+                          tooltip: 'Batalkan transaksi',
+                          onPressed: onBatalkan,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.grey.shade400,
+                      ),
                     ],
                   ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (onDelete != null)
-                      IconButton(
-                        icon: Icon(Icons.delete_outline,
-                            size: 18, color: Colors.red.shade400),
-                        onPressed: onDelete,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.grey.shade400,
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -841,8 +1135,10 @@ class _TransactionCard extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => TransactionDetailSheet(transaction: transaction),
+      builder: (_) => TransactionDetailSheet(
+        transaction: transaction,
+        namaPembatal: namaPembatal,
+      ),
     );
   }
 }
-

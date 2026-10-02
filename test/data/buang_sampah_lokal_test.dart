@@ -64,34 +64,51 @@ void main() {
   Future<List<String>> idItem() async =>
       (await db.select(db.transactionItems).get()).map((i) => i.id).toList();
 
-  test('transaksi terhapus, terkirim, lewat 30 hari: dibuang BESERTA itemnya',
+  Future<void> pengeluaran(String id,
+          {DateTime? dihapus, String status = 'synced'}) =>
+      db.into(db.expenses).insert(ExpensesCompanion.insert(
+            id: Value(id),
+            shiftId: 's-1',
+            userId: 'u-1',
+            description: id,
+            amount: 1000,
+            deletedAt: Value(dihapus),
+            syncStatus: Value(status),
+          ));
+
+  Future<List<String>> idPengeluaran() async =>
+      (await db.select(db.expenses).get()).map((e) => e.id).toList();
+
+  test('transaksi yang DIBATALKAN tidak pernah dibuang, berapa pun umurnya',
       () async {
+    // Transaksi tidak pernah dihapus, hanya dibatalkan — dan catatan
+    // pembatalan adalah bukti untuk owner, disimpan selamanya.
     await trx('aktif');
-    await trx('sampah', dihapus: lama);
+    await trx('batal-lama', dihapus: lama);
 
     final hasil = await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(hasil['transaksi'], 1);
-    expect(await idTransaksi(), ['aktif']);
-    expect(await idItem(), ['aktif-item'],
-        reason: 'item milik transaksi yang dibuang tidak boleh tertinggal');
+    expect(hasil.containsKey('transaksi'), isFalse);
+    expect(await idTransaksi(), unorderedEquals(['aktif', 'batal-lama']));
+    expect(await idItem(), unorderedEquals(['aktif-item', 'batal-lama-item']),
+        reason: 'isi struk yang dibatalkan tetap bisa dilihat');
   });
 
   test('kabar hapus yang BELUM terkirim tidak dibuang', () async {
-    await trx('belum-terkirim', dihapus: lama, status: 'pending');
+    await pengeluaran('belum-terkirim', dihapus: lama, status: 'pending');
 
     await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(await idTransaksi(), ['belum-terkirim'],
+    expect(await idPengeluaran(), ['belum-terkirim'],
         reason: 'kalau dibuang, server tidak pernah tahu barisnya dihapus');
   });
 
   test('yang dihapus kurang dari 30 hari lalu belum dibuang', () async {
-    await trx('masih-baru', dihapus: baru);
+    await pengeluaran('masih-baru', dihapus: baru);
 
     await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(await idTransaksi(), ['masih-baru']);
+    expect(await idPengeluaran(), ['masih-baru']);
   });
 
   test('pengeluaran dan produk ikut dibersihkan', () async {

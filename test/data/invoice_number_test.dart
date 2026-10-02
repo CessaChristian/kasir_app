@@ -23,6 +23,13 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
 
+    await db.into(db.users).insert(UsersCompanion.insert(
+          id: const Value('owner-1'),
+          username: 'owner',
+          pinHash: 'h',
+          salt: 's',
+          role: 'owner',
+        ));
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
           name: 'Es Teh',
@@ -88,7 +95,8 @@ void main() {
     final kedua = await jual();
     expect(urutan(kedua.nota), '0002');
 
-    await db.softDeleteTransaction(kedua.id);
+    await db.batalkanTransaksi(kedua.id,
+        olehUserId: 'owner-1', alasan: 'Salah input');
 
     // Inti perbaikan: penghitungan mengikutsertakan baris yang sudah ditandai
     // terhapus. Kalau tidak, transaksi berikutnya dapat 0002 lagi dan ada dua

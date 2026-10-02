@@ -2778,6 +2778,32 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cancelledByUserIdMeta = const VerificationMeta(
+    'cancelledByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> cancelledByUserId =
+      GeneratedColumn<String>(
+        'cancelled_by_user_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES users (id)',
+        ),
+      );
+  static const VerificationMeta _cancelReasonMeta = const VerificationMeta(
+    'cancelReason',
+  );
+  @override
+  late final GeneratedColumn<String> cancelReason = GeneratedColumn<String>(
+    'cancel_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -2804,6 +2830,8 @@ class $TransactionsTable extends Transactions
     orderType,
     updatedAt,
     deletedAt,
+    cancelledByUserId,
+    cancelReason,
     syncStatus,
   ];
   @override
@@ -2900,6 +2928,24 @@ class $TransactionsTable extends Transactions
         deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
+    if (data.containsKey('cancelled_by_user_id')) {
+      context.handle(
+        _cancelledByUserIdMeta,
+        cancelledByUserId.isAcceptableOrUnknown(
+          data['cancelled_by_user_id']!,
+          _cancelledByUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cancel_reason')) {
+      context.handle(
+        _cancelReasonMeta,
+        cancelReason.isAcceptableOrUnknown(
+          data['cancel_reason']!,
+          _cancelReasonMeta,
+        ),
+      );
+    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -2963,6 +3009,14 @@ class $TransactionsTable extends Transactions
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
       ),
+      cancelledByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancelled_by_user_id'],
+      ),
+      cancelReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancel_reason'],
+      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sync_status'],
@@ -2994,7 +3048,18 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? shiftId;
   final String orderType;
   final DateTime updatedAt;
+
+  /// Untuk transaksi artinya DIBATALKAN, bukan sampah. Transaksi tidak pernah
+  /// dihapus — barisnya disimpan selamanya sebagai bukti, tampil di Riwayat
+  /// dengan label DIBATALKAN, dan tidak dihitung di total mana pun (semua
+  /// kueri laporan sudah menyaring `deletedAt`). Lihat [batalkanTransaksi].
   final DateTime? deletedAt;
+
+  /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
+  final String? cancelledByUserId;
+
+  /// Alasan pembatalan (v30). Null untuk yang terhapus sebelum fitur ini.
+  final String? cancelReason;
   final String syncStatus;
   const Transaction({
     required this.id,
@@ -3009,6 +3074,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.orderType,
     required this.updatedAt,
     this.deletedAt,
+    this.cancelledByUserId,
+    this.cancelReason,
     required this.syncStatus,
   });
   @override
@@ -3035,6 +3102,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    if (!nullToAbsent || cancelledByUserId != null) {
+      map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId);
+    }
+    if (!nullToAbsent || cancelReason != null) {
+      map['cancel_reason'] = Variable<String>(cancelReason);
     }
     map['sync_status'] = Variable<String>(syncStatus);
     return map;
@@ -3064,6 +3137,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      cancelledByUserId: cancelledByUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledByUserId),
+      cancelReason: cancelReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelReason),
       syncStatus: Value(syncStatus),
     );
   }
@@ -3086,6 +3165,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       orderType: serializer.fromJson<String>(json['orderType']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      cancelledByUserId: serializer.fromJson<String?>(
+        json['cancelledByUserId'],
+      ),
+      cancelReason: serializer.fromJson<String?>(json['cancelReason']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
   }
@@ -3105,6 +3188,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'orderType': serializer.toJson<String>(orderType),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'cancelledByUserId': serializer.toJson<String?>(cancelledByUserId),
+      'cancelReason': serializer.toJson<String?>(cancelReason),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
   }
@@ -3122,6 +3207,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     String? orderType,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
+    Value<String?> cancelledByUserId = const Value.absent(),
+    Value<String?> cancelReason = const Value.absent(),
     String? syncStatus,
   }) => Transaction(
     id: id ?? this.id,
@@ -3138,6 +3225,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     orderType: orderType ?? this.orderType,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    cancelledByUserId: cancelledByUserId.present
+        ? cancelledByUserId.value
+        : this.cancelledByUserId,
+    cancelReason: cancelReason.present ? cancelReason.value : this.cancelReason,
     syncStatus: syncStatus ?? this.syncStatus,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
@@ -3160,6 +3251,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       orderType: data.orderType.present ? data.orderType.value : this.orderType,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      cancelledByUserId: data.cancelledByUserId.present
+          ? data.cancelledByUserId.value
+          : this.cancelledByUserId,
+      cancelReason: data.cancelReason.present
+          ? data.cancelReason.value
+          : this.cancelReason,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -3181,6 +3278,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('orderType: $orderType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
         .toString();
@@ -3200,6 +3299,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     orderType,
     updatedAt,
     deletedAt,
+    cancelledByUserId,
+    cancelReason,
     syncStatus,
   );
   @override
@@ -3218,6 +3319,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.orderType == this.orderType &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
+          other.cancelledByUserId == this.cancelledByUserId &&
+          other.cancelReason == this.cancelReason &&
           other.syncStatus == this.syncStatus);
 }
 
@@ -3234,6 +3337,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String> orderType;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
+  final Value<String?> cancelledByUserId;
+  final Value<String?> cancelReason;
   final Value<String> syncStatus;
   final Value<int> rowid;
   const TransactionsCompanion({
@@ -3249,6 +3354,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.orderType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.cancelledByUserId = const Value.absent(),
+    this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -3265,6 +3372,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.orderType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.cancelledByUserId = const Value.absent(),
+    this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : total = Value(total),
@@ -3282,6 +3391,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? orderType,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
+    Expression<String>? cancelledByUserId,
+    Expression<String>? cancelReason,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
   }) {
@@ -3298,6 +3409,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (orderType != null) 'order_type': orderType,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (cancelledByUserId != null) 'cancelled_by_user_id': cancelledByUserId,
+      if (cancelReason != null) 'cancel_reason': cancelReason,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3316,6 +3429,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String>? orderType,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
+    Value<String?>? cancelledByUserId,
+    Value<String?>? cancelReason,
     Value<String>? syncStatus,
     Value<int>? rowid,
   }) {
@@ -3332,6 +3447,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       orderType: orderType ?? this.orderType,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
+      cancelledByUserId: cancelledByUserId ?? this.cancelledByUserId,
+      cancelReason: cancelReason ?? this.cancelReason,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
     );
@@ -3376,6 +3493,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
+    if (cancelledByUserId.present) {
+      map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId.value);
+    }
+    if (cancelReason.present) {
+      map['cancel_reason'] = Variable<String>(cancelReason.value);
+    }
     if (syncStatus.present) {
       map['sync_status'] = Variable<String>(syncStatus.value);
     }
@@ -3400,6 +3523,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('orderType: $orderType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6685,24 +6810,6 @@ final class $$UsersTableReferences
     );
   }
 
-  static MultiTypedResultKey<$TransactionsTable, List<Transaction>>
-  _transactionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.transactions,
-    aliasName: $_aliasNameGenerator(db.users.id, db.transactions.cashierUserId),
-  );
-
-  $$TransactionsTableProcessedTableManager get transactionsRefs {
-    final manager = $$TransactionsTableTableManager(
-      $_db,
-      $_db.transactions,
-    ).filter((f) => f.cashierUserId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_transactionsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
   static MultiTypedResultKey<$ExpensesTable, List<Expense>>
   _createdExpensesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.expenses,
@@ -6852,31 +6959,6 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
           }) => $$ShiftsTableFilterComposer(
             $db: $db,
             $table: $db.shifts,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<bool> transactionsRefs(
-    Expression<bool> Function($$TransactionsTableFilterComposer f) f,
-  ) {
-    final $$TransactionsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.transactions,
-      getReferencedColumn: (t) => t.cashierUserId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$TransactionsTableFilterComposer(
-            $db: $db,
-            $table: $db.transactions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7135,31 +7217,6 @@ class $$UsersTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> transactionsRefs<T extends Object>(
-    Expression<T> Function($$TransactionsTableAnnotationComposer a) f,
-  ) {
-    final $$TransactionsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.transactions,
-      getReferencedColumn: (t) => t.cashierUserId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$TransactionsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.transactions,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<T> createdExpensesRefs<T extends Object>(
     Expression<T> Function($$ExpensesTableAnnotationComposer a) f,
   ) {
@@ -7226,7 +7283,6 @@ class $$UsersTableTableManager
           User,
           PrefetchHooks Function({
             bool shiftsRefs,
-            bool transactionsRefs,
             bool createdExpensesRefs,
             bool updatedExpensesRefs,
           })
@@ -7331,7 +7387,6 @@ class $$UsersTableTableManager
           prefetchHooksCallback:
               ({
                 shiftsRefs = false,
-                transactionsRefs = false,
                 createdExpensesRefs = false,
                 updatedExpensesRefs = false,
               }) {
@@ -7339,7 +7394,6 @@ class $$UsersTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (shiftsRefs) db.shifts,
-                    if (transactionsRefs) db.transactions,
                     if (createdExpensesRefs) db.expenses,
                     if (updatedExpensesRefs) db.expenses,
                   ],
@@ -7356,27 +7410,6 @@ class $$UsersTableTableManager
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.userId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                      if (transactionsRefs)
-                        await $_getPrefetchedData<
-                          User,
-                          $UsersTable,
-                          Transaction
-                        >(
-                          currentTable: table,
-                          referencedTable: $$UsersTableReferences
-                              ._transactionsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$UsersTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).transactionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.cashierUserId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -7436,7 +7469,6 @@ typedef $$UsersTableProcessedTableManager =
       User,
       PrefetchHooks Function({
         bool shiftsRefs,
-        bool transactionsRefs,
         bool createdExpensesRefs,
         bool updatedExpensesRefs,
       })
@@ -8002,6 +8034,8 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String> orderType,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
+      Value<String?> cancelledByUserId,
+      Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -8019,6 +8053,8 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String> orderType,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
+      Value<String?> cancelledByUserId,
+      Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -8058,6 +8094,25 @@ final class $$TransactionsTableReferences
       $_db.shifts,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_shiftIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $UsersTable _cancelledByUserIdTable(_$AppDatabase db) =>
+      db.users.createAlias(
+        $_aliasNameGenerator(db.transactions.cancelledByUserId, db.users.id),
+      );
+
+  $$UsersTableProcessedTableManager? get cancelledByUserId {
+    final $_column = $_itemColumn<String>('cancelled_by_user_id');
+    if ($_column == null) return null;
+    final manager = $$UsersTableTableManager(
+      $_db,
+      $_db.users,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_cancelledByUserIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -8124,6 +8179,11 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnFilters(column),
@@ -8166,6 +8226,29 @@ class $$TransactionsTableFilterComposer
           }) => $$ShiftsTableFilterComposer(
             $db: $db,
             $table: $db.shifts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableFilterComposer get cancelledByUserId {
+    final $$UsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cancelledByUserId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableFilterComposer(
+            $db: $db,
+            $table: $db.users,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8235,6 +8318,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -8277,6 +8365,29 @@ class $$TransactionsTableOrderingComposer
           }) => $$ShiftsTableOrderingComposer(
             $db: $db,
             $table: $db.shifts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableOrderingComposer get cancelledByUserId {
+    final $$UsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cancelledByUserId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.users,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8330,6 +8441,11 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
+  GeneratedColumn<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => column,
@@ -8380,6 +8496,29 @@ class $$TransactionsTableAnnotationComposer
     );
     return composer;
   }
+
+  $$UsersTableAnnotationComposer get cancelledByUserId {
+    final $$UsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cancelledByUserId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TransactionsTableTableManager
@@ -8395,7 +8534,11 @@ class $$TransactionsTableTableManager
           $$TransactionsTableUpdateCompanionBuilder,
           (Transaction, $$TransactionsTableReferences),
           Transaction,
-          PrefetchHooks Function({bool cashierUserId, bool shiftId})
+          PrefetchHooks Function({
+            bool cashierUserId,
+            bool shiftId,
+            bool cancelledByUserId,
+          })
         > {
   $$TransactionsTableTableManager(_$AppDatabase db, $TransactionsTable table)
     : super(
@@ -8422,6 +8565,8 @@ class $$TransactionsTableTableManager
                 Value<String> orderType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
@@ -8437,6 +8582,8 @@ class $$TransactionsTableTableManager
                 orderType: orderType,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
+                cancelledByUserId: cancelledByUserId,
+                cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),
@@ -8454,6 +8601,8 @@ class $$TransactionsTableTableManager
                 Value<String> orderType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
@@ -8469,6 +8618,8 @@ class $$TransactionsTableTableManager
                 orderType: orderType,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
+                cancelledByUserId: cancelledByUserId,
+                cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),
@@ -8480,60 +8631,84 @@ class $$TransactionsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({cashierUserId = false, shiftId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (cashierUserId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.cashierUserId,
-                                referencedTable: $$TransactionsTableReferences
-                                    ._cashierUserIdTable(db),
-                                referencedColumn: $$TransactionsTableReferences
-                                    ._cashierUserIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
-                    if (shiftId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.shiftId,
-                                referencedTable: $$TransactionsTableReferences
-                                    ._shiftIdTable(db),
-                                referencedColumn: $$TransactionsTableReferences
-                                    ._shiftIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                cashierUserId = false,
+                shiftId = false,
+                cancelledByUserId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (cashierUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.cashierUserId,
+                                    referencedTable:
+                                        $$TransactionsTableReferences
+                                            ._cashierUserIdTable(db),
+                                    referencedColumn:
+                                        $$TransactionsTableReferences
+                                            ._cashierUserIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (shiftId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.shiftId,
+                                    referencedTable:
+                                        $$TransactionsTableReferences
+                                            ._shiftIdTable(db),
+                                    referencedColumn:
+                                        $$TransactionsTableReferences
+                                            ._shiftIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (cancelledByUserId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.cancelledByUserId,
+                                    referencedTable:
+                                        $$TransactionsTableReferences
+                                            ._cancelledByUserIdTable(db),
+                                    referencedColumn:
+                                        $$TransactionsTableReferences
+                                            ._cancelledByUserIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -8550,7 +8725,11 @@ typedef $$TransactionsTableProcessedTableManager =
       $$TransactionsTableUpdateCompanionBuilder,
       (Transaction, $$TransactionsTableReferences),
       Transaction,
-      PrefetchHooks Function({bool cashierUserId, bool shiftId})
+      PrefetchHooks Function({
+        bool cashierUserId,
+        bool shiftId,
+        bool cancelledByUserId,
+      })
     >;
 typedef $$TransactionItemsTableCreateCompanionBuilder =
     TransactionItemsCompanion Function({

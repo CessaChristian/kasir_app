@@ -1027,6 +1027,8 @@ class SyncEngine {
                 'created_at': _iso(t.createdAt),
                 'updated_at': _iso(t.updatedAt),
                 'deleted_at': _iso(t.deletedAt),
+                'cancelled_by_user_id': t.cancelledByUserId,
+                'cancel_reason': t.cancelReason,
               }
           ];
         },
@@ -1046,6 +1048,10 @@ class SyncEngine {
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),
+                // Kunci yang tidak ada (server belum menjalankan
+                // `supabase/transaksi_batal.sql`) terbaca null — aman.
+                cancelledByUserId: Value(r['cancelled_by_user_id'] as String?),
+                cancelReason: Value(r['cancel_reason'] as String?),
                 syncStatus: const Value('synced'),
               ));
         },

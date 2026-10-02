@@ -143,7 +143,20 @@ class Transactions extends Table {
   // Sync-friendly (NEW in v10)
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  /// Untuk transaksi artinya DIBATALKAN, bukan sampah. Transaksi tidak pernah
+  /// dihapus — barisnya disimpan selamanya sebagai bukti, tampil di Riwayat
+  /// dengan label DIBATALKAN, dan tidak dihitung di total mana pun (semua
+  /// kueri laporan sudah menyaring `deletedAt`). Lihat [batalkanTransaksi].
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
+  TextColumn get cancelledByUserId =>
+      text().nullable().references(Users, #id)();
+
+  /// Alasan pembatalan (v30). Null untuk yang terhapus sebelum fitur ini.
+  TextColumn get cancelReason => text().nullable()();
+
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
 
@@ -393,7 +406,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 30;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -967,6 +980,25 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 30 && to >= 30) {
+            // v30 — transaksi tidak lagi dihapus, hanya DIBATALKAN dengan
+            // siapa dan alasannya. Lihat [batalkanTransaksi].
+            final adaTrx = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'transactions'",
+            ).get();
+            for (final kolom in [
+              if (adaTrx.isNotEmpty) transactions.cancelledByUserId,
+              if (adaTrx.isNotEmpty) transactions.cancelReason,
+            ]) {
+              final ada = await customSelect(
+                "SELECT 1 FROM pragma_table_info('transactions') WHERE name = ?",
+                variables: [Variable.withString(kolom.name)],
+              ).get();
+              if (ada.isEmpty) await m.addColumn(transactions, kolom);
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1144,9 +1176,10 @@ class AppDatabase extends _$AppDatabase {
   /// Berapa lama baris yang sudah dihapus tetap disimpan di HP ini.
   static const umurSampahLokal = Duration(days: 30);
 
-  /// Buang permanen dari HP ini baris yang sudah dihapus DAN sudah sampai di
-  /// server, setelah lewat [umurSampahLokal]. Pasangan `buang_sampah` di
-  /// server — yang itu hanya membersihkan server.
+  /// Buang permanen dari HP ini pengeluaran, produk, dan kategori yang sudah
+  /// dihapus DAN sudah sampai di server, setelah lewat [umurSampahLokal].
+  /// Transaksi tidak pernah — yang terhapus adalah yang dibatalkan, dan itu
+  /// disimpan selamanya. Pasangan `buang_sampah` di server.
   ///
   /// Aman karena `synced` berarti server sudah tahu barisnya terhapus, jadi
   /// salinan di sini tidak dibutuhkan siapa pun. Baris yang masih `pending`
@@ -1161,19 +1194,9 @@ class AppDatabase extends _$AppDatabase {
     final hasil = <String, int>{};
 
     await transaction(() async {
-      final trx = await (select(transactions)
-            ..where((t) =>
-                t.deletedAt.isSmallerThanValue(batas) &
-                t.syncStatus.equals('synced')))
-          .map((t) => t.id)
-          .get();
-      // Item dibuang eksplisit, tidak bergantung pada ON DELETE CASCADE yang
-      // hanya berlaku kalau penegakan foreign key sedang menyala.
-      await (delete(transactionItems)
-            ..where((i) => i.transactionId.isIn(trx)))
-          .go();
-      hasil['transaksi'] =
-          await (delete(transactions)..where((t) => t.id.isIn(trx))).go();
+      // Transaksi SENGAJA tidak dibuang: transaksi yang `deletedAt`-nya terisi
+      // adalah transaksi yang DIBATALKAN — bukti untuk owner, disimpan
+      // selamanya. Lihat [batalkanTransaksi].
 
       hasil['pengeluaran'] = await (delete(expenses)
             ..where((e) =>
@@ -1349,12 +1372,17 @@ class AppDatabase extends _$AppDatabase {
   /// [kasirId] membatasi ke transaksi satu kasir; [shiftId] ke satu shift.
   /// Keduanya null berarti semua — hanya untuk owner. Siapa melihat apa
   /// diputuskan `CakupanRiwayat`, bukan di sini.
+  ///
+  /// [termasukBatal] ikut menampilkan transaksi yang dibatalkan — hanya untuk
+  /// halaman Riwayat, yang memberinya label dan tidak menghitungnya.
   Stream<List<Transaction>> watchTransactions({
     String? kasirId,
     String? shiftId,
+    bool termasukBatal = false,
   }) {
     return (select(transactions)
-          ..where((t) => t.deletedAt.isNull())
+          ..where((t) =>
+              termasukBatal ? const Constant(true) : t.deletedAt.isNull())
           ..where((t) =>
               kasirId == null ? const Constant(true) : t.cashierUserId.equals(kasirId))
           ..where((t) =>
@@ -1363,12 +1391,17 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  /// Item satu transaksi. [termasukBatal] untuk struk transaksi yang
+  /// dibatalkan — itemnya ikut bertanda terhapus, tapi isinya tetap perlu
+  /// terlihat sebagai bukti.
   Future<List<TransactionItem>> getTransactionItems(
-      String transactionId) async {
+    String transactionId, {
+    bool termasukBatal = false,
+  }) async {
     return (select(transactionItems)
           ..where((t) =>
               t.transactionId.equals(transactionId) &
-              t.deletedAt.isNull()))
+              (termasukBatal ? const Constant(true) : t.deletedAt.isNull())))
         .get();
   }
 
@@ -1454,26 +1487,37 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
-  /// Tandai transaksi dan itemnya terhapus, dalam satu transaction.
-  /// Caller WAJIB validasi permission sebelum call.
-  Future<void> softDeleteTransaction(String transactionId) async {
-
+  /// Batalkan transaksi beserta itemnya, dalam satu transaction.
+  ///
+  /// Barisnya TIDAK dihapus — `deletedAt` diisi (supaya keluar dari semua
+  /// total), dicatat siapa dan kenapa, dan disimpan selamanya. Siapa yang
+  /// boleh membatalkan dan kapan PIN owner diperlukan diputuskan
+  /// `SalesRepository.batalkanTransaksi`; pemanggil lain WAJIB lewat sana.
+  Future<void> batalkanTransaksi(
+    String transactionId, {
+    required String olehUserId,
+    required String alasan,
+  }) async {
+    final sekarang = DateTime.now();
     await transaction(() async {
-      // 1. Soft delete transaction header
-      await (update(transactions)..where((t) =>
-        t.id.equals(transactionId)
-      )).write(TransactionsCompanion(
-        deletedAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
+      final diubah = await (update(transactions)
+            ..where((t) => t.id.equals(transactionId) & t.deletedAt.isNull()))
+          .write(TransactionsCompanion(
+        deletedAt: Value(sekarang),
+        cancelledByUserId: Value(olehUserId),
+        cancelReason: Value(alasan),
+        updatedAt: Value(sekarang),
         syncStatus: const Value('pending'),
       ));
+      if (diubah == 0) {
+        throw StateError('Transaksi tidak ditemukan atau sudah dibatalkan.');
+      }
 
-      // 2. Soft delete transaction items
-      await (update(transactionItems)..where((ti) =>
-        ti.transactionId.equals(transactionId)
-      )).write(TransactionItemsCompanion(
-        deletedAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
+      await (update(transactionItems)
+            ..where((ti) => ti.transactionId.equals(transactionId)))
+          .write(TransactionItemsCompanion(
+        deletedAt: Value(sekarang),
+        updatedAt: Value(sekarang),
         syncStatus: const Value('pending'),
       ));
     });

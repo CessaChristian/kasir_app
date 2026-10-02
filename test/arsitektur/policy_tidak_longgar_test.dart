@@ -204,4 +204,17 @@ void main() {
         reason: 'jadwal wajib memanggil buang_sampah tanpa argumen, supaya '
             'rem 30 harinya berlaku');
   });
+  test('buang_sampah tidak pernah membuang transaksi', () {
+    // Transaksi tidak dihapus, hanya DIBATALKAN, dan catatan pembatalan
+    // disimpan selamanya sebagai bukti untuk owner. Kalau fungsi ini kembali
+    // membuang transaksi, bukti itu lenyap diam-diam setiap malam.
+    final isi = File('supabase/buang_sampah.sql')
+        .readAsLinesSync()
+        .where((b) => !b.trimLeft().startsWith('--'))
+        .join('\n')
+        .toLowerCase();
+
+    expect(isi, isNot(contains('delete from public.transactions')));
+    expect(isi, isNot(contains('delete from public.transaction_items')));
+  });
 }

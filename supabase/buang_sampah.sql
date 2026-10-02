@@ -82,13 +82,10 @@ begin
     from public.perangkat
    where status = 'aktif';
 
-  -- Transaksi. Item struknya ikut terbuang lewat `on delete cascade`.
-  delete from public.transactions
-   where deleted_at is not null
-     and server_urut < v_batas
-     and deleted_at  < now() - p_jeda;
-  get diagnostics v_jumlah = row_count;
-  tabel := 'transaksi'; dibuang := v_jumlah; return next;
+  -- Transaksi SENGAJA TIDAK dibuang. Transaksi tidak pernah dihapus, hanya
+  -- DIBATALKAN (`deleted_at` + siapa + alasan), dan catatan pembatalan
+  -- disimpan selamanya sebagai bukti untuk owner. Lihat
+  -- `supabase/transaksi_batal.sql`.
 
   -- Pengeluaran. Tidak dirujuk tabel mana pun.
   delete from public.expenses
@@ -134,8 +131,8 @@ revoke all on function public.buang_sampah(interval) from anon, authenticated;
 -- =====================================================================
 --  CARA MENCOBA
 --
---  1. Hapus sesuatu dari aplikasi (produk, pengeluaran, kategori, atau
---     transaksi).
+--  1. Hapus sesuatu dari aplikasi (produk, pengeluaran, atau kategori).
+--     Transaksi tidak ikut — pembatalan transaksi disimpan selamanya.
 --  2. Tarik-segarkan di KEDUA HP, supaya dua-duanya "centang biru".
 --  3. Jalankan:
 --
@@ -145,7 +142,6 @@ revoke all on function public.buang_sampah(interval) from anon, authenticated;
 --
 --        tabel       | dibuang
 --       -------------+---------
---        transaksi   |       0
 --        pengeluaran |       1
 --        produk      |       1
 --        kategori    |       0
