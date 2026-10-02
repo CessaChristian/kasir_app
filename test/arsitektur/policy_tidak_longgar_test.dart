@@ -187,4 +187,21 @@ void main() {
       reason: 'buang_sampah tidak boleh diberi hak ke peran mana pun',
     );
   });
+
+  test('jadwal buang sampah memakai rem bawaan, bukan jeda nol', () {
+    // `buang_sampah('0 seconds')` dipakai untuk mencoba dari dashboard. Kalau
+    // ikut tersalin ke jadwal, rem 30 hari mati diam-diam setiap malam —
+    // tinggal "centang biru" yang menjaga, dan tidak ada yang tahu.
+    final isi = File('supabase/buang_sampah_jadwal.sql')
+        .readAsLinesSync()
+        .where((b) => !b.trimLeft().startsWith('--'))
+        .join('\n')
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    expect(isi, contains("cron.schedule( 'buang-sampah-harian'"));
+    expect(isi, contains(r'$$select * from public.buang_sampah()$$'),
+        reason: 'jadwal wajib memanggil buang_sampah tanpa argumen, supaya '
+            'rem 30 harinya berlaku');
+  });
 }
