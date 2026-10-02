@@ -941,7 +941,6 @@ class SyncEngine {
                 'id': p.id,
                 'name': p.name,
                 'price': p.price,
-                'barcode': p.barcode,
                 'category_id': p.categoryId,
                 'has_spicy_option': p.hasSpicyOption,
                 'has_sweet_option': p.hasSweetOption,
@@ -958,7 +957,6 @@ class SyncEngine {
                 id: Value(r['id'] as String),
                 name: Value(r['name'] as String),
                 price: Value((r['price'] as num).toInt()),
-                barcode: Value(r['barcode'] as String?),
                 categoryId: Value(r['category_id'] as String?),
                 hasSpicyOption: Value(r['has_spicy_option'] as bool),
                 // `?? false`: server yang belum menjalankan

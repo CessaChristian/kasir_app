@@ -501,17 +501,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _barcodeMeta = const VerificationMeta(
-    'barcode',
-  );
-  @override
-  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
-    'barcode',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _categoryIdMeta = const VerificationMeta(
     'categoryId',
   );
@@ -634,7 +623,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     id,
     name,
     price,
-    barcode,
     categoryId,
     hasSpicyOption,
     hasSweetOption,
@@ -675,12 +663,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       );
     } else if (isInserting) {
       context.missing(_priceMeta);
-    }
-    if (data.containsKey('barcode')) {
-      context.handle(
-        _barcodeMeta,
-        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
-      );
     }
     if (data.containsKey('category_id')) {
       context.handle(
@@ -766,10 +748,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.int,
         data['${effectivePrefix}price'],
       )!,
-      barcode: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}barcode'],
-      ),
       categoryId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category_id'],
@@ -819,7 +797,6 @@ class Product extends DataClass implements Insertable<Product> {
   final String id;
   final String name;
   final int price;
-  final String? barcode;
   final String? categoryId;
   final bool hasSpicyOption;
   final bool hasSweetOption;
@@ -833,7 +810,6 @@ class Product extends DataClass implements Insertable<Product> {
     required this.id,
     required this.name,
     required this.price,
-    this.barcode,
     this.categoryId,
     required this.hasSpicyOption,
     required this.hasSweetOption,
@@ -850,9 +826,6 @@ class Product extends DataClass implements Insertable<Product> {
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['price'] = Variable<int>(price);
-    if (!nullToAbsent || barcode != null) {
-      map['barcode'] = Variable<String>(barcode);
-    }
     if (!nullToAbsent || categoryId != null) {
       map['category_id'] = Variable<String>(categoryId);
     }
@@ -876,9 +849,6 @@ class Product extends DataClass implements Insertable<Product> {
       id: Value(id),
       name: Value(name),
       price: Value(price),
-      barcode: barcode == null && nullToAbsent
-          ? const Value.absent()
-          : Value(barcode),
       categoryId: categoryId == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryId),
@@ -906,7 +876,6 @@ class Product extends DataClass implements Insertable<Product> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       price: serializer.fromJson<int>(json['price']),
-      barcode: serializer.fromJson<String?>(json['barcode']),
       categoryId: serializer.fromJson<String?>(json['categoryId']),
       hasSpicyOption: serializer.fromJson<bool>(json['hasSpicyOption']),
       hasSweetOption: serializer.fromJson<bool>(json['hasSweetOption']),
@@ -925,7 +894,6 @@ class Product extends DataClass implements Insertable<Product> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'price': serializer.toJson<int>(price),
-      'barcode': serializer.toJson<String?>(barcode),
       'categoryId': serializer.toJson<String?>(categoryId),
       'hasSpicyOption': serializer.toJson<bool>(hasSpicyOption),
       'hasSweetOption': serializer.toJson<bool>(hasSweetOption),
@@ -942,7 +910,6 @@ class Product extends DataClass implements Insertable<Product> {
     String? id,
     String? name,
     int? price,
-    Value<String?> barcode = const Value.absent(),
     Value<String?> categoryId = const Value.absent(),
     bool? hasSpicyOption,
     bool? hasSweetOption,
@@ -956,7 +923,6 @@ class Product extends DataClass implements Insertable<Product> {
     id: id ?? this.id,
     name: name ?? this.name,
     price: price ?? this.price,
-    barcode: barcode.present ? barcode.value : this.barcode,
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
     hasSweetOption: hasSweetOption ?? this.hasSweetOption,
@@ -972,7 +938,6 @@ class Product extends DataClass implements Insertable<Product> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       price: data.price.present ? data.price.value : this.price,
-      barcode: data.barcode.present ? data.barcode.value : this.barcode,
       categoryId: data.categoryId.present
           ? data.categoryId.value
           : this.categoryId,
@@ -1001,7 +966,6 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('price: $price, ')
-          ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
           ..write('hasSweetOption: $hasSweetOption, ')
@@ -1020,7 +984,6 @@ class Product extends DataClass implements Insertable<Product> {
     id,
     name,
     price,
-    barcode,
     categoryId,
     hasSpicyOption,
     hasSweetOption,
@@ -1038,7 +1001,6 @@ class Product extends DataClass implements Insertable<Product> {
           other.id == this.id &&
           other.name == this.name &&
           other.price == this.price &&
-          other.barcode == this.barcode &&
           other.categoryId == this.categoryId &&
           other.hasSpicyOption == this.hasSpicyOption &&
           other.hasSweetOption == this.hasSweetOption &&
@@ -1054,7 +1016,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String> id;
   final Value<String> name;
   final Value<int> price;
-  final Value<String?> barcode;
   final Value<String?> categoryId;
   final Value<bool> hasSpicyOption;
   final Value<bool> hasSweetOption;
@@ -1069,7 +1030,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.price = const Value.absent(),
-    this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
     this.hasSweetOption = const Value.absent(),
@@ -1085,7 +1045,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.id = const Value.absent(),
     required String name,
     required int price,
-    this.barcode = const Value.absent(),
     this.categoryId = const Value.absent(),
     this.hasSpicyOption = const Value.absent(),
     this.hasSweetOption = const Value.absent(),
@@ -1102,7 +1061,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? price,
-    Expression<String>? barcode,
     Expression<String>? categoryId,
     Expression<bool>? hasSpicyOption,
     Expression<bool>? hasSweetOption,
@@ -1118,7 +1076,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (price != null) 'price': price,
-      if (barcode != null) 'barcode': barcode,
       if (categoryId != null) 'category_id': categoryId,
       if (hasSpicyOption != null) 'has_spicy_option': hasSpicyOption,
       if (hasSweetOption != null) 'has_sweet_option': hasSweetOption,
@@ -1136,7 +1093,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String>? id,
     Value<String>? name,
     Value<int>? price,
-    Value<String?>? barcode,
     Value<String?>? categoryId,
     Value<bool>? hasSpicyOption,
     Value<bool>? hasSweetOption,
@@ -1152,7 +1108,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
-      barcode: barcode ?? this.barcode,
       categoryId: categoryId ?? this.categoryId,
       hasSpicyOption: hasSpicyOption ?? this.hasSpicyOption,
       hasSweetOption: hasSweetOption ?? this.hasSweetOption,
@@ -1177,9 +1132,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     }
     if (price.present) {
       map['price'] = Variable<int>(price.value);
-    }
-    if (barcode.present) {
-      map['barcode'] = Variable<String>(barcode.value);
     }
     if (categoryId.present) {
       map['category_id'] = Variable<String>(categoryId.value);
@@ -1220,7 +1172,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('price: $price, ')
-          ..write('barcode: $barcode, ')
           ..write('categoryId: $categoryId, ')
           ..write('hasSpicyOption: $hasSpicyOption, ')
           ..write('hasSweetOption: $hasSweetOption, ')
@@ -6213,7 +6164,6 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<String> id,
       required String name,
       required int price,
-      Value<String?> barcode,
       Value<String?> categoryId,
       Value<bool> hasSpicyOption,
       Value<bool> hasSweetOption,
@@ -6230,7 +6180,6 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<int> price,
-      Value<String?> barcode,
       Value<String?> categoryId,
       Value<bool> hasSpicyOption,
       Value<bool> hasSweetOption,
@@ -6288,11 +6237,6 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<int> get price => $composableBuilder(
     column: $table.price,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get barcode => $composableBuilder(
-    column: $table.barcode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6384,11 +6328,6 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get barcode => $composableBuilder(
-    column: $table.barcode,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
     builder: (column) => ColumnOrderings(column),
@@ -6470,9 +6409,6 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<int> get price =>
       $composableBuilder(column: $table.price, builder: (column) => column);
-
-  GeneratedColumn<String> get barcode =>
-      $composableBuilder(column: $table.barcode, builder: (column) => column);
 
   GeneratedColumn<bool> get hasSpicyOption => $composableBuilder(
     column: $table.hasSpicyOption,
@@ -6561,7 +6497,6 @@ class $$ProductsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<int> price = const Value.absent(),
-                Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
                 Value<bool> hasSweetOption = const Value.absent(),
@@ -6576,7 +6511,6 @@ class $$ProductsTableTableManager
                 id: id,
                 name: name,
                 price: price,
-                barcode: barcode,
                 categoryId: categoryId,
                 hasSpicyOption: hasSpicyOption,
                 hasSweetOption: hasSweetOption,
@@ -6593,7 +6527,6 @@ class $$ProductsTableTableManager
                 Value<String> id = const Value.absent(),
                 required String name,
                 required int price,
-                Value<String?> barcode = const Value.absent(),
                 Value<String?> categoryId = const Value.absent(),
                 Value<bool> hasSpicyOption = const Value.absent(),
                 Value<bool> hasSweetOption = const Value.absent(),
@@ -6608,7 +6541,6 @@ class $$ProductsTableTableManager
                 id: id,
                 name: name,
                 price: price,
-                barcode: barcode,
                 categoryId: categoryId,
                 hasSpicyOption: hasSpicyOption,
                 hasSweetOption: hasSweetOption,

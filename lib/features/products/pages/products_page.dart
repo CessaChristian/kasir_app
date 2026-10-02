@@ -71,7 +71,6 @@ class _ProductsPageState extends State<ProductsPage> {
         id: productId,
         name: result.name,
         price: result.price,
-        barcode: result.barcode,
         categoryId: result.categoryId,
         hasSpicyOption: result.hasSpicyOption,
         hasSweetOption: result.hasSweetOption,

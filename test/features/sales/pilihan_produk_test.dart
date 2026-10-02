@@ -107,7 +107,6 @@ void main() {
         'id': 'p-lama',
         'name': 'Kopi',
         'price': 8000,
-        'barcode': null,
         'category_id': null,
         'has_spicy_option': false,
         'image_path': null,

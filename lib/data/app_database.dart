@@ -81,7 +81,6 @@ class Products extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get name => text()();
   IntColumn get price => integer()();
-  TextColumn get barcode => text().nullable()();
 
   TextColumn get categoryId =>
       text().nullable().references(Categories, #id)();
@@ -394,7 +393,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -952,6 +951,22 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 29 && to >= 29) {
+            // v29 — kolom `products.barcode` dicopot atas permintaan owner.
+            // Barcode hanya diketik manual (tidak ada pemindai) dan tidak
+            // dipakai pencarian; tidak ada produk yang mengisinya.
+            //
+            // DROP COLUMN, bukan membangun ulang tabel — `products` ditunjuk
+            // tabel lain. Dicek dulu kolomnya ada (lihat v26).
+            final kolom = await customSelect(
+              "SELECT 1 FROM pragma_table_info('products') "
+              "WHERE name = 'barcode'",
+            ).get();
+            if (kolom.isNotEmpty) {
+              await customStatement('ALTER TABLE products DROP COLUMN barcode');
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1090,7 +1105,6 @@ class AppDatabase extends _$AppDatabase {
     required String id,
     required String name,
     required int price,
-    String? barcode,
     String? categoryId,
     required bool hasSpicyOption,
     required bool hasSweetOption,
@@ -1102,7 +1116,6 @@ class AppDatabase extends _$AppDatabase {
       id: Value(id),
       name: Value(name),
       price: Value(price),
-      barcode: Value(barcode),
       categoryId: Value(categoryId),
       hasSpicyOption: Value(hasSpicyOption),
       hasSweetOption: Value(hasSweetOption),

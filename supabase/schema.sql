@@ -85,7 +85,6 @@ create table public.products (
   id               uuid primary key default gen_random_uuid(),
   name             text        not null,
   price            bigint      not null,
-  barcode          text,
   category_id      uuid        references public.categories(id),
   has_spicy_option boolean     not null default false,
   has_sweet_option boolean     not null default false,

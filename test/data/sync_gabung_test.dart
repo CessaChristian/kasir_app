@@ -50,7 +50,6 @@ void main() {
         'id': id,
         'name': nama,
         'price': 5000,
-        'barcode': null,
         'category_id': null,
         'has_spicy_option': false,
         'image_path': gambar,

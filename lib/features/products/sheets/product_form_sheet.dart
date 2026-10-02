@@ -19,7 +19,6 @@ import '../../sales/models/pilihan_produk.dart';
 class FormResult {
   final String name;
   final int price;
-  final String? barcode;
   final String? categoryId;
   final bool hasSpicyOption;
   final bool hasSweetOption;
@@ -29,7 +28,6 @@ class FormResult {
   FormResult({
     required this.name,
     required this.price,
-    required this.barcode,
     this.categoryId,
     required this.hasSpicyOption,
     required this.hasSweetOption,
@@ -53,7 +51,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   late final TextEditingController _nameC;
   late final TextEditingController _priceC;
-  late final TextEditingController _barcodeC;
 
   Category? _selectedCategory;
   bool _categoryInitialized = false;
@@ -85,7 +82,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     _priceC = TextEditingController(
       text: p != null ? formatRupiah(p.price) : '',
     );
-    _barcodeC = TextEditingController(text: p?.barcode ?? '');
     _hasSpicyOption = p?.hasSpicyOption ?? false;
     _hasSweetOption = p?.hasSweetOption ?? false;
     _hasIceOption = p?.hasIceOption ?? false;
@@ -100,16 +96,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     SyncOtomatis.instance.lanjutkanYangTertunda();
     _nameC.dispose();
     _priceC.dispose();
-    _barcodeC.dispose();
     super.dispose();
   }
 
-
-  // Nilai yang AKAN tersimpan kalau form di-submit sekarang. Rumusnya
-  // disamakan dengan _submit() supaya penilaian "berubah" tidak pernah
-  // berbeda dari data yang benar-benar ditulis ke database.
-  String? get _currentBarcode =>
-      _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim();
 
   // Ada perubahan yang akan hilang kalau sheet ditutup?
   //
@@ -126,7 +115,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     if (p == null) {
       return _nameC.text.trim().isNotEmpty ||
           parseRupiah(_priceC.text) != null ||
-          _currentBarcode != null ||
           _selectedCategory != null ||
           _hasSpicyOption ||
           _hasSweetOption ||
@@ -147,7 +135,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     // terhadap format titik ribuan dari RupiahInputFormatter.
     return _nameC.text.trim() != p.name ||
         parseRupiah(_priceC.text) != p.price ||
-        _currentBarcode != p.barcode ||
         categoryChanged ||
         _hasSpicyOption != p.hasSpicyOption ||
         _hasSweetOption != p.hasSweetOption ||
@@ -185,7 +172,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
       FormResult(
         name: _nameC.text.trim(),
         price: price,
-        barcode: _barcodeC.text.trim().isEmpty ? null : _barcodeC.text.trim(),
         categoryId: _selectedCategory?.id,
         hasSpicyOption: _hasSpicyOption,
         hasSweetOption: _hasSweetOption,
@@ -418,15 +404,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                     if (price == null || price <= 0) return 'Harga tidak valid';
                     return null;
                   },
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 10),
-
-                _buildTextField(
-                  controller: _barcodeC,
-                  label: 'Barcode (opsional)',
-                  hint: 'Scan atau ketik barcode',
-                  icon: Icons.qr_code_rounded,
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 10),
