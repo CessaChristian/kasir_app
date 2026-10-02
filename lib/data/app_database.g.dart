@@ -5077,20 +5077,6 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
       'REFERENCES users (id)',
     ),
   );
-  static const VerificationMeta _updatedByUserIdMeta = const VerificationMeta(
-    'updatedByUserId',
-  );
-  @override
-  late final GeneratedColumn<String> updatedByUserId = GeneratedColumn<String>(
-    'updated_by_user_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES users (id)',
-    ),
-  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -5146,6 +5132,32 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cancelledByUserIdMeta = const VerificationMeta(
+    'cancelledByUserId',
+  );
+  @override
+  late final GeneratedColumn<String> cancelledByUserId =
+      GeneratedColumn<String>(
+        'cancelled_by_user_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES users (id)',
+        ),
+      );
+  static const VerificationMeta _cancelReasonMeta = const VerificationMeta(
+    'cancelReason',
+  );
+  @override
+  late final GeneratedColumn<String> cancelReason = GeneratedColumn<String>(
+    'cancel_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _syncStatusMeta = const VerificationMeta(
     'syncStatus',
   );
@@ -5163,12 +5175,13 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     id,
     shiftId,
     userId,
-    updatedByUserId,
     description,
     amount,
     createdAt,
     updatedAt,
     deletedAt,
+    cancelledByUserId,
+    cancelReason,
     syncStatus,
   ];
   @override
@@ -5201,15 +5214,6 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
       );
     } else if (isInserting) {
       context.missing(_userIdMeta);
-    }
-    if (data.containsKey('updated_by_user_id')) {
-      context.handle(
-        _updatedByUserIdMeta,
-        updatedByUserId.isAcceptableOrUnknown(
-          data['updated_by_user_id']!,
-          _updatedByUserIdMeta,
-        ),
-      );
     }
     if (data.containsKey('description')) {
       context.handle(
@@ -5248,6 +5252,24 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
+    if (data.containsKey('cancelled_by_user_id')) {
+      context.handle(
+        _cancelledByUserIdMeta,
+        cancelledByUserId.isAcceptableOrUnknown(
+          data['cancelled_by_user_id']!,
+          _cancelledByUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cancel_reason')) {
+      context.handle(
+        _cancelReasonMeta,
+        cancelReason.isAcceptableOrUnknown(
+          data['cancel_reason']!,
+          _cancelReasonMeta,
+        ),
+      );
+    }
     if (data.containsKey('sync_status')) {
       context.handle(
         _syncStatusMeta,
@@ -5275,10 +5297,6 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         DriftSqlType.string,
         data['${effectivePrefix}user_id'],
       )!,
-      updatedByUserId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}updated_by_user_id'],
-      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -5299,6 +5317,14 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
       ),
+      cancelledByUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancelled_by_user_id'],
+      ),
+      cancelReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancel_reason'],
+      ),
       syncStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sync_status'],
@@ -5316,23 +5342,32 @@ class Expense extends DataClass implements Insertable<Expense> {
   final String id;
   final String shiftId;
   final String userId;
-  final String? updatedByUserId;
   final String description;
   final int amount;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Untuk pengeluaran artinya DIBATALKAN — disimpan selamanya, tampil
+  /// berlabel, tidak dihitung di total. Lihat [batalkanPengeluaran].
   final DateTime? deletedAt;
+
+  /// Siapa yang membatalkan (v31). Kasir hanya bisa dengan PIN owner.
+  final String? cancelledByUserId;
+
+  /// Alasan pembatalan (v31). Null untuk yang terhapus sebelum fitur ini.
+  final String? cancelReason;
   final String syncStatus;
   const Expense({
     required this.id,
     required this.shiftId,
     required this.userId,
-    this.updatedByUserId,
     required this.description,
     required this.amount,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.cancelledByUserId,
+    this.cancelReason,
     required this.syncStatus,
   });
   @override
@@ -5341,15 +5376,18 @@ class Expense extends DataClass implements Insertable<Expense> {
     map['id'] = Variable<String>(id);
     map['shift_id'] = Variable<String>(shiftId);
     map['user_id'] = Variable<String>(userId);
-    if (!nullToAbsent || updatedByUserId != null) {
-      map['updated_by_user_id'] = Variable<String>(updatedByUserId);
-    }
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<int>(amount);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    if (!nullToAbsent || cancelledByUserId != null) {
+      map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId);
+    }
+    if (!nullToAbsent || cancelReason != null) {
+      map['cancel_reason'] = Variable<String>(cancelReason);
     }
     map['sync_status'] = Variable<String>(syncStatus);
     return map;
@@ -5360,9 +5398,6 @@ class Expense extends DataClass implements Insertable<Expense> {
       id: Value(id),
       shiftId: Value(shiftId),
       userId: Value(userId),
-      updatedByUserId: updatedByUserId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(updatedByUserId),
       description: Value(description),
       amount: Value(amount),
       createdAt: Value(createdAt),
@@ -5370,6 +5405,12 @@ class Expense extends DataClass implements Insertable<Expense> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      cancelledByUserId: cancelledByUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledByUserId),
+      cancelReason: cancelReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelReason),
       syncStatus: Value(syncStatus),
     );
   }
@@ -5383,12 +5424,15 @@ class Expense extends DataClass implements Insertable<Expense> {
       id: serializer.fromJson<String>(json['id']),
       shiftId: serializer.fromJson<String>(json['shiftId']),
       userId: serializer.fromJson<String>(json['userId']),
-      updatedByUserId: serializer.fromJson<String?>(json['updatedByUserId']),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<int>(json['amount']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      cancelledByUserId: serializer.fromJson<String?>(
+        json['cancelledByUserId'],
+      ),
+      cancelReason: serializer.fromJson<String?>(json['cancelReason']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
   }
@@ -5399,12 +5443,13 @@ class Expense extends DataClass implements Insertable<Expense> {
       'id': serializer.toJson<String>(id),
       'shiftId': serializer.toJson<String>(shiftId),
       'userId': serializer.toJson<String>(userId),
-      'updatedByUserId': serializer.toJson<String?>(updatedByUserId),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<int>(amount),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'cancelledByUserId': serializer.toJson<String?>(cancelledByUserId),
+      'cancelReason': serializer.toJson<String?>(cancelReason),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
   }
@@ -5413,25 +5458,27 @@ class Expense extends DataClass implements Insertable<Expense> {
     String? id,
     String? shiftId,
     String? userId,
-    Value<String?> updatedByUserId = const Value.absent(),
     String? description,
     int? amount,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
+    Value<String?> cancelledByUserId = const Value.absent(),
+    Value<String?> cancelReason = const Value.absent(),
     String? syncStatus,
   }) => Expense(
     id: id ?? this.id,
     shiftId: shiftId ?? this.shiftId,
     userId: userId ?? this.userId,
-    updatedByUserId: updatedByUserId.present
-        ? updatedByUserId.value
-        : this.updatedByUserId,
     description: description ?? this.description,
     amount: amount ?? this.amount,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    cancelledByUserId: cancelledByUserId.present
+        ? cancelledByUserId.value
+        : this.cancelledByUserId,
+    cancelReason: cancelReason.present ? cancelReason.value : this.cancelReason,
     syncStatus: syncStatus ?? this.syncStatus,
   );
   Expense copyWithCompanion(ExpensesCompanion data) {
@@ -5439,9 +5486,6 @@ class Expense extends DataClass implements Insertable<Expense> {
       id: data.id.present ? data.id.value : this.id,
       shiftId: data.shiftId.present ? data.shiftId.value : this.shiftId,
       userId: data.userId.present ? data.userId.value : this.userId,
-      updatedByUserId: data.updatedByUserId.present
-          ? data.updatedByUserId.value
-          : this.updatedByUserId,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -5449,6 +5493,12 @@ class Expense extends DataClass implements Insertable<Expense> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      cancelledByUserId: data.cancelledByUserId.present
+          ? data.cancelledByUserId.value
+          : this.cancelledByUserId,
+      cancelReason: data.cancelReason.present
+          ? data.cancelReason.value
+          : this.cancelReason,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
           : this.syncStatus,
@@ -5461,12 +5511,13 @@ class Expense extends DataClass implements Insertable<Expense> {
           ..write('id: $id, ')
           ..write('shiftId: $shiftId, ')
           ..write('userId: $userId, ')
-          ..write('updatedByUserId: $updatedByUserId, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
         .toString();
@@ -5477,12 +5528,13 @@ class Expense extends DataClass implements Insertable<Expense> {
     id,
     shiftId,
     userId,
-    updatedByUserId,
     description,
     amount,
     createdAt,
     updatedAt,
     deletedAt,
+    cancelledByUserId,
+    cancelReason,
     syncStatus,
   );
   @override
@@ -5492,12 +5544,13 @@ class Expense extends DataClass implements Insertable<Expense> {
           other.id == this.id &&
           other.shiftId == this.shiftId &&
           other.userId == this.userId &&
-          other.updatedByUserId == this.updatedByUserId &&
           other.description == this.description &&
           other.amount == this.amount &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
+          other.cancelledByUserId == this.cancelledByUserId &&
+          other.cancelReason == this.cancelReason &&
           other.syncStatus == this.syncStatus);
 }
 
@@ -5505,24 +5558,26 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
   final Value<String> id;
   final Value<String> shiftId;
   final Value<String> userId;
-  final Value<String?> updatedByUserId;
   final Value<String> description;
   final Value<int> amount;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
+  final Value<String?> cancelledByUserId;
+  final Value<String?> cancelReason;
   final Value<String> syncStatus;
   final Value<int> rowid;
   const ExpensesCompanion({
     this.id = const Value.absent(),
     this.shiftId = const Value.absent(),
     this.userId = const Value.absent(),
-    this.updatedByUserId = const Value.absent(),
     this.description = const Value.absent(),
     this.amount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.cancelledByUserId = const Value.absent(),
+    this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -5530,12 +5585,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.id = const Value.absent(),
     required String shiftId,
     required String userId,
-    this.updatedByUserId = const Value.absent(),
     required String description,
     required int amount,
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.cancelledByUserId = const Value.absent(),
+    this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : shiftId = Value(shiftId),
@@ -5546,12 +5602,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Expression<String>? id,
     Expression<String>? shiftId,
     Expression<String>? userId,
-    Expression<String>? updatedByUserId,
     Expression<String>? description,
     Expression<int>? amount,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
+    Expression<String>? cancelledByUserId,
+    Expression<String>? cancelReason,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
   }) {
@@ -5559,12 +5616,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       if (id != null) 'id': id,
       if (shiftId != null) 'shift_id': shiftId,
       if (userId != null) 'user_id': userId,
-      if (updatedByUserId != null) 'updated_by_user_id': updatedByUserId,
       if (description != null) 'description': description,
       if (amount != null) 'amount': amount,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (cancelledByUserId != null) 'cancelled_by_user_id': cancelledByUserId,
+      if (cancelReason != null) 'cancel_reason': cancelReason,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
     });
@@ -5574,12 +5632,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Value<String>? id,
     Value<String>? shiftId,
     Value<String>? userId,
-    Value<String?>? updatedByUserId,
     Value<String>? description,
     Value<int>? amount,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
+    Value<String?>? cancelledByUserId,
+    Value<String?>? cancelReason,
     Value<String>? syncStatus,
     Value<int>? rowid,
   }) {
@@ -5587,12 +5646,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       id: id ?? this.id,
       shiftId: shiftId ?? this.shiftId,
       userId: userId ?? this.userId,
-      updatedByUserId: updatedByUserId ?? this.updatedByUserId,
       description: description ?? this.description,
       amount: amount ?? this.amount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
+      cancelledByUserId: cancelledByUserId ?? this.cancelledByUserId,
+      cancelReason: cancelReason ?? this.cancelReason,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
     );
@@ -5610,9 +5670,6 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     if (userId.present) {
       map['user_id'] = Variable<String>(userId.value);
     }
-    if (updatedByUserId.present) {
-      map['updated_by_user_id'] = Variable<String>(updatedByUserId.value);
-    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -5627,6 +5684,12 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     }
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (cancelledByUserId.present) {
+      map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId.value);
+    }
+    if (cancelReason.present) {
+      map['cancel_reason'] = Variable<String>(cancelReason.value);
     }
     if (syncStatus.present) {
       map['sync_status'] = Variable<String>(syncStatus.value);
@@ -5643,12 +5706,13 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
           ..write('id: $id, ')
           ..write('shiftId: $shiftId, ')
           ..write('userId: $userId, ')
-          ..write('updatedByUserId: $updatedByUserId, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6831,18 +6895,22 @@ final class $$UsersTableReferences
   }
 
   static MultiTypedResultKey<$ExpensesTable, List<Expense>>
-  _updatedExpensesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.expenses,
-    aliasName: $_aliasNameGenerator(db.users.id, db.expenses.updatedByUserId),
-  );
+  _cancelledExpensesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.expenses,
+        aliasName: $_aliasNameGenerator(
+          db.users.id,
+          db.expenses.cancelledByUserId,
+        ),
+      );
 
-  $$ExpensesTableProcessedTableManager get updatedExpensesRefs {
+  $$ExpensesTableProcessedTableManager get cancelledExpensesRefs {
     final manager = $$ExpensesTableTableManager($_db, $_db.expenses).filter(
-      (f) => f.updatedByUserId.id.sqlEquals($_itemColumn<String>('id')!),
+      (f) => f.cancelledByUserId.id.sqlEquals($_itemColumn<String>('id')!),
     );
 
     final cache = $_typedResult.readTableOrNull(
-      _updatedExpensesRefsTable($_db),
+      _cancelledExpensesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -6993,14 +7061,14 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
     return f(composer);
   }
 
-  Expression<bool> updatedExpensesRefs(
+  Expression<bool> cancelledExpensesRefs(
     Expression<bool> Function($$ExpensesTableFilterComposer f) f,
   ) {
     final $$ExpensesTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.expenses,
-      getReferencedColumn: (t) => t.updatedByUserId,
+      getReferencedColumn: (t) => t.cancelledByUserId,
       builder:
           (
             joinBuilder, {
@@ -7242,14 +7310,14 @@ class $$UsersTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> updatedExpensesRefs<T extends Object>(
+  Expression<T> cancelledExpensesRefs<T extends Object>(
     Expression<T> Function($$ExpensesTableAnnotationComposer a) f,
   ) {
     final $$ExpensesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.expenses,
-      getReferencedColumn: (t) => t.updatedByUserId,
+      getReferencedColumn: (t) => t.cancelledByUserId,
       builder:
           (
             joinBuilder, {
@@ -7284,7 +7352,7 @@ class $$UsersTableTableManager
           PrefetchHooks Function({
             bool shiftsRefs,
             bool createdExpensesRefs,
-            bool updatedExpensesRefs,
+            bool cancelledExpensesRefs,
           })
         > {
   $$UsersTableTableManager(_$AppDatabase db, $UsersTable table)
@@ -7388,14 +7456,14 @@ class $$UsersTableTableManager
               ({
                 shiftsRefs = false,
                 createdExpensesRefs = false,
-                updatedExpensesRefs = false,
+                cancelledExpensesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (shiftsRefs) db.shifts,
                     if (createdExpensesRefs) db.expenses,
-                    if (updatedExpensesRefs) db.expenses,
+                    if (cancelledExpensesRefs) db.expenses,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7430,20 +7498,20 @@ class $$UsersTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (updatedExpensesRefs)
+                      if (cancelledExpensesRefs)
                         await $_getPrefetchedData<User, $UsersTable, Expense>(
                           currentTable: table,
                           referencedTable: $$UsersTableReferences
-                              ._updatedExpensesRefsTable(db),
+                              ._cancelledExpensesRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$UsersTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).updatedExpensesRefs,
+                              ).cancelledExpensesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.updatedByUserId == item.id,
+                                (e) => e.cancelledByUserId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -7470,7 +7538,7 @@ typedef $$UsersTableProcessedTableManager =
       PrefetchHooks Function({
         bool shiftsRefs,
         bool createdExpensesRefs,
-        bool updatedExpensesRefs,
+        bool cancelledExpensesRefs,
       })
     >;
 typedef $$ShiftsTableCreateCompanionBuilder =
@@ -9514,12 +9582,13 @@ typedef $$ExpensesTableCreateCompanionBuilder =
       Value<String> id,
       required String shiftId,
       required String userId,
-      Value<String?> updatedByUserId,
       required String description,
       required int amount,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
+      Value<String?> cancelledByUserId,
+      Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -9528,12 +9597,13 @@ typedef $$ExpensesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> shiftId,
       Value<String> userId,
-      Value<String?> updatedByUserId,
       Value<String> description,
       Value<int> amount,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
+      Value<String?> cancelledByUserId,
+      Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
     });
@@ -9578,19 +9648,19 @@ final class $$ExpensesTableReferences
     );
   }
 
-  static $UsersTable _updatedByUserIdTable(_$AppDatabase db) =>
+  static $UsersTable _cancelledByUserIdTable(_$AppDatabase db) =>
       db.users.createAlias(
-        $_aliasNameGenerator(db.expenses.updatedByUserId, db.users.id),
+        $_aliasNameGenerator(db.expenses.cancelledByUserId, db.users.id),
       );
 
-  $$UsersTableProcessedTableManager? get updatedByUserId {
-    final $_column = $_itemColumn<String>('updated_by_user_id');
+  $$UsersTableProcessedTableManager? get cancelledByUserId {
+    final $_column = $_itemColumn<String>('cancelled_by_user_id');
     if ($_column == null) return null;
     final manager = $$UsersTableTableManager(
       $_db,
       $_db.users,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_updatedByUserIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_cancelledByUserIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -9634,6 +9704,11 @@ class $$ExpensesTableFilterComposer
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9688,10 +9763,10 @@ class $$ExpensesTableFilterComposer
     return composer;
   }
 
-  $$UsersTableFilterComposer get updatedByUserId {
+  $$UsersTableFilterComposer get cancelledByUserId {
     final $$UsersTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.updatedByUserId,
+      getCurrentColumn: (t) => t.cancelledByUserId,
       referencedTable: $db.users,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -9751,6 +9826,11 @@ class $$ExpensesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
     builder: (column) => ColumnOrderings(column),
@@ -9802,10 +9882,10 @@ class $$ExpensesTableOrderingComposer
     return composer;
   }
 
-  $$UsersTableOrderingComposer get updatedByUserId {
+  $$UsersTableOrderingComposer get cancelledByUserId {
     final $$UsersTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.updatedByUserId,
+      getCurrentColumn: (t) => t.cancelledByUserId,
       referencedTable: $db.users,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -9854,6 +9934,11 @@ class $$ExpensesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get cancelReason => $composableBuilder(
+    column: $table.cancelReason,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get syncStatus => $composableBuilder(
     column: $table.syncStatus,
@@ -9906,10 +9991,10 @@ class $$ExpensesTableAnnotationComposer
     return composer;
   }
 
-  $$UsersTableAnnotationComposer get updatedByUserId {
+  $$UsersTableAnnotationComposer get cancelledByUserId {
     final $$UsersTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.updatedByUserId,
+      getCurrentColumn: (t) => t.cancelledByUserId,
       referencedTable: $db.users,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -9946,7 +10031,7 @@ class $$ExpensesTableTableManager
           PrefetchHooks Function({
             bool shiftId,
             bool userId,
-            bool updatedByUserId,
+            bool cancelledByUserId,
           })
         > {
   $$ExpensesTableTableManager(_$AppDatabase db, $ExpensesTable table)
@@ -9965,24 +10050,26 @@ class $$ExpensesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> shiftId = const Value.absent(),
                 Value<String> userId = const Value.absent(),
-                Value<String?> updatedByUserId = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<int> amount = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExpensesCompanion(
                 id: id,
                 shiftId: shiftId,
                 userId: userId,
-                updatedByUserId: updatedByUserId,
                 description: description,
                 amount: amount,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
+                cancelledByUserId: cancelledByUserId,
+                cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),
@@ -9991,24 +10078,26 @@ class $$ExpensesTableTableManager
                 Value<String> id = const Value.absent(),
                 required String shiftId,
                 required String userId,
-                Value<String?> updatedByUserId = const Value.absent(),
                 required String description,
                 required int amount,
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExpensesCompanion.insert(
                 id: id,
                 shiftId: shiftId,
                 userId: userId,
-                updatedByUserId: updatedByUserId,
                 description: description,
                 amount: amount,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
+                cancelledByUserId: cancelledByUserId,
+                cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
               ),
@@ -10021,7 +10110,7 @@ class $$ExpensesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({shiftId = false, userId = false, updatedByUserId = false}) {
+              ({shiftId = false, userId = false, cancelledByUserId = false}) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [],
@@ -10067,15 +10156,15 @@ class $$ExpensesTableTableManager
                                   )
                                   as T;
                         }
-                        if (updatedByUserId) {
+                        if (cancelledByUserId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.updatedByUserId,
+                                    currentColumn: table.cancelledByUserId,
                                     referencedTable: $$ExpensesTableReferences
-                                        ._updatedByUserIdTable(db),
+                                        ._cancelledByUserIdTable(db),
                                     referencedColumn: $$ExpensesTableReferences
-                                        ._updatedByUserIdTable(db)
+                                        ._cancelledByUserIdTable(db)
                                         .id,
                                   )
                                   as T;
@@ -10104,7 +10193,11 @@ typedef $$ExpensesTableProcessedTableManager =
       $$ExpensesTableUpdateCompanionBuilder,
       (Expense, $$ExpensesTableReferences),
       Expense,
-      PrefetchHooks Function({bool shiftId, bool userId, bool updatedByUserId})
+      PrefetchHooks Function({
+        bool shiftId,
+        bool userId,
+        bool cancelledByUserId,
+      })
     >;
 typedef $$SyncStateTableCreateCompanionBuilder =
     SyncStateCompanion Function({

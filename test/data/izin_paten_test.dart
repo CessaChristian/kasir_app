@@ -1,7 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
-import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,44 +31,6 @@ void main() {
     await SessionManager.instance.clearSession();
     SessionManager.dbOverride = null;
     await db.close();
-  });
-
-  Future<void> masuk(String id, String role) =>
-      SessionManager.instance.setSession(AuthSession.create(
-        userId: id,
-        username: id,
-        role: role,
-        shiftId: null,
-        permissions: const [],
-      ));
-
-  test('owner boleh mengubah catatan siapa pun', () async {
-    await masuk('u-owner', 'owner');
-
-    expect(SessionManager.instance.bolehUbahCatatan('u-budi'), isTrue);
-    expect(SessionManager.instance.bolehUbahCatatan('u-sari'), isTrue);
-    expect(SessionManager.instance.bolehUbahCatatan('u-owner'), isTrue,
-        reason: 'termasuk catatannya sendiri');
-  });
-
-  test('kasir hanya boleh mengubah catatannya SENDIRI', () async {
-    await masuk('u-budi', 'cashier');
-
-    expect(SessionManager.instance.bolehUbahCatatan('u-budi'), isTrue);
-    expect(SessionManager.instance.bolehUbahCatatan('u-sari'), isFalse,
-        reason: 'inilah yang dulu bisa dibuka keliru lewat delete_any_*');
-  });
-
-  test('catatan tanpa pemilik tidak boleh disentuh kasir', () async {
-    // Transaksi lama bisa punya cashier_user_id null (mis. hasil migrasi).
-    // Membolehkannya berarti siapa pun bisa menghapusnya.
-    await masuk('u-budi', 'cashier');
-    expect(SessionManager.instance.bolehUbahCatatan(null), isFalse);
-  });
-
-  test('tanpa sesi, tidak boleh apa-apa', () async {
-    await SessionManager.instance.clearSession();
-    expect(SessionManager.instance.bolehUbahCatatan('u-budi'), isFalse);
   });
 
   test('keempat kode izin lama sudah tidak ada di kode', () async {

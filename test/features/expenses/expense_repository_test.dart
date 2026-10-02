@@ -74,33 +74,22 @@ void main() {
     expect(e.deletedAt, isNull);
   });
 
-  test('updateExpense mengubah nominal dan keterangan', () async {
+  test('pembatalan menandai dibatalkan, barisnya tetap ada', () async {
     final e = await addOne();
 
-    await repo.updateExpense(
-      id: e.id,
-      amount: 40000,
-      description: 'Beli gas + galon',
-    );
-
-    final after = await db.select(db.expenses).getSingle();
-    expect(after.amount, 40000);
-    expect(after.description, 'Beli gas + galon');
-    expect(after.syncStatus, 'pending', reason: 'perlu dikirim ke server');
-  });
-
-  test('deleteExpense menandai terhapus, barisnya tetap ada', () async {
-    final e = await addOne();
-
-    await repo.deleteExpense(e.id);
+    // Sesi di test ini owner — tidak perlu PIN.
+    await repo.batalkanPengeluaran(e, alasan: 'Salah input');
 
     final row = await db.select(db.expenses).getSingle();
     expect(row.deletedAt, isNotNull, reason: 'ditandai, bukan dibuang');
+    expect(row.cancelReason, 'Salah input');
+    expect(row.cancelledByUserId, 'kasir-1');
     expect(row.syncStatus, 'pending');
 
-    expect(await repo.watchExpensesByShift('shift-1').first, isEmpty,
-        reason: 'tidak muncul lagi di daftar shift');
-    expect(await repo.getExpensesByShift('shift-1'), isEmpty);
+    expect((await repo.watchExpensesByShift('shift-1').first).single.id, e.id,
+        reason: 'halaman Pengeluaran tetap menampilkannya dengan label');
+    expect(await repo.getExpensesByShift('shift-1'), isEmpty,
+        reason: 'kueri lain — laporan, rekap shift — tidak menghitungnya');
   });
 
   test('watchExpensesByShift dan getExpensesByShift sepakat isinya', () async {

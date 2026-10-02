@@ -204,7 +204,7 @@ void main() {
         reason: 'jadwal wajib memanggil buang_sampah tanpa argumen, supaya '
             'rem 30 harinya berlaku');
   });
-  test('buang_sampah tidak pernah membuang transaksi', () {
+  test('buang_sampah tidak pernah membuang transaksi maupun pengeluaran', () {
     // Transaksi tidak dihapus, hanya DIBATALKAN, dan catatan pembatalan
     // disimpan selamanya sebagai bukti untuk owner. Kalau fungsi ini kembali
     // membuang transaksi, bukti itu lenyap diam-diam setiap malam.
@@ -216,5 +216,7 @@ void main() {
 
     expect(isi, isNot(contains('delete from public.transactions')));
     expect(isi, isNot(contains('delete from public.transaction_items')));
+    expect(isi, isNot(contains('delete from public.expenses')),
+        reason: 'pengeluaran juga hanya dibatalkan, disimpan selamanya');
   });
 }

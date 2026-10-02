@@ -359,16 +359,16 @@ class UserPermissions extends Table {
 }
 
 /// =======================
-/// TABLE: EXPENSES (modified in v10 — add business_id + sync fields + updated_by_user_id)
+/// TABLE: EXPENSES
+///
+/// Pengeluaran tidak bisa DIEDIT dan tidak pernah DIHAPUS — yang salah
+/// dibatalkan lalu dicatat ulang (v31). Sama seperti transaksi.
 /// =======================
 class Expenses extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get shiftId => text().references(Shifts, #id)();
   @ReferenceName('createdExpensesRefs')
   TextColumn get userId => text().references(Users, #id)(); // creator
-  @ReferenceName('updatedExpensesRefs')
-  TextColumn get updatedByUserId =>
-      text().nullable().references(Users, #id)(); // NEW in v10 — track edit
   TextColumn get description => text()();
   IntColumn get amount => integer()();
   DateTimeColumn get createdAt =>
@@ -377,7 +377,19 @@ class Expenses extends Table {
   // Sync-friendly (NEW in v10)
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  /// Untuk pengeluaran artinya DIBATALKAN — disimpan selamanya, tampil
+  /// berlabel, tidak dihitung di total. Lihat [batalkanPengeluaran].
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Siapa yang membatalkan (v31). Kasir hanya bisa dengan PIN owner.
+  @ReferenceName('cancelledExpensesRefs')
+  TextColumn get cancelledByUserId =>
+      text().nullable().references(Users, #id)();
+
+  /// Alasan pembatalan (v31). Null untuk yang terhapus sebelum fitur ini.
+  TextColumn get cancelReason => text().nullable()();
+
   TextColumn get syncStatus =>
       text().withDefault(const Constant('pending'))();
 
@@ -406,7 +418,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -781,7 +793,9 @@ class AppDatabase extends _$AppDatabase {
             //
             // Aturannya kini tetap: owner boleh mengubah catatan siapa pun,
             // selain owner hanya catatannya sendiri. Tidak ada lagi cara untuk
-            // menyetelnya keliru. Lihat `SessionManager.bolehUbahCatatan`.
+            // menyetelnya keliru. Sejak v30/v31 transaksi dan pengeluaran tidak lagi
+            // dihapus/diedit, hanya dibatalkan — lihat `SalesRepository` dan
+            // `ExpenseRepository` (`bolehDibatalkan`).
             //
             // Baris anaknya dibuang LEBIH DULU dan secara eksplisit.
             //
@@ -999,6 +1013,34 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 31 && to >= 31) {
+            // v31 — pengeluaran tidak lagi dihapus atau diedit, hanya
+            // DIBATALKAN dengan siapa dan alasannya. Kolom
+            // `updated_by_user_id` (siapa yang terakhir mengedit/menghapus)
+            // dicopot: fiturnya sudah tidak ada.
+            final adaPengeluaran = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'expenses'",
+            ).get();
+            if (adaPengeluaran.isNotEmpty) {
+              Future<bool> ada(String nama) async => (await customSelect(
+                    "SELECT 1 FROM pragma_table_info('expenses') WHERE name = ?",
+                    variables: [Variable.withString(nama)],
+                  ).get())
+                      .isNotEmpty;
+              for (final kolom in [
+                expenses.cancelledByUserId,
+                expenses.cancelReason,
+              ]) {
+                if (!await ada(kolom.name)) await m.addColumn(expenses, kolom);
+              }
+              if (await ada('updated_by_user_id')) {
+                await customStatement(
+                    'ALTER TABLE expenses DROP COLUMN updated_by_user_id');
+              }
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1023,7 +1065,8 @@ class AppDatabase extends _$AppDatabase {
     // Empat kode dibuang di v21 dan diganti aturan paten: `edit_own_expense`,
     // `edit_any_expense`, `delete_own_transaction`, `delete_any_transaction`.
     // Sekarang owner selalu boleh mengubah catatan siapa pun, dan selain owner
-    // hanya catatannya sendiri — lihat `SessionManager.bolehUbahCatatan`.
+    // hanya catatannya sendiri — sejak v30/v31 lewat `bolehDibatalkan` di
+    // `SalesRepository` dan `ExpenseRepository`.
     const permissionsData = [
       {
         'code': 'open_close_shift',
@@ -1176,9 +1219,9 @@ class AppDatabase extends _$AppDatabase {
   /// Berapa lama baris yang sudah dihapus tetap disimpan di HP ini.
   static const umurSampahLokal = Duration(days: 30);
 
-  /// Buang permanen dari HP ini pengeluaran, produk, dan kategori yang sudah
-  /// dihapus DAN sudah sampai di server, setelah lewat [umurSampahLokal].
-  /// Transaksi tidak pernah — yang terhapus adalah yang dibatalkan, dan itu
+  /// Buang permanen dari HP ini produk dan kategori yang sudah dihapus DAN
+  /// sudah sampai di server, setelah lewat [umurSampahLokal]. Transaksi dan
+  /// pengeluaran tidak pernah — yang terhapus adalah yang dibatalkan, dan itu
   /// disimpan selamanya. Pasangan `buang_sampah` di server.
   ///
   /// Aman karena `synced` berarti server sudah tahu barisnya terhapus, jadi
@@ -1194,15 +1237,9 @@ class AppDatabase extends _$AppDatabase {
     final hasil = <String, int>{};
 
     await transaction(() async {
-      // Transaksi SENGAJA tidak dibuang: transaksi yang `deletedAt`-nya terisi
-      // adalah transaksi yang DIBATALKAN — bukti untuk owner, disimpan
-      // selamanya. Lihat [batalkanTransaksi].
-
-      hasil['pengeluaran'] = await (delete(expenses)
-            ..where((e) =>
-                e.deletedAt.isSmallerThanValue(batas) &
-                e.syncStatus.equals('synced')))
-          .go();
+      // Transaksi dan pengeluaran SENGAJA tidak dibuang: yang `deletedAt`-nya
+      // terisi adalah yang DIBATALKAN — bukti untuk owner, disimpan selamanya.
+      // Lihat [batalkanTransaksi] dan [batalkanPengeluaran].
 
       hasil['produk'] = await (delete(products)
             ..where((p) =>
@@ -1428,13 +1465,23 @@ class AppDatabase extends _$AppDatabase {
     return result;
   }
 
+  /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
+  Future<Map<String, String>> namaAkun() async => {
+        for (final u in await select(users).get()) u.id: u.username,
+      };
+
   // ---- EXPENSES ----
 
-  Stream<List<Expense>> watchExpensesByShift(String shiftId) {
+  /// [termasukBatal] ikut menampilkan pengeluaran yang dibatalkan — hanya
+  /// untuk halaman Pengeluaran, yang memberinya label dan tidak menghitungnya.
+  Stream<List<Expense>> watchExpensesByShift(
+    String shiftId, {
+    bool termasukBatal = false,
+  }) {
     return (select(expenses)
           ..where((e) =>
               e.shiftId.equals(shiftId) &
-              e.deletedAt.isNull())
+              (termasukBatal ? const Constant(true) : e.deletedAt.isNull()))
           ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
         .watch();
   }
@@ -1457,34 +1504,28 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// Soft delete pengeluaran — lihat catatan di [deleteCategory].
-  Future<void> deleteExpense(String id) async {
-    final now = DateTime.now();
-    await (update(expenses)..where((e) => e.id.equals(id)))
-        .write(ExpensesCompanion(
-      deletedAt: Value(now),
-      updatedAt: Value(now),
-      updatedByUserId: Value(SessionManager.instance.currentUserId),
-      syncStatus: const Value('pending'),
-    ));
-  }
-
-  /// Update expense. Hanya update amount + description.
-  /// Caller bertanggung jawab validasi permission sebelum call ini.
-  Future<void> updateExpense({
-    required String id,
-    required int amount,
-    required String description,
+  /// Batalkan pengeluaran. Barisnya TIDAK dihapus — `deletedAt` diisi
+  /// (supaya keluar dari semua total), dicatat siapa dan kenapa, dan disimpan
+  /// selamanya. Siapa yang boleh dan kapan PIN owner diperlukan diputuskan
+  /// `ExpenseRepository.batalkanPengeluaran`; pemanggil lain WAJIB lewat sana.
+  Future<void> batalkanPengeluaran(
+    String id, {
+    required String olehUserId,
+    required String alasan,
   }) async {
-    await (update(expenses)..where((e) =>
-      e.id.equals(id)
-    )).write(ExpensesCompanion(
-      amount: Value(amount),
-      description: Value(description),
-      updatedByUserId: Value(SessionManager.instance.currentUserId),
-      updatedAt: Value(DateTime.now()),
+    final sekarang = DateTime.now();
+    final diubah = await (update(expenses)
+          ..where((e) => e.id.equals(id) & e.deletedAt.isNull()))
+        .write(ExpensesCompanion(
+      deletedAt: Value(sekarang),
+      cancelledByUserId: Value(olehUserId),
+      cancelReason: Value(alasan),
+      updatedAt: Value(sekarang),
       syncStatus: const Value('pending'),
     ));
+    if (diubah == 0) {
+      throw StateError('Pengeluaran tidak ditemukan atau sudah dibatalkan.');
+    }
   }
 
   /// Batalkan transaksi beserta itemnya, dalam satu transaction.
@@ -1566,13 +1607,17 @@ class AppDatabase extends _$AppDatabase {
   /// Satu kueri di depan menyelesaikan keduanya.
   ///
   /// Shift yang tidak punya pengeluaran TIDAK muncul sebagai kunci.
+  /// [termasukBatal] untuk halaman Pengeluaran — lihat [watchExpensesByShift].
   Future<Map<String, List<Expense>>> getExpensesForShifts(
-    List<String> shiftIds,
-  ) async {
+    List<String> shiftIds, {
+    bool termasukBatal = false,
+  }) async {
     if (shiftIds.isEmpty) return {};
 
     final baris = await (select(expenses)
-          ..where((e) => e.shiftId.isIn(shiftIds) & e.deletedAt.isNull())
+          ..where((e) =>
+              e.shiftId.isIn(shiftIds) &
+              (termasukBatal ? const Constant(true) : e.deletedAt.isNull()))
           ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
         .get();
 

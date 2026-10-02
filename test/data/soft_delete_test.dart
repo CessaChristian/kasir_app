@@ -105,7 +105,7 @@ void main() {
     );
   });
 
-  test('deleteExpense menandai terhapus dan hilang dari daftar shift',
+  test('pengeluaran batal ditandai dan tidak ikut di daftar shift bawaan',
       () async {
     await db.addExpense(
       shiftId: 'shift-1',
@@ -115,7 +115,8 @@ void main() {
     );
     final expense = await db.select(db.expenses).getSingle();
 
-    await db.deleteExpense(expense.id);
+    await db.batalkanPengeluaran(expense.id,
+        olehUserId: 'kasir-1', alasan: 'Salah input');
 
     final row = await db.select(db.expenses).getSingle();
     expect(row.deletedAt, isNotNull);
@@ -164,7 +165,8 @@ void main() {
     expect(sebelum.single.totalExpenses, 25000,
         reason: 'prasyarat: pengeluaran memang terhitung dulu');
 
-    await db.deleteExpense(expense.id);
+    await db.batalkanPengeluaran(expense.id,
+        olehUserId: 'kasir-1', alasan: 'Salah input');
 
     // Dua query di laporan ini dulu tidak memfilter deletedAt, sehingga
     // pengeluaran yang sudah dihapus tetap mengurangi laba kasir — salah

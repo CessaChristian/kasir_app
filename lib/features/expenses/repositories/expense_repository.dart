@@ -1,4 +1,6 @@
 import '../../../data/app_database.dart';
+import '../../../shared/auth/pin_owner.dart';
+import '../../../shared/auth/session_manager.dart';
 
 /// Satu-satunya pintu akses data pengeluaran.
 ///
@@ -29,37 +31,71 @@ class ExpenseRepository {
         amount: amount,
       );
 
-  /// Ubah nominal dan keterangan pengeluaran.
-  /// Pemeriksaan izin dilakukan pemanggil sebelum method ini dijalankan.
-  Future<void> updateExpense({
-    required String id,
-    required int amount,
-    required String description,
-  }) =>
-      _db.updateExpense(id: id, amount: amount, description: description);
+  // ---- PEMBATALAN ----
+  //
+  // Pengeluaran tidak bisa diedit dan tidak pernah dihapus — yang salah
+  // DIBATALKAN (dengan siapa, kapan, alasannya) lalu dicatat ulang. Dulu
+  // kasir bisa menghapus atau mengubah jumlahnya tanpa jejak. Aturannya sama
+  // dengan pembatalan transaksi.
 
-  /// Tandai pengeluaran terhapus — barisnya tetap ada supaya penghapusannya
-  /// bisa ikut tersinkron ke database pusat nanti.
-  Future<void> deleteExpense(String id) => _db.deleteExpense(id);
+  /// Kasir wajib memasukkan PIN owner; owner yang sedang login tidak.
+  bool get perluPinOwner => !SessionManager.instance.isOwner;
+
+  /// Owner: pengeluaran apa pun yang belum batal. Kasir: hanya miliknya di
+  /// shift yang SEDANG berjalan.
+  bool bolehDibatalkan(Expense e) {
+    final sesi = SessionManager.instance.currentSession;
+    if (sesi == null || e.deletedAt != null) return false;
+    if (sesi.isOwner) return true;
+    return sesi.shiftId != null &&
+        e.shiftId == sesi.shiftId &&
+        e.userId == sesi.userId;
+  }
+
+  /// Batalkan [e]. Aturannya ditegakkan DI SINI, bukan hanya dengan
+  /// menyembunyikan tombol di halaman.
+  Future<void> batalkanPengeluaran(
+    Expense e, {
+    required String alasan,
+    String? pinOwner,
+  }) async {
+    final sesi = SessionManager.instance.currentSession;
+    if (sesi == null) throw StateError('Belum masuk.');
+    final teks = alasan.trim();
+    if (teks.isEmpty) throw ArgumentError('Alasan wajib diisi.');
+    if (!bolehDibatalkan(e)) {
+      throw StateError(e.deletedAt != null
+          ? 'Pengeluaran ini sudah dibatalkan.'
+          : 'Pengeluaran ini hanya bisa dibatalkan owner.');
+    }
+    if (perluPinOwner) await PemeriksaPinOwner(_db).periksa(pinOwner ?? '');
+
+    await _db.batalkanPengeluaran(e.id, olehUserId: sesi.userId, alasan: teks);
+  }
 
   // ---- BACA ----
 
-  /// Pengeluaran satu shift, terbaru dulu. Yang terhapus tidak ikut.
+  /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
+  Future<Map<String, String>> namaAkun() => _db.namaAkun();
+
+  /// Pengeluaran satu shift, terbaru dulu — TERMASUK yang dibatalkan, karena
+  /// halaman Pengeluaran menampilkannya dengan label dan tidak menghitungnya.
   Stream<List<Expense>> watchExpensesByShift(String shiftId) =>
-      _db.watchExpensesByShift(shiftId);
+      _db.watchExpensesByShift(shiftId, termasukBatal: true);
 
   /// Versi sekali-ambil dari [watchExpensesByShift] — dipakai kartu riwayat
   /// shift yang hanya perlu memuat sekali saat dibuka.
   Future<List<Expense>> getExpensesByShift(String shiftId) =>
       _db.getExpensesByShift(shiftId);
 
-  /// Pengeluaran sekumpulan shift sekaligus, dikelompokkan per shift.
-  /// Shift tanpa pengeluaran tidak muncul sebagai kunci — itulah yang dipakai
-  /// halaman Pengeluaran untuk membuang shift kosong dari riwayat.
+  /// Pengeluaran sekumpulan shift sekaligus, dikelompokkan per shift —
+  /// TERMASUK yang dibatalkan (lihat [watchExpensesByShift]). Shift tanpa
+  /// pengeluaran tidak muncul sebagai kunci — itulah yang dipakai halaman
+  /// Pengeluaran untuk membuang shift kosong dari riwayat.
   Future<Map<String, List<Expense>>> getExpensesForShifts(
     List<String> shiftIds,
   ) =>
-      _db.getExpensesForShifts(shiftIds);
+      _db.getExpensesForShifts(shiftIds, termasukBatal: true);
 
   /// Rekap pengeluaran seluruh kasir beserta nama pencatatnya.
   /// Dipakai owner di halaman Laporan; rentang tanggal opsional.

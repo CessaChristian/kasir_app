@@ -1,12 +1,9 @@
-import 'package:drift/drift.dart' show OrderingTerm;
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/perangkat/kode_nota.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
+import '../../../shared/auth/pin_owner.dart';
 import '../../../shared/auth/session_manager.dart';
-import '../../../utils/crypto_utils.dart';
 
 /// Satu-satunya pintu akses data transaksi penjualan.
 ///
@@ -62,11 +59,6 @@ class SalesRepository {
   // Dulu tombolnya "Hapus": kasir bisa menghilangkan transaksinya kapan saja
   // tanpa jejak.
 
-  static const _kunciGagalPin = 'batal_pin_gagal';
-  static const _kunciTerkunciSampai = 'batal_pin_terkunci_sampai';
-  static const batasGagalPin = 5;
-  static const lamaTerkunci = Duration(minutes: 5);
-
   /// Kasir wajib memasukkan PIN owner; owner yang sedang login tidak.
   bool get perluPinOwner => !SessionManager.instance.isOwner;
 
@@ -83,12 +75,8 @@ class SalesRepository {
   }
 
   /// Batalkan [tx]. Aturannya ditegakkan DI SINI, bukan hanya dengan
-  /// menyembunyikan tombol di halaman.
-  ///
-  /// PIN owner dicek di HP ini (bisa offline). Salah [batasGagalPin] kali
-  /// mengunci pembatalan selama [lamaTerkunci] — HANYA di HP ini dan hanya
-  /// untuk pembatalan. Login owner sengaja tidak ikut terkunci: kalau ikut,
-  /// kasir yang menebak-nebak PIN bisa mengunci owner keluar.
+  /// menyembunyikan tombol di halaman. PIN owner diperiksa
+  /// [PemeriksaPinOwner] — sama dengan pembatalan pengeluaran.
   Future<void> batalkanTransaksi(
     Transaction tx, {
     required String alasan,
@@ -103,49 +91,13 @@ class SalesRepository {
           ? 'Transaksi ini sudah dibatalkan.'
           : 'Transaksi ini hanya bisa dibatalkan owner.');
     }
-    if (perluPinOwner) await _periksaPinOwner(pinOwner ?? '');
+    if (perluPinOwner) await PemeriksaPinOwner(_db).periksa(pinOwner ?? '');
 
     await _db.batalkanTransaksi(tx.id, olehUserId: sesi.userId, alasan: teks);
   }
 
-  Future<void> _periksaPinOwner(String pin) async {
-    final prefs = await SharedPreferences.getInstance();
-    final sampai = DateTime.tryParse(prefs.getString(_kunciTerkunciSampai) ?? '');
-    if (sampai != null && sampai.isAfter(DateTime.now())) {
-      final menit = sampai.difference(DateTime.now()).inMinutes + 1;
-      throw StateError('Terlalu banyak PIN salah. Coba lagi $menit menit lagi.');
-    }
-
-    final owner = await (_db.select(_db.users)
-          ..where((u) => u.role.equals('owner'))
-          ..where((u) => u.isActive.equals(true))
-          ..orderBy([(u) => OrderingTerm.asc(u.createdAt)])
-          ..limit(1))
-        .getSingleOrNull();
-    final cocok =
-        owner != null && CryptoUtils.verifyPin(pin, owner.salt, owner.pinHash);
-
-    if (cocok) {
-      await prefs.remove(_kunciGagalPin);
-      await prefs.remove(_kunciTerkunciSampai);
-      return;
-    }
-
-    final gagal = (prefs.getInt(_kunciGagalPin) ?? 0) + 1;
-    if (gagal >= batasGagalPin) {
-      await prefs.remove(_kunciGagalPin);
-      await prefs.setString(_kunciTerkunciSampai,
-          DateTime.now().add(lamaTerkunci).toIso8601String());
-    } else {
-      await prefs.setInt(_kunciGagalPin, gagal);
-    }
-    throw StateError('PIN salah.');
-  }
-
   /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
-  Future<Map<String, String>> namaAkun() async => {
-        for (final u in await _db.select(_db.users).get()) u.id: u.username,
-      };
+  Future<Map<String, String>> namaAkun() => _db.namaAkun();
 
   // ---- BACA ----
 

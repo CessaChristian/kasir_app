@@ -102,14 +102,18 @@ void main() {
     expect(hasil['shift-a']!.fold<int>(0, (s, e) => s + e.amount), 31000);
   });
 
-  test('pengeluaran terhapus tidak ikut, dan shift bisa jadi kosong karenanya',
+  test('pengeluaran yang DIBATALKAN tetap ikut — shiftnya tidak hilang',
       () async {
+    // Pembatalan adalah catatan yang disimpan selamanya, bukan sampah. Shift
+    // yang satu-satunya pengeluarannya dibatalkan tetap tampil di riwayat,
+    // supaya pembatalannya terlihat.
     final parkir =
         (await expenseRepo.getExpensesForShifts(['shift-c']))['shift-c']!.single;
-    await expenseRepo.deleteExpense(parkir.id);
+    await db.batalkanPengeluaran(parkir.id,
+        olehUserId: 'owner-1', alasan: 'Tercatat dobel');
 
     final hasil = await expenseRepo.getExpensesForShifts(['shift-a', 'shift-c']);
-    expect(hasil.containsKey('shift-c'), isFalse);
+    expect(hasil['shift-c']!.single.deletedAt, isNotNull);
     expect(hasil.containsKey('shift-a'), isTrue);
   });
 

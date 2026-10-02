@@ -94,55 +94,50 @@ void main() {
         reason: 'isi struk yang dibatalkan tetap bisa dilihat');
   });
 
+  Future<void> produk(String id,
+          {DateTime? dihapus, String status = 'synced'}) =>
+      db.into(db.products).insert(ProductsCompanion.insert(
+            id: Value(id),
+            name: id,
+            price: 4000,
+            deletedAt: Value(dihapus),
+            syncStatus: Value(status),
+          ));
+
+  Future<List<String>> idProduk() async =>
+      (await db.select(db.products).get()).map((p) => p.id).toList();
+
   test('kabar hapus yang BELUM terkirim tidak dibuang', () async {
-    await pengeluaran('belum-terkirim', dihapus: lama, status: 'pending');
+    await produk('belum-terkirim', dihapus: lama, status: 'pending');
 
     await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(await idPengeluaran(), ['belum-terkirim'],
+    expect(await idProduk(), ['belum-terkirim'],
         reason: 'kalau dibuang, server tidak pernah tahu barisnya dihapus');
   });
 
   test('yang dihapus kurang dari 30 hari lalu belum dibuang', () async {
-    await pengeluaran('masih-baru', dihapus: baru);
+    await produk('masih-baru', dihapus: baru);
 
     await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(await idPengeluaran(), ['masih-baru']);
+    expect(await idProduk(), ['masih-baru']);
   });
 
-  test('pengeluaran dan produk ikut dibersihkan', () async {
-    await db.into(db.expenses).insert(ExpensesCompanion.insert(
-          id: const Value('e-sampah'),
-          shiftId: 's-1',
-          userId: 'u-1',
-          description: 'Es batu',
-          amount: 5000,
-          deletedAt: Value(lama),
-          syncStatus: const Value('synced'),
-        ));
-    await db.into(db.expenses).insert(ExpensesCompanion.insert(
-          id: const Value('e-aktif'),
-          shiftId: 's-1',
-          userId: 'u-1',
-          description: 'Gula',
-          amount: 7000,
-          syncStatus: const Value('synced'),
-        ));
-    await db.into(db.products).insert(ProductsCompanion.insert(
-          id: const Value('p-sampah'),
-          name: 'Teh lama',
-          price: 4000,
-          deletedAt: Value(lama),
-          syncStatus: const Value('synced'),
-        ));
+  test('produk terhapus dibersihkan, pengeluaran DIBATALKAN tidak pernah',
+      () async {
+    // Pengeluaran tidak dihapus, hanya dibatalkan — catatan pembatalannya
+    // bukti untuk owner, disimpan selamanya. Sama seperti transaksi.
+    await pengeluaran('e-batal-lama', dihapus: lama);
+    await pengeluaran('e-aktif');
+    await produk('p-sampah', dihapus: lama);
 
     final hasil = await db.buangSampahLokal(sekarang: sekarang);
 
-    expect(hasil['pengeluaran'], 1);
+    expect(hasil.containsKey('pengeluaran'), isFalse);
     expect(hasil['produk'], 1);
-    expect((await db.select(db.expenses).get()).map((e) => e.id), ['e-aktif']);
-    expect(await db.select(db.products).get(), isEmpty);
+    expect(await idPengeluaran(), unorderedEquals(['e-batal-lama', 'e-aktif']));
+    expect(await idProduk(), isEmpty);
   });
 
   test('kategori yang masih ditunjuk produk dilewati, yang lain dibuang',

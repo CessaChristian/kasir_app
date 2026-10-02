@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/error_state_widget.dart';
 import '../../data/db.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
-import '../../utils/crypto_utils.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/lembar_pembatalan.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
 /// Judul tanggal di Riwayat, untuk SEMUA akun: "Jumat, 02/10/2026".
@@ -626,178 +625,28 @@ class _HistoryPageState extends State<HistoryPage> {
         : '$aktif transaksi · $batal dibatalkan';
   }
 
-  /// Panjang maksimal alasan "Lainnya".
-  static const _panjangAlasanMaks = 100;
-
   static const _daftarAlasan = [
     'Salah input',
     'Pelanggan batal',
     'Pembayaran gagal',
-    'Lainnya',
+    alasanLainnya,
   ];
 
   /// Batalkan transaksi: pilih alasan, dan — untuk kasir — masukkan PIN owner.
-  ///
-  /// Tulisan PIN sengaja tidak menyebut PIN siapa. Kesalahan (PIN salah,
-  /// terkunci) ditampilkan di dalam lembar supaya kasir bisa mencoba lagi
-  /// tanpa memilih ulang alasannya.
   Future<void> _batalkan(Transaction tx) async {
-    final pinC = TextEditingController();
-    final lainnyaC = TextEditingController();
-    final perluPin = _salesRepo.perluPinOwner;
-    String? alasan;
-    String? galat;
-    var memproses = false;
-
-    final berhasil = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLembar) {
-          final teksAlasan = alasan == 'Lainnya'
-              ? lainnyaC.text.trim()
-              : (alasan ?? '');
-          final siap =
-              teksAlasan.isNotEmpty &&
-              (!perluPin || pinC.text.length == CryptoUtils.pinLength) &&
-              !memproses;
-
-          Future<void> kirim() async {
-            setLembar(() {
-              memproses = true;
-              galat = null;
-            });
-            try {
-              await _salesRepo.batalkanTransaksi(
-                tx,
-                alasan: alasan == 'Lainnya'
-                    ? 'Lainnya: $teksAlasan'
-                    : teksAlasan,
-                pinOwner: perluPin ? pinC.text : null,
-              );
-              if (ctx.mounted) Navigator.pop(ctx, true);
-            } on StateError catch (e) {
-              pinC.clear();
-              setLembar(() {
-                memproses = false;
-                galat = e.message;
-              });
-            } on ArgumentError catch (e) {
-              setLembar(() {
-                memproses = false;
-                galat = '${e.message}';
-              });
-            }
-          }
-
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              16,
-              20,
-              20 + MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Batalkan Transaksi',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${tx.invoiceNo} · Rp ${formatRupiah(tx.total)}\n'
-                  'Transaksi tetap tersimpan dengan tanda DIBATALKAN dan tidak '
-                  'dihitung di total.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Alasan',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final a in _daftarAlasan)
-                      ChoiceChip(
-                        label: Text(a),
-                        selected: alasan == a,
-                        onSelected: (_) => setLembar(() => alasan = a),
-                      ),
-                  ],
-                ),
-                if (alasan == 'Lainnya') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: lainnyaC,
-                    maxLength: _panjangAlasanMaks,
-                    onChanged: (_) => setLembar(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Tulis alasannya',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-                if (perluPin) ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Masukkan PIN',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: pinC,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    maxLength: CryptoUtils.pinLength,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (_) => setLembar(() {}),
-                    decoration: const InputDecoration(
-                      hintText: '• • • • • •',
-                      border: OutlineInputBorder(),
-                      counterText: '',
-                    ),
-                  ),
-                ],
-                if (galat != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    galat!,
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                    onPressed: siap ? kirim : null,
-                    child: Text(
-                      memproses ? 'Memproses…' : 'Batalkan Transaksi',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+    final berhasil = await tampilkanLembarPembatalan(
+      context,
+      judul: 'Batalkan Transaksi',
+      keterangan:
+          '${tx.invoiceNo} · Rp ${formatRupiah(tx.total)}\n'
+          'Transaksi tetap tersimpan dengan tanda DIBATALKAN dan tidak '
+          'dihitung di total.',
+      daftarAlasan: _daftarAlasan,
+      perluPin: _salesRepo.perluPinOwner,
+      kirim: (alasan, pin) =>
+          _salesRepo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
     );
-    pinC.dispose();
-    lainnyaC.dispose();
-
-    if (berhasil == true && mounted) {
-      AppToast.success(context, 'Transaksi dibatalkan');
-    }
+    if (berhasil && mounted) AppToast.success(context, 'Transaksi dibatalkan');
   }
 
   Widget _buildDaySection({
@@ -1027,24 +876,7 @@ class _TransactionCard extends StatelessWidget {
                               ),
                             ),
                             if (_batal) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'DIBATALKAN',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red.shade700,
-                                  ),
-                                ),
-                              ),
+                              const LabelDibatalkan(),
                               const SizedBox(width: 6),
                             ],
                             Container(
@@ -1082,7 +914,8 @@ class _TransactionCard extends StatelessWidget {
                         if (_batal) ...[
                           const SizedBox(height: 2),
                           InfoPembatalan(
-                            transaksi: transaction,
+                            dibatalkanPada: transaction.deletedAt!,
+                            alasan: transaction.cancelReason,
                             namaPembatal: namaPembatal,
                             ringkas: true,
                           ),

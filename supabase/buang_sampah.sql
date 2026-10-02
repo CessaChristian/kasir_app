@@ -87,13 +87,9 @@ begin
   -- disimpan selamanya sebagai bukti untuk owner. Lihat
   -- `supabase/transaksi_batal.sql`.
 
-  -- Pengeluaran. Tidak dirujuk tabel mana pun.
-  delete from public.expenses
-   where deleted_at is not null
-     and server_urut < v_batas
-     and deleted_at  < now() - p_jeda;
-  get diagnostics v_jumlah = row_count;
-  tabel := 'pengeluaran'; dibuang := v_jumlah; return next;
+  -- Pengeluaran juga TIDAK dibuang, dengan alasan yang sama: yang terhapus
+  -- adalah yang DIBATALKAN, dan itu bukti. Lihat
+  -- `supabase/pengeluaran_batal.sql`.
 
   -- Produk. Boleh walau pernah laku — rantainya sudah dilepas di langkah 1.
   delete from public.products
@@ -131,8 +127,8 @@ revoke all on function public.buang_sampah(interval) from anon, authenticated;
 -- =====================================================================
 --  CARA MENCOBA
 --
---  1. Hapus sesuatu dari aplikasi (produk, pengeluaran, atau kategori).
---     Transaksi tidak ikut — pembatalan transaksi disimpan selamanya.
+--  1. Hapus produk atau kategori dari aplikasi. Transaksi dan pengeluaran
+--     tidak ikut — pembatalan keduanya disimpan selamanya.
 --  2. Tarik-segarkan di KEDUA HP, supaya dua-duanya "centang biru".
 --  3. Jalankan:
 --
@@ -142,7 +138,6 @@ revoke all on function public.buang_sampah(interval) from anon, authenticated;
 --
 --        tabel       | dibuang
 --       -------------+---------
---        pengeluaran |       1
 --        produk      |       1
 --        kategori    |       0
 --

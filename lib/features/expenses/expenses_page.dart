@@ -9,6 +9,7 @@ import '../../data/app_database.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/lembar_pembatalan.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
 /// Shift mana yang layak muncul di daftar "Riwayat Shift".
@@ -57,6 +58,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
   final _expenseRepo = ExpenseRepository(db);
   final _shiftRepo = ShiftRepository(db);
   List<ShiftEntry> _pastShifts = [];
+
+  /// Untuk menampilkan siapa yang membatalkan sebuah pengeluaran.
+  Map<String, String> _namaAkun = const {};
   bool _bolehLihatRiwayat = true;
   Map<String, List<Expense>> _expensesByShift = {};
   bool _loadingHistory = true;
@@ -74,6 +78,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
       _expensesStream = _expenseRepo.watchExpensesByShift(_activeShiftId!);
     }
     _loadPastShifts();
+    _expenseRepo.namaAkun().then((m) {
+      if (mounted) setState(() => _namaAkun = m);
+    });
   }
 
   Future<void> _loadPastShifts() async {
@@ -161,79 +168,31 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Future<void> _deleteExpense(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400, size: 28),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Hapus Pengeluaran?',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Data ini akan dihapus permanen dan tidak dapat dikembalikan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                      ),
-                      child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade400,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+  static const _daftarAlasan = [
+    'Salah input',
+    'Tidak jadi dibeli',
+    'Tercatat dobel',
+    alasanLainnya,
+  ];
+
+  /// Batalkan pengeluaran: pilih alasan, dan — untuk kasir — masukkan PIN
+  /// owner. Pengeluaran tidak bisa diedit: yang salah dibatalkan lalu
+  /// dicatat ulang.
+  Future<void> _batalkan(Expense e) async {
+    final berhasil = await tampilkanLembarPembatalan(
+      context,
+      judul: 'Batalkan Pengeluaran',
+      keterangan: '${e.description} · Rp ${formatRupiah(e.amount)}\n'
+          'Pengeluaran tetap tersimpan dengan tanda DIBATALKAN dan tidak '
+          'dihitung di total. Kalau salah catat, batalkan lalu catat ulang.',
+      daftarAlasan: _daftarAlasan,
+      perluPin: _expenseRepo.perluPinOwner,
+      kirim: (alasan, pin) =>
+          _expenseRepo.batalkanPengeluaran(e, alasan: alasan, pinOwner: pin),
     );
-    if (confirmed == true) {
-      await _expenseRepo.deleteExpense(id);
-    }
+    if (!berhasil || !mounted) return;
+    AppToast.success(context, 'Pengeluaran dibatalkan');
+    _loadPastShifts();
   }
 
   @override
@@ -265,15 +224,17 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 stream: _expensesStream,
                 builder: (context, snapshot) {
                   final expenses = snapshot.data ?? [];
-                  final total =
-                      expenses.fold<int>(0, (s, e) => s + e.amount);
+                  // Yang dibatalkan tetap tampil, tapi TIDAK dihitung.
+                  final total = expenses
+                      .where((e) => e.deletedAt == null)
+                      .fold<int>(0, (s, e) => s + e.amount);
 
                   return Column(
                     children: [
                       if (expenses.isEmpty)
                         _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
                       for (final e in expenses)
-                        _buildExpenseCard(e, canDelete: true, canEdit: SessionManager.instance.bolehUbahCatatan(e.userId)),
+                        _buildExpenseCard(e),
                       if (expenses.isNotEmpty)
                         _buildTotalCard(total, primaryColor),
                     ],
@@ -322,6 +283,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     entri: entri,
                     expenses: _expensesByShift[entri.shift.id] ?? const [],
                     tampilkanNama: SessionManager.instance.isOwner,
+                    namaAkun: _namaAkun,
                   ),
             ],
           ],
@@ -406,158 +368,93 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Widget _buildExpenseCard(Expense e, {required bool canDelete, bool canEdit = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child:
-                const Icon(Icons.arrow_downward_rounded, color: Colors.red, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.description,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  DateFormat('HH:mm').format(e.createdAt),
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '- Rp ${formatRupiah(e.amount)}',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
-          ),
-          if (canEdit) ...[
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: () => _showEditExpenseDialog(e),
-              icon: Icon(Icons.edit_outlined,
-                  size: 18, color: Colors.blue.shade400),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-          if (canDelete) ...[
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: () => _deleteExpense(e.id),
-              icon: Icon(Icons.delete_outline_rounded,
-                  size: 20, color: Colors.red.shade300),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget _buildExpenseCard(Expense e) {
+    final batal = e.deletedAt != null;
+    // Aturannya di ExpenseRepository.bolehDibatalkan: owner semua, kasir
+    // hanya miliknya di shift yang sedang berjalan.
+    final bolehBatal = _expenseRepo.bolehDibatalkan(e);
 
-  Future<void> _showEditExpenseDialog(Expense expense) async {
-    final amountC = TextEditingController(text: expense.amount.toString());
-    final descC = TextEditingController(text: expense.description);
-    final formKey = GlobalKey<FormState>();
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Pengeluaran'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: descC,
-                  decoration: const InputDecoration(
-                    labelText: 'Keterangan',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: amountC,
-                  decoration: const InputDecoration(
-                    labelText: 'Jumlah (Rp)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Wajib diisi';
-                    if (int.tryParse(v) == null || int.parse(v) <= 0) {
-                      return 'Masukkan angka valid';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
+    return Opacity(
+      opacity: batal ? 0.6 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: batal ? Colors.grey.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, true);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.arrow_downward_rounded,
+                  color: Colors.red, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    e.description,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  if (batal)
+                    InfoPembatalan(
+                      dibatalkanPada: e.deletedAt!,
+                      alasan: e.cancelReason,
+                      namaPembatal: _namaAkun[e.cancelledByUserId],
+                      ringkas: true,
+                    )
+                  else
+                    Text(
+                      DateFormat('HH:mm').format(e.createdAt),
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '- Rp ${formatRupiah(e.amount)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    decoration: batal ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                if (batal) ...[
+                  const SizedBox(height: 4),
+                  const LabelDibatalkan(),
+                ],
+              ],
+            ),
+            if (bolehBatal) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: () => _batalkan(e),
+                tooltip: 'Batalkan pengeluaran',
+                icon: Icon(Icons.block_rounded,
+                    size: 18, color: Colors.red.shade400),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ],
+        ),
       ),
     );
-
-    // Nilainya dibaca SEBELUM controller-nya dibubarkan; membacanya sesudah
-    // itu melempar karena objeknya sudah dilepas.
-    final jumlah = amountC.text;
-    final keterangan = descC.text.trim();
-    amountC.dispose();
-    descC.dispose();
-
-    if (confirmed != true || !mounted) return;
-
-    try {
-      await _expenseRepo.updateExpense(
-        id: expense.id,
-        amount: int.parse(jumlah),
-        description: keterangan,
-      );
-      if (mounted) AppToast.success(context, 'Pengeluaran berhasil diupdate');
-    } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal update: $e');
-    }
   }
 
   Widget _buildTotalCard(int total, Color primaryColor) {
@@ -618,10 +515,14 @@ class _ShiftHistoryCard extends StatefulWidget {
   /// Nama kasir hanya berguna untuk owner, yang melihat shift semua akun.
   final bool tampilkanNama;
 
+  /// Untuk menampilkan siapa yang membatalkan.
+  final Map<String, String> namaAkun;
+
   const _ShiftHistoryCard({
     required this.entri,
     required this.expenses,
     required this.tampilkanNama,
+    required this.namaAkun,
   });
 
   @override
@@ -635,7 +536,10 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
   Widget build(BuildContext context) {
     final shift = widget.entri.shift;
     final expenses = widget.expenses;
-    final total = expenses.fold<int>(0, (s, e) => s + e.amount);
+    // Yang dibatalkan tetap tampil, tapi TIDAK dihitung.
+    final total = expenses
+        .where((e) => e.deletedAt == null)
+        .fold<int>(0, (s, e) => s + e.amount);
     final fmt = DateFormat('dd MMM yyyy');
     final timeFmt = DateFormat('HH:mm');
 
@@ -723,27 +627,47 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
                 child: Column(
                   children: [
                     for (final e in expenses)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.arrow_downward_rounded,
-                                size: 14, color: Colors.red),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                e.description,
-                                style: const TextStyle(fontSize: 13),
+                      Opacity(
+                        opacity: e.deletedAt != null ? 0.6 : 1,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.arrow_downward_rounded,
+                                  size: 14, color: Colors.red),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      e.description,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                    if (e.deletedAt != null)
+                                      InfoPembatalan(
+                                        dibatalkanPada: e.deletedAt!,
+                                        alasan: e.cancelReason,
+                                        namaPembatal:
+                                            widget.namaAkun[e.cancelledByUserId],
+                                        ringkas: true,
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Rp ${formatRupiah(e.amount)}',
-                              style: const TextStyle(
+                              Text(
+                                'Rp ${formatRupiah(e.amount)}',
+                                style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.red),
-                            ),
-                          ],
+                                  color: Colors.red,
+                                  decoration: e.deletedAt != null
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     Divider(color: Colors.grey.shade100),

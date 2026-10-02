@@ -154,12 +154,16 @@ create table public.expenses (
   id                 uuid primary key default gen_random_uuid(),
   shift_id           uuid        not null references public.shifts(id),
   user_id            uuid        not null references public.users(id),
-  updated_by_user_id uuid        references public.users(id),
   description        text        not null,
   amount             bigint      not null,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
-  deleted_at         timestamptz
+  -- Seperti transaksi: `deleted_at` berarti DIBATALKAN, disimpan selamanya,
+  -- tidak pernah dibuang `buang_sampah`. Pengeluaran tidak bisa diedit —
+  -- yang salah dibatalkan lalu dicatat ulang.
+  deleted_at         timestamptz,
+  cancelled_by_user_id uuid      references public.users(id),
+  cancel_reason      text
 );
 
 -- =====================================================================
