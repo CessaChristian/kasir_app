@@ -122,6 +122,16 @@ class SyncService {
         );
       }
 
+      // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
+      // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
+      // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
+      // tempat, dan putaran berikutnya mencoba lagi.
+      try {
+        await db.buangSampahLokal();
+      } catch (e) {
+        debugPrint('[sync] buang sampah lokal gagal: $e');
+      }
+
       // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
       // menyimpan daftarnya sejak login. Tanpa dibaca ulang di sini, izin yang
       // baru diberikan pemilik tidak terlihat sampai kasir keluar-masuk lagi —

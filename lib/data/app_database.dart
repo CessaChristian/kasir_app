@@ -1077,6 +1077,69 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
+  // ---- SAMPAH LOKAL ----
+
+  /// Berapa lama baris yang sudah dihapus tetap disimpan di HP ini.
+  static const umurSampahLokal = Duration(days: 30);
+
+  /// Buang permanen dari HP ini baris yang sudah dihapus DAN sudah sampai di
+  /// server, setelah lewat [umurSampahLokal]. Pasangan `buang_sampah` di
+  /// server — yang itu hanya membersihkan server.
+  ///
+  /// Aman karena `synced` berarti server sudah tahu barisnya terhapus, jadi
+  /// salinan di sini tidak dibutuhkan siapa pun. Baris yang masih `pending`
+  /// TIDAK disentuh: kabar hapusnya belum terkirim, dan kalau dibuang di sini
+  /// kabar itu hilang selamanya — barisnya tetap hidup di HP lain.
+  ///
+  /// Kalau server suatu saat mengirim baris itu lagi (misalnya saat penanda
+  /// tarikan dikosongkan), ia masuk lagi sebagai "terhapus" dan dibuang lagi
+  /// nanti. Tidak ada data aktif yang bisa hilang.
+  Future<Map<String, int>> buangSampahLokal({DateTime? sekarang}) async {
+    final batas = (sekarang ?? DateTime.now()).subtract(umurSampahLokal);
+    final hasil = <String, int>{};
+
+    await transaction(() async {
+      final trx = await (select(transactions)
+            ..where((t) =>
+                t.deletedAt.isSmallerThanValue(batas) &
+                t.syncStatus.equals('synced')))
+          .map((t) => t.id)
+          .get();
+      // Item dibuang eksplisit, tidak bergantung pada ON DELETE CASCADE yang
+      // hanya berlaku kalau penegakan foreign key sedang menyala.
+      await (delete(transactionItems)
+            ..where((i) => i.transactionId.isIn(trx)))
+          .go();
+      hasil['transaksi'] =
+          await (delete(transactions)..where((t) => t.id.isIn(trx))).go();
+
+      hasil['pengeluaran'] = await (delete(expenses)
+            ..where((e) =>
+                e.deletedAt.isSmallerThanValue(batas) &
+                e.syncStatus.equals('synced')))
+          .go();
+
+      hasil['produk'] = await (delete(products)
+            ..where((p) =>
+                p.deletedAt.isSmallerThanValue(batas) &
+                p.syncStatus.equals('synced')))
+          .go();
+
+      // Sesudah produk. Kategori yang masih ditunjuk produk dilewati — itu
+      // bisa terjadi kalau HP lain yang offline memasukkan produk ke kategori
+      // yang sudah dihapus. Penjaga yang sama ada di `buang_sampah` server.
+      hasil['kategori'] = await (delete(categories)
+            ..where((c) =>
+                c.deletedAt.isSmallerThanValue(batas) &
+                c.syncStatus.equals('synced') &
+                notExistsQuery(select(products)
+                  ..where((p) => p.categoryId.equalsExp(c.id)))))
+          .go();
+    });
+
+    return hasil;
+  }
+
   // ---- SALES ----
 
   /// Catat penjualan. Mengembalikan nomor nota yang tercetak di struk.
