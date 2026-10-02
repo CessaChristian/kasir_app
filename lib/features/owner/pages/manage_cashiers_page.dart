@@ -27,12 +27,11 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
   @override
   void initState() {
     super.initState();
-    // S11: Defense-in-depth — pastikan hanya user dengan permission
-    // manage_cashiers yang bisa render halaman ini. Drawer filter saja
-    // tidak cukup karena page bisa dipanggil via direct navigation.
+    // Hak paten owner. Menu yang disembunyikan saja tidak cukup: halaman ini
+    // tetap bisa dibuka lewat jalur lain.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        SessionManager.instance.requirePermission('manage_cashiers');
+        SessionManager.instance.requireOwner();
       } on StateError {
         if (mounted) Navigator.of(context).pop();
       }

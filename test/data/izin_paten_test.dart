@@ -92,7 +92,7 @@ void main() {
     // Yang membacanya pemilik warung, bukan pengembang. "Edit Any Expense
     // (owner override)" tidak berarti apa-apa baginya.
     final katalog = await db.select(db.permissions).get();
-    expect(katalog, hasLength(8));
+    expect(katalog, hasLength(6));
 
     for (final p in katalog) {
       expect(p.name, isNot(matches(RegExp(r'^(View|Manage|Create|Edit|Delete|Open)\b'))),

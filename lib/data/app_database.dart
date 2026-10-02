@@ -283,9 +283,10 @@ class Permissions extends Table {
 /// Izin yang didapat kasir baru, dan yang diisi ulang untuk kasir yang
 /// izinnya hilang.
 ///
-/// `view_shift_reports` termasuk supaya kasir bisa melihat riwayat shift dan
-/// pendapatannya SENDIRI. Cakupannya dijaga izin terpisah `view_all_shifts`
-/// yang sengaja TIDAK diberikan, jadi ia tidak bisa mengintip kasir lain.
+/// Sengaja hanya dua. Melihat shift sendiri di Pantau Shift dan membuka menu
+/// Riwayat adalah hak paten semua akun, bukan izin. `view_history` (melihat
+/// catatan dari shift-shift yang sudah lewat) dan `view_all_shifts` (melihat
+/// kasir lain) harus diberikan owner dengan sengaja.
 ///
 /// Ditaruh di sini, bukan di repository, karena dipakai dua tempat: saat
 /// membuat kasir baru dan saat migrasi mengisi ulang izin yang hilang. Dua
@@ -293,8 +294,6 @@ class Permissions extends Table {
 const _izinBawaanKasir = <String>[
   'open_close_shift',
   'create_transaction',
-  'view_history',
-  'view_shift_reports',
 ];
 
 /// Dibaca repository supaya daftarnya hanya ada satu.
@@ -389,7 +388,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -899,6 +898,31 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 27 && to >= 27) {
+            // v27 — dua izin jadi hak PATEN, dan `view_history` berganti arti.
+            //
+            // - `manage_cashiers`: Kelola Kasir kini hanya untuk owner, tidak
+            //   bisa diberikan — sama seperti Daftar Perangkat.
+            // - `view_shift_reports`: melihat shift SENDIRI kini hak semua
+            //   akun. Yang tetap izin hanya `view_all_shifts`.
+            // - `view_history` kini berarti "boleh melihat shift-shift yang
+            //   sudah lewat", bukan "boleh membuka menu Riwayat". Namanya
+            //   disemai ulang; pencabutan dari kasir yang sudah memegangnya
+            //   dilakukan di server supaya sampai ke semua HP.
+            //
+            // Anak dulu, baru induk — CASCADE tidak berlaku selama migrasi.
+            // Lihat catatan v21.
+            const dipatenkan = "('manage_cashiers','view_shift_reports')";
+            await customStatement(
+              'DELETE FROM user_permissions WHERE permission_code IN '
+              '$dipatenkan',
+            );
+            await customStatement(
+              'DELETE FROM permissions WHERE code IN $dipatenkan',
+            );
+            await _seedPermissions();
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -937,8 +961,10 @@ class AppDatabase extends _$AppDatabase {
       },
       {
         'code': 'view_history',
-        'name': 'Lihat Riwayat Transaksi',
-        'description': 'Membuka daftar transaksi yang sudah lewat'
+        'name': 'Lihat Riwayat Lengkap',
+        'description': 'Melihat transaksi dan pengeluaran sendiri dari '
+            'shift-shift sebelumnya. Tanpa izin ini hanya shift yang sedang '
+            'berjalan'
       },
       {
         'code': 'view_report',
@@ -949,16 +975,6 @@ class AppDatabase extends _$AppDatabase {
         'code': 'manage_products',
         'name': 'Kelola Produk',
         'description': 'Menambah, mengubah, dan menghapus produk'
-      },
-      {
-        'code': 'manage_cashiers',
-        'name': 'Kelola Kasir',
-        'description': 'Menambah dan mengatur akun kasir'
-      },
-      {
-        'code': 'view_shift_reports',
-        'name': 'Lihat Laporan Shift',
-        'description': 'Membuka halaman Pantau Shift — hanya shift sendiri'
       },
       {
         'code': 'view_all_shifts',
@@ -1282,10 +1298,21 @@ class AppDatabase extends _$AppDatabase {
 
   // ---- TRANSACTIONS / HISTORY ----
 
-  Stream<List<Transaction>> watchTransactions() {
+  /// Transaksi yang belum dihapus, terbaru dulu.
+  ///
+  /// [kasirId] membatasi ke transaksi satu kasir; [shiftId] ke satu shift.
+  /// Keduanya null berarti semua — hanya untuk owner. Siapa melihat apa
+  /// diputuskan `CakupanRiwayat`, bukan di sini.
+  Stream<List<Transaction>> watchTransactions({
+    String? kasirId,
+    String? shiftId,
+  }) {
     return (select(transactions)
+          ..where((t) => t.deletedAt.isNull())
           ..where((t) =>
-              t.deletedAt.isNull())
+              kasirId == null ? const Constant(true) : t.cashierUserId.equals(kasirId))
+          ..where((t) =>
+              shiftId == null ? const Constant(true) : t.shiftId.equals(shiftId))
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
   }

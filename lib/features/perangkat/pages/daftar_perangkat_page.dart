@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/perangkat/perangkat_repository.dart';
+import '../../../shared/auth/session_manager.dart';
 import '../../../shared/widgets/app_toast.dart';
 
 /// Daftar HP yang boleh menyentuh data toko — hak PATEN pemilik.
@@ -34,6 +35,15 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
   @override
   void initState() {
     super.initState();
+    // Hak paten owner. Menu sudah disembunyikan untuk kasir, tapi halaman ini
+    // tetap bisa dibuka lewat jalur lain — jadi diperiksa juga di sini.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        SessionManager.instance.requireOwner();
+      } on StateError {
+        if (mounted) Navigator.of(context).pop();
+      }
+    });
     _muat();
   }
 

@@ -105,7 +105,9 @@ class AppShellState extends State<AppShell> {
     {
       'icon': Icons.receipt_long_rounded,
       'label': 'Riwayat',
-      'permission': 'view_history',
+      // Hak semua akun. Izin `view_history` mengatur SEJAUH APA ke belakang
+      // isinya, bukan boleh-tidaknya membuka — lihat `CakupanRiwayat`.
+      'permission': 'all',
       'page': HistoryPage(),
     },
     {
@@ -525,11 +527,9 @@ class AppShellState extends State<AppShell> {
                         onTap: () => _navigateTo(i),
                       ),
 
-                    // Halaman Pantau Shift — gated permission view_shift_reports
-                    // (owner selalu punya; bisa diberikan ke kasir).
-                    if (SessionManager.instance
-                        .hasCurrentPermission('view_shift_reports'))
-                      _buildDrawerMenuItem(
+                    // Pantau Shift — hak semua akun. Isinya dibatasi izin
+                    // `view_all_shifts`: tanpa itu hanya shift sendiri.
+                    _buildDrawerMenuItem(
                         context,
                         icon: Icons.monitor_heart_outlined,
                         label: 'Pantau Shift',
@@ -544,8 +544,11 @@ class AppShellState extends State<AppShell> {
                         },
                       ),
 
-                    // Owner-only section
-                    if (SessionManager.instance.hasPermission('manage_cashiers')) ...[
+                    // Kelola Kasir — hak PATEN owner, bukan izin. Sama seperti
+                    // Daftar Perangkat di bawah: yang diatur di sini adalah
+                    // siapa yang boleh memakai aplikasi, jadi tidak boleh bisa
+                    // diberikan ke kasir.
+                    if (SessionManager.instance.isOwner) ...[
                       const SizedBox(height: 12),
                       Divider(color: Colors.grey.shade300, height: 1),
                       const SizedBox(height: 12),

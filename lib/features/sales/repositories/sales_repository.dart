@@ -1,6 +1,7 @@
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/perangkat/kode_nota.dart';
+import '../../../shared/auth/cakupan_riwayat.dart';
 
 /// Satu-satunya pintu akses data transaksi penjualan.
 ///
@@ -58,6 +59,17 @@ class SalesRepository {
 
   /// Semua transaksi business aktif, terbaru dulu. Yang terhapus tidak ikut.
   Stream<List<Transaction>> watchTransactions() => _db.watchTransactions();
+
+  /// Transaksi untuk halaman Riwayat, dibatasi [cakupan] akun yang melihat.
+  Stream<List<Transaction>> watchRiwayat(CakupanRiwayat cakupan) =>
+      switch (cakupan.jenis) {
+        JenisCakupan.semua => _db.watchTransactions(),
+        JenisCakupan.milikSendiri =>
+          _db.watchTransactions(kasirId: cakupan.userId),
+        JenisCakupan.shiftAktif => cakupan.shiftId == null
+            ? Stream.value(const <Transaction>[])
+            : _db.watchTransactions(shiftId: cakupan.shiftId),
+      };
 
   /// Item milik satu transaksi — dipakai layar detail struk.
   Future<List<TransactionItem>> getTransactionItems(String transactionId) =>

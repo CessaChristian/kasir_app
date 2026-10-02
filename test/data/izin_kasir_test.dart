@@ -127,12 +127,13 @@ void main() {
     expect(tertunda.first.enabled, isFalse);
   });
 
-  test('daftar izin bawaan kasir berisi tepat empat yang disepakati', () {
+  test('daftar izin bawaan kasir berisi tepat dua yang disepakati', () {
+    // Membuka Riwayat dan melihat shift sendiri adalah hak paten semua akun,
+    // bukan izin. `view_history` kini berarti melihat shift-shift yang sudah
+    // lewat — harus diberikan owner dengan sengaja, bukan bawaan.
     expect(izinBawaanKasir, [
       'open_close_shift',
       'create_transaction',
-      'view_history',
-      'view_shift_reports',
     ]);
   });
 

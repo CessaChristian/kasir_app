@@ -6,6 +6,7 @@ import '../sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
+import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/sync_refresh.dart';
@@ -19,6 +20,11 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   final _salesRepo = SalesRepository(db);
+
+  // Dibuat sekali: cakupannya ditentukan sesi saat halaman dibuka, dan stream
+  // yang dibuat ulang tiap build membuat daftarnya berkedip.
+  final _cakupan = CakupanRiwayat.dariSesi();
+  late final _riwayat = _salesRepo.watchRiwayat(_cakupan);
   // Track which date sections are expanded (today expanded by default)
   final Set<String> _expandedDates = {};
   bool _initialized = false;
@@ -33,7 +39,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: StreamBuilder<List<Transaction>>(
-        stream: _salesRepo.watchTransactions(),
+        stream: _riwayat,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return ErrorStateWidget(
@@ -489,7 +495,9 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Transaksi akan muncul di sini',
+            _cakupan.jenis == JenisCakupan.shiftAktif
+                ? 'Transaksi di shift ini akan muncul di sini'
+                : 'Transaksi akan muncul di sini',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade500,

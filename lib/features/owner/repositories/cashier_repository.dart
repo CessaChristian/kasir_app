@@ -21,18 +21,11 @@ class CashierRepository {
   static const panjangNamaMin = 3;
   static const panjangNamaMaks = 30;
 
-  /// Create a new cashier account with default permissions
-  /// 
-  /// Default permissions for cashiers:
-  /// - open_close_shift: true
-  /// - create_transaction: true
-  /// - view_history: true
-  /// - view_report: false
-  /// - manage_products: false
-  /// - manage_cashiers: false
-  /// S11: All mutating methods require manage_cashiers permission.
+  /// Kelola Kasir adalah hak PATEN owner, bukan izin yang bisa diberikan —
+  /// semua fungsi yang mengubah akun kasir memeriksanya di sini, tidak hanya
+  /// lewat menu yang disembunyikan. Izin bawaan kasir baru: [izinBawaanKasir].
   void _requireManageCashiers() {
-    SessionManager.instance.requirePermission('manage_cashiers');
+    SessionManager.instance.requireOwner();
   }
 
   Future<User> createCashier({

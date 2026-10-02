@@ -35,21 +35,31 @@
 -- masuk akal — kasir yang diberi delete_any_* bisa menghapus transaksi kasir
 -- LAIN. Aturannya kini tetap: owner boleh mengubah catatan siapa pun, selain
 -- owner hanya catatannya sendiri.
+--
+-- Dua kode lagi dibuang di v27, dengan alasan berbeda:
+-- - manage_cashiers: Kelola Kasir kini hak PATEN owner, tidak bisa
+--   diberikan ke kasir — sama seperti Daftar Perangkat.
+-- - view_shift_reports: melihat shift SENDIRI kini hak paten SEMUA akun.
+--   Yang tetap jadi izin hanya view_all_shifts (melihat kasir lain).
+--
+-- Baris user_permissions dibuang LEBIH DULU: HP yang sudah memakai v27 tidak
+-- lagi mengenal kode-kode ini, dan akan menolak baris yang memakainya —
+-- sinkron tabel izin gagal terus. Jalankan ini SEBELUM APK v27 dipasang.
 delete from public.user_permissions
  where permission_code in ('edit_own_expense','edit_any_expense',
-                           'delete_own_transaction','delete_any_transaction');
+                           'delete_own_transaction','delete_any_transaction',
+                           'manage_cashiers','view_shift_reports');
 delete from public.permissions
  where code in ('edit_own_expense','edit_any_expense',
-                'delete_own_transaction','delete_any_transaction');
+                'delete_own_transaction','delete_any_transaction',
+                'manage_cashiers','view_shift_reports');
 
 insert into public.permissions (code, name, description) values
   ('open_close_shift', 'Buka & Tutup Shift', 'Memulai dan mengakhiri jam kerja'),
   ('create_transaction', 'Buat Transaksi', 'Melayani penjualan di halaman Kasir'),
-  ('view_history', 'Lihat Riwayat Transaksi', 'Membuka daftar transaksi yang sudah lewat'),
+  ('view_history', 'Lihat Riwayat Lengkap', 'Melihat transaksi dan pengeluaran sendiri dari shift-shift sebelumnya. Tanpa izin ini hanya shift yang sedang berjalan'),
   ('view_report', 'Lihat Laporan', 'Membuka analisis penjualan'),
   ('manage_products', 'Kelola Produk', 'Menambah, mengubah, dan menghapus produk'),
-  ('manage_cashiers', 'Kelola Kasir', 'Menambah dan mengatur akun kasir'),
-  ('view_shift_reports', 'Lihat Laporan Shift', 'Membuka halaman Pantau Shift — hanya shift sendiri'),
   ('view_all_shifts', 'Lihat Shift Semua Kasir', 'Melihat shift kasir lain, bukan hanya miliknya sendiri')
 on conflict (code) do update
   set name = excluded.name,

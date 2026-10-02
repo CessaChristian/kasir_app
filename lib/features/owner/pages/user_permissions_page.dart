@@ -150,10 +150,6 @@ class _UserPermissionsPageState extends State<UserPermissionsPage> {
         return Icons.analytics;
       case 'manage_products':
         return Icons.inventory;
-      case 'manage_cashiers':
-        return Icons.people;
-      case 'view_shift_reports':
-        return Icons.monitor_heart_outlined;
       case 'view_all_shifts':
         return Icons.groups_outlined;
       default:

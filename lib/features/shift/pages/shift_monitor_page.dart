@@ -13,9 +13,8 @@ import 'shift_detail_page.dart';
 /// baris menampilkan ringkasan (kasir, waktu, jumlah transaksi, pendapatan).
 /// Ketuk salah satu → [ShiftDetailPage] berisi detail + semua transaksinya.
 ///
-/// Akses digating permission `view_shift_reports` oleh pemanggil. Cakupan:
-/// user dengan `view_all_shifts` melihat semua kasir; tanpa itu hanya shift
-/// miliknya sendiri.
+/// Hak semua akun. Cakupan: owner dan pemegang izin `view_all_shifts` melihat
+/// semua kasir; selain itu hanya shift miliknya sendiri.
 ///
 /// CATATAN (Phase 2 / sync): saat ini di pemakaian multi-device nyata, device
 /// owner belum memiliki data shift kasir sampai sinkronisasi database aktif.

@@ -311,7 +311,7 @@ class DashboardPage extends StatelessWidget {
         'icon': Icons.receipt_long_rounded,
         'label': 'Riwayat',
         'description': 'Lihat riwayat transaksi',
-        'permission': 'view_history',
+        'permission': 'all',
       },
       {
         'icon': Icons.analytics_rounded,

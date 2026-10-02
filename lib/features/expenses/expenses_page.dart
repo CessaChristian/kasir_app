@@ -6,6 +6,7 @@ import '../../data/db.dart';
 import 'repositories/expense_repository.dart';
 import '../shift/repositories/shift_repository.dart';
 import '../../data/app_database.dart';
+import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/sync_refresh.dart';
@@ -56,6 +57,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
   final _expenseRepo = ExpenseRepository(db);
   final _shiftRepo = ShiftRepository(db);
   List<ShiftEntry> _pastShifts = [];
+  bool _bolehLihatRiwayat = true;
   Map<String, List<Expense>> _expensesByShift = {};
   bool _loadingHistory = true;
 
@@ -81,10 +83,23 @@ class _ExpensesPageState extends State<ExpensesPage> {
       return;
     }
 
-    // Owner mengawasi seluruh kasir, jadi ia melihat shift SEMUA akun —
-    // termasuk miliknya sendiri yang lama. Kasir hanya melihat miliknya.
+    // Aturannya sama dengan halaman Riwayat — lihat `CakupanRiwayat`. Owner
+    // melihat shift semua akun; kasir dengan izin `view_history` shift-shift
+    // lamanya sendiri; kasir tanpa izin itu hanya shift yang sedang berjalan,
+    // yang sudah tampil di bagian atas.
+    final cakupan = CakupanRiwayat.dariSesi();
+    if (cakupan.jenis == JenisCakupan.shiftAktif) {
+      if (mounted) {
+        setState(() {
+          _bolehLihatRiwayat = false;
+          _pastShifts = [];
+          _loadingHistory = false;
+        });
+      }
+      return;
+    }
     final semua = await _shiftRepo.getShiftsWithUser(
-      userId: session.isOwner ? null : session.userId,
+      userId: cakupan.jenis == JenisCakupan.semua ? null : cakupan.userId,
     );
 
     final kandidat = semua
@@ -292,19 +307,23 @@ class _ExpensesPageState extends State<ExpensesPage> {
             ],
 
             // ---- Riwayat Shift Sebelumnya ----
-            _buildSectionHeader('Riwayat Shift'),
-            const SizedBox(height: 8),
-            if (_loadingHistory)
-              const Center(child: CircularProgressIndicator())
-            else if (_pastShifts.isEmpty)
-              _buildEmptyCard('Belum ada pengeluaran tercatat.')
-            else
-              for (final entri in _pastShifts)
-                _ShiftHistoryCard(
-                  entri: entri,
-                  expenses: _expensesByShift[entri.shift.id] ?? const [],
-                  tampilkanNama: SessionManager.instance.isOwner,
-                ),
+            // Disembunyikan seluruhnya untuk kasir tanpa izin `view_history`:
+            // ia hanya bekerja dengan shift yang sedang berjalan.
+            if (_bolehLihatRiwayat) ...[
+              _buildSectionHeader('Riwayat Shift'),
+              const SizedBox(height: 8),
+              if (_loadingHistory)
+                const Center(child: CircularProgressIndicator())
+              else if (_pastShifts.isEmpty)
+                _buildEmptyCard('Belum ada pengeluaran tercatat.')
+              else
+                for (final entri in _pastShifts)
+                  _ShiftHistoryCard(
+                    entri: entri,
+                    expenses: _expensesByShift[entri.shift.id] ?? const [],
+                    tampilkanNama: SessionManager.instance.isOwner,
+                  ),
+            ],
           ],
         ),
       ),
