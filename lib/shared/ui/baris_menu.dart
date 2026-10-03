@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'warna_teras.dart';
+import 'teks_teras.dart';
 
 /// Satu baris menu: ikon berlatar · judul + keterangan · panah.
 class BarisMenu extends StatelessWidget {
@@ -50,7 +51,7 @@ class BarisMenu extends StatelessWidget {
                   Text(
                     judul,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: TeksTeras.menu,
                       fontWeight: FontWeight.w600,
                       color: warnaJudul,
                     ),
@@ -60,7 +61,7 @@ class BarisMenu extends StatelessWidget {
                     Text(
                       keterangan!,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: TeksTeras.biasa,
                         color: WarnaTeras.teksPudar,
                       ),
                     ),

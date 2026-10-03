@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'warna_teras.dart';
+import 'teks_teras.dart';
 
 /// Bar dua warna yang membandingkan dua jumlah, mis. transaksi Tunai vs
 /// QRIS, beserta keterangannya di bawah.
@@ -76,7 +77,7 @@ class BarRasio extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: WarnaTeras.teks),
+          style: const TextStyle(fontSize: TeksTeras.kecil, color: WarnaTeras.teks),
         ),
       ],
     );

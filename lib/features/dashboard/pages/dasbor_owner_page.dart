@@ -14,6 +14,7 @@ import '../../../utils/currency_formatter.dart';
 import '../../../utils/sapaan.dart';
 import '../../shift/pages/shift_monitor_page.dart';
 import '../repositories/dasbor_owner_repository.dart';
+import '../../../shared/ui/teks_teras.dart';
 
 /// Dashboard owner: satu kartu "Ringkasan hari ini".
 class DasborOwnerPage extends StatefulWidget {
@@ -78,7 +79,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
           _sapaan(),
           const GarisTeras(),
           const Text('Pendapatan hari ini',
-              style: TextStyle(fontSize: 11, color: WarnaTeras.teksPudar)),
+              style: TextStyle(fontSize: TeksTeras.kecil, color: WarnaTeras.teksPudar)),
           const SizedBox(height: 4),
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -88,7 +89,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
               Text(
                 formatRp(d.pendapatan),
                 style: const TextStyle(
-                  fontSize: 22,
+                  fontSize: TeksTeras.angkaBesar,
                   fontWeight: FontWeight.w700,
                   color: WarnaTeras.oranye,
                 ),
@@ -99,7 +100,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
           const SizedBox(height: 2),
           Text(
             'vs kemarin di jam yang sama (${formatRp(d.pendapatanKemarin)})',
-            style: const TextStyle(fontSize: 10, color: WarnaTeras.teksSamar),
+            style: const TextStyle(fontSize: TeksTeras.keterangan, color: WarnaTeras.teksSamar),
           ),
           const SizedBox(height: 14),
           BarisAngka(isi: [
@@ -153,10 +154,10 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             children: [
               Text('Selamat ${sapaanWaktu(DateTime.now()).toLowerCase()},',
                   style: const TextStyle(
-                      fontSize: 12, color: WarnaTeras.teksSedang)),
+                      fontSize: TeksTeras.biasa, color: WarnaTeras.teksSedang)),
               Text(nama,
                   style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: TeksTeras.biasa,
                       fontWeight: FontWeight.w700,
                       color: WarnaTeras.teks)),
             ],
@@ -169,7 +170,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             borderRadius: BorderRadius.circular(99),
           ),
           child: const Text('Ringkasan hari ini',
-              style: TextStyle(fontSize: 11, color: WarnaTeras.oranye)),
+              style: TextStyle(fontSize: TeksTeras.kecil, color: WarnaTeras.oranye)),
         ),
       ],
     );
@@ -195,7 +196,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
           Text(
             '${naik ? '+' : ''}$persen%',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: TeksTeras.kecil,
               fontWeight: FontWeight.w600,
               color: naik ? WarnaTeras.hijau : WarnaTeras.merah,
             ),
@@ -247,13 +248,13 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             children: [
               Text(judul,
                   style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: TeksTeras.biasa,
                       fontWeight: FontWeight.w600,
                       color: WarnaTeras.teks)),
               const SizedBox(height: 1),
               Text(keterangan,
                   style: const TextStyle(
-                      fontSize: 10, color: WarnaTeras.teksPudar)),
+                      fontSize: TeksTeras.keterangan, color: WarnaTeras.teksPudar)),
             ],
           ),
         ),

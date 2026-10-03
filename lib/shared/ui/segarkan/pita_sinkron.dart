@@ -4,6 +4,7 @@ import '../../../data/sync/kemajuan_sync.dart';
 import '../../../data/sync/sync_service.dart';
 import '../warna_teras.dart';
 import 'pengendali_segarkan.dart';
+import '../teks_teras.dart';
 
 /// Pita di bawah header yang turun saat refresh: ikon · judul · keterangan,
 /// dan bilah kemajuan tipis.
@@ -74,7 +75,7 @@ class PitaSinkron extends StatelessWidget {
                       Text(
                         teks.judul,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: TeksTeras.biasa,
                           fontWeight: FontWeight.w600,
                           color: WarnaTeras.teks,
                         ),
@@ -83,7 +84,7 @@ class PitaSinkron extends StatelessWidget {
                       Text(
                         teks.keterangan,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: TeksTeras.kecil,
                           color: WarnaTeras.teksPudar,
                         ),
                       ),

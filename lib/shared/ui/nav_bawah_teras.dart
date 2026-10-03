@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'warna_teras.dart';
+import 'teks_teras.dart';
 
 /// Satu tombol di [NavBawahTeras].
 class ItemNav {
@@ -80,7 +81,7 @@ class NavBawahTeras extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: TeksTeras.kecil,
                 fontWeight: aktif ? FontWeight.w700 : FontWeight.w400,
                 color: aktif ? WarnaTeras.teks : WarnaTeras.ikonPasif,
               ),
@@ -135,7 +136,7 @@ class NavBawahTeras extends StatelessWidget {
               child: Text(
                 tengah.label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: TeksTeras.kecil,
                   fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
                   color: WarnaTeras.teks,
                 ),

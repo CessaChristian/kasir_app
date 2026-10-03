@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'warna_teras.dart';
+import 'teks_teras.dart';
 
 /// Satu kolom di [BarisAngka].
 class Angka {
@@ -38,7 +39,7 @@ class BarisAngka extends StatelessWidget {
                   Text(
                     isi[i].label,
                     style: const TextStyle(
-                      fontSize: 10,
+                      fontSize: TeksTeras.keterangan,
                       color: WarnaTeras.teksPudar,
                     ),
                   ),
@@ -49,7 +50,7 @@ class BarisAngka extends StatelessWidget {
                     child: Text(
                       isi[i].nilai,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: TeksTeras.angka,
                         fontWeight: FontWeight.w700,
                         color: isi[i].warna,
                       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'warna_teras.dart';
+import 'teks_teras.dart';
 
 /// Tombol oranye muda selebar kartu, mis. "Lihat Riwayat Shift ›".
 class TombolLembut extends StatelessWidget {
@@ -33,7 +34,7 @@ class TombolLembut extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: TeksTeras.biasa,
                   fontWeight: FontWeight.w600,
                   color: WarnaTeras.oranye,
                 ),

@@ -29,6 +29,25 @@ class BingkaiHalaman extends StatefulWidget {
 class _BingkaiHalamanState extends State<BingkaiHalaman> {
   final _segarkan = PengendaliSegarkan();
 
+  /// Isi sudah tergeser lebih dari 2px (ambang yang sama dengan desain).
+  bool _tergulir = false;
+
+  @override
+  void didUpdateWidget(BingkaiHalaman lama) {
+    super.didUpdateWidget(lama);
+    // Pindah tab = isi baru yang mulai dari atas.
+    if (lama.judul != widget.judul) _tergulir = false;
+  }
+
+  bool _dengarGulir(ScrollNotification n) {
+    // Hanya gulir vertikal: deretan chip kategori yang digeser ke samping
+    // tidak boleh menyalakan bayangan.
+    if (n.metrics.axis != Axis.vertical) return false;
+    final v = n.metrics.pixels > 2;
+    if (v != _tergulir) setState(() => _tergulir = v);
+    return false;
+  }
+
   @override
   void dispose() {
     _segarkan.dispose();
@@ -42,21 +61,41 @@ class _BingkaiHalamanState extends State<BingkaiHalaman> {
         HeaderTeras(
           judul: widget.judul,
           onKembali: widget.onKembali,
+          bertepi: _tergulir,
           aksi: [TombolSegarkan(pengendali: _segarkan)],
         ),
-        PitaSinkron(pengendali: _segarkan),
         Expanded(
-          child: ListenableBuilder(
-            listenable: _segarkan,
-            builder: (context, isi) => IgnorePointer(
-              ignoring: _segarkan.berjalan,
-              child: AnimatedOpacity(
-                opacity: _segarkan.berjalan ? 0.45 : 1,
-                duration: const Duration(milliseconds: 250),
-                child: isi,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  PitaSinkron(pengendali: _segarkan),
+                  Expanded(
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: _dengarGulir,
+                      child: ListenableBuilder(
+                        listenable: _segarkan,
+                        builder: (context, isi) => IgnorePointer(
+                          ignoring: _segarkan.berjalan,
+                          child: AnimatedOpacity(
+                            opacity: _segarkan.berjalan ? 0.45 : 1,
+                            duration: const Duration(milliseconds: 250),
+                            child: isi,
+                          ),
+                        ),
+                        child: widget.child,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            child: widget.child,
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: BayanganHeader(terlihat: _tergulir),
+              ),
+            ],
           ),
         ),
       ],
