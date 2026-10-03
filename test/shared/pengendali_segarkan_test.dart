@@ -103,6 +103,9 @@ void main() {
       expect(judul(const HasilSync(didorong: 3)), '3 data terkirim');
       expect(teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).ikon,
           Icons.check_circle_rounded);
+      expect(
+          teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).keterangan,
+          'Selesai');
     });
 
     test('gagal: sebab sebenarnya, bukan selalu "periksa koneksi"', () {

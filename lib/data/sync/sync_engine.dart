@@ -1126,6 +1126,8 @@ class SyncEngine {
                 'user_id': e.userId,
                 'description': e.description,
                 'amount': e.amount,
+                'category': e.category,
+                'qty': e.qty,
                 'created_at': _iso(e.createdAt),
                 'updated_at': _iso(e.updatedAt),
                 'deleted_at': _iso(e.deletedAt),
@@ -1141,6 +1143,10 @@ class SyncEngine {
                 userId: Value(r['user_id'] as String),
                 description: Value(r['description'] as String),
                 amount: Value((r['amount'] as num).toInt()),
+                // Server sebelum pengeluaran_kategori_wajib.sql bisa kosong.
+                category: Value(r['category'] as String? ?? 'bahan_baku'),
+                // Server sebelum pengeluaran_kategori.sql tidak mengirim qty.
+                qty: Value((r['qty'] as num?)?.toInt() ?? 1),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),

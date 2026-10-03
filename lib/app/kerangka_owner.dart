@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/dashboard/pages/dasbor_owner_page.dart';
-import '../features/expenses/expenses_page.dart';
+import '../features/expenses/pages/pengeluaran_owner_page.dart';
 import '../features/history/history_page.dart';
 import '../features/products/pages/products_page.dart';
 import '../features/profil/pages/profil_owner_page.dart';
@@ -39,7 +39,7 @@ class _KerangkaOwnerState extends State<KerangkaOwner> {
         ikonAktif: Icons.account_balance_wallet_rounded,
         label: 'Pengeluaran',
       ),
-      halaman: ExpensesPage(),
+      halaman: PengeluaranOwnerPage(),
     ),
     (
       judul: 'Produk',

@@ -20,6 +20,9 @@ abstract final class TeksTeras {
   /// Judul baris menu. Desain 15.
   static const menu = 16.0;
 
+  /// Judul bagian bergaris oranye ("Rincian Pengeluaran"). Desain 16.
+  static const judulBagian = 17.0;
+
   /// Judul header. Desain 18.
   static const judul = 20.0;
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../ui/teks_teras.dart';
+import '../ui/warna_teras.dart';
+
 enum ToastType { success, error, warning, info }
 
 class AppToast {
@@ -10,7 +13,8 @@ class AppToast {
     required String message,
     ToastType type = ToastType.info,
     IconData? icon,
-    Duration duration = const Duration(seconds: 3),
+    // Desain: tampil 2,2 detik.
+    Duration duration = const Duration(milliseconds: 2200),
   }) {
     if (!context.mounted) return;
 
@@ -77,19 +81,26 @@ class _ToastOverlayState extends State<_ToastOverlay>
   late Animation<Offset> _slide;
   late Animation<double> _fade;
 
+  /// Gerak masuk desain: `cubic-bezier(.32,.72,0,1)` — cepat lalu mengendap.
+  static const _kurva = Cubic(.32, .72, 0, 1);
+
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 280),
+      duration: const Duration(milliseconds: 420),
+      reverseDuration: const Duration(milliseconds: 300),
     );
+    // Naik dari bawah (desain), bukan turun dari atas.
     _slide = Tween<Offset>(
-      begin: const Offset(0, -1.2),
+      begin: const Offset(0, 1.4),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _fade = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    ).animate(CurvedAnimation(parent: _ctrl, curve: _kurva));
+    _fade = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0, 300 / 420, curve: Curves.ease),
+    );
 
     _ctrl.forward();
 
@@ -108,47 +119,45 @@ class _ToastOverlayState extends State<_ToastOverlay>
     super.dispose();
   }
 
-  (Color bg, Color border, Color icon, IconData defaultIcon) get _style {
-    switch (widget.type) {
-      case ToastType.success:
-        return (
-          const Color(0xFFE8F5E9),
-          const Color(0xFFA5D6A7),
-          Colors.green.shade700,
-          Icons.check_circle_rounded,
-        );
-      case ToastType.error:
-        return (
-          const Color(0xFFFFEBEE),
-          const Color(0xFFEF9A9A),
-          Colors.red.shade600,
-          Icons.error_rounded,
-        );
-      case ToastType.warning:
-        return (
-          const Color(0xFFFFF8E1),
-          const Color(0xFFFFD54F),
-          Colors.orange.shade700,
-          Icons.warning_amber_rounded,
-        );
-      case ToastType.info:
-        return (
-          const Color(0xFFE3F2FD),
-          const Color(0xFF90CAF9),
-          Colors.blue.shade600,
-          Icons.info_rounded,
-        );
-    }
-  }
+  /// (latar ikon, warna ikon, ikon bawaan). Kartunya selalu putih.
+  (Color, Color, IconData) get _gaya => switch (widget.type) {
+        ToastType.success => (
+            WarnaTeras.hijauMuda,
+            WarnaTeras.hijau,
+            Icons.check_circle_rounded,
+          ),
+        ToastType.info => (
+            WarnaTeras.oranyeMuda,
+            WarnaTeras.oranye,
+            Icons.info_rounded,
+          ),
+        ToastType.warning => (
+            WarnaTeras.merahMuda,
+            WarnaTeras.merah,
+            Icons.warning_rounded,
+          ),
+        ToastType.error => (
+            WarnaTeras.merahMuda,
+            WarnaTeras.merah,
+            Icons.error_rounded,
+          ),
+      };
 
   @override
   Widget build(BuildContext context) {
-    final (bg, border, iconColor, defaultIcon) = _style;
-    final usedIcon = widget.icon ?? defaultIcon;
+    final (latarIkon, warnaIkon, ikonBawaan) = _gaya;
+    final mq = MediaQuery.of(context);
+    // Di atas nav bawah (tinggi 66) — atau di atas keyboard kalau terbuka.
+    final bawah = (mq.viewInsets.bottom > 0
+            ? mq.viewInsets.bottom
+            : mq.padding.bottom + 66) +
+        12;
 
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: bawah,
+      child: IgnorePointer(
         child: SlideTransition(
           position: _slide,
           child: FadeTransition(
@@ -156,33 +165,41 @@ class _ToastOverlayState extends State<_ToastOverlay>
             child: Material(
               color: Colors.transparent,
               child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
                 decoration: BoxDecoration(
-                  color: bg,
+                  color: WarnaTeras.kartu,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
+                  border: Border.all(
+                    color: const Color(0xFF3C230A).withValues(alpha: 0.05),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.10),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      color: const Color(0xFF3C230A).withValues(alpha: 0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Row(
                   children: [
-                    Icon(usedIcon, color: iconColor, size: 20),
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: latarIkon,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(widget.icon ?? ikonBawaan,
+                          size: 19, color: warnaIkon),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         widget.message,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: iconColor,
-                          height: 1.3,
+                        style: const TextStyle(
+                          fontSize: TeksTeras.biasa,
+                          color: WarnaTeras.teks,
+                          height: 1.35,
                         ),
                       ),
                     ),

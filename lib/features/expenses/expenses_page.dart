@@ -9,7 +9,9 @@ import '../../data/app_database.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
-import '../../shared/widgets/lembar_pembatalan.dart';
+import '../../shared/widgets/dialog_pembatalan.dart';
+import 'models/kategori_biaya.dart';
+import 'widgets/batalkan_pengeluaran.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
 /// Shift mana yang layak muncul di daftar "Riwayat Shift".
@@ -47,6 +49,8 @@ List<ShiftEntry> riwayatLayakTampil({
       .toList();
 }
 
+/// Halaman Pengeluaran KASIR (tampilan lama, dimigrasi di fase kasir).
+/// Owner memakai `PengeluaranOwnerPage`.
 class ExpensesPage extends StatefulWidget {
   const ExpensesPage({super.key});
 
@@ -90,10 +94,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
       return;
     }
 
-    // Aturannya sama dengan halaman Riwayat — lihat `CakupanRiwayat`. Owner
-    // melihat shift semua akun; kasir dengan izin `view_history` shift-shift
-    // lamanya sendiri; kasir tanpa izin itu hanya shift yang sedang berjalan,
-    // yang sudah tampil di bagian atas.
+    // Aturannya sama dengan halaman Riwayat — lihat `CakupanRiwayat`. Kasir
+    // dengan izin `view_history` melihat shift-shift lamanya sendiri; tanpa
+    // izin itu hanya shift yang sedang berjalan, yang sudah tampil di atas.
+    // (Owner memakai `PengeluaranOwnerPage`, bukan halaman ini.)
     final cakupan = CakupanRiwayat.dariSesi();
     if (cakupan.jenis == JenisCakupan.shiftAktif) {
       if (mounted) {
@@ -138,8 +142,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
     final session = SessionManager.instance.currentSession;
     if (session == null) return;
 
-    // Pengeluaran selalu menempel ke sebuah shift. Owner tidak menjalankan
-    // shift (shiftId null), jadi tidak bisa mencatat pengeluaran shift.
+    // Pengeluaran selalu menempel ke sebuah shift. Tombolnya hanya tampil
+    // saat shift berjalan; penjaga ini pengaman kalau sesi tanpa shift.
     final shiftId = session.shiftId;
     if (shiftId == null) {
       AppToast.error(
@@ -165,34 +169,18 @@ class _ExpensesPageState extends State<ExpensesPage> {
       userId: session.userId,
       description: result.desc,
       amount: result.amount,
+      category: result.kategori.kode,
+      qty: result.qty,
     );
   }
-
-  static const _daftarAlasan = [
-    'Salah input',
-    'Tidak jadi dibeli',
-    'Tercatat dobel',
-    alasanLainnya,
-  ];
 
   /// Batalkan pengeluaran: pilih alasan, dan — untuk kasir — masukkan PIN
   /// owner. Pengeluaran tidak bisa diedit: yang salah dibatalkan lalu
   /// dicatat ulang.
   Future<void> _batalkan(Expense e) async {
-    final berhasil = await tampilkanLembarPembatalan(
-      context,
-      judul: 'Batalkan Pengeluaran',
-      keterangan: '${e.description} · Rp ${formatRupiah(e.amount)}\n'
-          'Pengeluaran tetap tersimpan dengan tanda DIBATALKAN dan tidak '
-          'dihitung di total. Kalau salah catat, batalkan lalu catat ulang.',
-      daftarAlasan: _daftarAlasan,
-      perluPin: _expenseRepo.perluPinOwner,
-      kirim: (alasan, pin) =>
-          _expenseRepo.batalkanPengeluaran(e, alasan: alasan, pinOwner: pin),
-    );
-    if (!berhasil || !mounted) return;
-    AppToast.success(context, 'Pengeluaran dibatalkan');
-    _loadPastShifts();
+    final berhasil =
+        await batalkanPengeluaranLewatDialog(context, _expenseRepo, e);
+    if (berhasil && mounted) _loadPastShifts();
   }
 
   @override
@@ -282,7 +270,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   _ShiftHistoryCard(
                     entri: entri,
                     expenses: _expensesByShift[entri.shift.id] ?? const [],
-                    tampilkanNama: SessionManager.instance.isOwner,
                     namaAkun: _namaAkun,
                   ),
             ],
@@ -512,16 +499,12 @@ class _ShiftHistoryCard extends StatefulWidget {
   final ShiftEntry entri;
   final List<Expense> expenses;
 
-  /// Nama kasir hanya berguna untuk owner, yang melihat shift semua akun.
-  final bool tampilkanNama;
-
   /// Untuk menampilkan siapa yang membatalkan.
   final Map<String, String> namaAkun;
 
   const _ShiftHistoryCard({
     required this.entri,
     required this.expenses,
-    required this.tampilkanNama,
     required this.namaAkun,
   });
 
@@ -581,9 +564,7 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          widget.tampilkanNama
-                              ? '${widget.entri.username} · ${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}'
-                              : '${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}',
+                          '${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey.shade500),
                         ),
@@ -702,8 +683,17 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
 // ---- Data model yang dikembalikan dialog ----
 class _ExpenseInput {
   final String desc;
+
+  /// TOTAL (harga satuan x [qty]).
   final int amount;
-  const _ExpenseInput({required this.desc, required this.amount});
+  final KategoriBiaya kategori;
+  final int qty;
+  const _ExpenseInput({
+    required this.desc,
+    required this.amount,
+    required this.kategori,
+    required this.qty,
+  });
 }
 
 // ---- Dialog mandiri: hanya kumpulkan data, tidak sentuh DB ----
@@ -720,6 +710,10 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
   final _descC = TextEditingController();
   final _amountC = TextEditingController();
 
+  // Kategori & jumlah (v32). Bawaan Bahan Baku, seperti di desain.
+  var _kategori = KategoriBiaya.bahanBaku;
+  var _qty = 1;
+
   @override
   void dispose() {
     _descC.dispose();
@@ -733,7 +727,9 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
       context,
       _ExpenseInput(
         desc: _descC.text.trim(),
-        amount: parseRupiah(_amountC.text) ?? 0,
+        amount: (parseRupiah(_amountC.text) ?? 0) * _qty,
+        kategori: _kategori,
+        qty: _qty,
       ),
     );
   }
@@ -748,6 +744,9 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
         padding: const EdgeInsets.all(24),
         child: SizedBox(
           width: double.maxFinite,
+          // Bisa digulir: form makin panjang (kategori + jumlah) dan
+          // keyboard menutup separuh layar.
+          child: SingleChildScrollView(
           child: Form(
             key: _formKey,
             child: Column(
@@ -772,7 +771,23 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                const Text('Kategori Biaya',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final k in KategoriBiaya.values)
+                      ChoiceChip(
+                        label: Text(k.label),
+                        selected: _kategori == k,
+                        onSelected: (_) => setState(() => _kategori = k),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _descC,
                   textCapitalization: TextCapitalization.sentences,
@@ -797,8 +812,9 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                     FilteringTextInputFormatter.digitsOnly,
                     RupiahInputFormatter(),
                   ],
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: 'Jumlah',
+                    labelText: 'Harga satuan',
                     prefixText: 'Rp ',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
@@ -810,6 +826,39 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Text('Jumlah',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    IconButton.outlined(
+                      tooltip: 'Kurangi',
+                      onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
+                      icon: const Icon(Icons.remove_rounded),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text('$_qty',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton.outlined(
+                      tooltip: 'Tambah',
+                      onPressed: () => setState(() => _qty++),
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ],
+                ),
+                if (_qty > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Total Rp ${formatRupiah((parseRupiah(_amountC.text) ?? 0) * _qty)}',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ),
                 const SizedBox(height: 20),
                 Row(
                   children: [
@@ -847,6 +896,7 @@ class _AddExpenseDialogState extends State<_AddExpenseDialog> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

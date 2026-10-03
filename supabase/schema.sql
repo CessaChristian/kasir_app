@@ -155,7 +155,12 @@ create table public.expenses (
   shift_id           uuid        not null references public.shifts(id),
   user_id            uuid        not null references public.users(id),
   description        text        not null,
+  -- TOTAL (harga x qty).
   amount             bigint      not null,
+  -- Tiga kategori saja; data lama diisi bahan_baku (pengeluaran_kategori_wajib.sql).
+  category           text        not null default 'bahan_baku'
+                                 check (category in ('asset','bahan_baku','operasional_kedai')),
+  qty                integer     not null default 1 check (qty >= 1),
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
   -- Seperti transaksi: `deleted_at` berarti DIBATALKAN, disimpan selamanya,

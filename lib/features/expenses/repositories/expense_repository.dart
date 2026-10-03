@@ -1,6 +1,7 @@
 import '../../../data/app_database.dart';
 import '../../../shared/auth/pin_owner.dart';
 import '../../../shared/auth/session_manager.dart';
+import '../../../shared/ui/periode/periode.dart';
 
 /// Satu-satunya pintu akses data pengeluaran.
 ///
@@ -9,7 +10,8 @@ import '../../../shared/auth/session_manager.dart';
 ///
 /// Pengeluaran selalu terikat shift: kolom `shift_id` wajib diisi, sehingga
 /// hanya kasir yang sedang menjalankan shift bisa mencatatnya. Owner tidak
-/// punya shift, jadi ia hanya membaca rekapnya lewat [getAllExpensesForOwner].
+/// punya shift, jadi ia hanya membaca rekapnya lewat [watchPengeluaranPeriode]
+/// (halaman Pengeluaran) dan [getAllExpensesForOwner] (Laporan).
 class ExpenseRepository {
   final AppDatabase _db;
 
@@ -23,12 +25,16 @@ class ExpenseRepository {
     required String userId,
     required String description,
     required int amount,
+    String category = 'bahan_baku',
+    int qty = 1,
   }) =>
       _db.addExpense(
         shiftId: shiftId,
         userId: userId,
         description: description,
         amount: amount,
+        category: category,
+        qty: qty,
       );
 
   // ---- PEMBATALAN ----
@@ -83,11 +89,6 @@ class ExpenseRepository {
   Stream<List<Expense>> watchExpensesByShift(String shiftId) =>
       _db.watchExpensesByShift(shiftId, termasukBatal: true);
 
-  /// Versi sekali-ambil dari [watchExpensesByShift] — dipakai kartu riwayat
-  /// shift yang hanya perlu memuat sekali saat dibuka.
-  Future<List<Expense>> getExpensesByShift(String shiftId) =>
-      _db.getExpensesByShift(shiftId);
-
   /// Pengeluaran sekumpulan shift sekaligus, dikelompokkan per shift —
   /// TERMASUK yang dibatalkan (lihat [watchExpensesByShift]). Shift tanpa
   /// pengeluaran tidak muncul sebagai kunci — itulah yang dipakai halaman
@@ -96,6 +97,11 @@ class ExpenseRepository {
     List<String> shiftIds,
   ) =>
       _db.getExpensesForShifts(shiftIds, termasukBatal: true);
+
+  /// Pengeluaran satu periode untuk halaman Pengeluaran owner — TERMASUK
+  /// yang dibatalkan. Berbunyi lagi tiap ada perubahan, termasuk dari sinkron.
+  Stream<List<Expense>> watchPengeluaranPeriode(Periode p) =>
+      _db.watchExpensesInRange(p.dari, p.batasAkhir);
 
   /// Rekap pengeluaran seluruh kasir beserta nama pencatatnya.
   /// Dipakai owner di halaman Laporan; rentang tanggal opsional.

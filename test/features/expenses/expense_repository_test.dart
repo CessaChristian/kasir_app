@@ -88,25 +88,8 @@ void main() {
 
     expect((await repo.watchExpensesByShift('shift-1').first).single.id, e.id,
         reason: 'halaman Pengeluaran tetap menampilkannya dengan label');
-    expect(await repo.getExpensesByShift('shift-1'), isEmpty,
+    expect(await db.getExpensesForShifts(['shift-1']), isEmpty,
         reason: 'kueri lain — laporan, rekap shift — tidak menghitungnya');
-  });
-
-  test('watchExpensesByShift dan getExpensesByShift sepakat isinya', () async {
-    await addOne(description: 'Beli gas', amount: 25000);
-    await repo.addExpense(
-      shiftId: 'shift-1',
-      userId: 'kasir-1',
-      description: 'Parkir',
-      amount: 5000,
-    );
-
-    final stream = await repo.watchExpensesByShift('shift-1').first;
-    final once = await repo.getExpensesByShift('shift-1');
-
-    expect(stream, hasLength(2));
-    expect(once.map((e) => e.id).toSet(), stream.map((e) => e.id).toSet());
-    expect(once.map((e) => e.amount).reduce((a, b) => a + b), 30000);
   });
 
   test('getAllExpensesForOwner membawa nama pencatatnya', () async {

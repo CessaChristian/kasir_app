@@ -7,7 +7,7 @@ import 'business_logo.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/constants/app_constants.dart';
 import '../../shared/widgets/dashed_divider.dart';
-import 'lembar_pembatalan.dart';
+import 'dialog_pembatalan.dart';
 
 class TransactionDetailSheet extends StatefulWidget {
   final Transaction transaction;

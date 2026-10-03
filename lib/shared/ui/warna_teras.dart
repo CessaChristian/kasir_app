@@ -11,7 +11,6 @@ abstract final class WarnaTeras {
   static const latar = Color(0xFFF7F1EB);
   static const kartu = Color(0xFFFFFFFF);
   static const garis = Color(0xFFEFE8E1);
-  static const latarTekan = Color(0xFFEFE6DC);
 
   // Oranye merek
   static const oranye = Color(0xFFF08A2C);
@@ -31,6 +30,9 @@ abstract final class WarnaTeras {
   // Makna
   static const merah = Color(0xFFD9483B);
   static const merahMuda = Color(0xFFFCE7E4);
+  static const merahBar = Color(0xFFE8776B);
+  static const merahIkon = Color(0xFFFFD3D6);
+  static const latarAbu = Color(0xFFF4EEE8);
   static const hijau = Color(0xFF2E8B3E);
   static const hijauMuda = Color(0xFFE6F4E8);
   static const biru = Color(0xFF3C7BD9);

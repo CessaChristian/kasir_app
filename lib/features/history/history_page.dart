@@ -7,8 +7,7 @@ import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
-import '../../shared/widgets/app_toast.dart';
-import '../../shared/widgets/lembar_pembatalan.dart';
+import '../../shared/widgets/dialog_pembatalan.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
 /// Judul tanggal di Riwayat, untuk SEMUA akun: "Jumat, 02/10/2026".
@@ -626,27 +625,27 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   static const _daftarAlasan = [
-    'Salah input',
+    'Salah input pesanan',
     'Pelanggan batal',
-    'Pembayaran gagal',
+    'Transaksi ganda',
     alasanLainnya,
   ];
 
   /// Batalkan transaksi: pilih alasan, dan — untuk kasir — masukkan PIN owner.
   Future<void> _batalkan(Transaction tx) async {
-    final berhasil = await tampilkanLembarPembatalan(
+    await tampilkanDialogPembatalan(
       context,
-      judul: 'Batalkan Transaksi',
-      keterangan:
-          '${tx.invoiceNo} · Rp ${formatRupiah(tx.total)}\n'
-          'Transaksi tetap tersimpan dengan tanda DIBATALKAN dan tidak '
-          'dihitung di total.',
+      pertanyaan: 'Kenapa transaksi ${tx.invoiceNo} dibatalkan?',
+      keteranganPin:
+          'Masukkan PIN untuk membatalkan transaksi ${tx.invoiceNo}.',
+      judulBerhasil: 'Transaksi berhasil dibatalkan',
+      keteranganBerhasil: '${tx.invoiceNo} ditandai dibatalkan dan tidak '
+          'dihitung dalam total penjualan.',
       daftarAlasan: _daftarAlasan,
       perluPin: _salesRepo.perluPinOwner,
       kirim: (alasan, pin) =>
           _salesRepo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
     );
-    if (berhasil && mounted) AppToast.success(context, 'Transaksi dibatalkan');
   }
 
   Widget _buildDaySection({

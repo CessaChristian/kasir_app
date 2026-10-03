@@ -171,6 +171,8 @@ void main() {
           userId: 'kasir-1',
           description: 'Beli gas',
           amount: 1000,
+          category: 'bahan_baku',
+          qty: 1,
           createdAt: DateTime(2026, 9, 25, 9),
           syncStatus: 'pending',
           updatedAt: DateTime(2026, 9, 25, 9),

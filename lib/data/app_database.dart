@@ -370,7 +370,27 @@ class Expenses extends Table {
   @ReferenceName('createdExpensesRefs')
   TextColumn get userId => text().references(Users, #id)(); // creator
   TextColumn get description => text()();
+
+  /// TOTAL (harga x [qty]) — semua laporan menjumlahkan kolom ini.
   IntColumn get amount => integer()();
+
+  /// Kategori biaya (v32): 'asset' | 'bahan_baku' | 'operasional_kedai'.
+  /// WAJIB — hanya tiga pilihan, tanpa "Lainnya" (keputusan owner
+  /// 2026-10-04). Pengeluaran lama diisi Bahan Baku. Lihat `KategoriBiaya`.
+  // Pola `.check()` drift memang merujuk kolomnya sendiri. CHECK level
+  // kolom (bukan customConstraints tabel) supaya bisa ditambah lewat
+  // ALTER TABLE ADD COLUMN saat migrasi.
+  TextColumn get category => text()
+      .withDefault(const Constant('bahan_baku'))
+      // ignore: recursive_getters
+      .check(category.isIn(const ['asset', 'bahan_baku', 'operasional_kedai']))();
+
+  /// Jumlah barang (v32), minimal 1.
+  IntColumn get qty => integer()
+      .withDefault(const Constant(1))
+      // ignore: recursive_getters
+      .check(qty.isBiggerOrEqualValue(1))();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
@@ -418,7 +438,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1041,6 +1061,25 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 32 && to >= 32) {
+            // v32 — kategori biaya dan jumlah pengeluaran (desain baru).
+            // Kolom kategori wajib dengan bawaan 'bahan_baku', jadi
+            // pengeluaran lama otomatis masuk Bahan Baku.
+            final adaPengeluaran = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'expenses'",
+            ).get();
+            if (adaPengeluaran.isNotEmpty) {
+              for (final kolom in [expenses.category, expenses.qty]) {
+                final ada = await customSelect(
+                  "SELECT 1 FROM pragma_table_info('expenses') WHERE name = ?",
+                  variables: [Variable.withString(kolom.name)],
+                ).get();
+                if (ada.isEmpty) await m.addColumn(expenses, kolom);
+              }
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1486,11 +1525,25 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  /// Pengeluaran dalam rentang waktu [dari, sampai), TERMASUK yang
+  /// dibatalkan — halaman Pengeluaran owner menampilkannya berlabel dan
+  /// tidak menghitungnya. Terbaru dulu.
+  Stream<List<Expense>> watchExpensesInRange(DateTime dari, DateTime sampai) {
+    return (select(expenses)
+          ..where((e) =>
+              e.createdAt.isBiggerOrEqualValue(dari) &
+              e.createdAt.isSmallerThanValue(sampai))
+          ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
+        .watch();
+  }
+
   Future<void> addExpense({
     required String shiftId,
     required String userId,
     required String description,
     required int amount,
+    String category = 'bahan_baku',
+    int qty = 1,
   }) async {
     await into(expenses).insert(
       ExpensesCompanion(
@@ -1499,6 +1552,8 @@ class AppDatabase extends _$AppDatabase {
         userId: Value(userId),
         description: Value(description),
         amount: Value(amount),
+        category: Value(category),
+        qty: Value(qty),
         syncStatus: const Value('pending'),
       ),
     );
@@ -1601,7 +1656,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Pengeluaran milik sekumpulan shift sekaligus, dikelompokkan per shift.
   ///
-  /// Dulu tiap kartu riwayat memanggil [getExpensesByShift] sendiri-sendiri,
+  /// Dulu tiap kartu riwayat memuat pengeluarannya sendiri-sendiri,
   /// dan baru saat kartunya dibuka. Akibatnya halaman tidak pernah tahu shift
   /// mana yang kosong, sehingga shift tanpa pengeluaran pun ikut terdaftar.
   /// Satu kueri di depan menyelesaikan keduanya.
@@ -1626,15 +1681,6 @@ class AppDatabase extends _$AppDatabase {
       hasil.putIfAbsent(e.shiftId, () => []).add(e);
     }
     return hasil;
-  }
-
-  Future<List<Expense>> getExpensesByShift(String shiftId) async {
-    return (select(expenses)
-          ..where((e) =>
-              e.shiftId.equals(shiftId) &
-              e.deletedAt.isNull())
-          ..orderBy([(e) => OrderingTerm.asc(e.createdAt)]))
-        .get();
   }
 
   /// Semua pengeluaran dengan info user — untuk halaman owner, di-scope ke active business

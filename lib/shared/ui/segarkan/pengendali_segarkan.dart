@@ -92,7 +92,7 @@ TeksPita teksPita(
             : h.didorong > 0
             ? '${h.didorong} data terkirim'
             : 'Data sudah terbaru',
-        keterangan: 'Barusan',
+        keterangan: 'Selesai',
       );
     case KeadaanSegarkan.gagal:
       final h = hasil!;
