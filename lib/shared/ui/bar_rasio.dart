@@ -36,10 +36,15 @@ class BarRasio extends StatelessWidget {
                 : Row(
                     children: [
                       if (kiri > 0)
-                        Expanded(flex: kiri, child: Container(color: warnaKiri)),
+                        Expanded(
+                          flex: kiri,
+                          child: Container(color: warnaKiri),
+                        ),
                       if (kanan > 0)
                         Expanded(
-                            flex: kanan, child: Container(color: warnaKanan)),
+                          flex: kanan,
+                          child: Container(color: warnaKanan),
+                        ),
                     ],
                   ),
           ),

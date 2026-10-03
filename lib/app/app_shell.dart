@@ -71,10 +71,6 @@ class AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  void navigateToPage(int index) {
-    setState(() => _selectedIndex = index);
-  }
-
   // Navigasi berdasarkan label agar aman saat menu di-filter per permission.
   void navigateToPageByLabel(String label) {
     final idx = _availableMenuItems.indexWhere((item) => item['label'] == label);

@@ -5,7 +5,7 @@ import '../features/expenses/expenses_page.dart';
 import '../features/history/history_page.dart';
 import '../features/products/pages/products_page.dart';
 import '../features/profil/pages/profil_owner_page.dart';
-import '../shared/ui/header_teras.dart';
+import '../shared/ui/bingkai_halaman.dart';
 import '../shared/ui/nav_bawah_teras.dart';
 import '../shared/ui/warna_teras.dart';
 
@@ -26,41 +26,46 @@ class _KerangkaOwnerState extends State<KerangkaOwner> {
     (
       judul: 'Dashboard',
       nav: ItemNav(
-          ikon: Icons.grid_view_outlined,
-          ikonAktif: Icons.grid_view_rounded,
-          label: 'Dashboard'),
+        ikon: Icons.grid_view_outlined,
+        ikonAktif: Icons.grid_view_rounded,
+        label: 'Dashboard',
+      ),
       halaman: DasborOwnerPage(),
     ),
     (
       judul: 'Pengeluaran',
       nav: ItemNav(
-          ikon: Icons.account_balance_wallet_outlined,
-          ikonAktif: Icons.account_balance_wallet_rounded,
-          label: 'Pengeluaran'),
+        ikon: Icons.account_balance_wallet_outlined,
+        ikonAktif: Icons.account_balance_wallet_rounded,
+        label: 'Pengeluaran',
+      ),
       halaman: ExpensesPage(),
     ),
     (
       judul: 'Produk',
       nav: ItemNav(
-          ikon: Icons.shopping_basket_rounded,
-          ikonAktif: Icons.shopping_basket_rounded,
-          label: 'Produk'),
+        ikon: Icons.shopping_basket_rounded,
+        ikonAktif: Icons.shopping_basket_rounded,
+        label: 'Produk',
+      ),
       halaman: ProductsPage(),
     ),
     (
       judul: 'Riwayat',
       nav: ItemNav(
-          ikon: Icons.receipt_long_outlined,
-          ikonAktif: Icons.receipt_long_rounded,
-          label: 'Riwayat'),
+        ikon: Icons.receipt_long_outlined,
+        ikonAktif: Icons.receipt_long_rounded,
+        label: 'Riwayat',
+      ),
       halaman: HistoryPage(),
     ),
     (
       judul: 'Profil',
       nav: ItemNav(
-          ikon: Icons.account_circle_outlined,
-          ikonAktif: Icons.account_circle_rounded,
-          label: 'Profil'),
+        ikon: Icons.account_circle_outlined,
+        ikonAktif: Icons.account_circle_rounded,
+        label: 'Profil',
+      ),
       halaman: ProfilOwnerPage(),
     ),
   ];
@@ -79,12 +84,7 @@ class _KerangkaOwnerState extends State<KerangkaOwner> {
         backgroundColor: WarnaTeras.latar,
         body: SafeArea(
           bottom: false,
-          child: Column(
-            children: [
-              HeaderTeras(judul: tab.judul),
-              Expanded(child: tab.halaman),
-            ],
-          ),
+          child: BingkaiHalaman(judul: tab.judul, child: tab.halaman),
         ),
         bottomNavigationBar: NavBawahTeras(
           kiri: [_tabs[0].nav, _tabs[1].nav],

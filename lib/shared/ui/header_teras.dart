@@ -7,12 +7,19 @@ import 'warna_teras.dart';
 /// Header halaman di UI baru: logo (atau tombol kembali) · judul · tanggal.
 ///
 /// Halaman utama (tab di nav bawah) memakai logo. Halaman turunan memberi
-/// [onKembali], dan logonya diganti panah kembali.
+/// [onKembali], dan logonya diganti panah kembali. [aksi] adalah tombol di
+/// kanan judul (refresh; nanti keranjang & bill di halaman Kasir).
 class HeaderTeras extends StatelessWidget {
   final String judul;
   final VoidCallback? onKembali;
+  final List<Widget> aksi;
 
-  const HeaderTeras({super.key, required this.judul, this.onKembali});
+  const HeaderTeras({
+    super.key,
+    required this.judul,
+    this.onKembali,
+    this.aksi = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +57,8 @@ class HeaderTeras extends StatelessWidget {
               ),
             ),
           ),
+          ...aksi,
+          const SizedBox(width: 6),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,

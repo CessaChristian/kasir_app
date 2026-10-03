@@ -17,6 +17,8 @@ abstract final class WarnaTeras {
   static const oranye = Color(0xFFF08A2C);
   static const oranyeMuda = Color(0xFFFFF1E2);
   static const oranyeLembut = Color(0xFFFDEBD8);
+  static const garisOranye = Color(0xFFF6DDC2);
+  static const latarBilah = Color(0xFFFBEBDB);
 
   // Teks
   static const teks = Color(0xFF1E1E1E);

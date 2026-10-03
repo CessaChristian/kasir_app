@@ -69,8 +69,10 @@ class BarisMenu extends StatelessWidget {
               ),
             ),
             if (panah)
-              const Icon(Icons.chevron_right_rounded,
-                  color: WarnaTeras.ikonPasif),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: WarnaTeras.ikonPasif,
+              ),
           ],
         ),
       ),

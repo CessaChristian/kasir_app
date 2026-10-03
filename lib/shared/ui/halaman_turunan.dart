@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'header_teras.dart';
+import 'bingkai_halaman.dart';
 import 'warna_teras.dart';
 
 /// Kerangka halaman turunan (dibuka dari menu, bukan tab): header dengan
@@ -16,14 +16,10 @@ class HalamanTurunan extends StatelessWidget {
     return Scaffold(
       backgroundColor: WarnaTeras.latar,
       body: SafeArea(
-        child: Column(
-          children: [
-            HeaderTeras(
-              judul: judul,
-              onKembali: () => Navigator.of(context).maybePop(),
-            ),
-            Expanded(child: child),
-          ],
+        child: BingkaiHalaman(
+          judul: judul,
+          onKembali: () => Navigator.of(context).maybePop(),
+          child: child,
         ),
       ),
     );

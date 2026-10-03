@@ -10,7 +10,6 @@ import '../../../shared/ui/baris_angka.dart';
 import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/tombol_lembut.dart';
 import '../../../shared/ui/warna_teras.dart';
-import '../../../shared/widgets/sync_refresh.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../utils/sapaan.dart';
 import '../../shift/pages/shift_monitor_page.dart';
@@ -54,21 +53,19 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    return SyncRefresh(
-      sesudah: _muat,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        children: [
-          if (data == null)
-            const Padding(
-              padding: EdgeInsets.only(top: 80),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else
-            _kartuRingkasan(data),
-        ],
-      ),
+    // Tanpa tarik-untuk-refresh: refresh lewat tombol di header, dan isinya
+    // memuat ulang sendiri karena mendengarkan perubahan database.
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        if (data == null)
+          const Padding(
+            padding: EdgeInsets.only(top: 80),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else
+          _kartuRingkasan(data),
+      ],
     );
   }
 

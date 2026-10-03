@@ -38,8 +38,11 @@ class TombolLembut extends StatelessWidget {
                   color: WarnaTeras.oranye,
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
-                  size: 18, color: WarnaTeras.oranye),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: WarnaTeras.oranye,
+              ),
             ],
           ),
         ),

@@ -93,15 +93,4 @@ class ShiftReportRepository {
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
   }
-
-  /// Total revenue untuk semua shifts dalam periode.
-  Future<({int totalRevenue, int totalShifts, int totalTransactions})>
-      getPeriodTotals(DateTime start, DateTime end) async {
-    final summaries = await getShiftsForPeriod(start, end);
-    return (
-      totalRevenue: summaries.fold(0, (s, x) => s + x.totalRevenue),
-      totalShifts: summaries.length,
-      totalTransactions: summaries.fold(0, (s, x) => s + x.transactionCount),
-    );
-  }
 }

@@ -50,8 +50,7 @@ class NavBawahTeras extends StatelessWidget {
           height: 66,
           child: Row(
             children: [
-              for (var i = 0; i < kiri.length; i++)
-                _tombol(kiri[i], i),
+              for (var i = 0; i < kiri.length; i++) _tombol(kiri[i], i),
               Expanded(child: _tombolTengah(iTengah)),
               for (var i = 0; i < kanan.length; i++)
                 _tombol(kanan[i], iTengah + 1 + i),
@@ -93,50 +92,57 @@ class NavBawahTeras extends StatelessWidget {
   }
 
   /// Tombol bulat oranye yang menyembul ke atas nav.
+  ///
+  /// Lingkarannya sengaja keluar dari batas nav (`Clip.none`), bukan digeser
+  /// dengan `Transform` — `Transform` tidak mengurangi ukuran tata letak,
+  /// sehingga lingkaran + label melebihi tinggi nav ("BOTTOM OVERFLOWED").
   Widget _tombolTengah(int indeks) {
     final aktif = indeks == terpilih;
     return GestureDetector(
       onTap: () => onPilih(indeks),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Transform.translate(
-            offset: const Offset(0, -14),
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: WarnaTeras.oranye,
-                shape: BoxShape.circle,
-                border: Border.all(color: WarnaTeras.latar, width: 4),
-                boxShadow: [
-                  BoxShadow(
-                    color: WarnaTeras.oranye.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(
-                aktif ? tengah.ikonAktif : tengah.ikon,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-          ),
-          Transform.translate(
-            offset: const Offset(0, -10),
-            child: Text(
-              tengah.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
-                color: WarnaTeras.teks,
+      child: SizedBox.expand(
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomCenter,
+          children: [
+            Positioned(
+              top: -22,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: WarnaTeras.oranye,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: WarnaTeras.latar, width: 4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: WarnaTeras.oranye.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  aktif ? tengah.ikonAktif : tengah.ikon,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.only(bottom: 11),
+              child: Text(
+                tengah.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
+                  color: WarnaTeras.teks,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
