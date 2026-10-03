@@ -51,3 +51,9 @@ class RupiahInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+/// Format lengkap dengan simbol, mis. 1250000 -> "Rp 1.250.000" dan
+/// -5000 -> "-Rp 5.000". [formatRupiah] sendiri tidak menangani angka
+/// negatif (hasilnya "-.100"), padahal laba kotor bisa minus.
+String formatRp(int value) =>
+    value < 0 ? '-Rp ${formatRupiah(-value)}' : 'Rp ${formatRupiah(value)}';

@@ -32,25 +32,38 @@ void main() {
     }
   });
 
-  test('menu Daftar Perangkat dipagari isOwner, bukan hasPermission', () {
-    final isi = File('lib/app/app_shell.dart').readAsStringSync();
+  test('menu Perangkat & Kelola Kasir hanya terjangkau lewat kerangka owner',
+      () {
+    // Keduanya kini ada di tab Profil owner, bukan di drawer. Pagarnya
+    // berlapis: AppShell memberi KerangkaOwner HANYA saat isOwner, dan
+    // halaman Profil owner hanya dipasang oleh KerangkaOwner.
+    final shell = File('lib/app/app_shell.dart').readAsStringSync();
+    expect(shell.contains('DaftarPerangkatPage'), isFalse,
+        reason: 'drawer kasir tidak boleh memuat menu Perangkat');
+    expect(shell.contains('ManageCashiersPage'), isFalse,
+        reason: 'drawer kasir tidak boleh memuat menu Kelola Kasir');
 
-    // Yang dicari MENUNYA, bukan teks lain yang kebetulan memuat kalimat
-    // serupa di tempat lain dalam berkas.
-    final i = isi.indexOf("label: 'Daftar Perangkat'");
-    expect(i, isNot(-1), reason: 'menunya harus ada di drawer');
+    final profil = File('lib/features/profil/pages/profil_owner_page.dart')
+        .readAsStringSync();
+    expect(profil.contains('DaftarPerangkatPage()'), isTrue);
+    expect(profil.contains('ManageCashiersPage()'), isTrue);
 
-    // Cari pagar terdekat DI ATAS menunya.
-    final sebelum = isi.substring(0, i);
-    final posOwner = sebelum.lastIndexOf('isOwner');
-    final posIzin = sebelum.lastIndexOf('hasPermission');
-
+    // Siapa saja yang memasang halaman Profil owner dan KerangkaOwner.
+    List<String> pemakai(String nama) => Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .where((f) => f.readAsStringSync().contains('$nama('))
+        .map((f) => f.path)
+        .toList();
+    expect(pemakai('ProfilOwnerPage').where((p) => !p.endsWith('profil_owner_page.dart')),
+        ['lib/app/kerangka_owner.dart']);
+    expect(pemakai('KerangkaOwner').where((p) => !p.endsWith('kerangka_owner.dart')),
+        ['lib/app/app_shell.dart']);
     expect(
-      posOwner > posIzin,
-      isTrue,
-      reason: 'Menu Daftar Perangkat harus berada di dalam pagar isOwner. '
-          'Kalau yang terdekat justru hasPermission, hak ini bisa diberikan '
-          'ke kasir — dan itu yang tidak boleh.',
-    );
+        shell.contains(
+            'if (SessionManager.instance.isOwner) return const KerangkaOwner();'),
+        isTrue,
+        reason: 'KerangkaOwner harus dipagari isOwner, bukan hasPermission');
   });
 }

@@ -5,16 +5,14 @@ import '../features/products/pages/products_page.dart';
 import '../features/sales/sales_page.dart';
 import '../features/history/history_page.dart';
 import '../features/report/report_page.dart';
-import '../features/owner/pages/manage_cashiers_page.dart';
 import '../features/expenses/expenses_page.dart';
 import '../features/auth/pages/login_page.dart';
-import '../features/auth/repositories/auth_repository.dart';
-import '../data/db.dart';
 import '../shared/constants/app_constants.dart';
-import '../features/perangkat/pages/daftar_perangkat_page.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
 import '../features/shift/pages/shift_monitor_page.dart';
+import 'kerangka_owner.dart';
+import 'keluar_akun.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -137,114 +135,6 @@ class AppShellState extends State<AppShell> {
     Navigator.pop(context);
   }
 
-  Future<void> _logout() async {
-    Navigator.pop(context); // Close drawer first
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.logout_rounded, color: Colors.red.shade400, size: 32),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Keluar dari Sistem?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                SessionManager.instance.currentSession?.shiftId == null
-                    ? 'Anda akan keluar dari aplikasi'
-                    : 'Anda keluar dari akun, tapi SHIFT TETAP BERJALAN. '
-                        'Untuk menutup shift, pakai tombol Akhiri Shift di '
-                        'halaman utama.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                      ),
-                      child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade400,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Keluar', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final session = SessionManager.instance.currentSession;
-      if (session != null) {
-        final authRepo = AuthRepository(db);
-        // Sengaja TIDAK menutup shift. Ini tombol "Keluar", bukan
-        // "Akhiri Shift" — kasir yang cuma meminjam HP rekan harus bisa
-        // menyerahkannya kembali tanpa mematikan shift yang masih
-        // berjalan di HP-nya sendiri.
-        await authRepo.logout(
-          userId: session.userId,
-          shiftId: session.shiftId,
-          akhiriShift: false,
-        );
-      }
-
-      await SessionManager.instance.clearSession();
-
-      if (!mounted) return;
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.error(context, 'Gagal keluar: $e');
-    }
-  }
-
   Widget _buildDrawerMenuItem(
     BuildContext context, {
     required IconData icon,
@@ -318,6 +208,11 @@ class AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner sudah memakai UI baru (nav bawah). Drawer di bawah ini tinggal
+    // milik kasir sampai lapisan kasir dimigrasi. Role, BUKAN permission —
+    // lihat test/arsitektur/role_bukan_permission_test.dart
+    if (SessionManager.instance.isOwner) return const KerangkaOwner();
+
     final colorScheme = Theme.of(context).colorScheme;
     final session = SessionManager.instance.currentSession;
     final availableItems = _availableMenuItems;
@@ -450,9 +345,7 @@ class AppShellState extends State<AppShell> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
-                                session?.isOwner == true
-                                    ? Icons.admin_panel_settings_rounded
-                                    : Icons.person_rounded,
+                                Icons.person_rounded,
                                 color: colorScheme.primary,
                                 size: 22,
                               ),
@@ -478,7 +371,7 @@ class AppShellState extends State<AppShell> {
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      session?.isOwner == true ? 'Owner' : 'Kasir',
+                                      'Kasir',
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -544,79 +437,6 @@ class AppShellState extends State<AppShell> {
                         },
                       ),
 
-                    // Kelola Kasir — hak PATEN owner, bukan izin. Sama seperti
-                    // Daftar Perangkat di bawah: yang diatur di sini adalah
-                    // siapa yang boleh memakai aplikasi, jadi tidak boleh bisa
-                    // diberikan ke kasir.
-                    if (SessionManager.instance.isOwner) ...[
-                      const SizedBox(height: 12),
-                      Divider(color: Colors.grey.shade300, height: 1),
-                      const SizedBox(height: 12),
-                      Text(
-                        'MANAJEMEN',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade400,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildDrawerMenuItem(
-                        context,
-                        icon: Icons.people_rounded,
-                        label: 'Kelola Kasir',
-                        isSelected: false,
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const ManageCashiersPage()),
-                          );
-                        },
-                      ),
-                      // "Laporan Shift" dipindah jadi tab "Shift" di halaman
-                      // Laporan — menghilangkan kebingungan dua menu laporan.
-                    ],
-
-                    // ── PERANGKAT — hak PATEN owner ──
-                    //
-                    // Sengaja dipagari `isOwner`, BUKAN sebuah izin. Izin bisa
-                    // diberikan pemilik ke kasir lewat Kelola Izin; hak ini
-                    // tidak boleh. Yang diatur di sini adalah perangkat mana
-                    // yang boleh menyentuh data toko — kalau kasir bisa
-                    // melepaskan perangkat, pagar itu kehilangan artinya.
-                    if (SessionManager.instance.currentSession?.isOwner ==
-                        true) ...[
-                      const SizedBox(height: 12),
-                      Divider(color: Colors.grey.shade300, height: 1),
-                      const SizedBox(height: 12),
-                      Text(
-                        'PERANGKAT',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade400,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildDrawerMenuItem(
-                        context,
-                        icon: Icons.devices_other_rounded,
-                        label: 'Daftar Perangkat',
-                        isSelected: false,
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const DaftarPerangkatPage()),
-                          );
-                        },
-                      ),
-                    ],
-
                     const SizedBox(height: 8),
                   ],
                   ),
@@ -638,7 +458,10 @@ class AppShellState extends State<AppShell> {
                     label: 'Keluar',
                     isSelected: false,
                     isDestructive: true,
-                    onTap: _logout,
+                    onTap: () {
+                      Navigator.pop(context); // tutup drawer dulu
+                      keluarDariAkun(context);
+                    },
                   ),
                 ],
               ),

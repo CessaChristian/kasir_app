@@ -72,23 +72,20 @@ void main() {
     );
   });
 
-  test('kartu shift di dashboard dipilih berdasarkan role, bukan permission',
-      () {
-    final isi =
-        File('lib/features/dashboard/pages/dashboard_page.dart').readAsStringSync();
-
-    // Kartu "Pantau Shift" hanya untuk owner — owner tidak menjalankan shift.
-    // Semua akun lain harus mendapat ActiveShiftCard.
+  test('kerangka owner dipilih berdasarkan role, bukan permission', () {
+    // Owner mendapat KerangkaOwner (dashboard owner, tanpa shift); semua
+    // akun lain tetap di drawer kasir dengan ActiveShiftCard. Kalau pilihan
+    // ini memakai permission, kasir yang diberi izin tertentu akan "menjadi
+    // owner" dan kehilangan kartu shiftnya — bug lama yang sama.
+    final isi = File('lib/app/app_shell.dart').readAsStringSync();
     expect(
-      isi.contains('SessionManager.instance.isOwner'),
-      isTrue,
-      reason: 'Dashboard harus menentukan owner dari role, bukan permission.',
-    );
-    expect(
-      RegExp(r"isOwner\s*=\s*SessionManager\.instance\.hasPermission")
+      RegExp(r'if \(SessionManager\.instance\.isOwner\) return const KerangkaOwner\(\);')
           .hasMatch(isi),
-      isFalse,
-      reason: 'isOwner tidak boleh diisi dari hasPermission — lihat test di atas.',
+      isTrue,
+      reason: 'AppShell harus memilih KerangkaOwner dari role (isOwner).',
     );
+    expect(isi.contains('hasPermission'), isTrue,
+        reason: 'menu kasir tetap disaring izin — test ini membaca berkas '
+            'yang benar');
   });
 }

@@ -11,20 +11,13 @@ import '../../shift/repositories/shift_repository.dart';
 import '../../../features/auth/pages/login_page.dart';
 import '../../../features/auth/repositories/auth_repository.dart';
 import '../widgets/active_shift_card.dart';
-import '../widgets/owner_shift_shortcut_card.dart';
+import '../../../utils/sapaan.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/supabase_service.dart';
 
+/// Dashboard KASIR. Owner memakai `DasborOwnerPage` di `KerangkaOwner`.
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Pagi';
-    if (hour < 15) return 'Siang';
-    if (hour < 18) return 'Sore';
-    return 'Malam';
-  }
 
   Future<void> _showEndShiftDialog(BuildContext context) async {
     final session = SessionManager.instance.currentSession;
@@ -288,11 +281,6 @@ class DashboardPage extends StatelessWidget {
     final now = DateTime.now();
     final dayName = DateFormat('EEEE', 'id_ID').format(now);
     final dateStr = DateFormat('d MMM yyyy', 'id_ID').format(now);
-    // Role, BUKAN permission. Dulu baris ini memakai
-    // hasPermission('manage_cashiers') sebagai proksi role — akibatnya kasir
-    // yang diberi izin kelola kasir ikut dianggap owner, lalu kehilangan
-    // kartu shift aktifnya sendiri. Lihat test/arsitektur/role_bukan_permission_test.dart
-    final isOwner = SessionManager.instance.isOwner;
 
     final menuItems = [
       {
@@ -469,7 +457,7 @@ class DashboardPage extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Selamat ${_getGreeting()},',
+                                  'Selamat ${sapaanWaktu(now)},',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey.shade500,
@@ -510,9 +498,7 @@ class DashboardPage extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    isOwner
-                                        ? Icons.admin_panel_settings_rounded
-                                        : Icons.person_rounded,
+                                    Icons.person_rounded,
                                     size: 16,
                                     color: colorScheme.primary,
                                   ),
@@ -558,12 +544,7 @@ class DashboardPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Owner: pintasan pantau shift kasir (owner tidak punya
-                        // shift). Cashier: kartu shift aktif miliknya.
-                        if (isOwner)
-                          const OwnerShiftShortcutCard()
-                        else
-                          const ActiveShiftCard(),
+                        const ActiveShiftCard(),
                         const SizedBox(height: 20),
 
                         // Quick access
