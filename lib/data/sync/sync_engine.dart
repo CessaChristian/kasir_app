@@ -526,16 +526,20 @@ class SyncEngine {
       final waktuServer = r['updated_at'] as String;
       final mikroServer = _mikro(waktuServer);
       final lokal = await _keadaanLokal(e.nama, r['id'] as String);
+      final terhapusDiServer = r['deleted_at'] != null;
 
-      if (lokal == null || _serverMenang(lokal, mikroServer)) {
+      if (lokal == null && terhapusDiServer && _sampahTakPerluDisimpan(e.nama)) {
+        // Produk atau kategori yang belum pernah ada di sini dan datang sudah
+        // terhapus: tidak disimpan sama sekali. Tidak ada yang bisa
+        // merujuknya — item struk tidak terikat ke produk (v24), dan server
+        // tidak lagi menyimpan produk aktif yang menunjuk kategori terhapus
+        // (`supabase/kategori_terhapus.sql`). Penandanya tetap maju di bawah.
+      } else if (lokal == null || _serverMenang(lokal, mikroServer)) {
         await e.tulis(r);
-        // Baris yang belum pernah ada di sini dan datang sudah terhapus tidak
-        // terlihat di mana pun — bukan "data diperbarui" bagi pemakai. Tetap
-        // ditulis supaya rujukan baris lain kepadanya sah; buang sampah lokal
-        // yang membersihkannya nanti. Tanpa pengecualian ini, baris yang
-        // sudah dibuang di sini tapi masih tertarik ulang dari server
-        // dilaporkan sebagai perubahan di SETIAP sinkron.
-        if (lokal != null || r['deleted_at'] == null) berubah++;
+        // Baris terhapus yang belum pernah ada di sini — transaksi dan
+        // pengeluaran yang DIBATALKAN — tetap ditulis karena itu catatan,
+        // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
+        if (lokal != null || !terhapusDiServer) berubah++;
       }
 
       sudah++;
@@ -569,6 +573,12 @@ class SyncEngine {
     }
     return (baris.length, berubah);
   }
+
+  /// Tabel yang baris terhapusnya cuma sampah, bukan catatan. Transaksi dan
+  /// pengeluaran yang terhapus adalah yang DIBATALKAN — bukti untuk owner —
+  /// jadi selalu disimpan.
+  static bool _sampahTakPerluDisimpan(String tabel) =>
+      tabel == 'products' || tabel == 'categories';
 
   /// Menjalankan tarikan lengkap — termasuk penanda, jeda aman, dan paginasi
   /// — untuk SATU tabel saja.

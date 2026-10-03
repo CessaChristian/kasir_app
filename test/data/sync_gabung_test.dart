@@ -351,11 +351,9 @@ void main() {
             'terlambat terlewat permanen; mikrodetiknya juga wajib utuh, '
             'kalau terpangkas baris ini tertarik ulang selamanya');
   });
-  test('baris terhapus yang belum pernah ada di sini TIDAK dihitung berubah',
-      () async {
-    // Gejalanya terlihat di emulator: baris yang sudah dibuang buang sampah
-    // lokal tapi masih tertarik ulang dari server dilaporkan "25 data
-    // diperbarui" di SETIAP sinkron, padahal tidak ada yang berubah di layar.
+  test('produk terhapus yang belum pernah ada di sini TIDAK disimpan', () async {
+    // HP yang dipasang dari nol tidak perlu menyimpan sampah. Tidak ada yang
+    // bisa merujuknya: item struk tidak terikat ke produk (v24).
     final hasil = await mesin.gabungkanTabel('products', [
       barisServer(
         id: 'p-sampah',
@@ -365,9 +363,62 @@ void main() {
       ),
     ]);
 
+    expect(hasil, (1, 0), reason: 'dibaca, tapi bukan perubahan');
+    expect(await db.select(db.products).get(), isEmpty);
+
+    final penanda = await (db.select(db.syncState)
+          ..where((s) => s.entity.equals('products')))
+        .getSingle();
+    expect(penanda.lastPulledCursor, '2026-08-01T10:00:00+00:00',
+        reason: 'penanda tetap maju walau barisnya dilewati — kalau tidak, '
+            'baris yang sama tertarik ulang di setiap sinkron');
+  });
+
+  test('kategori terhapus yang belum pernah ada di sini TIDAK disimpan',
+      () async {
+    // Aman karena server tidak lagi menyimpan produk aktif yang menunjuk
+    // kategori terhapus (supabase/kategori_terhapus.sql).
+    await mesin.gabungkanTabel('categories', [
+      {
+        'id': 'k-sampah',
+        'name': 'Minuman lama',
+        'icon_codepoint': null,
+        'created_at': '2026-08-01T10:00:00+00:00',
+        'updated_at': '2026-08-01T10:00:00+00:00',
+        'deleted_at': '2026-08-01T10:00:00+00:00',
+        'server_urut': '2026-08-01T10:00:00+00:00',
+      },
+    ]);
+    expect(await db.select(db.categories).get(), isEmpty);
+  });
+
+  test('transaksi yang DIBATALKAN tetap disimpan walau belum pernah ada',
+      () async {
+    // Pembatalan adalah catatan untuk owner, bukan sampah — HP yang dipasang
+    // dari nol wajib ikut menyimpannya. Tidak dihitung "diperbarui" karena
+    // tidak mengubah total apa pun.
+    final hasil = await mesin.gabungkanTabel('transactions', [
+      {
+        'id': 't-batal',
+        'invoice_no': 'TRX/01',
+        'total': 20000,
+        'payment_method': 'cash',
+        'cash_received': 20000,
+        'change': 0,
+        'cashier_user_id': null,
+        'shift_id': null,
+        'order_type': 'dine_in',
+        'created_at': '2026-08-01T10:00:00+00:00',
+        'updated_at': '2026-08-01T11:00:00+00:00',
+        'deleted_at': '2026-08-01T11:00:00+00:00',
+        'cancelled_by_user_id': null,
+        'cancel_reason': 'Salah input',
+        'server_urut': '2026-08-01T11:00:00+00:00',
+      },
+    ]);
     expect(hasil, (1, 0));
-    expect((await ambil('p-sampah')).deletedAt, isNotNull,
-        reason: 'tetap ditulis, supaya baris lain yang merujuknya tetap sah');
+    final t = await db.select(db.transactions).getSingle();
+    expect(t.cancelReason, 'Salah input');
   });
 
   test('penghapusan baris yang ADA di sini tetap dihitung berubah', () async {
