@@ -253,7 +253,9 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
           return DaftarkanPerangkatPage(
             sesudahBerhasil: () async {
               final baru = _checkAuthState();
-              setState(() => _authFuture = baru);
+              setState(() {
+                _authFuture = baru;
+              });
               await baru;
             },
           );
@@ -270,7 +272,9 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
               // lebih dari semenit dan tombolnya terlihat rusak.
               await DialogSync.tampilkanSelama(context, () async {
                 final baru = _checkAuthState();
-                setState(() => _authFuture = baru);
+                setState(() {
+                  _authFuture = baru;
+                });
                 await baru;
               });
             },
