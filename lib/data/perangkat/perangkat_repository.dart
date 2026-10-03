@@ -48,6 +48,30 @@ class Perangkat {
   /// Ini perangkat yang sedang dipakai membaca daftarnya?
   bool get iniSaya =>
       id == SupabaseService.instance.client?.auth.currentUser?.id;
+
+  /// Berapa lama HP aktif boleh diam sebelum ditandai perlu dicek.
+  ///
+  /// HP aktif yang lama tidak sinkron menahan batas "centang biru" buang
+  /// sampah — selama ia tercatat aktif, data bekas hapusan tidak pernah
+  /// dibuang. Diam beberapa hari tidak merugikan (kasir libur), tapi HP yang
+  /// hilang atau rusak menahannya selamanya. Seminggu cukup untuk libur akhir
+  /// pekan, dan cukup pendek supaya HP yang benar-benar hilang ketahuan.
+  static const batasDiam = Duration(days: 7);
+
+  /// HP ini aktif tapi sudah [batasDiam] atau lebih tidak sinkron?
+  ///
+  /// HP yang sedang membaca daftar tidak pernah ditandai — ia jelas sedang
+  /// dipakai — begitu juga HP yang sudah dicabut, karena tidak lagi ikut
+  /// menahan buang sampah. [idSaya] hanya untuk test.
+  bool perluDicek({DateTime? sekarang, String? idSaya}) {
+    final saya = idSaya ?? SupabaseService.instance.client?.auth.currentUser?.id;
+    if (!aktif || id == saya) return false;
+    return (sekarang ?? DateTime.now()).difference(terakhirAktif) >= batasDiam;
+  }
+
+  /// Berapa hari penuh HP ini tidak sinkron.
+  int hariDiam({DateTime? sekarang}) =>
+      (sekarang ?? DateTime.now()).difference(terakhirAktif).inDays;
 }
 
 /// Keadaan perangkat INI menurut server.

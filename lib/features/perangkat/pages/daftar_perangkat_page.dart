@@ -329,6 +329,35 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
+          if (p.perluDicek()) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade300),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 18, color: Colors.amber.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Belum sinkron ${p.hariDiam()} hari. HP ini menahan '
+                      'pembersihan data. Kalau sudah tidak dipakai, Cabut '
+                      'lalu Lupakan.',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.amber.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
