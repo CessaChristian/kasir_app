@@ -61,14 +61,4 @@ class PermissionRepository {
           )),
     );
   }
-
-  /// Get list of enabled permission codes for a user
-  Future<List<String>> getEnabledPermissions(String userId) async {
-    final userPerms = await (_db.select(_db.userPermissions)
-          ..where((up) => up.userId.equals(userId))
-          ..where((up) => up.enabled.equals(true)))
-        .get();
-
-    return userPerms.map((up) => up.permissionCode).toList();
-  }
 }

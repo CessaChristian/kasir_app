@@ -413,59 +413,6 @@ class AuthRepository {
     return RecoveryLockStatus.notLocked();
   }
 
-  /// Verify owner recovery code
-  /// 
-  /// Returns RecoveryResult with status
-  /// Handles attempts tracking and locking
-  Future<RecoveryResult> verifyOwnerRecoveryCode(String code) async {
-    final owner = await _getOwner();
-    if (owner == null) {
-      return RecoveryResult.ownerNotFound();
-    }
-
-    // Check if locked
-    final lockStatus = await getOwnerRecoveryLockStatus();
-    if (lockStatus.isLocked) {
-      return RecoveryResult.locked(seconds: lockStatus.secondsRemaining);
-    }
-
-    // Check if recovery code is set
-    if (owner.recoveryHash == null || owner.recoverySalt == null) {
-      return RecoveryResult.invalidCode(
-        message: 'No recovery code set up for this account',
-      );
-    }
-
-    // Normalize and verify
-    final normalized = _normalizeRecoveryCode(code);
-    final isValid = _verifyRecoveryCode(
-      normalized,
-      owner.recoverySalt!,
-      owner.recoveryHash!,
-    );
-
-    if (!isValid) {
-      await _incrementRecoveryAttempts(owner.id);
-      return RecoveryResult.invalidCode();
-    }
-
-    // Migrasi transparan: kalau recovery hash masih format lama (SHA-256),
-    // re-hash dengan PBKDF2 dan update DB.
-    if (HashUtils.needsRehash(owner.recoveryHash!)) {
-      final newHash = _hashRecoveryCode(normalized, owner.recoverySalt!);
-      await (_db.update(_db.users)..where((u) => u.id.equals(owner.id)))
-          .write(UsersCompanion(
-        recoveryHash: Value(newHash),
-        updatedAt: Value(DateTime.now()),
-        syncStatus: const Value('pending'),
-      ));
-    }
-
-    // Valid - reset attempts
-    await _resetRecoveryAttempts(owner.id);
-    return RecoveryResult.success();
-  }
-
   /// Reset owner PIN using valid recovery code
   ///
   /// Auto-generates new recovery code after successful reset.
@@ -695,17 +642,6 @@ class AuthRepository {
       default:
         return 86400; // 24 jam
     }
-  }
-
-  /// Reset recovery attempts
-  Future<void> _resetRecoveryAttempts(String userId) async {
-    // updatedAt sengaja tidak dinaikkan — device-local, sama seperti _lockUser().
-    await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
-      const UsersCompanion(
-        recoveryAttempts: Value(0),
-        recoveryLockedUntil: Value(null),
-      ),
-    );
   }
 
   /// Reset recovery lock (saat lock expire).

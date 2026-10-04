@@ -253,31 +253,6 @@ class SupabaseService {
     }
   }
 
-  /// Jalur WARISAN: mendaftar memakai email + password perangkat.
-  ///
-  /// Dipertahankan hanya untuk HP yang sudah terpasang dengan cara lama.
-  /// Dihapus setelah semua perangkat dipindahkan.
-  Future<bool> daftarkanPerangkat({
-    required String email,
-    required String password,
-  }) async {
-    if (!_siap) {
-      _sebabTerputus = SebabTerputus.belumDisiapkan;
-      return false;
-    }
-    try {
-      await Supabase.instance.client.auth
-          .signInWithPassword(email: email, password: password);
-      await _brankas.write(key: _kunciEmail, value: email);
-      await _brankas.write(key: _kunciPassword, value: password);
-      _sebabTerputus = null;
-      return true;
-    } catch (e) {
-      _sebabTerputus = golongkanGagalMasuk(e);
-      return false;
-    }
-  }
-
   /// Lepaskan perangkat — dipakai kalau HP dialihkan atau dijual.
   Future<void> lepaskanPerangkat() async {
     await _brankas.delete(key: _kunciPerangkatId);
@@ -302,9 +277,6 @@ class SupabaseService {
       return false;
     }
   }
-
-  /// Email perangkat yang terdaftar, untuk ditampilkan di layar pengaturan.
-  Future<String?> get emailPerangkat => _brankas.read(key: _kunciEmail);
 
   /// Sesi Supabase punya masa berlaku. Kalau token sudah tidak bisa
   /// diperbarui sendiri (mis. perangkat lama offline), login ulang memakai

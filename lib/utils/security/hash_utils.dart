@@ -83,15 +83,6 @@ class HashUtils {
     return RegExp(r'^[A-Z0-9]+$').hasMatch(normalized);
   }
 
-  /// Format recovery code for display (add dashes).
-  static String formatRecoveryCode(String code) {
-    final normalized = normalizeRecoveryCode(code);
-    if (normalized.length != 16) return code;
-
-    return '${normalized.substring(0, 4)}-${normalized.substring(4, 8)}-'
-        '${normalized.substring(8, 12)}-${normalized.substring(12, 16)}';
-  }
-
   // ============================================================
   // Private implementations
   // ============================================================

@@ -326,8 +326,6 @@ class SessionManager {
   }
 
   String? get currentUserId => _currentSession?.userId;
-  String? get currentShiftId => _currentSession?.shiftId;
-  String? get currentUsername => _currentSession?.username;
 
   // =====================================
   // Context-aware permission (Phase 1 multi-business)
@@ -351,11 +349,4 @@ class SessionManager {
   /// Dibiarkan sebagai penerus panggilan, bukan dihapus, supaya pemanggil yang
   /// ada tidak perlu diubah sekaligus. Untuk kode baru pakai [hasPermission].
   bool hasCurrentPermission(String permission) => hasPermission(permission);
-
-  /// Throw kalau no permission. Pakai ini di UI handler.
-  void requireCurrentPermission(String permission) {
-    if (!hasCurrentPermission(permission)) {
-      throw StateError('Permission required: $permission');
-    }
-  }
 }

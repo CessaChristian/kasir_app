@@ -31,8 +31,6 @@ class HasilSyncGambar {
   });
 
   bool get berhasil => error == null;
-  bool get adaPerubahan =>
-      diunggah > 0 || diunduh > 0 || dihapus > 0 || dihapusLokal > 0;
 
   @override
   String toString() => berhasil

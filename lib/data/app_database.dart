@@ -2147,11 +2147,3 @@ LazyDatabase _openConnection() {
     return NativeDatabase(file);
   });
 }
-
-Future<void> deleteDatabaseFile() async {
-  final dir = await getApplicationDocumentsDirectory();
-  final file = File(p.join(dir.path, 'kasir_app.sqlite'));
-  if (await file.exists()) {
-    await file.delete();
-  }
-}

@@ -38,9 +38,6 @@ class KodeNota {
   static const _brankas = FlutterSecureStorage();
   static String? _tersimpan;
 
-  /// Dipakai test untuk menyetel penanda tanpa menyentuh brankas.
-  static void setUntukTest(String? kode) => _tersimpan = kode;
-
   /// Penanda perangkat ini, dibuat saat pertama kali dibutuhkan.
   ///
   /// Kalau brankas tidak bisa dibaca — bukan hal yang mustahil di Android —
