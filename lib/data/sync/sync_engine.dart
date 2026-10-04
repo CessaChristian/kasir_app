@@ -1139,7 +1139,8 @@ class SyncEngine {
         tulis: (r) async {
           await _db.into(_db.expenses).insertOnConflictUpdate(ExpensesCompanion(
                 id: Value(r['id'] as String),
-                shiftId: Value(r['shift_id'] as String),
+                // Kosong = pengeluaran owner (v33).
+                shiftId: Value(r['shift_id'] as String?),
                 userId: Value(r['user_id'] as String),
                 description: Value(r['description'] as String),
                 amount: Value((r['amount'] as num).toInt()),

@@ -35,7 +35,7 @@ void main() {
       {String user = 'budi', String shift = 's-aktif'}) async {
     await db.into(db.expenses).insert(ExpensesCompanion.insert(
           id: Value(id),
-          shiftId: shift,
+          shiftId: Value(shift),
           userId: user,
           description: 'Es batu',
           amount: 5000,

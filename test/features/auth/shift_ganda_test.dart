@@ -124,7 +124,7 @@ void main() {
 
     await db.into(db.expenses).insert(ExpensesCompanion.insert(
           id: const Value('exp-1'),
-          shiftId: 'dipakai',
+          shiftId: const Value('dipakai'),
           userId: 'kasir-1',
           description: 'Beli gas',
           amount: 25000,

@@ -37,7 +37,7 @@ void main() {
     await isiAwal(lama);
     await lama.into(lama.expenses).insert(ExpensesCompanion.insert(
           id: const Value('e-lama'),
-          shiftId: 's-1',
+          shiftId: const Value('s-1'),
           userId: 'budi',
           description: 'Es batu',
           amount: 5000,
@@ -126,7 +126,7 @@ void main() {
       Future<void> catat(String id, DateTime waktu, {bool batal = false}) =>
           db.into(db.expenses).insert(ExpensesCompanion.insert(
                 id: Value(id),
-                shiftId: 's-1',
+                shiftId: const Value('s-1'),
                 userId: 'budi',
                 description: id,
                 amount: 1000,

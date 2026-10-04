@@ -68,7 +68,7 @@ void main() {
           {DateTime? dihapus, String status = 'synced'}) =>
       db.into(db.expenses).insert(ExpensesCompanion.insert(
             id: Value(id),
-            shiftId: 's-1',
+            shiftId: const Value('s-1'),
             userId: 'u-1',
             description: id,
             amount: 1000,

@@ -8,10 +8,10 @@ import '../../../shared/ui/periode/periode.dart';
 /// Halaman UI TIDAK boleh memanggil [AppDatabase] langsung. Semua lewat sini.
 /// Lihat catatan lengkap soal alasan lapisan ini di `ProductRepository`.
 ///
-/// Pengeluaran selalu terikat shift: kolom `shift_id` wajib diisi, sehingga
-/// hanya kasir yang sedang menjalankan shift bisa mencatatnya. Owner tidak
-/// punya shift, jadi ia hanya membaca rekapnya lewat [watchPengeluaranPeriode]
-/// (halaman Pengeluaran) dan [getAllExpensesForOwner] (Laporan).
+/// Pengeluaran kasir terikat shift yang sedang berjalan. Owner tidak punya
+/// shift: pengeluarannya tanpa shift dan hanya dikelompokkan per tanggal
+/// (v33). Rekapnya dibaca lewat [watchPengeluaranPeriode] (halaman
+/// Pengeluaran) dan [getAllExpensesForOwner] (Laporan).
 class ExpenseRepository {
   final AppDatabase _db;
 
@@ -19,23 +19,32 @@ class ExpenseRepository {
 
   // ---- TULIS ----
 
-  /// Catat pengeluaran baru pada shift yang sedang berjalan.
+  /// Catat pengeluaran baru.
+  ///
+  /// Kasir: wajib pada shift yang sedang berjalan ([shiftId]). Owner: tanpa
+  /// shift ([shiftId] null) — pengeluarannya hanya dikelompokkan per tanggal
+  /// (keputusan owner 2026-10-04). Aturan ini ditegakkan DI SINI, bukan
+  /// hanya lewat tombol di halaman.
   Future<void> addExpense({
-    required String shiftId,
+    required String? shiftId,
     required String userId,
     required String description,
     required int amount,
     String category = 'bahan_baku',
     int qty = 1,
-  }) =>
-      _db.addExpense(
-        shiftId: shiftId,
-        userId: userId,
-        description: description,
-        amount: amount,
-        category: category,
-        qty: qty,
-      );
+  }) {
+    if (shiftId == null && !SessionManager.instance.isOwner) {
+      throw StateError('Pengeluaran kasir harus dicatat saat shift berjalan.');
+    }
+    return _db.addExpense(
+      shiftId: shiftId,
+      userId: userId,
+      description: description,
+      amount: amount,
+      category: category,
+      qty: qty,
+    );
+  }
 
   // ---- PEMBATALAN ----
   //

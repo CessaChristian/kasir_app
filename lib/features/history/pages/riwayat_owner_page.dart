@@ -6,7 +6,7 @@ import '../../../data/db.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/ui/kotak_cari.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
-import '../../../shared/ui/periode/metode_filter.dart';
+import '../../../shared/ui/periode/bagian_filter.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/pita_hari.dart';
 import '../../../shared/ui/teks_teras.dart';
@@ -35,7 +35,9 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
   late final _riwayat = _repo.watchRiwayat(CakupanRiwayat.dariSesi());
 
   var _periode = Periode.hari(DateTime.now());
-  var _metode = MetodeFilter.semua;
+
+  /// Kode metode bayar ('cash'/'qris'); null = Semua.
+  String? _metode;
   var _cari = '';
   Set<String> _idCocokMenu = const {};
 
@@ -102,9 +104,11 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
             const SizedBox(height: 12),
             KartuPeriode(
               periode: _periode,
-              metode: _metode,
+              bagian: BagianFilter.metodeBayar,
+              pilihan: _metode,
+              ikon: Icons.tune_rounded,
               onBerubah: (p) => setState(() => _periode = p),
-              onBerubahMetode: (m) => setState(() => _metode = m),
+              onBerubahPilihan: (m) => setState(() => _metode = m),
             ),
             const SizedBox(height: 16),
             if (hari == null)

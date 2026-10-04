@@ -8,7 +8,17 @@ class TombolTambah extends StatelessWidget {
   final VoidCallback onTap;
   final String tooltip;
 
-  const TombolTambah({super.key, required this.onTap, this.tooltip = 'Tambah'});
+  /// Desain: Produk 48 sudut 8, Pengeluaran 46 sudut 6.
+  final double ukuran;
+  final double sudut;
+
+  const TombolTambah({
+    super.key,
+    required this.onTap,
+    this.tooltip = 'Tambah',
+    this.ukuran = 48,
+    this.sudut = 8,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +27,7 @@ class TombolTambah extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: WarnaTeras.oranye,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(sudut),
           boxShadow: [
             BoxShadow(
               color: WarnaTeras.oranye.withValues(alpha: 0.35),
@@ -29,12 +39,16 @@ class TombolTambah extends StatelessWidget {
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(sudut),
             onTap: onTap,
-            child: const SizedBox(
-              width: 52,
-              height: 52,
-              child: Icon(Icons.add_rounded, size: 34, color: Colors.white),
+            child: SizedBox(
+              width: ukuran,
+              height: ukuran,
+              child: const Icon(
+                Icons.add_rounded,
+                size: 34,
+                color: Colors.white,
+              ),
             ),
           ),
         ),

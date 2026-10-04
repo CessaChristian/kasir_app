@@ -1,5 +1,4 @@
 import '../../../data/app_database.dart';
-import '../../../shared/ui/periode/metode_filter.dart';
 import '../../../shared/ui/periode/periode.dart';
 
 /// Transaksi satu hari untuk pita di halaman Riwayat.
@@ -23,7 +22,9 @@ class HariRiwayat {
 List<HariRiwayat> kelompokkanRiwayat(
   List<Transaction> semua, {
   required Periode periode,
-  required MetodeFilter metode,
+
+  /// Kode `payment_method` ('cash'/'qris'); null = semua metode.
+  required String? metode,
   String cari = '',
   Set<String> idCocokMenu = const {},
 }) {
@@ -37,7 +38,7 @@ List<HariRiwayat> kelompokkanRiwayat(
   for (final t in semua) {
     final h = hari(t.createdAt);
     if (h.isBefore(periode.dari) || h.isAfter(periode.sampai)) continue;
-    if (!metode.cocok(t.paymentMethod)) continue;
+    if (metode != null && t.paymentMethod != metode) continue;
     if (kata.isNotEmpty &&
         !t.invoiceNo.toLowerCase().contains(kata) &&
         !idCocokMenu.contains(t.id)) {

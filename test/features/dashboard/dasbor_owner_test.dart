@@ -72,7 +72,7 @@ void main() {
     await trx('t3', DateTime(2026, 10, 3, 11), 99000, batal: true);
     await trx('t4', DateTime(2026, 10, 2, 9), 70000);
     await db.into(db.expenses).insert(ExpensesCompanion.insert(
-          shiftId: 's-budi',
+          shiftId: const Value('s-budi'),
           userId: 'budi',
           description: 'Es batu',
           amount: 60000,

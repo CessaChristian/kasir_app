@@ -4,7 +4,7 @@ import '../../widgets/app_toast.dart';
 import '../teks_teras.dart';
 import '../warna_teras.dart';
 import 'lembar_periode.dart';
-import 'metode_filter.dart';
+import 'bagian_filter.dart';
 import 'periode.dart';
 
 /// Kartu periode di puncak halaman: nama + tanggal, chip Reset kalau bukan
@@ -14,28 +14,35 @@ class KartuPeriode extends StatelessWidget {
   final ValueChanged<Periode> onBerubah;
   final DateTime? hariIni;
 
-  /// Diisi = mode filter Riwayat (ikon ⚙, metode bayar ikut disaring).
-  final MetodeFilter? metode;
-  final ValueChanged<MetodeFilter>? onBerubahMetode;
+  /// Diisi = kartu filter: [pilihan] ikut tampil di nama ("Hari ini ·
+  /// Tunai") dan ikut direset. Riwayat: metode bayar; Pengeluaran: kategori.
+  final BagianFilter? bagian;
+  final String? pilihan;
+  final ValueChanged<String?>? onBerubahPilihan;
+
+  /// Desain: Riwayat memakai ikon ⚙ (tune), Pengeluaran ikon kalender.
+  final IconData ikon;
 
   const KartuPeriode({
     super.key,
     required this.periode,
     required this.onBerubah,
     this.hariIni,
-    this.metode,
-    this.onBerubahMetode,
+    this.bagian,
+    this.pilihan,
+    this.onBerubahPilihan,
+    this.ikon = Icons.calendar_month_rounded,
   });
 
   @override
   Widget build(BuildContext context) {
     final h = hariIni ?? DateTime.now();
-    final m = metode;
-    final bukanBawaan =
-        periode != Periode.hari(h) || (m != null && m != MetodeFilter.semua);
-    final nama = m == null || m == MetodeFilter.semua
-        ? namaPeriode(periode, h)
-        : '${namaPeriode(periode, h)} · ${m.label}';
+    final b = bagian;
+    final adaPilihan = b != null && pilihan != null;
+    final bukanBawaan = periode != Periode.hari(h) || adaPilihan;
+    final nama = adaPilihan
+        ? '${namaPeriode(periode, h)} · ${b.labelDari(pilihan)}'
+        : namaPeriode(periode, h);
     // Warna putih dan bayangan di SATU kotak. Dulu putihnya di Material dan
     // bayangannya di Container tanpa warna di atasnya — bayangan itu ikut
     // terlihat menembus kotak, kartunya jadi keabu-abuan.
@@ -56,24 +63,22 @@ class KartuPeriode extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () async {
-            if (m == null) {
-              final p = await pilihPeriode(context, awal: periode, hariIni: h);
-              if (p != null) onBerubah(p);
-              return;
-            }
-            final f = await pilihFilterRiwayat(
+            final f = await pilihFilter(
               context,
               awal: periode,
-              metode: m,
+              bagian: b,
+              pilihan: pilihan,
               hariIni: h,
             );
             if (f == null) return;
             onBerubah(f.periode);
-            onBerubahMetode?.call(f.metode);
+            if (b != null) onBerubahPilihan?.call(f.pilihan);
           },
+          // Tinggi MINIMAL, bukan dipatok: huruf yang diperbesar (pengaturan
+          // aksesibilitas HP) membuat isinya lebih tinggi dan tumpah.
           child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            constraints: const BoxConstraints(minHeight: 58),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
                 Container(
@@ -83,13 +88,7 @@ class KartuPeriode extends StatelessWidget {
                     color: WarnaTeras.oranyeMuda,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    m == null
-                        ? Icons.calendar_month_rounded
-                        : Icons.tune_rounded,
-                    size: 20,
-                    color: WarnaTeras.oranye,
-                  ),
+                  child: Icon(ikon, size: 20, color: WarnaTeras.oranye),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -121,10 +120,10 @@ class KartuPeriode extends StatelessWidget {
                   ChipReset(
                     onTap: () {
                       onBerubah(Periode.hari(h));
-                      if (m != null) onBerubahMetode?.call(MetodeFilter.semua);
+                      if (b != null) onBerubahPilihan?.call(null);
                       AppToast.info(
                         context,
-                        m == null
+                        b == null
                             ? 'Filter periode direset ke hari ini'
                             : 'Filter direset',
                       );

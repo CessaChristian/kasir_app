@@ -6,21 +6,24 @@ import 'package:kasir_app/features/expenses/models/ringkasan_pengeluaran.dart';
 /// Isi halaman Pengeluaran owner: total, kategori, rincian per hari.
 void main() {
   var n = 0;
-  Expense e(int jumlah, DateTime waktu,
-          {String kategori = 'bahan_baku', bool batal = false}) =>
-      Expense(
-        id: 'e${n++}',
-        shiftId: 's',
-        userId: 'budi',
-        description: 'x',
-        amount: jumlah,
-        category: kategori,
-        qty: 1,
-        createdAt: waktu,
-        updatedAt: waktu,
-        deletedAt: batal ? waktu : null,
-        syncStatus: 'synced',
-      );
+  Expense e(
+    int jumlah,
+    DateTime waktu, {
+    String kategori = 'bahan_baku',
+    bool batal = false,
+  }) => Expense(
+    id: 'e${n++}',
+    shiftId: 's',
+    userId: 'budi',
+    description: 'x',
+    amount: jumlah,
+    category: kategori,
+    qty: 1,
+    createdAt: waktu,
+    updatedAt: waktu,
+    deletedAt: batal ? waktu : null,
+    syncStatus: 'synced',
+  );
 
   test('yang dibatalkan tidak dihitung, tapi tetap muncul di harinya', () {
     final r = ringkasPengeluaran([
@@ -31,8 +34,11 @@ void main() {
     expect(r.total, 15000);
     expect(r.jumlahItem, 2);
     expect(r.jumlahHari, 2);
-    expect(r.perKategori.map((k) => k.$1), isNot(contains('Asset')),
-        reason: 'kategori yang isinya cuma pembatalan tidak tampil');
+    expect(
+      r.perKategori.map((k) => k.$1),
+      isNot(contains('Asset')),
+      reason: 'kategori yang isinya cuma pembatalan tidak tampil',
+    );
     final satuOkt = r.perHari.firstWhere((h) => h.tanggal.day == 1);
     expect(satuOkt.isi, hasLength(2));
     expect(satuOkt.total, 10000);
@@ -72,8 +78,35 @@ void main() {
   test('label kategori dari kode', () {
     expect(KategoriBiaya.labelDari('bahan_baku'), 'Bahan Baku');
     expect(KategoriBiaya.labelDari('operasional_kedai'), 'Operasional Kedai');
-    expect(KategoriBiaya.values.map((k) => k.label),
-        ['Asset', 'Bahan Baku', 'Operasional Kedai'],
-        reason: 'hanya tiga, tanpa "Lainnya"');
+    expect(
+      KategoriBiaya.values.map((k) => k.label),
+      ['Asset', 'Bahan Baku', 'Operasional Kedai'],
+      reason: 'hanya tiga, tanpa "Lainnya"',
+    );
+  });
+
+  test('filter kategori menyaring total, bar, jumlah, dan rincian', () {
+    final semua = [
+      e(10000, DateTime(2026, 10, 1, 9), kategori: 'bahan_baku'),
+      e(30000, DateTime(2026, 10, 1, 9), kategori: 'operasional_kedai'),
+      e(7000, DateTime(2026, 10, 2, 9), kategori: 'bahan_baku', batal: true),
+      e(5000, DateTime(2026, 10, 3, 9), kategori: 'bahan_baku'),
+    ];
+    final r = ringkasPengeluaran(semua, kategori: 'bahan_baku');
+    expect(r.total, 15000);
+    expect(r.jumlahItem, 2);
+    expect(r.jumlahHari, 2);
+    expect(r.perKategori, [('Bahan Baku', 15000)]);
+    expect(
+      r.perHari.expand((h) => h.isi).every((x) => x.category == 'bahan_baku'),
+      isTrue,
+    );
+    expect(
+      r.perHari.map((h) => h.tanggal.day),
+      [3, 2, 1],
+      reason: 'hari yang isinya cuma pembatalan tetap tampil',
+    );
+
+    expect(ringkasPengeluaran(semua).total, 45000, reason: 'tanpa filter');
   });
 }

@@ -366,7 +366,10 @@ class UserPermissions extends Table {
 /// =======================
 class Expenses extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
-  TextColumn get shiftId => text().references(Shifts, #id)();
+  /// Null = pengeluaran OWNER (v33): owner tidak menjalankan shift, jadi
+  /// pengeluarannya hanya dikelompokkan per tanggal. Pengeluaran kasir
+  /// wajib punya shift — ditegakkan `ExpenseRepository.addExpense`.
+  TextColumn get shiftId => text().nullable().references(Shifts, #id)();
   @ReferenceName('createdExpensesRefs')
   TextColumn get userId => text().references(Users, #id)(); // creator
   TextColumn get description => text()();
@@ -438,7 +441,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 32;
+  int get schemaVersion => 33;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1080,6 +1083,20 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 33 && to >= 33) {
+            // v33 — `expenses.shift_id` boleh kosong untuk pengeluaran owner.
+            // SQLite tidak bisa melepas NOT NULL dari kolom yang sudah ada;
+            // tabelnya dibangun ulang dengan skema terbaru, isinya disalin
+            // utuh (pola yang sama dengan v24).
+            final adaPengeluaran = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'expenses'",
+            ).get();
+            if (adaPengeluaran.isNotEmpty) {
+              await m.alterTable(TableMigration(expenses));
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1558,7 +1575,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> addExpense({
-    required String shiftId,
+    required String? shiftId,
     required String userId,
     required String description,
     required int amount,
@@ -1698,7 +1715,8 @@ class AppDatabase extends _$AppDatabase {
 
     final hasil = <String, List<Expense>>{};
     for (final e in baris) {
-      hasil.putIfAbsent(e.shiftId, () => []).add(e);
+      // Disaring `isIn(shiftIds)` di atas, jadi shift-nya pasti ada.
+      hasil.putIfAbsent(e.shiftId!, () => []).add(e);
     }
     return hasil;
   }
@@ -2025,7 +2043,8 @@ class AppDatabase extends _$AppDatabase {
         : <Expense>[];
     final expensesByShift = <String, List<Expense>>{};
     for (final e in allShiftExpenses) {
-      expensesByShift.putIfAbsent(e.shiftId, () => []).add(e);
+      // Disaring `isIn(allShiftIds)`, jadi shift-nya pasti ada.
+      expensesByShift.putIfAbsent(e.shiftId!, () => []).add(e);
     }
 
     // Query 4: Semua expenses per user sekaligus (untuk total)

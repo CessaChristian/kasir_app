@@ -5058,9 +5058,9 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
   late final GeneratedColumn<String> shiftId = GeneratedColumn<String>(
     'shift_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES shifts (id)',
     ),
@@ -5231,8 +5231,6 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         _shiftIdMeta,
         shiftId.isAcceptableOrUnknown(data['shift_id']!, _shiftIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_shiftIdMeta);
     }
     if (data.containsKey('user_id')) {
       context.handle(
@@ -5331,7 +5329,7 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
       shiftId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}shift_id'],
-      )!,
+      ),
       userId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}user_id'],
@@ -5387,7 +5385,11 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
 
 class Expense extends DataClass implements Insertable<Expense> {
   final String id;
-  final String shiftId;
+
+  /// Null = pengeluaran OWNER (v33): owner tidak menjalankan shift, jadi
+  /// pengeluarannya hanya dikelompokkan per tanggal. Pengeluaran kasir
+  /// wajib punya shift — ditegakkan `ExpenseRepository.addExpense`.
+  final String? shiftId;
   final String userId;
   final String description;
 
@@ -5416,7 +5418,7 @@ class Expense extends DataClass implements Insertable<Expense> {
   final String syncStatus;
   const Expense({
     required this.id,
-    required this.shiftId,
+    this.shiftId,
     required this.userId,
     required this.description,
     required this.amount,
@@ -5433,7 +5435,9 @@ class Expense extends DataClass implements Insertable<Expense> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['shift_id'] = Variable<String>(shiftId);
+    if (!nullToAbsent || shiftId != null) {
+      map['shift_id'] = Variable<String>(shiftId);
+    }
     map['user_id'] = Variable<String>(userId);
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<int>(amount);
@@ -5457,7 +5461,9 @@ class Expense extends DataClass implements Insertable<Expense> {
   ExpensesCompanion toCompanion(bool nullToAbsent) {
     return ExpensesCompanion(
       id: Value(id),
-      shiftId: Value(shiftId),
+      shiftId: shiftId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(shiftId),
       userId: Value(userId),
       description: Value(description),
       amount: Value(amount),
@@ -5485,7 +5491,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Expense(
       id: serializer.fromJson<String>(json['id']),
-      shiftId: serializer.fromJson<String>(json['shiftId']),
+      shiftId: serializer.fromJson<String?>(json['shiftId']),
       userId: serializer.fromJson<String>(json['userId']),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<int>(json['amount']),
@@ -5506,7 +5512,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'shiftId': serializer.toJson<String>(shiftId),
+      'shiftId': serializer.toJson<String?>(shiftId),
       'userId': serializer.toJson<String>(userId),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<int>(amount),
@@ -5523,7 +5529,7 @@ class Expense extends DataClass implements Insertable<Expense> {
 
   Expense copyWith({
     String? id,
-    String? shiftId,
+    Value<String?> shiftId = const Value.absent(),
     String? userId,
     String? description,
     int? amount,
@@ -5537,7 +5543,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     String? syncStatus,
   }) => Expense(
     id: id ?? this.id,
-    shiftId: shiftId ?? this.shiftId,
+    shiftId: shiftId.present ? shiftId.value : this.shiftId,
     userId: userId ?? this.userId,
     description: description ?? this.description,
     amount: amount ?? this.amount,
@@ -5635,7 +5641,7 @@ class Expense extends DataClass implements Insertable<Expense> {
 
 class ExpensesCompanion extends UpdateCompanion<Expense> {
   final Value<String> id;
-  final Value<String> shiftId;
+  final Value<String?> shiftId;
   final Value<String> userId;
   final Value<String> description;
   final Value<int> amount;
@@ -5666,7 +5672,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
   });
   ExpensesCompanion.insert({
     this.id = const Value.absent(),
-    required String shiftId,
+    this.shiftId = const Value.absent(),
     required String userId,
     required String description,
     required int amount,
@@ -5679,8 +5685,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
-  }) : shiftId = Value(shiftId),
-       userId = Value(userId),
+  }) : userId = Value(userId),
        description = Value(description),
        amount = Value(amount);
   static Insertable<Expense> custom({
@@ -5719,7 +5724,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
 
   ExpensesCompanion copyWith({
     Value<String>? id,
-    Value<String>? shiftId,
+    Value<String?>? shiftId,
     Value<String>? userId,
     Value<String>? description,
     Value<int>? amount,
@@ -9681,7 +9686,7 @@ typedef $$UserPermissionsTableProcessedTableManager =
 typedef $$ExpensesTableCreateCompanionBuilder =
     ExpensesCompanion Function({
       Value<String> id,
-      required String shiftId,
+      Value<String?> shiftId,
       required String userId,
       required String description,
       required int amount,
@@ -9698,7 +9703,7 @@ typedef $$ExpensesTableCreateCompanionBuilder =
 typedef $$ExpensesTableUpdateCompanionBuilder =
     ExpensesCompanion Function({
       Value<String> id,
-      Value<String> shiftId,
+      Value<String?> shiftId,
       Value<String> userId,
       Value<String> description,
       Value<int> amount,
@@ -9721,9 +9726,9 @@ final class $$ExpensesTableReferences
     $_aliasNameGenerator(db.expenses.shiftId, db.shifts.id),
   );
 
-  $$ShiftsTableProcessedTableManager get shiftId {
-    final $_column = $_itemColumn<String>('shift_id')!;
-
+  $$ShiftsTableProcessedTableManager? get shiftId {
+    final $_column = $_itemColumn<String>('shift_id');
+    if ($_column == null) return null;
     final manager = $$ShiftsTableTableManager(
       $_db,
       $_db.shifts,
@@ -10179,7 +10184,7 @@ class $$ExpensesTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> shiftId = const Value.absent(),
+                Value<String?> shiftId = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<int> amount = const Value.absent(),
@@ -10211,7 +10216,7 @@ class $$ExpensesTableTableManager
           createCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                required String shiftId,
+                Value<String?> shiftId = const Value.absent(),
                 required String userId,
                 required String description,
                 required int amount,

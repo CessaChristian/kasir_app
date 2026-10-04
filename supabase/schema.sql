@@ -152,7 +152,8 @@ create table public.transaction_items (
 -- ------------------------------------------------------------- expenses
 create table public.expenses (
   id                 uuid primary key default gen_random_uuid(),
-  shift_id           uuid        not null references public.shifts(id),
+  -- Kosong = pengeluaran owner (tanpa shift, pengeluaran_tanpa_shift.sql).
+  shift_id           uuid        references public.shifts(id),
   user_id            uuid        not null references public.users(id),
   description        text        not null,
   -- TOTAL (harga x qty).

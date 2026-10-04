@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../utils/currency_formatter.dart';
 import '../../data/db.dart';
@@ -10,7 +9,7 @@ import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/dialog_pembatalan.dart';
-import 'models/kategori_biaya.dart';
+import 'widgets/dialog_pengeluaran.dart';
 import 'widgets/batalkan_pengeluaran.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
@@ -151,23 +150,19 @@ class _ExpensesPageState extends State<ExpensesPage> {
       return;
     }
 
-    // Dialog hanya mengumpulkan data — TIDAK ada operasi DB di dalamnya.
-    // Setelah showDialog resolve, dialog sudah 100% hilang dari tree,
-    // baru kemudian DB operation dijalankan. Ini mencegah _dependents.isEmpty
-    // yang terjadi ketika stream emit sementara dialog masih animating out.
-    final result = await showDialog<_ExpenseInput>(
-      context: context,
-      builder: (ctx) => _AddExpenseDialog(primaryColor: Theme.of(context).colorScheme.primary),
+    // Dialog hanya mengumpulkan isian; DB baru disentuh setelah dialog
+    // benar-benar tertutup (stream yang memancar saat dialog masih beranimasi
+    // keluar dulu memicu galat _dependents.isEmpty).
+    final result = await tampilkanDialogPengeluaran(
+      context,
+      subjudul: 'Masukan Pengeluaran shift',
     );
-
-    // Hanya lanjut jika user menekan Simpan (bukan Batal/dismiss)
     if (result == null || !mounted) return;
 
-    // Dialog sudah sepenuhnya gone dari tree → aman memanggil DB
     await _expenseRepo.addExpense(
       shiftId: shiftId,
       userId: session.userId,
-      description: result.desc,
+      description: result.keterangan,
       amount: result.amount,
       category: result.kategori.kode,
       qty: result.qty,
@@ -681,225 +676,3 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
 }
 
 // ---- Data model yang dikembalikan dialog ----
-class _ExpenseInput {
-  final String desc;
-
-  /// TOTAL (harga satuan x [qty]).
-  final int amount;
-  final KategoriBiaya kategori;
-  final int qty;
-  const _ExpenseInput({
-    required this.desc,
-    required this.amount,
-    required this.kategori,
-    required this.qty,
-  });
-}
-
-// ---- Dialog mandiri: hanya kumpulkan data, tidak sentuh DB ----
-class _AddExpenseDialog extends StatefulWidget {
-  final Color primaryColor;
-  const _AddExpenseDialog({required this.primaryColor});
-
-  @override
-  State<_AddExpenseDialog> createState() => _AddExpenseDialogState();
-}
-
-class _AddExpenseDialogState extends State<_AddExpenseDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _descC = TextEditingController();
-  final _amountC = TextEditingController();
-
-  // Kategori & jumlah (v32). Bawaan Bahan Baku, seperti di desain.
-  var _kategori = KategoriBiaya.bahanBaku;
-  var _qty = 1;
-
-  @override
-  void dispose() {
-    _descC.dispose();
-    _amountC.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      _ExpenseInput(
-        desc: _descC.text.trim(),
-        amount: (parseRupiah(_amountC.text) ?? 0) * _qty,
-        kategori: _kategori,
-        qty: _qty,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = widget.primaryColor;
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: SizedBox(
-          width: double.maxFinite,
-          // Bisa digulir: form makin panjang (kategori + jumlah) dan
-          // keyboard menutup separuh layar.
-          child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.add_card_rounded, color: primary),
-                    ),
-                    const SizedBox(width: 14),
-                    const Text(
-                      'Tambah Pengeluaran',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text('Kategori Biaya',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final k in KategoriBiaya.values)
-                      ChoiceChip(
-                        label: Text(k.label),
-                        selected: _kategori == k,
-                        onSelected: (_) => setState(() => _kategori = k),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _descC,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: 'Keterangan',
-                    hintText: 'Contoh: Beli es batu',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    prefixIcon: const Icon(Icons.description_outlined),
-                  ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _amountC,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submit(),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    RupiahInputFormatter(),
-                  ],
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Harga satuan',
-                    prefixText: 'Rp ',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    prefixIcon: const Icon(Icons.payments_outlined),
-                  ),
-                  validator: (v) {
-                    final amount = parseRupiah(v ?? '');
-                    if (amount == null || amount <= 0) return 'Masukkan jumlah valid';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Text('Jumlah',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    IconButton.outlined(
-                      tooltip: 'Kurangi',
-                      onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
-                      icon: const Icon(Icons.remove_rounded),
-                    ),
-                    SizedBox(
-                      width: 40,
-                      child: Text('$_qty',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
-                    IconButton.outlined(
-                      tooltip: 'Tambah',
-                      onPressed: () => setState(() => _qty++),
-                      icon: const Icon(Icons.add_rounded),
-                    ),
-                  ],
-                ),
-                if (_qty > 1)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Total Rp ${formatRupiah((parseRupiah(_amountC.text) ?? 0) * _qty)}',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(color: Colors.grey.shade300),
-                          ),
-                        ),
-                        child: const Text('Batal'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: const Text('Simpan',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          ),
-        ),
-      ),
-    );
-  }
-}

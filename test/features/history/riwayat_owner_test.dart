@@ -7,7 +7,7 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/history/models/kelompok_riwayat.dart';
 import 'package:kasir_app/features/history/widgets/baris_transaksi.dart';
 import 'package:kasir_app/shared/ui/periode/kartu_periode.dart';
-import 'package:kasir_app/shared/ui/periode/metode_filter.dart';
+import 'package:kasir_app/shared/ui/periode/bagian_filter.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
 import 'package:kasir_app/utils/currency_formatter.dart';
 
@@ -57,7 +57,7 @@ void main() {
       final h = kelompokkanRiwayat(
         semua,
         periode: okt,
-        metode: MetodeFilter.semua,
+        metode: null,
       );
       expect(h.map((x) => x.tanggal.day), [
         3,
@@ -72,7 +72,7 @@ void main() {
       final h = kelompokkanRiwayat(
         semua,
         periode: okt,
-        metode: MetodeFilter.qris,
+        metode: 'qris',
       );
       expect(h.expand((x) => x.isi).map((t) => t.invoiceNo), ['A2']);
     });
@@ -81,7 +81,7 @@ void main() {
       final nota = kelompokkanRiwayat(
         semua,
         periode: okt,
-        metode: MetodeFilter.semua,
+        metode: null,
         cari: 'b1',
       );
       expect(nota.expand((x) => x.isi).map((t) => t.invoiceNo), ['B1']);
@@ -89,7 +89,7 @@ void main() {
       final menu = kelompokkanRiwayat(
         semua,
         periode: okt,
-        metode: MetodeFilter.semua,
+        metode: null,
         cari: 'kopi',
         idCocokMenu: {'id-A1'},
       );
@@ -188,17 +188,19 @@ void main() {
     (t) async {
       final hariIni = DateTime(2026, 10, 4);
       var periode = Periode.hari(hariIni);
-      var metode = MetodeFilter.tunai;
+      String? metode = 'cash';
       await t.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: StatefulBuilder(
               builder: (context, ulang) => KartuPeriode(
                 periode: periode,
-                metode: metode,
+                bagian: BagianFilter.metodeBayar,
+                pilihan: metode,
+                ikon: Icons.tune_rounded,
                 hariIni: hariIni,
                 onBerubah: (p) => ulang(() => periode = p),
-                onBerubahMetode: (m) => ulang(() => metode = m),
+                onBerubahPilihan: (m) => ulang(() => metode = m),
               ),
             ),
           ),
@@ -209,7 +211,7 @@ void main() {
 
       await t.tap(find.text('Reset'));
       await t.pump();
-      expect(metode, MetodeFilter.semua);
+      expect(metode, isNull);
       expect(find.text('Hari ini'), findsOneWidget);
       expect(find.text('Reset'), findsNothing);
       await t.pumpAndSettle(const Duration(seconds: 3));

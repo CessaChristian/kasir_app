@@ -35,7 +35,7 @@ void main() {
         ShiftsCompanion.insert(id: const Value('s-1'), userId: 'budi'));
     await lama.into(lama.expenses).insert(ExpensesCompanion.insert(
           id: const Value('e-1'),
-          shiftId: 's-1',
+          shiftId: const Value('s-1'),
           userId: 'budi',
           description: 'Es batu',
           amount: 5000,

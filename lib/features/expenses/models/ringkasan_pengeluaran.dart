@@ -39,7 +39,16 @@ class RingkasanPengeluaran {
 
 /// Pengeluaran yang dibatalkan TIDAK dihitung di total, kategori, jumlah
 /// item, maupun jumlah hari — tapi tetap muncul di rincian harinya.
-RingkasanPengeluaran ringkasPengeluaran(List<Expense> semua) {
+///
+/// [kategori] (kode, mis. 'bahan_baku') menyaring semuanya — total, bar,
+/// dan rincian; null = semua kategori (filter "Kategori biaya" di desain).
+RingkasanPengeluaran ringkasPengeluaran(
+  List<Expense> masuk, {
+  String? kategori,
+}) {
+  final semua = kategori == null
+      ? masuk
+      : masuk.where((e) => e.category == kategori).toList();
   final aktif = semua.where((e) => e.deletedAt == null).toList();
   DateTime hari(DateTime d) {
     final l = d.toLocal();
