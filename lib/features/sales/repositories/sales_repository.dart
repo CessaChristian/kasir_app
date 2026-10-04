@@ -119,6 +119,11 @@ class SalesRepository {
                 shiftId: cakupan.shiftId, termasukBatal: true),
       };
 
+  /// Id transaksi yang berisi menu bernama mengandung [kata] — untuk
+  /// "Cari riwayat".
+  Future<Set<String>> idTransaksiBerisiMenu(String kata) =>
+      _db.idTransaksiBerisiMenu(kata);
+
   /// Item milik satu transaksi — dipakai layar detail struk. [termasukBatal]
   /// untuk struk yang dibatalkan, yang isinya tetap perlu terlihat.
   Future<List<TransactionItem>> getTransactionItems(

@@ -1,0 +1,35 @@
+import 'package:flutter/material.dart';
+
+import '../../../data/app_database.dart';
+import '../../../shared/widgets/dialog_pembatalan.dart';
+import '../../sales/repositories/sales_repository.dart';
+
+/// Alasan pembatalan transaksi (desain).
+const daftarAlasanBatalTransaksi = [
+  'Salah input pesanan',
+  'Pelanggan batal',
+  'Transaksi ganda',
+  alasanLainnya,
+];
+
+/// Buka dialog pembatalan untuk [tx]. Dipakai Riwayat owner dan kasir.
+/// Mengembalikan true kalau berhasil dibatalkan.
+Future<bool> batalkanTransaksiLewatDialog(
+  BuildContext context,
+  SalesRepository repo,
+  Transaction tx,
+) {
+  return tampilkanDialogPembatalan(
+    context,
+    pertanyaan: 'Kenapa transaksi ${tx.invoiceNo} dibatalkan?',
+    keteranganPin: 'Masukkan PIN untuk membatalkan transaksi ${tx.invoiceNo}.',
+    judulBerhasil: 'Transaksi berhasil dibatalkan',
+    keteranganBerhasil:
+        '${tx.invoiceNo} ditandai dibatalkan dan tidak '
+        'dihitung dalam total penjualan.',
+    daftarAlasan: daftarAlasanBatalTransaksi,
+    perluPin: repo.perluPinOwner,
+    kirim: (alasan, pin) =>
+        repo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
+  );
+}

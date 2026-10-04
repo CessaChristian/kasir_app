@@ -1481,6 +1481,26 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
+  /// Id transaksi yang punya item bernama mengandung [kata] (tanpa beda
+  /// huruf besar/kecil) — untuk "Cari riwayat" berdasarkan nama menu. Item
+  /// transaksi yang dibatalkan ikut, karena transaksinya tetap tampil.
+  Future<Set<String>> idTransaksiBerisiMenu(String kata) async {
+    // `%` dan `_` adalah wildcard LIKE — diloloskan supaya dicari apa adanya.
+    final aman = kata
+        .trim()
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    if (aman.isEmpty) return {};
+    final baris = await customSelect(
+      r"SELECT DISTINCT transaction_id FROM transaction_items "
+      r"WHERE product_name LIKE ? ESCAPE '\'",
+      variables: [Variable.withString('%$aman%')],
+      readsFrom: {transactionItems},
+    ).get();
+    return {for (final b in baris) b.read<String>('transaction_id')};
+  }
+
   /// C1: Batch fetch — hindari N+1 query saat export laporan.
   /// Return Map keyed by transactionId untuk lookup in-memory.
   Future<Map<String, List<TransactionItem>>> getTransactionItemsForIds(

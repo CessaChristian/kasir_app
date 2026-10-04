@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../teks_teras.dart';
 import '../warna_teras.dart';
+import 'metode_filter.dart';
 import 'periode.dart';
+
+/// Hasil lembar periode: periode dan metode bayar (Semua kalau lembarnya
+/// dibuka tanpa bagian metode).
+typedef HasilFilter = ({Periode periode, MetodeFilter metode});
 
 /// Lembar "Pilih Periode": pilihan cepat, kalender tanggal, atau bulan.
 ///
@@ -11,8 +16,25 @@ Future<Periode?> pilihPeriode(
   BuildContext context, {
   required Periode awal,
   DateTime? hariIni,
+}) async =>
+    (await _buka(context, awal: awal, metode: null, hariIni: hariIni))?.periode;
+
+/// Versi Riwayat (desain "Filter Riwayat"): lembar yang sama ditambah
+/// bagian Metode pembayaran.
+Future<HasilFilter?> pilihFilterRiwayat(
+  BuildContext context, {
+  required Periode awal,
+  required MetodeFilter metode,
+  DateTime? hariIni,
+}) => _buka(context, awal: awal, metode: metode, hariIni: hariIni);
+
+Future<HasilFilter?> _buka(
+  BuildContext context, {
+  required Periode awal,
+  required MetodeFilter? metode,
+  DateTime? hariIni,
 }) {
-  return showModalBottomSheet<Periode>(
+  return showModalBottomSheet<HasilFilter>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -20,8 +42,11 @@ Future<Periode?> pilihPeriode(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) =>
-        LembarPeriode(awal: awal, hariIni: hariIni ?? DateTime.now()),
+    builder: (_) => LembarPeriode(
+      awal: awal,
+      metodeAwal: metode,
+      hariIni: hariIni ?? DateTime.now(),
+    ),
   );
 }
 
@@ -29,7 +54,15 @@ class LembarPeriode extends StatefulWidget {
   final Periode awal;
   final DateTime hariIni;
 
-  const LembarPeriode({super.key, required this.awal, required this.hariIni});
+  /// Null = tanpa bagian metode bayar (mis. Pengeluaran).
+  final MetodeFilter? metodeAwal;
+
+  const LembarPeriode({
+    super.key,
+    required this.awal,
+    required this.hariIni,
+    this.metodeAwal,
+  });
 
   @override
   State<LembarPeriode> createState() => _LembarPeriodeState();
@@ -43,6 +76,7 @@ class _LembarPeriodeState extends State<LembarPeriode> {
   );
 
   var _modeBulan = false;
+  late MetodeFilter? _metode = widget.metodeAwal;
 
   // Mode tanggal. [_sampai] null = sedang menunggu tanggal akhir.
   late DateTime _dari = widget.awal.dari;
@@ -79,6 +113,7 @@ class _LembarPeriodeState extends State<LembarPeriode> {
 
   void _reset() => setState(() {
     _setel(Periode.hari(_hariIni));
+    if (_metode != null) _metode = MetodeFilter.semua;
     _bulanDari = DateTime(_hariIni.year, _hariIni.month);
     _bulanSampai = _bulanDari;
     _tampilTahun = _hariIni.year;
@@ -140,8 +175,8 @@ class _LembarPeriodeState extends State<LembarPeriode> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Pilih Periode',
+                    Text(
+                      _metode == null ? 'Pilih Periode' : 'Filter Riwayat',
                       style: TextStyle(
                         fontSize: TeksTeras.menu,
                         fontWeight: FontWeight.w700,
@@ -192,6 +227,7 @@ class _LembarPeriodeState extends State<LembarPeriode> {
           _navigasi(),
           const SizedBox(height: 6),
           if (_modeBulan) _gridBulan() else _kalender(),
+          if (_metode != null) ..._bagianMetode(),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -215,7 +251,10 @@ class _LembarPeriodeState extends State<LembarPeriode> {
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(context, draf),
+                  onPressed: () => Navigator.pop<HasilFilter>(context, (
+                    periode: draf,
+                    metode: _metode ?? MetodeFilter.semua,
+                  )),
                   style: FilledButton.styleFrom(
                     backgroundColor: WarnaTeras.oranye,
                     minimumSize: const Size.fromHeight(46),
@@ -235,6 +274,73 @@ class _LembarPeriodeState extends State<LembarPeriode> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Bagian "Metode pembayaran" (khusus filter Riwayat).
+  List<Widget> _bagianMetode() => [
+    const SizedBox(height: 12),
+    Container(height: 1, color: WarnaTeras.garis),
+    const SizedBox(height: 12),
+    const Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        'Metode pembayaran',
+        style: TextStyle(
+          fontSize: TeksTeras.biasa,
+          fontWeight: FontWeight.w600,
+          color: WarnaTeras.teks,
+        ),
+      ),
+    ),
+    const SizedBox(height: 8),
+    Row(
+      children: [
+        for (final m in MetodeFilter.values)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _chipMetode(m),
+          ),
+      ],
+    ),
+  ];
+
+  Widget _chipMetode(MetodeFilter m) {
+    final aktif = _metode == m;
+    return Material(
+      color: aktif ? WarnaTeras.oranyeMuda : WarnaTeras.kartu,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(99),
+        side: BorderSide(
+          color: aktif ? WarnaTeras.oranye : const Color(0xFFE6DED6),
+        ),
+      ),
+      child: InkWell(
+        onTap: () => setState(() => _metode = m),
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                m.ikon,
+                size: 17,
+                color: aktif ? WarnaTeras.oranye : const Color(0xFF5A5048),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                m.label,
+                style: TextStyle(
+                  fontSize: TeksTeras.kecil,
+                  fontWeight: FontWeight.w600,
+                  color: aktif ? WarnaTeras.oranye : const Color(0xFF5A5048),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

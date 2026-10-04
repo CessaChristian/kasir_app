@@ -8,6 +8,7 @@ import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/widgets/dialog_pembatalan.dart';
+import 'widgets/batalkan_transaksi.dart';
 import '../../shared/widgets/sync_refresh.dart';
 
 /// Judul tanggal di Riwayat, untuk SEMUA akun: "Jumat, 02/10/2026".
@@ -36,6 +37,8 @@ List<Transaction> saringPeriodeRiwayat(
       .toList();
 }
 
+/// Halaman Riwayat KASIR (tampilan lama, dimigrasi di fase kasir).
+/// Owner memakai `RiwayatOwnerPage`.
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -624,29 +627,9 @@ class _HistoryPageState extends State<HistoryPage> {
         : '$aktif transaksi · $batal dibatalkan';
   }
 
-  static const _daftarAlasan = [
-    'Salah input pesanan',
-    'Pelanggan batal',
-    'Transaksi ganda',
-    alasanLainnya,
-  ];
-
   /// Batalkan transaksi: pilih alasan, dan — untuk kasir — masukkan PIN owner.
-  Future<void> _batalkan(Transaction tx) async {
-    await tampilkanDialogPembatalan(
-      context,
-      pertanyaan: 'Kenapa transaksi ${tx.invoiceNo} dibatalkan?',
-      keteranganPin:
-          'Masukkan PIN untuk membatalkan transaksi ${tx.invoiceNo}.',
-      judulBerhasil: 'Transaksi berhasil dibatalkan',
-      keteranganBerhasil: '${tx.invoiceNo} ditandai dibatalkan dan tidak '
-          'dihitung dalam total penjualan.',
-      daftarAlasan: _daftarAlasan,
-      perluPin: _salesRepo.perluPinOwner,
-      kirim: (alasan, pin) =>
-          _salesRepo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
-    );
-  }
+  Future<void> _batalkan(Transaction tx) =>
+      batalkanTransaksiLewatDialog(context, _salesRepo, tx);
 
   Widget _buildDaySection({
     required DateTime date,
@@ -967,10 +950,7 @@ class _TransactionCard extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => TransactionDetailSheet(
-        transaction: transaction,
-        namaPembatal: namaPembatal,
-      ),
+      builder: (_) => TransactionDetailSheet(transaction: transaction),
     );
   }
 }

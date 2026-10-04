@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/dashboard/pages/dasbor_owner_page.dart';
 import '../features/expenses/pages/pengeluaran_owner_page.dart';
-import '../features/history/history_page.dart';
+import '../features/history/pages/riwayat_owner_page.dart';
 import '../features/products/pages/products_page.dart';
 import '../features/profil/pages/profil_owner_page.dart';
 import '../shared/ui/bingkai_halaman.dart';
@@ -57,7 +57,7 @@ class _KerangkaOwnerState extends State<KerangkaOwner> {
         ikonAktif: Icons.receipt_long_rounded,
         label: 'Riwayat',
       ),
-      halaman: HistoryPage(),
+      halaman: RiwayatOwnerPage(),
     ),
     (
       judul: 'Profil',
