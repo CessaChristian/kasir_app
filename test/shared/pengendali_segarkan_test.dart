@@ -7,6 +7,7 @@ import 'package:kasir_app/data/supabase/supabase_service.dart';
 import 'package:kasir_app/data/sync/kemajuan_sync.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/shared/ui/segarkan/pengendali_segarkan.dart';
+import 'package:kasir_app/shared/widgets/alasan_terputus.dart';
 
 /// Tombol refresh di header (komponen bersama UI baru).
 void main() {
@@ -35,10 +36,12 @@ void main() {
     fakeAsync((waktu) {
       var dipanggil = 0;
       final selesai = Completer<HasilSync>();
-      final p = PengendaliSegarkan(jalankan: () {
-        dipanggil++;
-        return selesai.future;
-      });
+      final p = PengendaliSegarkan(
+        jalankan: () {
+          dipanggil++;
+          return selesai.future;
+        },
+      );
 
       p.segarkan();
       p.segarkan();
@@ -51,15 +54,70 @@ void main() {
     });
   });
 
-  test('gagal tersambung → keadaan gagal', () {
+  test('gagal: pita langsung menutup, pesan lewat onGagal (AppToast)', () {
     fakeAsync((waktu) {
+      final pesan = <String>[];
       final p = PengendaliSegarkan(
         jalankan: () async =>
             const HasilSync(error: 'x', sebabTerputus: SebabTerputus.jaringan),
-      );
+      )..onGagal = (m, {required sebagian}) => pesan.add(m);
       p.segarkan();
       waktu.flushMicrotasks();
-      expect(p.keadaan, KeadaanSegarkan.gagal);
+      expect(p.keadaan, KeadaanSegarkan.diam);
+      expect(p.pitaTerlihat, isFalse, reason: 'gagal tidak ditulis di pita');
+      expect(pesan, ['Gagal menyambungkan ke server']);
+    });
+  });
+
+  test('belum tersambung dalam 5 detik → gagal, layar dilepas', () {
+    fakeAsync((waktu) {
+      final pesan = <String>[];
+      final menggantung = Completer<HasilSync>();
+      final p = PengendaliSegarkan(
+        jalankan: () => menggantung.future,
+        kemajuan: ValueNotifier<KemajuanSync?>(null),
+      )..onGagal = (m, {required sebagian}) => pesan.add(m);
+      p.segarkan();
+      waktu.elapse(const Duration(milliseconds: 4900));
+      expect(p.berjalan, isTrue);
+      waktu.elapse(const Duration(milliseconds: 200));
+      expect(p.berjalan, isFalse, reason: 'layar tidak lagi dikunci');
+      expect(pesan, ['Gagal menyambungkan ke server']);
+
+      // Putaran di belakang yang akhirnya selesai tidak memunculkan apa-apa.
+      menggantung.complete(const HasilSync(berubah: 3));
+      waktu.flushMicrotasks();
+      expect(pesan, hasLength(1));
+      expect(p.keadaan, KeadaanSegarkan.diam);
+    });
+  });
+
+  test('sudah tersambung sebelum 5 detik → dibiarkan selesai', () {
+    fakeAsync((waktu) {
+      final pesan = <String>[];
+      final kemajuan = ValueNotifier<KemajuanSync?>(null);
+      final selesai = Completer<HasilSync>();
+      final p = PengendaliSegarkan(
+        jalankan: () => selesai.future,
+        kemajuan: kemajuan,
+      )..onGagal = (m, {required sebagian}) => pesan.add(m);
+      p.segarkan();
+      waktu.elapse(const Duration(seconds: 3));
+      kemajuan.value = const KemajuanSync(
+        tahap: 'menarik',
+        entitas: 'products',
+        entitasKe: 1,
+        totalEntitas: 9,
+        baris: 10,
+        totalBaris: 1000,
+      );
+      waktu.elapse(const Duration(seconds: 30));
+      expect(p.berjalan, isTrue, reason: 'penarikan besar tidak diputus');
+      expect(pesan, isEmpty);
+
+      selesai.complete(const HasilSync(berubah: 1000));
+      waktu.flushMicrotasks();
+      expect(p.keadaan, KeadaanSegarkan.selesai);
       waktu.elapse(const Duration(seconds: 2));
     });
   });
@@ -87,8 +145,10 @@ void main() {
     );
 
     test('berjalan: menghubungi dulu, lalu persen', () {
-      expect(teksPita(KeadaanSegarkan.berjalan, null, null).keterangan,
-          'Menghubungi server');
+      expect(
+        teksPita(KeadaanSegarkan.berjalan, null, null).keterangan,
+        'Menghubungi server',
+      );
       final t = teksPita(KeadaanSegarkan.berjalan, null, k);
       expect(t.judul, 'Menyinkronkan data…');
       expect(t.keterangan, '44%');
@@ -98,30 +158,42 @@ void main() {
       String judul(HasilSync h) =>
           teksPita(KeadaanSegarkan.selesai, h, null).judul;
       expect(judul(const HasilSync(diperiksa: 14)), 'Data sudah terbaru');
-      expect(judul(const HasilSync(diperiksa: 14, berubah: 2)),
-          '2 data diperbarui');
-      expect(judul(const HasilSync(didorong: 3)), '3 data terkirim');
-      expect(teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).ikon,
-          Icons.check_circle_rounded);
       expect(
-          teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).keterangan,
-          'Selesai');
+        judul(const HasilSync(diperiksa: 14, berubah: 2)),
+        '2 data diperbarui',
+      );
+      expect(judul(const HasilSync(didorong: 3)), '3 data terkirim');
+      expect(
+        teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).ikon,
+        Icons.check_circle_rounded,
+      );
+      expect(
+        teksPita(KeadaanSegarkan.selesai, const HasilSync(), null).keterangan,
+        'Selesai',
+      );
     });
 
-    test('gagal: sebab sebenarnya, bukan selalu "periksa koneksi"', () {
-      TeksPita gagal(HasilSync h) => teksPita(KeadaanSegarkan.gagal, h, null);
+    test('pesan gagal: sebab sebenarnya, bukan selalu soal koneksi', () {
       expect(
-          gagal(const HasilSync(
-                  error: 'x', sebabTerputus: SebabTerputus.jaringan))
-              .keterangan,
-          'Periksa koneksi');
+        pesanGagalSinkron(
+          const HasilSync(error: 'x', sebabTerputus: SebabTerputus.jaringan),
+        ).pesan,
+        'Gagal menyambungkan ke server',
+      );
       expect(
-          gagal(const HasilSync(
-                  error: 'x', sebabTerputus: SebabTerputus.ditolak))
-              .keterangan,
-          'perangkat ini tidak dikenali server');
-      expect(gagal(const HasilSync(error: 'x', berubah: 4)).judul,
-          'Sebagian data belum tersinkron');
+        pesanGagalSinkron(
+          const HasilSync(error: 'x', sebabTerputus: SebabTerputus.ditolak),
+        ).pesan,
+        'Gagal menyegarkan — perangkat ini tidak dikenali server',
+      );
+      final sebagian = pesanGagalSinkron(
+        const HasilSync(error: 'x', berubah: 4),
+      );
+      expect(sebagian.sebagian, isTrue);
+      expect(
+        sebagian.pesan,
+        'Sebagian data belum tersinkron — akan dicoba lagi',
+      );
     });
   });
 }

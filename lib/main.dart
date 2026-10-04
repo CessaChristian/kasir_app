@@ -9,7 +9,6 @@ import 'data/supabase/supabase_service.dart';
 import 'data/sync/sync_otomatis.dart';
 import 'data/sync/sync_service.dart';
 import 'shared/services/image_storage_service.dart';
-import 'shared/widgets/dialog_sync.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -267,16 +266,13 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
           return _LayarPerluInternet(
             sebab: state.sebabTerputus,
             onCobaLagi: () async {
-              // Dialog kemajuan menampilkan tabel apa yang sedang ditarik dan
-              // sudah berapa barisnya. Tanpa itu layar diam total selama
-              // lebih dari semenit dan tombolnya terlihat rusak.
-              await DialogSync.tampilkanSelama(context, () async {
-                final baru = _checkAuthState();
-                setState(() {
-                  _authFuture = baru;
-                });
-                await baru;
+              // Kemajuannya tampil di tombol layar itu sendiri (persen),
+              // bukan popup yang mengunci layar.
+              final baru = _checkAuthState();
+              setState(() {
+                _authFuture = baru;
               });
+              await baru;
             },
           );
         }
@@ -431,8 +427,17 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
                         : const Icon(Icons.refresh_rounded),
                     label: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        _sedangMencoba ? 'Mengambil data…' : 'Coba Lagi',
+                      // Persen kemajuan sinkron — penarikan pertama bisa lebih
+                      // dari semenit, jadi tombolnya harus terlihat bergerak.
+                      child: ValueListenableBuilder(
+                        valueListenable: SyncService.instance.kemajuan,
+                        builder: (context, k, _) => Text(
+                          !_sedangMencoba
+                              ? 'Coba Lagi'
+                              : k == null
+                                  ? 'Menghubungi server…'
+                                  : 'Mengambil data… ${(k.rasio * 100).round()}%',
+                        ),
                       ),
                     ),
                   ),

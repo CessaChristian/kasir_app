@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/sync/sync_service.dart';
+import '../../data/sync/sinkron_berbatas.dart';
 import 'alasan_terputus.dart';
 import 'app_toast.dart';
-import 'dialog_sync.dart';
 
 /// Bungkus daftar apa pun supaya bisa disegarkan dengan menarik dari atas.
 ///
@@ -27,19 +26,15 @@ class SyncRefresh extends StatelessWidget {
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async {
-        final hasil = await DialogSync.tampilkanSelama(
-          context,
-          SyncService.instance.jalankan,
-        );
+        // Putaran RefreshIndicator sendiri jadi penanda proses; tidak ada
+        // popup yang mengunci layar. Belum tersambung dalam 5 detik =
+        // dilaporkan gagal (lihat sinkronBerbatas).
+        final hasil = await sinkronBerbatas();
         await sesudah?.call();
         if (!context.mounted) return;
 
         if (hasil.berhasil) {
-          // Sengaja `berubah`, BUKAN `diperiksa`. Server mengirim setiap baris
-          // yang lebih baru dari penanda kita, dan sebagian ternyata sudah
-          // sama persis dengan yang tersimpan di sini. Memakai jumlah baris
-          // yang diterima membuat pengguna diberi tahu "12 data diperbarui"
-          // pada daftar yang sama sekali tidak berubah.
+          // Sengaja `berubah`, BUKAN `diperiksa` — lihat catatan HasilSync.
           if (hasil.berubah > 0) {
             AppToast.success(context, '${hasil.berubah} data diperbarui');
           } else if (hasil.didorong > 0) {
@@ -47,27 +42,12 @@ class SyncRefresh extends StatelessWidget {
           } else {
             AppToast.info(context, 'Sudah yang terbaru');
           }
-        } else if (hasil.sebagian) {
-          // Sebagian tabel berhasil, sebagian tidak. Menyebutnya "gagal" saja
-          // keliru — data yang lolos memang sudah tersimpan — dan menyebutnya
-          // berhasil lebih keliru lagi.
-          AppToast.warning(
-            context,
-            'Sebagian data belum tersinkron — akan dicoba lagi',
-          );
-        } else {
-          // Offline bukan kesalahan pengguna: transaksinya tetap tersimpan
-          // dan akan terkirim sendiri saat jaringan kembali.
-          //
-          // Tapi "periksa koneksi" hanya benar untuk jaringan. Perangkat yang
-          // ditolak server diberi tahu penyebab sebenarnya — kalau tidak,
-          // kasir memburu masalah internet yang tidak ada.
-          final alasan = alasanTakPulihSendiri(hasil.sebabTerputus);
-          AppToast.warning(
-            context,
-            'Gagal menyegarkan — ${alasan ?? 'periksa koneksi'}',
-          );
+          return;
         }
+        final p = pesanGagalSinkron(hasil);
+        p.sebagian
+            ? AppToast.warning(context, p.pesan)
+            : AppToast.error(context, p.pesan);
       },
       child: child,
     );

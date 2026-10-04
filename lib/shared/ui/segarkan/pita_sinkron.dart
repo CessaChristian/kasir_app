@@ -38,7 +38,6 @@ class PitaSinkron extends StatelessWidget {
       KeadaanSegarkan.berjalan => kemajuan?.rasio ?? 0.0,
       _ => 1.0,
     };
-    final gagal = keadaan == KeadaanSegarkan.gagal;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 2, 16, 8),
@@ -58,14 +57,10 @@ class PitaSinkron extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: gagal ? WarnaTeras.merahMuda : WarnaTeras.oranyeMuda,
+                    color: WarnaTeras.oranyeMuda,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    teks.ikon,
-                    size: 18,
-                    color: gagal ? WarnaTeras.merah : WarnaTeras.oranye,
-                  ),
+                  child: Icon(teks.ikon, size: 18, color: WarnaTeras.oranye),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -102,7 +97,7 @@ class PitaSinkron extends StatelessWidget {
               builder: (context, nilai, _) => LinearProgressIndicator(
                 value: nilai,
                 minHeight: 3,
-                color: gagal ? WarnaTeras.merah : WarnaTeras.oranye,
+                color: WarnaTeras.oranye,
                 backgroundColor: WarnaTeras.latarBilah,
               ),
             ),

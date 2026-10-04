@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../data/sync/sync_service.dart';
+import '../../data/sync/sinkron_berbatas.dart';
 import 'alasan_terputus.dart';
 import 'app_toast.dart';
-import 'dialog_sync.dart';
 
 /// Menyimpan perubahan lalu MENGIRIMNYA, dan melaporkan keadaan yang
 /// sebenarnya terjadi.
@@ -80,10 +79,9 @@ Future<void> kirimSekarang(
   required String pesanTerkirim,
   required String pesanTertunda,
 }) async {
-  final hasil = await DialogSync.tampilkanSelama(
-    context,
-    SyncService.instance.jalankan,
-  );
+  // Tanpa popup yang mengunci layar; belum tersambung dalam 5 detik =
+  // dianggap tertunda (lihat sinkronBerbatas).
+  final hasil = await sinkronBerbatas();
 
   if (!context.mounted) return;
 

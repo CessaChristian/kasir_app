@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Dipakai langsung untuk klien HTTP berbatas waktu (KlienBerbatasWaktu).
+  http: ^1.6.0
   flutter_localizations:
     sdk: flutter
   drift: ^2.22.1

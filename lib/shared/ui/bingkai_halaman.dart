@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/app_toast.dart';
 import 'header_teras.dart';
 import 'segarkan/pengendali_segarkan.dart';
 import 'segarkan/pita_sinkron.dart';
@@ -27,7 +28,14 @@ class BingkaiHalaman extends StatefulWidget {
 }
 
 class _BingkaiHalamanState extends State<BingkaiHalaman> {
-  final _segarkan = PengendaliSegarkan();
+  late final _segarkan = PengendaliSegarkan()
+    // Gagal ditampilkan sebagai AppToast, bukan di pita (keputusan owner).
+    ..onGagal = (pesan, {required sebagian}) {
+      if (!mounted) return;
+      sebagian
+          ? AppToast.warning(context, pesan)
+          : AppToast.error(context, pesan);
+    };
 
   /// Isi sudah tergeser lebih dari 2px (ambang yang sama dengan desain).
   bool _tergulir = false;

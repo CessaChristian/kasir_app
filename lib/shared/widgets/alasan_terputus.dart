@@ -1,4 +1,5 @@
 import '../../data/supabase/supabase_service.dart';
+import '../../data/sync/sync_engine.dart';
 
 /// Kalimat untuk kegagalan menyambung yang TIDAK akan pulih sendiri, atau
 /// null kalau kegagalannya jenis yang cukup ditunggu.
@@ -21,3 +22,24 @@ String? alasanTakPulihSendiri(SebabTerputus? sebab) => switch (sebab) {
   SebabTerputus.jaringan => null,
   null => null,
 };
+
+/// Pesan gagal sinkron untuk AppToast — satu tempat untuk tombol ⟳ di
+/// header dan tarik-untuk-refresh di halaman lama.
+///
+/// [sebagian] = sebagian tabel sudah berhasil (cukup peringatan, bukan
+/// galat): data yang lolos memang sudah tersimpan.
+({String pesan, bool sebagian}) pesanGagalSinkron(HasilSync hasil) {
+  if (hasil.sebagian) {
+    return (
+      pesan: 'Sebagian data belum tersinkron — akan dicoba lagi',
+      sebagian: true,
+    );
+  }
+  final alasan = alasanTakPulihSendiri(hasil.sebabTerputus);
+  return (
+    pesan: alasan == null
+        ? 'Gagal menyambungkan ke server'
+        : 'Gagal menyegarkan — $alasan',
+    sebagian: false,
+  );
+}

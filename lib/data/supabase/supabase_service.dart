@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'klien_berbatas_waktu.dart';
 
 import 'supabase_config.dart';
 
@@ -156,6 +159,9 @@ class SupabaseService {
       await Supabase.initialize(
         url: SupabaseConfig.url,
         publishableKey: SupabaseConfig.anonKey,
+        // Setiap permintaan menyerah setelah 15 detik — lihat
+        // KlienBerbatasWaktu. Tanpa ini sinkron bisa menggantung lama.
+        httpClient: KlienBerbatasWaktu(http.Client()),
         authOptions: const FlutterAuthClientOptions(
           autoRefreshToken: true,
         ),
