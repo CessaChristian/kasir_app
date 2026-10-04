@@ -5,8 +5,6 @@ import '../../../data/db.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/simpan_lalu_kirim.dart';
 import '../../../data/app_database.dart';
-import '../../auth/repositories/auth_repository.dart';
-import '../../auth/recovery/pages/save_recovery_code_page.dart';
 import '../repositories/cashier_repository.dart';
 import '../../../shared/auth/session_manager.dart';
 import 'user_permissions_page.dart';
@@ -20,7 +18,6 @@ class ManageCashiersPage extends StatefulWidget {
 
 class _ManageCashiersPageState extends State<ManageCashiersPage> {
   final _cashierRepo = CashierRepository(db);
-  final _authRepo = AuthRepository(db);
   List<User> _cashiers = [];
   bool _isLoading = true;
 
@@ -51,135 +48,6 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
       setState(() => _isLoading = false);
       if (!mounted) return;
       AppToast.error(context, 'Gagal memuat data kasir: $e');
-    }
-  }
-
-  Future<void> _showRegenerateRecoveryCodeDialog() async {
-    final pinController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showModalBottomSheet<String?>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  width: 60, height: 60,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(Icons.vpn_key_rounded,
-                      color: Theme.of(context).colorScheme.primary, size: 28),
-                ),
-                const SizedBox(height: 14),
-                const Text('Perbarui Kode Recovery',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-                const SizedBox(height: 6),
-                Text(
-                  'Masukkan PIN saat ini untuk membuat kode recovery baru.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 24),
-                _buildInputField(
-                  controller: pinController,
-                  label: 'PIN Saat Ini',
-                  hint: '• • • • • •',
-                  icon: Icons.lock_outline_rounded,
-                  obscure: true,
-                  isPin: true,
-                  validator: (v) => v == null || v.isEmpty ? 'PIN wajib diisi' : null,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx, null),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.shade300),
-                          ),
-                        ),
-                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (!formKey.currentState!.validate()) return;
-                          try {
-                            final res = await _authRepo.regenerateOwnerRecoveryCode(pinController.text);
-                            if (ctx.mounted) {
-                              if (res.isSuccess && res.newRecoveryCode != null) {
-                                Navigator.pop(ctx, res.newRecoveryCode);
-                              } else {
-                                Navigator.pop(ctx, null);
-                                if (mounted) AppToast.error(context, res.message ?? 'PIN salah');
-                              }
-                            }
-                          } catch (e) {
-                            if (ctx.mounted) Navigator.pop(ctx, null);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Buat Kode Baru', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    // Dibubarkan sesudah lembarnya tertutup; tanpa ini satu objek
-    // nyangkut di memori tiap kali dialog ini dibuka.
-    pinController.dispose();
-
-    if (result != null && mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SaveRecoveryCodePage(
-            recoveryCode: result,
-            onComplete: (ctx) => Navigator.pop(ctx),
-          ),
-        ),
-      );
     }
   }
 
@@ -827,13 +695,6 @@ class _ManageCashiersPageState extends State<ManageCashiersPage> {
         shadowColor: Colors.black.withValues(alpha: 0.06),
         scrolledUnderElevation: 1,
         iconTheme: IconThemeData(color: Colors.grey.shade700),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.vpn_key_rounded, color: colorScheme.primary),
-            tooltip: 'Perbarui Kode Recovery',
-            onPressed: _showRegenerateRecoveryCodeDialog,
-          ),
-        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddCashierDialog,

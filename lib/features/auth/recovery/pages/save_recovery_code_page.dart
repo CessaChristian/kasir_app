@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
+
+import '../../../../shared/constants/app_constants.dart';
+import '../../../../shared/ui/kartu_teras.dart';
+import '../../../../shared/ui/teks_teras.dart';
+import '../../../../shared/ui/warna_teras.dart';
 import '../../../../shared/widgets/app_toast.dart';
 
 /// Page to display recovery code (SHOW ONLY ONCE!)
@@ -31,7 +35,9 @@ class _SaveRecoveryCodePageState extends State<SaveRecoveryCodePage> {
 
     if (!mounted) return;
     AppToast.success(
-        context, 'Kode disalin. Clipboard otomatis dihapus dalam 30 detik');
+      context,
+      'Kode disalin. Clipboard otomatis dihapus dalam 30 detik',
+    );
 
     // S14: Auto-clear clipboard setelah 30 detik agar tidak terbaca
     // oleh app lain atau ter-paste tidak sengaja di tempat lain.
@@ -43,301 +49,352 @@ class _SaveRecoveryCodePageState extends State<SaveRecoveryCodePage> {
     });
   }
 
+  /// Kode dipecah per 4 huruf supaya mudah dibaca dan disalin ke kertas.
+  String get _kodeTampil {
+    final k = widget.recoveryCode.replaceAll('-', '');
+    return [
+      for (var i = 0; i < k.length; i += 4)
+        k.substring(i, i + 4 > k.length ? k.length : i + 4),
+    ].join('-');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+    // Sengaja tanpa tombol kembali (desain punya ←): kode hanya tampil
+    // SEKALI, jadi halaman baru boleh ditinggal setelah pemilik mencentang
+    // bahwa kodenya sudah disimpan.
     return PopScope(
-      canPop: false, // Prevent back button
+      canPop: false,
       child: Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: WarnaTeras.latar,
         body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                // Header / logo
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 52, 24, 36),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(32),
+          child: Column(
+            children: [
+              const SizedBox(
+                height: 52,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Kode Recovery',
+                      style: TextStyle(
+                        fontSize: TeksTeras.judul,
+                        fontWeight: FontWeight.w700,
+                        color: WarnaTeras.teks,
+                      ),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: const BusinessLogo(size: 90),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Teras Inn',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'KODE RECOVERY OWNER',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          letterSpacing: 2.0,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Simpan Kode Recovery',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                        ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                  children: [
+                    _kartuKode(),
+                    const SizedBox(height: 12),
+                    _peringatan(),
+                    const SizedBox(height: 12),
+                    _saran(),
+                    const SizedBox(height: 12),
+                    _centang(),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _hasAccepted
+                        ? () => widget.onComplete(context)
+                        : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WarnaTeras.oranye,
+                      disabledBackgroundColor: const Color(0xFFEDE5DD),
+                      disabledForegroundColor: WarnaTeras.teksSamar,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Kode ini diperlukan untuk reset PIN Owner jika Anda lupa PIN.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade500,
-                          height: 1.4,
-                        ),
+                    ),
+                    child: const Text(
+                      'Saya Mengerti, Lanjutkan',
+                      style: TextStyle(
+                        fontSize: TeksTeras.biasa,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(height: 24),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: Colors.amber.shade50,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.amber.shade700,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Kode recovery hanya ditampilkan sekali. Simpan di tempat yang aman sebelum melanjutkan.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade700,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary.withValues(
-                                  alpha: 0.08,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Icon(
-                                Icons.vpn_key_rounded,
-                                color: colorScheme.primary,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            SelectableText(
-                              widget.recoveryCode,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2.0,
-                                height: 1.35,
-                                color: Color(0xFF1A1A1A),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 46,
-                              child: OutlinedButton.icon(
-                                onPressed: _copyToClipboard,
-                                icon: const Icon(Icons.copy_rounded, size: 18),
-                                label: const Text(
-                                  'Salin Kode',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: colorScheme.primary,
-                                  side: BorderSide(
-                                    color: colorScheme.primary.withValues(
-                                      alpha: 0.35,
-                                    ),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.shield_outlined,
-                              size: 20,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Saran penyimpanan: password manager, catatan aman, atau tempat offline yang hanya dapat diakses Owner.',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: colorScheme.primary,
-                                  height: 1.45,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: CheckboxListTile(
-                          value: _hasAccepted,
-                          activeColor: colorScheme.primary,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          onChanged: (value) {
-                            setState(() => _hasAccepted = value ?? false);
-                          },
-                          title: Text(
-                            'Saya sudah menyimpan kode recovery dengan aman',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
-                              height: 1.35,
-                            ),
+  Widget _kartuKode() {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      decoration: BoxDecoration(
+        color: WarnaTeras.oranye,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -46,
+            top: -48,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.key_rounded,
+                      size: 21,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Expanded: huruf yang diperbesar tidak boleh tumpah.
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kode Recovery Owner',
+                          style: TextStyle(
+                            fontSize: TeksTeras.biasa,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-
-                      SizedBox(
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _hasAccepted
-                          ? () => widget.onComplete(context)
-                          : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.shade300,
-                            disabledForegroundColor: Colors.grey.shade500,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: const Text(
-                            'Saya Mengerti, Lanjutkan',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.3,
-                            ),
+                        Text(
+                          AppConstants.storeName,
+                          style: TextStyle(
+                            fontSize: TeksTeras.kecil,
+                            color: Colors.white,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SelectableText(
+                    _kodeTampil,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: WarnaTeras.teks,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: _copyToClipboard,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.18),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.55),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.content_copy_rounded, size: 18),
+                  label: const Text(
+                    'Salin kode',
+                    style: TextStyle(
+                      fontSize: TeksTeras.biasa,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _peringatan() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF6E5),
+        border: Border.all(color: const Color(0xFFF3D9A4)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_rounded, size: 21, color: Color(0xFFC98500)),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hanya ditampilkan sekali',
+                  style: TextStyle(
+                    fontSize: TeksTeras.biasa,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B4A00),
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Simpan kode ini di tempat yang aman sebelum melanjutkan. '
+                  'Kode lama sudah tidak berlaku.',
+                  style: TextStyle(
+                    fontSize: TeksTeras.kecil,
+                    height: 1.45,
+                    color: Color(0xFF6B5A3A),
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _saran() {
+    Widget baris(IconData ikon, String teks) => Padding(
+      padding: const EdgeInsets.only(top: 7),
+      child: Row(
+        children: [
+          Icon(ikon, size: 18, color: WarnaTeras.oranye),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              teks,
+              style: const TextStyle(
+                fontSize: TeksTeras.kecil,
+                color: Color(0xFF5A5048),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return KartuTeras(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Saran penyimpanan',
+            style: TextStyle(
+              fontSize: TeksTeras.kecil,
+              fontWeight: FontWeight.w700,
+              color: WarnaTeras.teksSedang,
+            ),
+          ),
+          baris(Icons.password_rounded, 'Password manager'),
+          baris(Icons.lock_rounded, 'Catatan terkunci di perangkat Owner'),
+          baris(
+            Icons.edit_note_rounded,
+            'Tulis di kertas, simpan di tempat offline',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _centang() {
+    return Material(
+      color: WarnaTeras.kartu,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: _hasAccepted ? WarnaTeras.oranye : WarnaTeras.garis,
+          width: 1.5,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => setState(() => _hasAccepted = !_hasAccepted),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: _hasAccepted ? WarnaTeras.oranye : Colors.transparent,
+                  border: Border.all(
+                    color: _hasAccepted
+                        ? WarnaTeras.oranye
+                        : WarnaTeras.titikPasif,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: _hasAccepted
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Saya sudah menyimpan kode recovery dengan aman',
+                  style: TextStyle(
+                    fontSize: TeksTeras.biasa,
+                    fontWeight: FontWeight.w600,
+                    color: WarnaTeras.teksSedang,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
