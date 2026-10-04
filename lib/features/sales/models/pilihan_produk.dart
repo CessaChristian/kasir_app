@@ -24,6 +24,14 @@ List<KelompokPilihan> kelompokUntuk(Product p) => [
       if (p.hasIceOption) KelompokPilihan.es,
     ];
 
+/// Ringkasan pilihan untuk daftar produk (desain): satu kelompok =
+/// "Level pedas", lebih dari satu = "2 varian", tanpa pilihan = "".
+String teksRingkasPilihan(List<KelompokPilihan> kelompok) => switch (kelompok) {
+      [] => '',
+      [final k] => 'Level ${k.label.toLowerCase()}',
+      _ => '${kelompok.length} varian',
+    };
+
 /// Catatan untuk item struk: "Pedas: Sedang · Manis: Sedikit · Es: Normal".
 ///
 /// Nama kelompok sengaja ikut ditulis: "Sedikit" dan "Normal" ada di dua

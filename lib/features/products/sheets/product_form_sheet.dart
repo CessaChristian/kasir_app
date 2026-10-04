@@ -13,7 +13,14 @@ import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../utils/currency_formatter.dart';
-import '../category_manager.dart';
+import '../../../shared/ui/bulatan_pilihan.dart';
+import '../../../shared/ui/kolom_isian.dart';
+import '../../../shared/ui/lembar_konfirmasi.dart';
+import '../../../shared/ui/lembar_pilih.dart';
+import '../../../shared/ui/pegang_lembar.dart';
+import '../../../shared/ui/sakelar_pilihan.dart';
+import '../../../shared/ui/teks_teras.dart';
+import '../../../shared/ui/warna_teras.dart';
 import '../../sales/models/pilihan_produk.dart';
 
 class FormResult {
@@ -36,6 +43,15 @@ class FormResult {
   });
 }
 
+/// Pesan galat form produk (desain menampilkannya satu baris di atas
+/// tombol simpan), atau null kalau isian sah.
+String? galatFormProduk({required String nama, required String hargaTeks}) {
+  if (nama.trim().isEmpty) return 'Nama produk wajib diisi';
+  final harga = parseRupiah(hargaTeks);
+  if (harga == null || harga <= 0) return 'Harga wajib diisi';
+  return null;
+}
+
 class ProductFormSheet extends StatefulWidget {
   final Product? editing;
 
@@ -47,7 +63,9 @@ class ProductFormSheet extends StatefulWidget {
 
 class _ProductFormSheetState extends State<ProductFormSheet> {
   final _productRepo = ProductRepository(db);
-  final _formKey = GlobalKey<FormState>();
+
+  /// Galat isian, tampil di atas tombol simpan (desain).
+  String? _galat;
 
   late final TextEditingController _nameC;
   late final TextEditingController _priceC;
@@ -158,10 +176,13 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final price = parseRupiah(_priceC.text);
-    if (price == null || price <= 0) return;
+    final galat =
+        galatFormProduk(nama: _nameC.text, hargaTeks: _priceC.text);
+    if (galat != null) {
+      setState(() => _galat = galat);
+      return;
+    }
+    final price = parseRupiah(_priceC.text)!;
 
     _saving = true;
     // Sisa pilihan yang tidak jadi dipakai boleh langsung dibuang: file-file
@@ -182,66 +203,25 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   }
 
   Future<void> _pickImage() async {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Pilih Sumber Foto',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.camera_alt_rounded, color: primaryColor),
-                ),
-                title: const Text('Kamera'),
-                onTap: () => Navigator.pop(ctx, ImageSource.camera),
-              ),
-              ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.photo_library_rounded, color: primaryColor),
-                ),
-                title: const Text('Galeri'),
-                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-              ),
-            ],
-          ),
+    final pilihan = await pilihDariDaftar<ImageSource?>(
+      context,
+      judul: 'Pilih Sumber Foto',
+      ikon: Icons.add_photo_alternate_rounded,
+      terpilih: null,
+      opsi: const [
+        OpsiLembar(
+          nilai: ImageSource.camera,
+          label: 'Kamera',
+          ikon: Icons.camera_alt_rounded,
         ),
-      ),
+        OpsiLembar(
+          nilai: ImageSource.gallery,
+          label: 'Galeri',
+          ikon: Icons.photo_library_rounded,
+        ),
+      ],
     );
-
+    final source = pilihan?.nilai;
     if (source == null) return;
 
     // SENGAJA tanpa maxWidth/imageQuality: biar picker menyerahkan gambar
@@ -266,7 +246,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   @override
   Widget build(BuildContext context) {
     final inset = MediaQuery.of(context).viewInsets.bottom;
-    final primaryColor = Theme.of(context).colorScheme.primary;
     final isEditing = widget.editing != null;
 
     return PopScope(
@@ -277,24 +256,14 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
           Navigator.of(context).pop();
           return;
         }
-        final keluar = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Buang perubahan?'),
-            content: const Text('Data produk yang sudah diisi akan hilang.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Lanjut Mengisi'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Buang', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
+        final keluar = await tampilkanLembarKonfirmasi(
+          context,
+          ikon: Icons.edit_off_rounded,
+          judul: 'Buang perubahan?',
+          catatan: 'Data produk yang sudah diisi akan hilang.',
+          labelAksi: 'Buang',
         );
-        if (keluar == true) {
+        if (keluar) {
           // Semua gambar sesi ini jadi yatim. Gambar LAMA milik produk tidak
           // ikut terhapus — perubahannya memang dibatalkan.
           await _bersihkanGambarYatim();
@@ -302,440 +271,118 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         }
       },
       child: Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + inset),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Header
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        isEditing
-                            ? Icons.edit_rounded
-                            : Icons.add_business_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isEditing ? 'Edit Produk' : 'Tambah Produk',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          Text(
-                            isEditing
-                                ? 'Perbarui detail produk'
-                                : 'Isi detail produk baru',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // ---- Foto Produk ----
-                _buildImagePicker(primaryColor),
-                const SizedBox(height: 14),
-
-                // Form fields
-                _buildTextField(
-                  controller: _nameC,
-                  label: 'Nama produk',
-                  hint: 'Masukkan nama produk',
-                  icon: Icons.inventory_2_outlined,
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Nama wajib diisi' : null,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 10),
-
-                _buildTextField(
-                  controller: _priceC,
-                  label: 'Harga',
-                  hint: '0',
-                  icon: Icons.payments_outlined,
-                  prefixText: 'Rp ',
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    RupiahInputFormatter(),
-                  ],
-                  validator: (v) {
-                    final price = parseRupiah(v ?? '');
-                    if (price == null || price <= 0) return 'Harga tidak valid';
-                    return null;
-                  },
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 10),
-
-                // Category Picker
-                StreamBuilder<List<Category>>(
-                  stream: _productRepo.watchCategories(),
-                  builder: (context, snapshot) {
-                    final categories = snapshot.data ?? [];
-
-                    if (!_categoryInitialized &&
-                        _selectedCategory == null &&
-                        widget.editing?.categoryId != null &&
-                        categories.isNotEmpty) {
-                      _categoryInitialized = true;
-                      final match = categories
-                          .where((c) => c.id == widget.editing!.categoryId)
-                          .firstOrNull;
-                      if (match != null) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) setState(() => _selectedCategory = match);
-                        });
-                      }
-                    }
-
-                    final selIcon = categoryIconFromCodepoint(
-                        _selectedCategory?.iconCodepoint);
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => _showCategorySheet(categories),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Icon(selIcon, color: primaryColor, size: 22),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Kategori',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600),
-                                        ),
-                                        const SizedBox(height: 1),
-                                        Text(
-                                          _selectedCategory?.name ??
-                                              'Pilih kategori',
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w500,
-                                            color: _selectedCategory != null
-                                                ? const Color(0xFF1A1A1A)
-                                                : Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.grey.shade500),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () => CategoryManager.show(context),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: primaryColor.withValues(alpha: 0.3)),
-                            ),
-                            child: Icon(Icons.list_alt_rounded,
-                                color: primaryColor, size: 20),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-
-                // ---- Pilihan yang ditanyakan di halaman Kasir ----
-                _buildToggle(
-                  title: 'Ada pilihan level pedas',
-                  subtitle: _hasSpicyOption
-                      ? KelompokPilihan.pedas.daftar.join(' / ')
-                      : 'Produk tidak punya pilihan kepedasan',
-                  icon: Icons.local_fire_department_rounded,
-                  value: _hasSpicyOption,
-                  primaryColor: primaryColor,
-                  activeColor: Colors.deepOrange,
-                  onChanged: (v) => setState(() => _hasSpicyOption = v),
-                ),
-                const SizedBox(height: 8),
-                _buildToggle(
-                  title: 'Ada pilihan tingkat manis',
-                  subtitle: _hasSweetOption
-                      ? KelompokPilihan.manis.daftar.join(' / ')
-                      : 'Produk tidak punya pilihan gula',
-                  icon: Icons.cookie_rounded,
-                  value: _hasSweetOption,
-                  primaryColor: primaryColor,
-                  activeColor: Colors.brown,
-                  onChanged: (v) => setState(() => _hasSweetOption = v),
-                ),
-                const SizedBox(height: 8),
-                _buildToggle(
-                  title: 'Ada pilihan es',
-                  subtitle: _hasIceOption
-                      ? KelompokPilihan.es.daftar.join(' / ')
-                      : 'Produk tidak punya pilihan es',
-                  icon: Icons.ac_unit_rounded,
-                  value: _hasIceOption,
-                  primaryColor: primaryColor,
-                  activeColor: Colors.lightBlue,
-                  onChanged: (v) => setState(() => _hasIceOption = v),
-                ),
-                const SizedBox(height: 8),
-
-
-                const SizedBox(height: 20),
-
-                // Submit button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isEditing
-                              ? Icons.save_rounded
-                              : Icons.add_rounded,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isEditing ? 'Simpan Perubahan' : 'Tambah Produk',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      ),
-    );
-  }
-
-  void _showCategorySheet(List<Category> categories) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: WarnaTeras.kartu,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.fromLTRB(0, 12, 0, 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(20, 10, 20, 24 + inset),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const PegangLembar(),
+              _judul(isEditing),
+              const SizedBox(height: 16),
+              _kotakFoto(),
+              const SizedBox(height: 10),
+              KolomIsian(
+                controller: _nameC,
+                label: 'Nama Produk',
+                ikon: Icons.inventory_2_outlined,
+                textInputAction: TextInputAction.next,
+                onChanged: (_) => setState(() => _galat = null),
               ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.category_rounded,
-                        color: primaryColor, size: 20),
+              const SizedBox(height: 10),
+              KolomIsian(
+                controller: _priceC,
+                label: 'Harga',
+                ikon: Icons.payments_outlined,
+                prefixText: 'Rp ',
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  RupiahInputFormatter(),
+                ],
+                onChanged: (_) => setState(() => _galat = null),
+              ),
+              const SizedBox(height: 10),
+              _pilihKategori(),
+              const SizedBox(height: 10),
+              for (final k in KelompokPilihan.values) ...[
+                _sakelar(k),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                height: 20,
+                child: Text(
+                  _galat ?? '',
+                  style: const TextStyle(
+                    fontSize: TeksTeras.kecil,
+                    color: WarnaTeras.merah,
                   ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Pilih Kategori',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Desain (revisi 2026-10-04): [Batalkan] [Simpan] berdampingan.
+              // Batalkan lewat maybePop supaya tetap ditanya "Buang
+              // perubahan?" kalau isian sudah diubah.
+              Row(
+                children: [
+                  Expanded(
+                    flex: 10,
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF5A5048),
+                          side: const BorderSide(color: Color(0xFFE2D9D0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        child: const Text(
+                          'Batalkan',
+                          style: TextStyle(
+                            fontSize: TeksTeras.biasa,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 14,
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: _submit,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: WarnaTeras.oranye,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        icon: Icon(
+                          isEditing ? Icons.save_rounded : Icons.add_rounded,
+                          size: 21,
+                        ),
+                        label: FittedBox(
+                          child: Text(
+                            isEditing ? 'Simpan Perubahan' : 'Tambah Produk',
+                            style: const TextStyle(
+                              fontSize: TeksTeras.biasa,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-            Divider(height: 1, color: Colors.grey.shade200),
-            // Opsi tanpa kategori
-            _categoryOption(
-              icon: Icons.block_rounded,
-              name: 'Tanpa Kategori',
-              isSelected: _selectedCategory == null,
-              primaryColor: primaryColor,
-              onTap: () {
-                setState(() => _selectedCategory = null);
-                Navigator.pop(context);
-                // Cegah keyboard muncul lagi (fokus balik ke field teks).
-                FocusManager.instance.primaryFocus?.unfocus();
-              },
-            ),
-            Divider(height: 1, color: Colors.grey.shade100),
-            // List kategori
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                itemCount: categories.length,
-                separatorBuilder: (_, i) =>
-                    Divider(height: 1, color: Colors.grey.shade100),
-                itemBuilder: (_, i) {
-                  final c = categories[i];
-                  final icon = categoryIconFromCodepoint(c.iconCodepoint);
-                  return _categoryOption(
-                    icon: icon,
-                    name: c.name,
-                    isSelected: _selectedCategory?.id == c.id,
-                    primaryColor: primaryColor,
-                    onTap: () {
-                      setState(() => _selectedCategory = c);
-                      Navigator.pop(context);
-                      // Cegah keyboard muncul lagi (fokus balik ke field teks).
-                      FocusManager.instance.primaryFocus?.unfocus();
-                    },
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _categoryOption({
-    required IconData icon,
-    required String name,
-    required bool isSelected,
-    required Color primaryColor,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: isSelected
-          ? primaryColor.withValues(alpha: 0.06)
-          : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? primaryColor.withValues(alpha: 0.12)
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon,
-                    color: isSelected ? primaryColor : Colors.grey.shade600,
-                    size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected
-                        ? primaryColor
-                        : const Color(0xFF1A1A1A),
-                  ),
-                ),
-              ),
-              if (isSelected)
-                Icon(Icons.check_circle_rounded,
-                    color: primaryColor, size: 20),
             ],
           ),
         ),
@@ -743,84 +390,122 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     );
   }
 
-  Widget _buildImagePicker(Color primaryColor) {
-    final hasImage =
-        _imagePath != null && ImageStorageService.adaSync(_imagePath);
+  Widget _judul(bool isEditing) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: WarnaTeras.oranye,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            isEditing ? Icons.edit_square : Icons.add_business_rounded,
+            size: 21,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isEditing ? 'Edit Produk' : 'Tambah Produk',
+              style: const TextStyle(
+                fontSize: TeksTeras.menu,
+                fontWeight: FontWeight.w600,
+                color: WarnaTeras.teks,
+              ),
+            ),
+            Text(
+              isEditing ? 'Perbarui detail produk' : 'Isi detail produk baru',
+              style: const TextStyle(
+                fontSize: TeksTeras.kecil,
+                color: WarnaTeras.teksSamar,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
+  /// Kotak foto krem bertepi oranye (desain). Dengan foto: foto penuh,
+  /// "Ganti foto" di kanan bawah, ✕ hapus di kanan atas.
+  Widget _kotakFoto() {
+    final ada = _imagePath != null && ImageStorageService.adaSync(_imagePath);
     return GestureDetector(
       onTap: _pickImage,
       child: Container(
-        width: double.infinity,
-        height: 100,
+        height: 96,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: hasImage ? Colors.transparent : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: hasImage
-                ? Colors.grey.shade300
-                : primaryColor.withValues(alpha: 0.4),
-            style: BorderStyle.solid,
-          ),
+          color: const Color(0xFFFAF3EC),
+          border: Border.all(color: const Color(0xFFF0A94E)),
+          borderRadius: BorderRadius.circular(6),
         ),
-        child: hasImage
+        child: ada
             ? Stack(
                 fit: StackFit.expand,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(11),
-                    child: Image.file(
-                      File(ImageStorageService.lokasiPenuhSync(_imagePath!)),
-                      fit: BoxFit.cover,
-                    ),
+                  Image.file(
+                    File(ImageStorageService.lokasiPenuhSync(_imagePath!)),
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: _pil(Icons.edit_rounded, 'Ganti foto'),
                   ),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Row(
-                      children: [
-                        _imageActionBtn(
-                          icon: Icons.edit_rounded,
-                          onTap: _pickImage,
-                          color: primaryColor,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _imagePath = null),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: const BoxDecoration(
+                          color: Color(0xA61E140A),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 6),
-                        _imageActionBtn(
-                          icon: Icons.close_rounded,
-                          onTap: () => setState(() => _imagePath = null),
-                          color: Colors.red,
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 19,
+                          color: Colors.white,
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
               )
-            : Row(
+            : const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.add_photo_alternate_outlined,
-                    size: 28,
-                    color: primaryColor.withValues(alpha: 0.6),
+                    size: 30,
+                    color: WarnaTeras.oranye,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Tambah Foto Produk',
+                        'Tambahkan foto produk',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: primaryColor.withValues(alpha: 0.7),
+                          fontSize: TeksTeras.biasa,
+                          color: WarnaTeras.oranye,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
-                        'Opsional — tap untuk pilih foto',
+                        'Opsional - tap untuk pilih foto',
                         style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
+                          fontSize: TeksTeras.kecil,
+                          color: WarnaTeras.teksSamar,
                         ),
                       ),
                     ],
@@ -831,132 +516,126 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     );
   }
 
-  Widget _imageActionBtn({
-    required IconData icon,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 4,
+  Widget _pil(IconData ikon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xA61E140A),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: TeksTeras.kecil,
+              color: Colors.white,
             ),
-          ],
-        ),
-        child: Icon(icon, size: 18, color: color),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildToggle({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool value,
-    required Color primaryColor,
-    required Color activeColor,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: value
-            ? activeColor.withValues(alpha: 0.08)
-            : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: value
-              ? activeColor.withValues(alpha: 0.3)
-              : Colors.grey.shade200,
-        ),
-      ),
-      child: SwitchListTile(
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: value ? activeColor : const Color(0xFF1A1A1A),
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        ),
-        secondary: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: value ? activeColor : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: activeColor,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
+  Widget _pilihKategori() {
+    return StreamBuilder<List<Category>>(
+      stream: _productRepo.watchCategories(),
+      builder: (context, snapshot) {
+        final categories = snapshot.data ?? [];
+
+        // Kategori dimuat asinkron: pada mode Edit, pilihan awal baru bisa
+        // diisi setelah daftarnya datang.
+        if (!_categoryInitialized &&
+            _selectedCategory == null &&
+            widget.editing?.categoryId != null &&
+            categories.isNotEmpty) {
+          _categoryInitialized = true;
+          final match = categories
+              .where((c) => c.id == widget.editing!.categoryId)
+              .firstOrNull;
+          if (match != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _selectedCategory = match);
+            });
+          }
+        }
+
+        final dipilih = _selectedCategory;
+        return KolomPilihan(
+          ikon: dipilih == null
+              ? Icons.category_rounded
+              : categoryIconFromCodepoint(dipilih.iconCodepoint),
+          label: 'Kategori',
+          nilai: dipilih?.name ?? 'Pilih Kategori',
+          kosong: dipilih == null,
+          onTap: () async {
+            // Cegah keyboard muncul lagi setelah lembar ditutup.
+            FocusManager.instance.primaryFocus?.unfocus();
+            final hasil = await pilihDariDaftar<Category?>(
+              context,
+              judul: 'Pilih Kategori',
+              ikon: Icons.category_rounded,
+              terpilih: categories
+                  .where((c) => c.id == dipilih?.id)
+                  .firstOrNull,
+              opsi: [
+                const OpsiLembar(
+                  nilai: null,
+                  label: 'Tanpa Kategori',
+                  ikon: Icons.block_rounded,
+                ),
+                for (final c in categories)
+                  OpsiLembar(
+                    nilai: c,
+                    label: c.name,
+                    ikon: categoryIconFromCodepoint(c.iconCodepoint),
+                  ),
+              ],
+            );
+            if (hasil != null && mounted) {
+              setState(() => _selectedCategory = hasil.nilai);
+            }
+          },
+        );
+      },
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    String? prefixText,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-    TextInputAction? textInputAction,
-    void Function(String)? onFieldSubmitted,
-  }) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
+  bool _nilaiPilihan(KelompokPilihan k) => switch (k) {
+        KelompokPilihan.pedas => _hasSpicyOption,
+        KelompokPilihan.manis => _hasSweetOption,
+        KelompokPilihan.es => _hasIceOption,
+      };
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
-        validator: validator,
-        textInputAction: textInputAction,
-        onFieldSubmitted: onFieldSubmitted,
-        style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A1A)),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.grey.shade600),
-          hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey.shade400),
-          prefixIcon: Icon(icon, color: primaryColor),
-          prefixText: prefixText,
-          prefixStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF1A1A1A),
-          ),
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          errorStyle: const TextStyle(height: 0),
-        ),
-      ),
+  Widget _sakelar(KelompokPilihan k) {
+    final g = gayaPilihan(k);
+    final nyala = _nilaiPilihan(k);
+    final nama = k.label.toLowerCase();
+    return SakelarPilihan(
+      ikon: g.ikon,
+      warna: g.warna,
+      jalur: g.jalur,
+      judul: 'Ada pilihan level $nama',
+      keterangan: nyala
+          ? k.daftar.join(' / ')
+          : switch (k) {
+              KelompokPilihan.pedas => 'Produk tidak punya level kepedasan',
+              _ => 'Produk tidak punya level $nama',
+            },
+      nilai: nyala,
+      onUbah: (v) => setState(() {
+        switch (k) {
+          case KelompokPilihan.pedas:
+            _hasSpicyOption = v;
+          case KelompokPilihan.manis:
+            _hasSweetOption = v;
+          case KelompokPilihan.es:
+            _hasIceOption = v;
+        }
+      }),
     );
   }
 }

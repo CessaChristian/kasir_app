@@ -4,17 +4,21 @@ import '../repositories/product_repository.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/widgets/app_toast.dart';
-import '../../../shared/widgets/sync_refresh.dart';
 import '../../../shared/services/image_storage_service.dart';
 import '../../../shared/auth/session_manager.dart';
-import '../widgets/product_search_bar.dart';
-import '../widgets/category_filter_bar.dart';
-import '../widgets/product_tile.dart';
-import '../sheets/product_form_sheet.dart';
-import '../../../shared/widgets/confirm_delete_dialog.dart';
+import '../../../shared/constants/category_icons.dart';
+import '../../../shared/ui/deretan_kategori.dart';
+import '../../../shared/ui/kotak_cari.dart';
+import '../../../shared/ui/lembar_konfirmasi.dart';
+import '../../../shared/ui/teks_teras.dart';
+import '../../../shared/ui/tombol_tambah.dart';
+import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/error_state_widget.dart';
-import '../../../shared/widgets/empty_state_widget.dart';
+import '../widgets/baris_produk.dart';
+import '../sheets/product_form_sheet.dart';
 
+/// Daftar Produk (desain): cari · deretan kategori · baris produk ·
+/// tombol tambah. Ketuk baris untuk mengedit.
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
 
@@ -90,29 +94,27 @@ class _ProductsPageState extends State<ProductsPage> {
 
       if (!mounted) return;
       AppToast.success(context,
-          editing == null ? 'Produk berhasil ditambahkan' : 'Produk berhasil diperbarui');
+          editing == null ? '${result.name} ditambahkan' : 'Perubahan disimpan');
     } catch (e) {
       if (!mounted) return;
       AppToast.error(context, 'Gagal: $e');
     }
   }
 
-  Future<void> _delete(BuildContext ctx, Product p) async {
-    final confirmed = await showDialog<bool>(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (_) => ConfirmDeleteDialog(
-        title: 'Hapus Produk?',
-        message: 'Produk "${p.name}" akan dihapus permanen dan tidak dapat dikembalikan.',
-      ),
+  Future<void> _hapus(Product p) async {
+    final yakin = await tampilkanLembarKonfirmasi(
+      context,
+      ikon: Icons.delete_outline_rounded,
+      judul: 'Hapus produk?',
+      catatan: '${p.name} akan dihapus dari daftar produk dan halaman kasir.',
+      labelAksi: 'Hapus',
     );
-
-    if (confirmed != true) return;
+    if (!yakin) return;
 
     try {
       await _productRepo.deleteProduct(p.id);
       if (!mounted) return;
-      AppToast.success(context, 'Produk berhasil dihapus');
+      AppToast.success(context, '${p.name} dihapus');
     } catch (e) {
       if (!mounted) return;
       AppToast.error(context, 'Gagal menghapus: $e');
@@ -121,126 +123,118 @@ class _ProductsPageState extends State<ProductsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openForm(context),
-        backgroundColor: primaryColor,
-        elevation: 2,
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          ProductSearchBar(
-            query: _searchQuery,
-            onChanged: (value) => setState(() => _searchQuery = value),
-          ),
-          // Category Filter
-          StreamBuilder<List<Category>>(
-            stream: _productRepo.watchCategories(),
-            builder: (context, snapshot) {
-              final categories = snapshot.data ?? [];
-              return CategoryFilterBar(
-                selectedCategoryId: _selectedCategoryId,
-                categories: categories,
-                onCategorySelected: (id) =>
-                    setState(() => _selectedCategoryId = id),
-              );
-            },
-          ),
-          // Product List - Using single combined stream for better performance
-          Expanded(
-            child: StreamBuilder<List<Category>>(
-              stream: _productRepo.watchCategories(),
-              builder: (context, catSnapshot) {
-                final categories = catSnapshot.data ?? [];
-                final categoryMap = {for (var c in categories) c.id: c.name};
-
-                return StreamBuilder<List<Product>>(
-                  stream: _productRepo.watchProducts(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return ErrorStateWidget(
-                        title: 'Gagal memuat produk',
-                        onRetry: () => setState(() {}),
-                      );
-                    }
-
-                    if (!snapshot.hasData) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: primaryColor,
-                          strokeWidth: 2,
-                        ),
-                      );
-                    }
-
-                    var items = snapshot.data ?? [];
-
-                    // Filter by category
-                    if (_selectedCategoryId != null) {
-                      items = items
-                          .where(
-                            (p) =>
-                                p.categoryId == _selectedCategoryId.toString(),
-                          )
-                          .toList();
-                    }
-
-                    // Filter by search
-                    if (_searchQuery.isNotEmpty) {
-                      final query = _searchQuery.toLowerCase();
-                      items = items
-                          .where((p) => p.name.toLowerCase().contains(query))
-                          .toList();
-                    }
-
-                    if (items.isEmpty) {
-                      return _buildEmptyState(context);
-                    }
-
-                    return SyncRefresh(
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                        itemCount: items.length,
-                        itemBuilder: (context, i) {
-                          final p = items[i];
-                          final categoryName = p.categoryId != null
-                              ? categoryMap[p.categoryId] ?? 'Tanpa Kategori'
-                              : 'Tanpa Kategori';
-
-                          return ProductTile(
-                            product: p,
-                            categoryName: categoryName,
-                            onTap: () => _openForm(context, editing: p),
-                            onEdit: () => _openForm(context, editing: p),
-                            onDelete: () => _delete(context, p),
-                          );
-                        },
+    // Tanpa tarik-untuk-refresh: refresh lewat tombol di header, dan daftar
+    // ini mendengarkan database sehingga ikut berubah sendiri.
+    return StreamBuilder<List<Category>>(
+      stream: _productRepo.watchCategories(),
+      builder: (context, catSnap) {
+        final kategori = catSnap.data ?? const <Category>[];
+        final byId = {for (final c in kategori) c.id: c};
+        return Stack(
+          children: [
+            StreamBuilder<List<Product>>(
+              stream: _productRepo.watchProducts(),
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return ErrorStateWidget(
+                    title: 'Gagal memuat produk',
+                    onRetry: () => setState(() {}),
+                  );
+                }
+                final semua = snap.data;
+                final tampil = semua == null ? null : _saring(semua);
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                  children: [
+                    KotakCari(
+                      petunjuk: 'Cari produk...',
+                      onBerubah: (v) => setState(() => _searchQuery = v),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Kategori',
+                      style: TextStyle(
+                        fontSize: TeksTeras.judul,
+                        fontWeight: FontWeight.w700,
+                        color: WarnaTeras.teks,
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 10),
+                    DeretanKategori(
+                      terpilih: _selectedCategoryId,
+                      onPilih: (id) => setState(() => _selectedCategoryId = id),
+                      isi: [
+                        const ChipKategori(
+                          id: null,
+                          label: 'Semua',
+                          ikon: Icons.apps_rounded,
+                        ),
+                        for (final c in kategori)
+                          ChipKategori(
+                            id: c.id,
+                            label: c.name,
+                            ikon: categoryIconFromCodepoint(c.iconCodepoint),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (tampil == null)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 40),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (tampil.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Text(
+                          'Produk tidak ditemukan',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: TeksTeras.biasa,
+                            color: WarnaTeras.teksPudar,
+                          ),
+                        ),
+                      )
+                    else
+                      for (final p in tampil) ...[
+                        BarisProduk(
+                          produk: p,
+                          namaKategori: byId[p.categoryId]?.name ?? 'Tanpa Kategori',
+                          ikonKategori: byId[p.categoryId] == null
+                              ? Icons.block_rounded
+                              : categoryIconFromCodepoint(
+                                  byId[p.categoryId]!.iconCodepoint),
+                          onEdit: () => _openForm(context, editing: p),
+                          onHapus: () => _hapus(p),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                  ],
                 );
               },
             ),
-          ),
-        ],
-      ),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: TombolTambah(
+                tooltip: 'Tambah produk',
+                onTap: () => _openForm(context),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    final hasFilter = _searchQuery.isNotEmpty || _selectedCategoryId != null;
-    return EmptyStateWidget(
-      icon: Icons.inventory_2_outlined,
-      title: hasFilter ? 'Tidak ada produk' : 'Belum ada produk',
-      subtitle: hasFilter
-          ? 'Coba ubah filter pencarian'
-          : 'Tap tombol + untuk menambah produk',
-    );
+  /// Saring menurut kategori terpilih dan kata cari.
+  List<Product> _saring(List<Product> semua) {
+    final cari = _searchQuery.trim().toLowerCase();
+    return [
+      for (final p in semua)
+        if ((_selectedCategoryId == null || p.categoryId == _selectedCategoryId) &&
+            (cari.isEmpty || p.name.toLowerCase().contains(cari)))
+          p,
+    ];
   }
 }
