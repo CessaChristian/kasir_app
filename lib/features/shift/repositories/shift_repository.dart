@@ -1,16 +1,14 @@
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
+import '../../../shared/ui/periode/periode.dart';
+import '../models/ringkasan_shift.dart';
 
 /// Satu-satunya pintu akses data shift untuk keperluan operasional:
 /// kartu shift aktif di dashboard, riwayat shift, dan ringkasan tutup shift.
 ///
 /// Halaman UI TIDAK boleh memanggil [AppDatabase] langsung. Semua lewat sini.
 /// Lihat catatan lengkap soal alasan lapisan ini di `ProductRepository`.
-///
-/// Berbeda dari `ShiftReportRepository` di `features/reports/` yang menghitung
-/// ringkasan shift untuk halaman Pantau Shift milik owner. Yang ini melayani
-/// shift milik kasir yang sedang login.
 class ShiftRepository {
   final AppDatabase _db;
 
@@ -34,6 +32,80 @@ class ShiftRepository {
       (_db.select(_db.transactions)
             ..where((t) => t.shiftId.equals(shiftId) & t.deletedAt.isNull()))
           .get();
+
+  /// Shift yang DIMULAI dalam [periode], terbaru dulu, beserta transaksi dan
+  /// pengeluarannya (termasuk yang dibatalkan). [hanyaUserId] diisi untuk
+  /// akun yang hanya boleh melihat shift miliknya sendiri.
+  ///
+  /// Ikut berubah sesudah refresh menarik transaksi baru dari server.
+  Stream<List<RingkasanShift>> watchRiwayatShift(
+    Periode periode, {
+    String? hanyaUserId,
+  }) => _pantau(
+        () => _ringkas((s) {
+          var syarat = s.deletedAt.isNull() &
+              s.startAt.isBiggerOrEqualValue(periode.dari) &
+              s.startAt.isSmallerThanValue(periode.batasAkhir);
+          if (hanyaUserId != null) {
+            syarat = syarat & s.userId.equals(hanyaUserId);
+          }
+          return syarat;
+        }),
+      );
+
+  /// Satu shift untuk Detail Shift; null kalau tidak ada.
+  Stream<RingkasanShift?> watchShift(String shiftId) => _pantau(
+        () async =>
+            (await _ringkas((s) => s.id.equals(shiftId))).firstOrNull,
+      );
+
+  /// Muat ulang setiap kali shift, transaksi, pengeluaran, atau nama akun
+  /// berubah.
+  ///
+  /// Kueri pantau drift, bukan `async*` + `await for` pada `tableUpdates`:
+  /// generator seperti itu tidak selesai saat pendengarnya berhenti (halaman
+  /// ditutup), jadi pembatalannya menggantung.
+  Stream<T> _pantau<T>(Future<T> Function() muat) => _db
+      .customSelect(
+        'SELECT 1',
+        readsFrom: {_db.shifts, _db.transactions, _db.expenses, _db.users},
+      )
+      .watch()
+      .asyncMap((_) => muat());
+
+  Future<List<RingkasanShift>> _ringkas(
+    Expression<bool> Function($ShiftsTable s) syarat,
+  ) async {
+    final shifts = await (_db.select(_db.shifts)
+          ..where(syarat)
+          ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
+        .get();
+    if (shifts.isEmpty) return const [];
+
+    final id = shifts.map((s) => s.id).toList();
+    final transaksi = await (_db.select(_db.transactions)
+          ..where((t) => t.shiftId.isIn(id))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        .get();
+    final pengeluaran = await (_db.select(_db.expenses)
+          ..where((e) => e.shiftId.isIn(id))
+          ..orderBy([(e) => OrderingTerm.desc(e.createdAt)]))
+        .get();
+    final nama = await _db.namaAkun();
+
+    return [
+      for (final s in shifts)
+        RingkasanShift(
+          shift: s,
+          namaKasir: nama[s.userId],
+          transaksi: transaksi.where((t) => t.shiftId == s.id).toList(),
+          pengeluaran: pengeluaran.where((e) => e.shiftId == s.id).toList(),
+        ),
+    ];
+  }
+
+  /// Nama akun per id — untuk "Dibatalkan · nama, jam".
+  Future<Map<String, String>> namaAkun() => _db.namaAkun();
 
   /// Total pendapatan satu shift — dipakai dialog tutup shift.
   ///

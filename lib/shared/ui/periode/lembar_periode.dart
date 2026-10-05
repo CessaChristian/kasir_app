@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../tab_geser.dart';
 import '../teks_teras.dart';
 import '../warna_teras.dart';
 import 'bagian_filter.dart';
@@ -225,7 +226,11 @@ class _LembarPeriodeState extends State<LembarPeriode> {
             ),
           ),
           const SizedBox(height: 14),
-          _tab(),
+          TabGeser(
+            pilihan: const ['Tanggal', 'Bulan'],
+            terpilih: _modeBulan ? 1 : 0,
+            onPilih: (i) => setState(() => _modeBulan = i == 1),
+          ),
           const SizedBox(height: 10),
           _navigasi(),
           const SizedBox(height: 6),
@@ -404,52 +409,6 @@ class _LembarPeriodeState extends State<LembarPeriode> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _tab() {
-    Widget tombol(String label, bool bulan) {
-      final aktif = _modeBulan == bulan;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _modeBulan = bulan),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: aktif ? WarnaTeras.kartu : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: aktif
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: TeksTeras.biasa,
-                fontWeight: FontWeight.w600,
-                color: aktif ? WarnaTeras.teks : WarnaTeras.teksPudar,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4EEE8),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(children: [tombol('Tanggal', false), tombol('Bulan', true)]),
     );
   }
 

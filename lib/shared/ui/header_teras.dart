@@ -109,14 +109,22 @@ const _warnaBayangan = Color(0xFF3C230A);
 
 /// Bayangan tipis di bawah header saat isi halaman sudah di-scroll.
 ///
+/// [keAtas] membalik arahnya: bayangan di ATAS deretan tombol yang menempel
+/// di bawah, tanda masih ada isi di balik tombol (lembar Detail Transaksi).
+///
 /// Desain: `box-shadow: 0 6px 12px -6px rgba(60,35,10,.22)`. Digambar
 /// sebagai gradasi di ATAS isi (taruh di puncak sebuah `Stack`), bukan sebagai
 /// `boxShadow` header — isi halaman digambar sesudah header dan latarnya
 /// akan menutupi bayangan itu.
 class BayanganHeader extends StatelessWidget {
   final bool terlihat;
+  final bool keAtas;
 
-  const BayanganHeader({super.key, required this.terlihat});
+  const BayanganHeader({
+    super.key,
+    required this.terlihat,
+    this.keAtas = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -128,8 +136,8 @@ class BayanganHeader extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+              begin: keAtas ? Alignment.bottomCenter : Alignment.topCenter,
+              end: keAtas ? Alignment.topCenter : Alignment.bottomCenter,
               colors: [
                 _warnaBayangan.withValues(alpha: 0.16),
                 _warnaBayangan.withValues(alpha: 0),

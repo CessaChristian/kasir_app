@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
+import '../../../shared/ui/keterangan_batal.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
@@ -20,12 +20,18 @@ class BarisPengeluaran extends StatelessWidget {
   /// Null = tombol batalkan tidak tampil (tidak berhak, atau sudah batal).
   final VoidCallback? onBatalkan;
 
+  /// Ruang kosong selebar tombol tetap disisakan saat tombolnya tidak tampil,
+  /// supaya nominal sebaris dengan baris lain. Detail Shift tidak pernah
+  /// punya tombol, jadi tanpa ruang.
+  final bool ruangTombol;
+
   const BarisPengeluaran({
     super.key,
     required this.pengeluaran,
     this.namaPencatat,
     this.namaPembatal,
     this.onBatalkan,
+    this.ruangTombol = true,
   });
 
   @override
@@ -39,7 +45,7 @@ class BarisPengeluaran extends StatelessWidget {
     ].join(' · ');
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      padding: EdgeInsets.fromLTRB(14, 10, ruangTombol ? 6 : 14, 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -79,7 +85,12 @@ class BarisPengeluaran extends StatelessWidget {
                     color: WarnaTeras.teksPudar,
                   ),
                 ),
-                if (batal) ..._keteranganBatal(e),
+                if (batal)
+                  KeteranganBatal(
+                    waktu: e.deletedAt!,
+                    nama: namaPembatal,
+                    alasan: e.cancelReason,
+                  ),
               ],
             ),
           ),
@@ -95,62 +106,24 @@ class BarisPengeluaran extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            width: 36,
-            child: onBatalkan == null
-                ? null
-                : IconButton(
-                    onPressed: onBatalkan,
-                    tooltip: 'Batalkan',
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      size: 21,
-                      color: WarnaTeras.merah,
+          if (ruangTombol || onBatalkan != null)
+            SizedBox(
+              width: 36,
+              child: onBatalkan == null
+                  ? null
+                  : IconButton(
+                      onPressed: onBatalkan,
+                      tooltip: 'Batalkan',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 21,
+                        color: WarnaTeras.merah,
+                      ),
                     ),
-                  ),
-          ),
+            ),
         ],
       ),
     );
-  }
-
-  /// Desain: "Dihapus · Owner, 01:23" lalu "Alasan: …" — tanpa chip.
-  /// Labelnya "Dibatalkan" sesuai keputusan (tidak pernah dihapus).
-  List<Widget> _keteranganBatal(Expense e) {
-    final jam = DateFormat('HH:mm').format(e.deletedAt!.toLocal());
-    final siapaKapan = namaPembatal == null ? jam : '$namaPembatal, $jam';
-    // Yang terhapus SEBELUM fitur pembatalan tidak punya alasan.
-    final alasan = e.cancelReason ?? 'tidak tercatat';
-    const abu = TextStyle(
-      fontSize: TeksTeras.kecil,
-      color: WarnaTeras.teksPudar,
-    );
-    return [
-      const SizedBox(height: 3),
-      Row(
-        children: [
-          const Text(
-            'Dibatalkan',
-            style: TextStyle(
-              fontSize: TeksTeras.kecil,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFC0392B),
-            ),
-          ),
-          const Text('  ·  ', style: abu),
-          Flexible(
-            child: Text(
-              siapaKapan,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: abu,
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 1),
-      Text('Alasan: $alasan', style: abu),
-    ];
   }
 }

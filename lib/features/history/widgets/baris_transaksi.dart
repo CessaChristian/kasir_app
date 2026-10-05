@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
 import '../../../shared/constants/app_constants.dart';
+import '../../../shared/ui/keterangan_batal.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
@@ -86,7 +87,13 @@ class BarisTransaksi extends StatelessWidget {
                         decoration: batal ? TextDecoration.lineThrough : null,
                       ),
                     ),
-                    if (batal) ..._keteranganBatal(t),
+                    if (batal)
+                      KeteranganBatal(
+                        waktu: t.deletedAt!,
+                        nama: namaPembatal,
+                        alasan: t.cancelReason,
+                        rataKanan: true,
+                      ),
                   ],
                 ),
               ),
@@ -112,39 +119,109 @@ class BarisTransaksi extends StatelessWidget {
       ),
     );
   }
+}
 
-  List<Widget> _keteranganBatal(Transaction t) {
-    final jam = DateFormat('HH:mm').format(t.deletedAt!.toLocal());
-    final siapaKapan = namaPembatal == null ? jam : '$namaPembatal, $jam';
-    const abu = TextStyle(
-      fontSize: TeksTeras.kecil,
-      height: 1.4,
-      color: WarnaTeras.teksPudar,
-    );
-    return [
-      const SizedBox(height: 3),
-      Text.rich(
-        TextSpan(
-          children: [
-            const TextSpan(
-              text: 'Dibatalkan',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFC0392B),
+/// Baris transaksi di Detail Shift (desain): ikon metode · jam · metode di
+/// kiri, nominal dan panah di kanan, dalam kartu putihnya sendiri.
+class BarisTransaksiShift extends StatelessWidget {
+  final Transaction transaksi;
+  final String? namaPembatal;
+  final VoidCallback onTap;
+
+  const BarisTransaksiShift({
+    super.key,
+    required this.transaksi,
+    required this.onTap,
+    this.namaPembatal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = transaksi;
+    final batal = t.deletedAt != null;
+    final qris = t.paymentMethod == 'qris';
+    return Material(
+      color: WarnaTeras.kartu,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                qris ? Icons.qr_code_2_rounded : Icons.payments_rounded,
+                size: 22,
+                color: batal
+                    ? WarnaTeras.teksSamar
+                    : qris
+                    ? WarnaTeras.biru
+                    : WarnaTeras.hijau,
               ),
-            ),
-            TextSpan(text: ' · $siapaKapan'),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Opacity(
+                      opacity: batal ? 0.6 : 1,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            DateFormat('HH:mm').format(t.createdAt.toLocal()),
+                            style: const TextStyle(
+                              fontSize: TeksTeras.angka,
+                              fontWeight: FontWeight.w700,
+                              color: WarnaTeras.teks,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              qris ? 'QRIS' : 'Cash',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: TeksTeras.kecil,
+                                color: WarnaTeras.teksSamar,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (batal)
+                      KeteranganBatal(
+                        waktu: t.deletedAt!,
+                        nama: namaPembatal,
+                        alasan: t.cancelReason,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                formatRp(t.total),
+                style: TextStyle(
+                  fontSize: TeksTeras.angka,
+                  fontWeight: FontWeight.w700,
+                  color: batal ? WarnaTeras.teksSamar : WarnaTeras.teks,
+                  decoration: batal ? TextDecoration.lineThrough : null,
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: WarnaTeras.titikPasif,
+              ),
+            ],
+          ),
         ),
-        textAlign: TextAlign.right,
-        style: abu,
       ),
-      Text(
-        // Yang terhapus SEBELUM fitur pembatalan tidak punya alasan.
-        'Alasan: ${t.cancelReason ?? 'tidak tercatat'}',
-        textAlign: TextAlign.right,
-        style: abu,
-      ),
-    ];
+    );
   }
 }

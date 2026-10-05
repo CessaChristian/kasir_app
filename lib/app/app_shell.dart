@@ -10,7 +10,7 @@ import '../features/auth/pages/login_page.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
-import '../features/shift/pages/shift_monitor_page.dart';
+import '../features/shift/pages/riwayat_shift_page.dart';
 import 'kerangka_owner.dart';
 import 'keluar_akun.dart';
 
@@ -428,7 +428,7 @@ class AppShellState extends State<AppShell> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const ShiftMonitorPage()),
+                                builder: (_) => const RiwayatShiftPage()),
                           );
                         },
                       ),

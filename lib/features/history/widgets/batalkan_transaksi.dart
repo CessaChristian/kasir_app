@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/app_database.dart';
 import '../../../shared/widgets/dialog_pembatalan.dart';
+import '../../../shared/widgets/transaction_detail_sheet.dart';
 import '../../sales/repositories/sales_repository.dart';
 
 /// Alasan pembatalan transaksi (desain).
@@ -31,5 +32,30 @@ Future<bool> batalkanTransaksiLewatDialog(
     perluPin: repo.perluPinOwner,
     kirim: (alasan, pin) =>
         repo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
+  );
+}
+
+/// Buka struk [tx], dengan tombol batalkan kalau akun ini berhak. Dipakai
+/// Riwayat owner dan Detail Shift.
+void bukaDetailTransaksi(
+  BuildContext context,
+  SalesRepository repo,
+  Transaction tx,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (lembar) => TransactionDetailSheet(
+      transaction: tx,
+      onBatalkan: repo.bolehDibatalkan(tx)
+          ? () async {
+              final ok = await batalkanTransaksiLewatDialog(lembar, repo, tx);
+              // Desain: setelah dibatalkan, detailnya ikut tertutup.
+              if (ok && lembar.mounted) Navigator.pop(lembar);
+            }
+          : null,
+    ),
   );
 }

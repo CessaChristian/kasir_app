@@ -11,7 +11,6 @@ import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/pita_hari.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
-import '../../../shared/widgets/transaction_detail_sheet.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../models/kelompok_riwayat.dart';
@@ -58,29 +57,6 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
     final id = await _repo.idTransaksiBerisiMenu(v);
     // Abaikan jawaban untuk kata cari yang sudah diganti.
     if (mounted && v == _cari) setState(() => _idCocokMenu = id);
-  }
-
-  void _bukaDetail(Transaction tx) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (lembar) => TransactionDetailSheet(
-        transaction: tx,
-        onBatalkan: _repo.bolehDibatalkan(tx)
-            ? () async {
-                final ok = await batalkanTransaksiLewatDialog(
-                  lembar,
-                  _repo,
-                  tx,
-                );
-                // Desain: setelah dibatalkan, detailnya ikut tertutup.
-                if (ok && lembar.mounted) Navigator.pop(lembar);
-              }
-            : null,
-      ),
-    );
   }
 
   @override
@@ -146,7 +122,7 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
                       BarisTransaksi(
                         transaksi: t,
                         namaPembatal: _nama[t.cancelledByUserId],
-                        onTap: () => _bukaDetail(t),
+                        onTap: () => bukaDetailTransaksi(context, _repo, t),
                         onBatalkan: _repo.bolehDibatalkan(t)
                             ? () => batalkanTransaksiLewatDialog(
                                 context,

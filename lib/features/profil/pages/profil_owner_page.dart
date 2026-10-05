@@ -14,7 +14,7 @@ import '../../owner/pages/manage_cashiers_page.dart';
 import '../../perangkat/pages/daftar_perangkat_page.dart';
 import '../../products/category_manager.dart';
 import '../../report/report_page.dart';
-import '../../shift/pages/shift_monitor_page.dart';
+import '../../shift/pages/riwayat_shift_page.dart';
 
 /// Profil owner (desain): kartu akun · MENU LAINNYA · MANAJEMEN ·
 /// PERANGKAT & AKUN · Keluar · versi.
@@ -78,7 +78,7 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             ikon: Icons.history_rounded,
             judul: 'Riwayat Shift',
             keterangan: 'Semua shift kasir',
-            onTap: () => _buka(const ShiftMonitorPage()),
+            onTap: () => _buka(const RiwayatShiftPage()),
           ),
           BarisMenu(
             ikon: Icons.category_rounded,

@@ -57,7 +57,7 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
   bool get _bolehLihatPengeluaran =>
       SessionManager.instance.hasPermission('view_all_expenses');
 
-  // Laporan Shift kini punya halaman tersendiri (ShiftMonitorPage), diakses
+  // Laporan Shift kini punya halaman tersendiri (RiwayatShiftPage), diakses
   // owner dari dashboard/drawer — tidak lagi jadi tab di sini.
 
   @override

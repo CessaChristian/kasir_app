@@ -12,7 +12,7 @@ import '../../../shared/ui/tombol_lembut.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
 import '../../../utils/sapaan.dart';
-import '../../shift/pages/shift_monitor_page.dart';
+import '../../shift/pages/riwayat_shift_page.dart';
 import '../repositories/dasbor_owner_repository.dart';
 import '../../../shared/ui/teks_teras.dart';
 
@@ -125,7 +125,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             label: 'Lihat Riwayat Shift',
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const ShiftMonitorPage()),
+              MaterialPageRoute(builder: (_) => const RiwayatShiftPage()),
             ),
           ),
         ],
