@@ -8,15 +8,14 @@ import 'widgets/payment_success_dialog.dart';
 
 enum PaymentMethod { cash, qris }
 
-enum OrderType { dineIn, takeAway, delivery }
+/// Take Away digabung ke Dine In atas permintaan owner (2026-10-05).
+enum OrderType { dineIn, delivery }
 
 extension OrderTypeExt on OrderType {
   String get value {
     switch (this) {
       case OrderType.dineIn:
         return 'dine_in';
-      case OrderType.takeAway:
-        return 'take_away';
       case OrderType.delivery:
         return 'delivery';
     }
@@ -26,8 +25,6 @@ extension OrderTypeExt on OrderType {
     switch (this) {
       case OrderType.dineIn:
         return 'Dine In';
-      case OrderType.takeAway:
-        return 'Take Away';
       case OrderType.delivery:
         return 'Delivery';
     }
@@ -37,8 +34,6 @@ extension OrderTypeExt on OrderType {
     switch (this) {
       case OrderType.dineIn:
         return Icons.restaurant_rounded;
-      case OrderType.takeAway:
-        return Icons.shopping_bag_rounded;
       case OrderType.delivery:
         return Icons.delivery_dining_rounded;
     }

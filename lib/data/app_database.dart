@@ -166,6 +166,10 @@ class Transactions extends Table {
   @override
   List<String> get customConstraints => [
         "CHECK (payment_method IN ('cash', 'qris'))",
+        // 'take_away' tidak lagi dibuat aplikasi (digabung ke Dine In, v34),
+        // tapi SENGAJA masih diterima: HP yang belum diperbarui masih bisa
+        // membuatnya, dan baris yang ditolak akan macet saat sinkron.
+        // Perketat setelah semua HP memakai APK v34.
         "CHECK (order_type IN ('dine_in', 'take_away', 'delivery'))",
       ];
 
@@ -441,7 +445,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 34;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1094,6 +1098,23 @@ class AppDatabase extends _$AppDatabase {
             ).get();
             if (adaPengeluaran.isNotEmpty) {
               await m.alterTable(TableMigration(expenses));
+            }
+          }
+
+          if (from < 34 && to >= 34) {
+            // v34 — Take Away digabung ke Dine In (permintaan owner
+            // 2026-10-05). Barisnya ditandai pending dengan updated_at baru,
+            // jadi sinkron ikut mengubahnya di server — tanpa berkas SQL.
+            final adaTransaksi = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'transactions'",
+            ).get();
+            if (adaTransaksi.isNotEmpty) {
+              await customStatement(
+                "UPDATE transactions SET order_type = 'dine_in', "
+                "updated_at = CAST(strftime('%s','now') AS INTEGER), "
+                "sync_status = 'pending' WHERE order_type = 'take_away'",
+              );
             }
           }
 
@@ -1797,9 +1818,6 @@ class AppDatabase extends _$AppDatabase {
     final dineInOrders = dayTransactions
         .where((tx) => tx.orderType == 'dine_in')
         .length;
-    final takeAwayOrders = dayTransactions
-        .where((tx) => tx.orderType == 'take_away')
-        .length;
     final deliveryOrders = dayTransactions
         .where((tx) => tx.orderType == 'delivery')
         .length;
@@ -1817,7 +1835,6 @@ class AppDatabase extends _$AppDatabase {
       qrisOrders: qrisTx.length,
       qrisTotal: qrisTx.fold<int>(0, (sum, tx) => sum + tx.total),
       dineInOrders: dineInOrders,
-      takeAwayOrders: takeAwayOrders,
       deliveryOrders: deliveryOrders,
       transactions: dayTransactions,
       topProducts: topProducts,
@@ -1932,8 +1949,6 @@ class AppDatabase extends _$AppDatabase {
 
     final dineInOrders =
         monthTx.where((tx) => tx.orderType == 'dine_in').length;
-    final takeAwayOrders =
-        monthTx.where((tx) => tx.orderType == 'take_away').length;
     final deliveryOrders =
         monthTx.where((tx) => tx.orderType == 'delivery').length;
 
@@ -1950,7 +1965,6 @@ class AppDatabase extends _$AppDatabase {
       qrisOrders: qrisTx.length,
       qrisTotal: qrisTx.fold<int>(0, (sum, tx) => sum + tx.total),
       dineInOrders: dineInOrders,
-      takeAwayOrders: takeAwayOrders,
       deliveryOrders: deliveryOrders,
       transactions: monthTx,
       topProducts: topProducts,

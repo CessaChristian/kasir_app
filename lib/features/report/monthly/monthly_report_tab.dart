@@ -150,12 +150,6 @@ class MonthlyReportTab extends StatelessWidget {
                       ? () => onOrderTypeTap!('dine_in') : null)),
               const SizedBox(width: 8),
               Expanded(child: _orderTypeCard(
-                  Icons.shopping_bag_rounded, 'Take Away', r.takeAwayOrders,
-                  Colors.orange,
-                  onTap: r.takeAwayOrders > 0 && onOrderTypeTap != null
-                      ? () => onOrderTypeTap!('take_away') : null)),
-              const SizedBox(width: 8),
-              Expanded(child: _orderTypeCard(
                   Icons.delivery_dining_rounded, 'Delivery', r.deliveryOrders,
                   Colors.green.shade600,
                   onTap: r.deliveryOrders > 0 && onOrderTypeTap != null

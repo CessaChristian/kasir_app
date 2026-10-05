@@ -63,7 +63,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
   }
 
   static String _tipePesanan(String kode) => switch (kode) {
-        'take_away' => 'Take Away',
         'delivery' => 'Delivery',
         _ => 'Dine In',
       };

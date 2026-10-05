@@ -990,17 +990,6 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
               )),
               const SizedBox(width: 8),
               Expanded(child: _buildOrderTypeCard(
-                icon: Icons.shopping_bag_rounded,
-                label: 'Take Away',
-                count: report.takeAwayOrders,
-                color: Colors.orange,
-                onTap: report.takeAwayOrders > 0
-                    ? () => _showOrderTypeSheet('take_away', 'Take Away',
-                        Colors.orange, Icons.shopping_bag_rounded)
-                    : null,
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: _buildOrderTypeCard(
                 icon: Icons.delivery_dining_rounded,
                 label: 'Delivery',
                 count: report.deliveryOrders,
@@ -1141,19 +1130,11 @@ class _ReportPageState extends State<ReportPage> with SingleTickerProviderStateM
       onOrderTypeTap: (orderType) {
         final IconData icon = orderType == 'dine_in'
             ? Icons.restaurant_rounded
-            : orderType == 'take_away'
-                ? Icons.shopping_bag_rounded
-                : Icons.delivery_dining_rounded;
+            : Icons.delivery_dining_rounded;
         final Color color = orderType == 'dine_in'
             ? colorScheme.primary
-            : orderType == 'take_away'
-                ? Colors.orange
-                : Colors.green.shade600;
-        final String label = orderType == 'dine_in'
-            ? 'Dine In'
-            : orderType == 'take_away'
-                ? 'Take Away'
-                : 'Delivery';
+            : Colors.green.shade600;
+        final String label = orderType == 'dine_in' ? 'Dine In' : 'Delivery';
         _showOrderTypeSheet(orderType, label, color, icon);
       },
     );

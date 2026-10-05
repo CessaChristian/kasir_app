@@ -10,7 +10,7 @@ import '../../../utils/currency_formatter.dart';
 class PaymentSuccessDialog extends StatelessWidget {
   final int total;
   final int? cashReceived; // null = QRIS
-  final String orderType; // 'dine_in' | 'take_away'
+  final String orderType; // 'dine_in' | 'delivery'
 
   const PaymentSuccessDialog({
     super.key,
@@ -90,7 +90,7 @@ class PaymentSuccessDialog extends StatelessWidget {
                   const SizedBox(height: 8),
                   _row(
                     'Tipe Order',
-                    orderType == 'dine_in' ? 'Dine In' : 'Take Away',
+                    orderType == 'delivery' ? 'Delivery' : 'Dine In',
                   ),
                 ],
               ),

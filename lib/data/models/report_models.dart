@@ -17,7 +17,6 @@ class ReportSummary {
   final int qrisOrders;
   final int qrisTotal;
   final int dineInOrders;
-  final int takeAwayOrders;
   final int deliveryOrders;
   final List<Transaction> transactions;
   final List<TopProduct> topProducts;
@@ -34,7 +33,6 @@ class ReportSummary {
     required this.qrisOrders,
     required this.qrisTotal,
     required this.dineInOrders,
-    required this.takeAwayOrders,
     required this.deliveryOrders,
     required this.transactions,
     required this.topProducts,
