@@ -66,20 +66,21 @@ class TabGeser extends StatelessWidget {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => onPilih(i),
+                    // Teks mengecil kalau tidak muat (tab sempit atau huruf
+                    // HP diperbesar), bukan tumpah.
                     child: Center(
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          fontSize: TeksTeras.biasa,
-                          fontWeight: FontWeight.w600,
-                          color: i == terpilih
-                              ? WarnaTeras.teks
-                              : WarnaTeras.teksPudar,
-                        ),
-                        child: Text(
-                          pilihan[i],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: TextStyle(
+                            fontSize: TeksTeras.biasa,
+                            fontWeight: FontWeight.w600,
+                            color: i == terpilih
+                                ? WarnaTeras.teks
+                                : WarnaTeras.teksPudar,
+                          ),
+                          child: Text(pilihan[i], maxLines: 1),
                         ),
                       ),
                     ),

@@ -131,19 +131,4 @@ class SalesRepository {
     bool termasukBatal = false,
   }) =>
       _db.getTransactionItems(transactionId, termasukBatal: termasukBatal);
-
-  /// Item untuk banyak transaksi sekaligus, dikelompokkan per `transactionId`.
-  ///
-  /// Dipakai ekspor laporan supaya tidak melakukan satu query per transaksi.
-  Future<Map<String, List<TransactionItem>>> getTransactionItemsForIds(
-    List<String> transactionIds,
-  ) =>
-      _db.getTransactionItemsForIds(transactionIds);
-
-  /// Transaksi dalam rentang tanggal — dipakai dashboard dan laporan.
-  Future<List<Transaction>> getTransactionsByDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) =>
-      _db.getTransactionsByDateRange(startDate, endDate);
 }

@@ -91,14 +91,4 @@ void main() {
     expect(await db.getExpensesForShifts(['shift-1']), isEmpty,
         reason: 'kueri lain — laporan, rekap shift — tidak menghitungnya');
   });
-
-  test('getAllExpensesForOwner membawa nama pencatatnya', () async {
-    await addOne(description: 'Beli gas', amount: 25000);
-
-    final entries = await repo.getAllExpensesForOwner();
-
-    expect(entries, hasLength(1));
-    expect(entries.single.username, 'sari');
-    expect(entries.single.expense.amount, 25000);
-  });
 }

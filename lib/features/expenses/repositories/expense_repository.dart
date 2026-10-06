@@ -11,7 +11,7 @@ import '../../../shared/ui/periode/periode.dart';
 /// Pengeluaran kasir terikat shift yang sedang berjalan. Owner tidak punya
 /// shift: pengeluarannya tanpa shift dan hanya dikelompokkan per tanggal
 /// (v33). Rekapnya dibaca lewat [watchPengeluaranPeriode] (halaman
-/// Pengeluaran) dan [getAllExpensesForOwner] (Laporan).
+/// Pengeluaran).
 class ExpenseRepository {
   final AppDatabase _db;
 
@@ -111,12 +111,4 @@ class ExpenseRepository {
   /// yang dibatalkan. Berbunyi lagi tiap ada perubahan, termasuk dari sinkron.
   Stream<List<Expense>> watchPengeluaranPeriode(Periode p) =>
       _db.watchExpensesInRange(p.dari, p.batasAkhir);
-
-  /// Rekap pengeluaran seluruh kasir beserta nama pencatatnya.
-  /// Dipakai owner di halaman Laporan; rentang tanggal opsional.
-  Future<List<ExpenseEntry>> getAllExpensesForOwner({
-    DateTime? startDate,
-    DateTime? endDate,
-  }) =>
-      _db.getAllExpensesForOwner(startDate: startDate, endDate: endDate);
 }

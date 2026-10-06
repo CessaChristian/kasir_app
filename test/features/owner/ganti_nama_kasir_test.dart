@@ -6,6 +6,7 @@ import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 
 /// Ganti nama kasir — satu akun = satu orang.
 ///
@@ -105,11 +106,8 @@ void main() {
     final shift = await db.getShiftsWithUser();
     expect(shift.single.username, 'budi');
 
-    final pengeluaran = await db.getAllExpensesForOwner();
-    expect(pengeluaran.single.username, 'budi');
-
-    final karyawan = await db.getEmployeeReportSummary(mulai);
-    expect(karyawan.single.username, 'budi');
+    final riwayatShift = await ShiftRepository(db).watchShift('s-1').first;
+    expect(riwayatShift!.namaKasir, 'budi');
   });
 
   test('nama yang sudah dipakai akun lain DI HP INI ditolak', () async {

@@ -6,6 +6,8 @@ import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kasir_app/features/report/repositories/laporan_repository.dart';
+import 'package:kasir_app/shared/ui/periode/periode.dart';
 
 /// Mengunci perilaku soft delete.
 ///
@@ -126,7 +128,7 @@ void main() {
         reason: 'pengeluaran tidak muncul lagi di daftar shift');
   });
 
-  test('pengeluaran yang dihapus tidak ikut terhitung di laporan Per Karyawan',
+  test('pengeluaran yang dibatalkan tidak ikut terhitung di Laporan',
       () async {
     await makeProduct();
 
@@ -156,24 +158,24 @@ void main() {
     );
     final expense = await db.select(db.expenses).getSingle();
 
-    final now = DateTime.now();
-    final mulai = DateTime(now.year, now.month, now.day);
-    final selesai = mulai.add(const Duration(days: 1));
+    final laporan = LaporanRepository(db);
+    final hariIni = Periode.hari(DateTime.now());
 
-    final sebelum =
-        await db.getEmployeeReportSummaryForRange(mulai, selesai);
-    expect(sebelum.single.totalExpenses, 25000,
+    final sebelum = await laporan.muat(hariIni);
+    expect(sebelum.pengeluaran, 25000,
         reason: 'prasyarat: pengeluaran memang terhitung dulu');
 
     await db.batalkanPengeluaran(expense.id,
         olehUserId: 'kasir-1', alasan: 'Salah input');
 
-    // Dua query di laporan ini dulu tidak memfilter deletedAt, sehingga
-    // pengeluaran yang sudah dihapus tetap mengurangi laba kasir — salah
-    // hitung tanpa error apa pun.
-    final sesudah =
-        await db.getEmployeeReportSummaryForRange(mulai, selesai);
-    expect(sesudah.single.totalExpenses, 0,
+    // Laporan lama pernah tidak memfilter deletedAt, sehingga pengeluaran
+    // yang sudah dibatalkan tetap mengurangi laba — salah hitung tanpa error
+    // apa pun.
+    final sesudah = await laporan.muat(hariIni);
+    expect(sesudah.pengeluaran, 0,
         reason: 'pengeluaran terhapus tidak boleh ikut dihitung');
+    expect(sesudah.pengeluaranBatal.single.description, 'Beli gas',
+        reason: 'tetap tercatat di bagian Pengeluaran Dibatalkan');
+    expect(sesudah.labaKotor, 15000);
   });
 }

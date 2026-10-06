@@ -4,7 +4,7 @@ import '../features/dashboard/pages/dashboard_page.dart';
 import '../features/products/pages/products_page.dart';
 import '../features/sales/sales_page.dart';
 import '../features/history/history_page.dart';
-import '../features/report/report_page.dart';
+import '../features/report/pages/laporan_page.dart';
 import '../features/expenses/expenses_page.dart';
 import '../features/auth/pages/login_page.dart';
 import '../shared/constants/app_constants.dart';
@@ -108,7 +108,7 @@ class AppShellState extends State<AppShell> {
       'icon': Icons.analytics_rounded,
       'label': 'Laporan',
       'permission': 'view_report',
-      'page': ReportPage(),
+      'page': LaporanPage(),
     },
     {
       'icon': Icons.account_balance_wallet_rounded,

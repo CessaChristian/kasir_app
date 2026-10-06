@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
+import '../../../shared/ui/periode/periode.dart';
+import '../../report/repositories/laporan_repository.dart';
 
 /// Shift kasir yang sedang berjalan, untuk baris status di dashboard owner.
 class ShiftBerjalan {
@@ -80,16 +82,18 @@ class DasborOwnerRepository {
     final batasKemarin = DateTime(now.year, now.month, now.day - 1, now.hour,
         now.minute, now.second);
 
-    final hariIni = await _db.getReportSummary(now);
+    // Hitungan yang sama dengan Laporan, supaya angka keduanya pasti sama.
+    final hariIni =
+        await LaporanRepository(_db).muat(Periode.hari(now), sekarang: now);
     final kemarin =
         await _db.getTransactionsByDateRange(awalKemarin, batasKemarin);
 
     return RingkasanOwner(
-      pendapatan: hariIni.totalIncome,
-      transaksi: hariIni.totalOrders,
-      pengeluaran: hariIni.totalExpenses,
-      tunai: hariIni.cashOrders,
-      qris: hariIni.qrisOrders,
+      pendapatan: hariIni.pendapatan,
+      transaksi: hariIni.jumlahTransaksi,
+      pengeluaran: hariIni.pengeluaran,
+      tunai: hariIni.tunai.jumlah,
+      qris: hariIni.qris.jumlah,
       pendapatanKemarin: kemarin.fold(0, (s, t) => s + t.total),
       shiftBerjalan: await _shiftBerjalan(),
       shiftTerakhirDitutup: await _shiftTerakhirDitutup(awalHari),

@@ -13,7 +13,7 @@ import '../../auth/recovery/widgets/lembar_kode_recovery.dart';
 import '../../owner/pages/manage_cashiers_page.dart';
 import '../../perangkat/pages/daftar_perangkat_page.dart';
 import '../../products/category_manager.dart';
-import '../../report/report_page.dart';
+import '../../report/pages/laporan_page.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
 
 /// Profil owner (desain): kartu akun · MENU LAINNYA · MANAJEMEN ·
@@ -71,7 +71,7 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             judul: 'Laporan',
             keterangan: 'Pendapatan & produk terlaris',
             onTap: () => _buka(
-              const HalamanTurunan(judul: 'Laporan', child: ReportPage()),
+              const HalamanTurunan(judul: 'Laporan', child: LaporanPage()),
             ),
           ),
           BarisMenu(
