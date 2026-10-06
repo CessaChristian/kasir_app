@@ -359,6 +359,41 @@ void main() {
       });
     });
 
+    test('boleh diunduh: ada transaksi, atau pengeluaran bagi yang boleh', () {
+      RingkasanLaporan hanya({
+        List<Transaction> t = const [],
+        List<Expense> e = const [],
+      }) => ringkasLaporan(
+        periode: periode,
+        transaksi: t,
+        item: const {},
+        pengeluaran: e,
+        shift: const [],
+        produk: const [],
+        kategori: const [],
+        sekarang: jam(23),
+      );
+      expect(hanya().adaIsi(denganPengeluaran: true), isFalse);
+      expect(
+        hanya(t: [trx('a', 9, 1)]).adaIsi(denganPengeluaran: false),
+        isTrue,
+      );
+      expect(
+        hanya(
+          t: [trx('x', 9, 1, batal: true)],
+        ).adaIsi(denganPengeluaran: false),
+        isTrue,
+        reason: 'transaksi batal tetap dilaporkan',
+      );
+      final belanjaSaja = hanya(e: [belanja('e', 5000)]);
+      expect(belanjaSaja.adaIsi(denganPengeluaran: true), isTrue);
+      expect(
+        belanjaSaja.adaIsi(denganPengeluaran: false),
+        isFalse,
+        reason: 'kasir tanpa izin pengeluaran: file-nya kosong',
+      );
+    });
+
     test('nama file dan label periode (desain)', () {
       expect(dokumen(denganPengeluaran: true).namaFile, 'Laporan_01102026');
       expect(dokumen(denganPengeluaran: true).labelPeriode, '01/10/2026');

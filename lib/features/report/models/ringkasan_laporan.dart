@@ -152,6 +152,16 @@ class RingkasanLaporan {
   int get rataRata =>
       jumlahTransaksi == 0 ? 0 : (pendapatan / jumlahTransaksi).round();
   int get labaKotor => pendapatan - pengeluaran;
+
+  /// Ada yang bisa dilaporkan di file unduhan: transaksi (sah atau batal),
+  /// atau — bagi yang boleh melihatnya — pengeluaran. Periode yang hanya
+  /// berisi belanja tetap bisa diunduh.
+  bool adaIsi({required bool denganPengeluaran}) =>
+      transaksi.isNotEmpty ||
+      transaksiBatal.isNotEmpty ||
+      (denganPengeluaran &&
+          (pengeluaranSah.isNotEmpty || pengeluaranBatal.isNotEmpty));
+
   int get nilaiTransaksiBatal => transaksiBatal.fold(0, (s, t) => s + t.total);
   int get nilaiPengeluaranBatal =>
       pengeluaranBatal.fold(0, (s, e) => s + e.amount);

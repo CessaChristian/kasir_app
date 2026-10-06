@@ -81,8 +81,8 @@ class _LaporanPageState extends State<LaporanPage> {
   /// Alur unduh (desain): pilih format → file dibuat → "Laporan siap" →
   /// Simpan ke HP atau Bagikan.
   Future<void> _unduh(RingkasanLaporan r) async {
-    if (r.jumlahTransaksi == 0) {
-      AppToast.warning(context, 'Tidak ada penjualan untuk diunduh');
+    if (!r.adaIsi(denganPengeluaran: _lihatPengeluaran)) {
+      AppToast.warning(context, 'Tidak ada data untuk diunduh di periode ini');
       return;
     }
     final format = await pilihFormatLaporan(

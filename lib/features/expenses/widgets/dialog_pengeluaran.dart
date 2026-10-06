@@ -120,7 +120,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
     return Dialog(
       backgroundColor: WarnaTeras.kartu,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         child: Column(
@@ -134,7 +134,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                   height: 36,
                   decoration: BoxDecoration(
                     color: WarnaTeras.oranye,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
                     Icons.account_balance_wallet_rounded,
@@ -294,7 +294,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                           onPressed: () => Navigator.pop(context),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: TombolLembar(
                           label: 'Simpan',
@@ -337,7 +337,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
       padding: const EdgeInsets.only(left: 12, right: 6),
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFBDB6AF)),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
