@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
+import '../../../shared/constants/app_constants.dart';
+import '../../../shared/services/simpan_berkas.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../shared/ui/bar_segmen.dart';
 import '../../../shared/ui/judul_bagian.dart';
@@ -18,7 +21,10 @@ import '../../expenses/models/kategori_biaya.dart';
 import '../../products/widgets/baris_produk.dart';
 import '../models/ringkasan_laporan.dart';
 import '../repositories/laporan_repository.dart';
+import '../services/dokumen_laporan.dart';
 import '../services/ekspor_laporan.dart';
+import '../services/pdf_laporan.dart';
+import '../widgets/lembar_unduh_laporan.dart';
 import '../widgets/grafik_batang.dart';
 import '../widgets/kartu_dibatalkan.dart';
 
@@ -72,22 +78,87 @@ class _LaporanPageState extends State<LaporanPage> {
     _aliran = _repo.watchLaporan(p);
   });
 
+  /// Alur unduh (desain): pilih format → file dibuat → "Laporan siap" →
+  /// Simpan ke HP atau Bagikan.
   Future<void> _unduh(RingkasanLaporan r) async {
     if (r.jumlahTransaksi == 0) {
       AppToast.warning(context, 'Tidak ada penjualan untuk diunduh');
       return;
     }
+    final format = await pilihFormatLaporan(
+      context,
+      labelPeriode: labelPeriodeUnduhan(_periode),
+    );
+    if (format == null || !mounted) return;
+
     setState(() => _mengekspor = true);
+    final DokumenLaporan dok;
+    final Uint8List bita;
     try {
-      await eksporLaporanExcel(
-        _periode,
-        r,
+      dok = susunDokumenLaporan(
+        namaToko: AppConstants.storeName,
+        periode: _periode,
+        r: r,
+        nama: _nama,
         denganPengeluaran: _lihatPengeluaran,
+        dibuat: DateTime.now(),
+        olehNama: SessionManager.instance.currentSession?.username ?? '-',
       );
-    } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal mengunduh laporan: $e');
+      // Di isolate terpisah: laporan besar butuh beberapa detik, layar
+      // tidak boleh membeku selama itu.
+      bita = switch (format) {
+        FormatLaporan.pdf => await buatPdfLaporanDiLatar(
+          dok,
+          await BahanPdf.muat(),
+        ),
+        FormatLaporan.excel => await buatExcelLaporanDiLatar(dok),
+      };
+    } catch (e, jejak) {
+      debugPrint('Gagal membuat laporan: $e\n$jejak');
+      if (mounted) {
+        AppToast.error(
+          context,
+          'Gagal membuat laporan. Coba lagi, atau pilih periode yang lebih '
+          'pendek.',
+        );
+      }
+      return;
     } finally {
       if (mounted) setState(() => _mengekspor = false);
+    }
+    if (!mounted) return;
+
+    final namaFile = '${dok.namaFile}.${format.ekstensi}';
+    final cara = await tampilkanLaporanSiap(
+      context,
+      format: format,
+      namaFile: namaFile,
+      keterangan: 'Periode ${dok.labelPeriode} · ${ukuranBerkas(bita.length)}',
+    );
+    if (cara == null || !mounted) return;
+    try {
+      switch (cara) {
+        case CaraSimpan.simpanKeHp:
+          await SimpanBerkas.keDownload(
+            nama: namaFile,
+            mime: format.mime,
+            bita: bita,
+          );
+          if (mounted) {
+            AppToast.success(context, 'Laporan tersimpan di folder Download');
+          }
+        case CaraSimpan.bagikan:
+          await SimpanBerkas.bagikan(
+            nama: namaFile,
+            mime: format.mime,
+            bita: bita,
+            subjek: 'Laporan ${AppConstants.storeName} ${dok.labelPeriode}',
+          );
+      }
+    } on BerkasTidakTersimpan catch (e) {
+      if (mounted) AppToast.error(context, e.pesan);
+    } catch (e) {
+      if (mounted) AppToast.error(context, 'Gagal membagikan laporan: $e');
     }
   }
 

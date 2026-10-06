@@ -15,6 +15,36 @@ class BatangGrafik {
   const BatangGrafik(this.label, this.nilai, {required this.nama});
 }
 
+/// Satu baris rincian per waktu untuk file unduhan: per jam (periode satu
+/// hari), per hari, atau — periode lebih dari 31 hari — baris total bulan
+/// ([totalBulan]) diikuti hari-harinya.
+class BarisWaktu {
+  final String label;
+
+  /// Baris total satu bulan (ditulis tebal); selain itu baris jam/hari.
+  final bool totalBulan;
+  final int transaksi;
+  final int pendapatan;
+  final int tunai;
+  final int qris;
+  final int pengeluaran;
+
+  const BarisWaktu({
+    required this.label,
+    required this.transaksi,
+    required this.pendapatan,
+    required this.tunai,
+    required this.qris,
+    required this.pengeluaran,
+    this.totalBulan = false,
+  });
+
+  int get labaKotor => pendapatan - pengeluaran;
+
+  /// Tidak ada transaksi maupun pengeluaran — tidak dimasukkan ke laporan.
+  bool get kosong => transaksi == 0 && pengeluaran == 0;
+}
+
 /// Jumlah transaksi dan nominalnya, mis. untuk Tunai atau Delivery.
 class Porsi {
   final int jumlah;
@@ -69,6 +99,14 @@ class RingkasanLaporan {
   final List<Transaction> transaksiBatal;
   final List<Expense> pengeluaranBatal;
 
+  /// Pengeluaran sah (terbaru dulu) — untuk file unduhan.
+  final List<Expense> pengeluaranSah;
+
+  /// Untuk file unduhan: per jam (periode satu hari), per hari (sampai 31
+  /// hari), atau per bulan beserta harinya. Jam/hari/bulan tanpa transaksi
+  /// dan tanpa pengeluaran tidak ikut.
+  final List<BarisWaktu> perWaktu;
+
   final String judulGrafik;
   final List<BatangGrafik> grafik;
 
@@ -98,6 +136,8 @@ class RingkasanLaporan {
     required this.item,
     required this.transaksiBatal,
     required this.pengeluaranBatal,
+    required this.pengeluaranSah,
+    required this.perWaktu,
     required this.judulGrafik,
     required this.grafik,
     required this.tanpaShift,
@@ -151,20 +191,21 @@ RingkasanLaporan ringkasLaporan({
       d,
   ];
   final (judul, grafik, tanpaShift) = _grafik(hari, sah, shift, sekarang);
+  final pengeluaranSah = pengeluaran.where((e) => e.deletedAt == null).toList();
   final perProduk = _perProduk(sah, item, produk, kategori);
 
   return RingkasanLaporan(
     pendapatan: jumlahkan(sah),
     jumlahTransaksi: sah.length,
-    pengeluaran: pengeluaran
-        .where((e) => e.deletedAt == null)
-        .fold(0, (s, e) => s + e.amount),
+    pengeluaran: pengeluaranSah.fold(0, (s, e) => s + e.amount),
     jumlahShift: shift.length,
     jumlahHari: hari.length,
     transaksi: sah,
     item: item,
     transaksiBatal: transaksi.where((t) => t.deletedAt != null).toList(),
     pengeluaranBatal: pengeluaran.where((e) => e.deletedAt != null).toList(),
+    pengeluaranSah: pengeluaranSah,
+    perWaktu: _perWaktu(hari, sah, pengeluaranSah),
     judulGrafik: judul,
     grafik: grafik,
     tanpaShift: tanpaShift,
@@ -194,16 +235,9 @@ RingkasanLaporan ringkasLaporan({
     // shift terakhir ditutup (yang masih berjalan: sampai sekarang).
     // Transaksi di luar rentang itu tetap ikut supaya tidak ada penjualan
     // yang hilang dari grafik.
-    final jam = <int>[
-      for (final s in shift) ...[
-        lokal(s.startAt).hour,
-        lokal(s.endAt ?? sekarang).hour,
-      ],
-      for (final t in sah) lokal(t.createdAt).hour,
-    ];
-    if (jam.isEmpty) return ('Pendapatan per jam', const [], true);
-    final awal = jam.reduce((a, b) => a < b ? a : b);
-    final akhir = jam.reduce((a, b) => a > b ? a : b);
+    final rentang = _rentangJam(shift, sah.map((t) => t.createdAt), sekarang);
+    if (rentang == null) return ('Pendapatan per jam', const [], true);
+    final (awal, akhir) = rentang;
     return (
       'Pendapatan per jam',
       [
@@ -260,6 +294,92 @@ RingkasanLaporan ringkasLaporan({
     ],
     false,
   );
+}
+
+/// Rentang jam satu hari: dari shift pertama dibuka sampai shift terakhir
+/// ditutup (yang masih berjalan: sampai [sekarang]), diperlebar oleh
+/// [waktuLain] yang jatuh di luarnya. Null = tidak ada shift maupun data.
+(int, int)? _rentangJam(
+  List<Shift> shift,
+  Iterable<DateTime> waktuLain,
+  DateTime sekarang,
+) {
+  final jam = <int>[
+    for (final s in shift) ...[
+      s.startAt.toLocal().hour,
+      (s.endAt ?? sekarang).toLocal().hour,
+    ],
+    for (final w in waktuLain) w.toLocal().hour,
+  ];
+  if (jam.isEmpty) return null;
+  return (
+    jam.reduce((a, b) => a < b ? a : b),
+    jam.reduce((a, b) => a > b ? a : b),
+  );
+}
+
+/// Rincian per waktu untuk file unduhan — hanya yang ada isinya:
+/// - satu hari: per jam;
+/// - sampai 31 hari: per hari;
+/// - lebih dari 31 hari: per bulan — baris total bulan, lalu hari-harinya.
+List<BarisWaktu> _perWaktu(
+  List<DateTime> hari,
+  List<Transaction> sah,
+  List<Expense> pengeluaran,
+) {
+  BarisWaktu baris(
+    String label,
+    bool Function(DateTime) cocok, {
+    bool totalBulan = false,
+  }) {
+    final t = sah.where((x) => cocok(x.createdAt.toLocal())).toList();
+    int jumlah(Iterable<Transaction> l) => l.fold(0, (s, x) => s + x.total);
+    return BarisWaktu(
+      label: label,
+      totalBulan: totalBulan,
+      transaksi: t.length,
+      pendapatan: jumlah(t),
+      tunai: jumlah(t.where((x) => x.paymentMethod != 'qris')),
+      qris: jumlah(t.where((x) => x.paymentMethod == 'qris')),
+      pengeluaran: pengeluaran
+          .where((e) => cocok(e.createdAt.toLocal()))
+          .fold(0, (s, e) => s + e.amount),
+    );
+  }
+
+  List<BarisWaktu> perHari(Iterable<DateTime> daftar) {
+    final nama = DateFormat('EEEE, d MMM yyyy', 'id_ID');
+    return [
+      for (final h in daftar) baris(nama.format(h), (w) => _samaHari(w, h)),
+    ].where((b) => !b.kosong).toList();
+  }
+
+  if (hari.length == 1) {
+    String jam(int h) => h.toString().padLeft(2, '0');
+    return [
+      for (var h = 0; h < 24; h++)
+        baris('${jam(h)}:00 – ${jam(h)}:59', (w) => w.hour == h),
+    ].where((b) => !b.kosong).toList();
+  }
+  if (hari.length <= 31) return perHari(hari);
+
+  final namaBulan = DateFormat('MMMM yyyy', 'id_ID');
+  final bulan = <DateTime>{for (final h in hari) DateTime(h.year, h.month)};
+  return [
+    for (final b in bulan)
+      ...() {
+        final total = baris(
+          namaBulan.format(b),
+          (w) => w.year == b.year && w.month == b.month,
+          totalBulan: true,
+        );
+        if (total.kosong) return const <BarisWaktu>[];
+        return [
+          total,
+          ...perHari(hari.where((h) => h.year == b.year && h.month == b.month)),
+        ];
+      }(),
+  ];
 }
 
 bool _samaHari(DateTime a, DateTime b) =>

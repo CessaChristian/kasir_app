@@ -61,6 +61,7 @@ dependencies:
   # terlihat. Sudah ikut lewat drift, tapi dideklarasikan supaya
   # ketergantungannya tidak tersembunyi.
   sqlite3: ^2.4.0
+  pdf: ^3.12.0
 
 dev_dependencies:
   # Dipakai test jeda-gabung supaya tidak perlu benar-benar menunggu.
@@ -93,6 +94,10 @@ flutter:
   assets:
     - assets/images/Logo Teras Inn.png
     - assets/images/Neon Box 40x40cm (1).png
+    # Font untuk file PDF laporan (paket pdf butuh TTF untuk huruf di luar
+    # ASCII seperti "–" dan "·"). Roboto, lisensi Apache 2.0.
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
