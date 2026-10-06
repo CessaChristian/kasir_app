@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../shared/ui/teks_teras.dart';
+import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/kategori_biaya.dart';
@@ -282,20 +283,28 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                   Row(
                     children: [
                       Expanded(
-                        child: _tombol(
-                          'Batal',
-                          latar: const Color(0xFFD3D3D3),
+                        child: TombolLembar(
+                          label: 'Batal',
+                          latar: const Color(0xFFE6E1DC),
                           warna: WarnaTeras.teks,
-                          onTap: () => Navigator.pop(context),
+                          tinggi: _tinggiTombol,
+                          sudut: _sudutTombol,
+                          ukuranTeks: TeksTeras.menu,
+                          beratTeks: FontWeight.w500,
+                          onPressed: () => Navigator.pop(context),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _tombol(
-                          'Simpan',
+                        child: TombolLembar(
+                          label: 'Simpan',
                           latar: WarnaTeras.oranye,
                           warna: Colors.white,
-                          onTap: _simpan,
+                          tinggi: _tinggiTombol,
+                          sudut: _sudutTombol,
+                          ukuranTeks: TeksTeras.menu,
+                          beratTeks: FontWeight.w500,
+                          onPressed: _simpan,
                         ),
                       ),
                     ],
@@ -386,29 +395,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
     );
   }
 
-  Widget _tombol(
-    String label, {
-    required Color latar,
-    required Color warna,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      height: 46,
-      child: FilledButton(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: latar,
-          foregroundColor: warna,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: TeksTeras.angka,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+  // Desain dialog ini: tinggi 44, sudut 8, huruf 15 medium.
+  static const _tinggiTombol = 46.0;
+  static const _sudutTombol = 8.0;
 }

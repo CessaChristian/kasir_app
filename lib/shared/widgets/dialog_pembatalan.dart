@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../utils/crypto_utils.dart';
 import '../ui/teks_teras.dart';
+import '../ui/tombol_lembar.dart';
 import '../ui/warna_teras.dart';
 
 /// Dialog pembatalan yang dipakai bersama transaksi dan pengeluaran,
@@ -227,35 +228,9 @@ class _DialogPembatalanState extends State<DialogPembatalan>
     );
   }
 
-  Widget _tombol(
-    String label, {
-    required Color latar,
-    Color warna = Colors.white,
-    VoidCallback? onTap,
-  }) {
-    return SizedBox(
-      height: 46,
-      child: FilledButton(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(
-          backgroundColor: latar,
-          foregroundColor: warna,
-          disabledBackgroundColor: latar.withValues(alpha: 0.35),
-          disabledForegroundColor: warna,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: TeksTeras.biasa,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
+  // Ukuran tombol dialog ini (desain: tinggi 44, sudut 12).
+  static const _tinggiTombol = 46.0;
+  static const _sudutTombol = 12.0;
 
   Widget _isiAlasan() {
     final siap = _teksAlasan.isNotEmpty && !_memproses;
@@ -307,22 +282,27 @@ class _DialogPembatalanState extends State<DialogPembatalan>
           children: [
             Expanded(
               flex: 10,
-              child: _tombol(
-                'Batal',
+              child: TombolLembar(
+                label: 'Batal',
                 latar: WarnaTeras.latarAbu,
                 warna: WarnaTeras.teks,
-                onTap: () => Navigator.pop(context, false),
+                tinggi: _tinggiTombol,
+                sudut: _sudutTombol,
+                onPressed: () => Navigator.pop(context, false),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 14,
-              child: _tombol(
-                _memproses
+              child: TombolLembar(
+                label: _memproses
                     ? 'Memproses…'
                     : (widget.perluPin ? 'Lanjut' : 'Batalkan'),
                 latar: warnaUtama,
-                onTap: siap ? _lanjut : null,
+                warna: Colors.white,
+                tinggi: _tinggiTombol,
+                sudut: _sudutTombol,
+                onPressed: siap ? _lanjut : null,
               ),
             ),
           ],
@@ -482,11 +462,13 @@ class _DialogPembatalanState extends State<DialogPembatalan>
         const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
-          child: _tombol(
-            'Kembali',
+          child: TombolLembar(
+            label: 'Kembali',
             latar: WarnaTeras.latarAbu,
             warna: WarnaTeras.teks,
-            onTap: _memproses
+            tinggi: _tinggiTombol,
+            sudut: _sudutTombol,
+            onPressed: _memproses
                 ? null
                 : () => setState(() {
                     _pinC.clear();
@@ -513,10 +495,13 @@ class _DialogPembatalanState extends State<DialogPembatalan>
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
-          child: _tombol(
-            'Selesai',
+          child: TombolLembar(
+            label: 'Selesai',
             latar: WarnaTeras.oranye,
-            onTap: () => Navigator.pop(context, true),
+            warna: Colors.white,
+            tinggi: _tinggiTombol,
+            sudut: _sudutTombol,
+            onPressed: () => Navigator.pop(context, true),
           ),
         ),
       ],

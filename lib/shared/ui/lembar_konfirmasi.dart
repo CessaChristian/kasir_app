@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'teks_teras.dart';
+import 'tombol_lembar.dart';
 import 'warna_teras.dart';
 
 /// Lembar konfirmasi dari bawah (desain): ikon · judul · catatan ·
@@ -62,22 +63,20 @@ Future<bool> tampilkanLembarKonfirmasi(
           Row(
             children: [
               Expanded(
-                child: _tombol(
-                  context,
-                  'Batal',
+                child: TombolLembar(
+                  label: 'Batal',
                   latar: WarnaTeras.latarAbu,
                   warna: WarnaTeras.teks,
-                  hasil: false,
+                  onPressed: () => Navigator.pop(context, false),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _tombol(
-                  context,
-                  labelAksi,
+                child: TombolLembar(
+                  label: labelAksi,
                   latar: warnaAksi,
                   warna: Colors.white,
-                  hasil: true,
+                  onPressed: () => Navigator.pop(context, true),
                 ),
               ),
             ],
@@ -87,31 +86,4 @@ Future<bool> tampilkanLembarKonfirmasi(
     ),
   );
   return hasil == true;
-}
-
-Widget _tombol(
-  BuildContext context,
-  String label, {
-  required Color latar,
-  required Color warna,
-  required bool hasil,
-}) {
-  return SizedBox(
-    height: 48,
-    child: FilledButton(
-      onPressed: () => Navigator.pop(context, hasil),
-      style: FilledButton.styleFrom(
-        backgroundColor: latar,
-        foregroundColor: warna,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: TeksTeras.biasa,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-  );
 }

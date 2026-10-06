@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasir_app/shared/ui/tombol_lembar.dart';
 import 'package:kasir_app/shared/widgets/dialog_pembatalan.dart';
 
 /// Dialog pembatalan (desain): alasan → (kasir) PIN → berhasil.
@@ -109,6 +110,27 @@ void main() {
     await t.pumpAndSettle();
     await tekanTombol(t, 'Batalkan');
     expect(alasan, 'Lainnya: Dobel dicatat');
+  });
+
+  testWidgets('tombol bersama: Lanjut nonaktif sampai alasan dipilih', (t) async {
+    var dikirim = false;
+    await buka(t, perluPin: true, kirim: (_, _) async => dikirim = true);
+    await t.tap(find.text('buka'));
+    await t.pumpAndSettle();
+
+    TombolLembar lanjut() => t.widget<TombolLembar>(
+      find.widgetWithText(TombolLembar, 'Lanjut'),
+    );
+    expect(lanjut().onPressed, isNull, reason: 'belum ada alasan');
+    expect(lanjut().sudut, 12, reason: 'ukuran desain dialog ini');
+    await t.tap(find.text('Lanjut'));
+    await t.pumpAndSettle();
+    expect(find.text('Lanjut'), findsOneWidget, reason: 'tidak ke langkah PIN');
+
+    await t.tap(find.text('Salah input nominal'));
+    await t.pump();
+    expect(lanjut().onPressed, isNotNull);
+    expect(dikirim, isFalse);
   });
 
   testWidgets('Batal menutup dialog tanpa membatalkan apa pun', (t) async {

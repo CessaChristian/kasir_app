@@ -12,6 +12,7 @@ import 'package:kasir_app/features/expenses/widgets/dialog_pengeluaran.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
+import 'package:kasir_app/shared/ui/tombol_lembar.dart';
 
 /// Owner boleh mencatat pengeluaran TANPA shift (v33); kasir tetap wajib
 /// pada shift berjalan.
@@ -253,6 +254,37 @@ void main() {
             keterangan: 'Es', nominalTeks: '5.000', jumlahTeks: '0'),
         'Jumlah minimal 1',
       );
+    });
+
+    testWidgets('tombol mengikuti desain terbaru (sudut 8, Batal krem)', (
+      t,
+    ) async {
+      await t.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => tampilkanDialogPengeluaran(
+                context,
+                subjudul: 'Pengeluaran di luar shift',
+              ),
+              child: const Text('buka'),
+            ),
+          ),
+        ),
+      );
+      await t.tap(find.text('buka'));
+      await t.pumpAndSettle();
+      final batal = t.widget<TombolLembar>(
+        find.widgetWithText(TombolLembar, 'Batal'),
+      );
+      final simpan = t.widget<TombolLembar>(
+        find.widgetWithText(TombolLembar, 'Simpan'),
+      );
+      expect(batal.latar, const Color(0xFFE6E1DC));
+      for (final b in [batal, simpan]) {
+        expect(b.sudut, 8);
+        expect(b.beratTeks, FontWeight.w500);
+      }
     });
 
     testWidgets('total = nominal × jumlah, kategori terbawa', (t) async {
