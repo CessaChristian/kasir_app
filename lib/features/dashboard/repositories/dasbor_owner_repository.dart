@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../report/repositories/laporan_repository.dart';
 
@@ -114,7 +115,7 @@ class DasborOwnerRepository {
             ..where((t) => t.shiftId.equals(s.id) & t.deletedAt.isNull()))
           .get();
       hasil.add(ShiftBerjalan(
-        namaKasir: nama[s.userId] ?? 'Kasir',
+        namaKasir: s.namaKasir(nama) ?? 'Kasir',
         mulai: s.startAt,
         transaksi: txs.length,
         pendapatan: txs.fold(0, (a, t) => a + t.total),

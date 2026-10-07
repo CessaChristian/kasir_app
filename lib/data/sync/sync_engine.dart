@@ -830,6 +830,7 @@ class SyncEngine {
                 'login_locked_until': _iso(u.loginLockedUntil),
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
+                'deleted_at': _iso(u.deletedAt),
               }
           ];
         },
@@ -851,6 +852,10 @@ class SyncEngine {
                 loginLockedUntil: Value(_dt(r['login_locked_until'])),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
+                // Server sebelum salinan_nama_akun.sql tidak punya kolom ini.
+                deletedAt: r.containsKey('deleted_at')
+                    ? Value(_dt(r['deleted_at']))
+                    : const Value.absent(),
                 syncStatus: const Value('synced'),
               ));
         },
@@ -995,6 +1000,7 @@ class SyncEngine {
               {
                 'id': s.id,
                 'user_id': s.userId,
+                'user_name': s.userName,
                 'start_at': _iso(s.startAt),
                 'end_at': _iso(s.endAt),
                 'updated_at': _iso(s.updatedAt),
@@ -1006,6 +1012,7 @@ class SyncEngine {
           await _db.into(_db.shifts).insertOnConflictUpdate(ShiftsCompanion(
                 id: Value(r['id'] as String),
                 userId: Value(r['user_id'] as String),
+                userName: _salinanNama(r, 'user_name'),
                 startAt: Value(_dt(r['start_at'])!),
                 endAt: Value(_dt(r['end_at'])),
                 updatedAt: Value(_dt(r['updated_at'])!),
@@ -1032,12 +1039,14 @@ class SyncEngine {
                 'cash_received': t.cashReceived,
                 'change': t.change,
                 'cashier_user_id': t.cashierUserId,
+                'cashier_name': t.cashierName,
                 'shift_id': t.shiftId,
                 'order_type': t.orderType,
                 'created_at': _iso(t.createdAt),
                 'updated_at': _iso(t.updatedAt),
                 'deleted_at': _iso(t.deletedAt),
                 'cancelled_by_user_id': t.cancelledByUserId,
+                'cancelled_by_name': t.cancelledByName,
                 'cancel_reason': t.cancelReason,
               }
           ];
@@ -1053,6 +1062,7 @@ class SyncEngine {
                 cashReceived: Value((r['cash_received'] as num?)?.toInt()),
                 change: Value((r['change'] as num?)?.toInt()),
                 cashierUserId: Value(r['cashier_user_id'] as String?),
+                cashierName: _salinanNama(r, 'cashier_name'),
                 shiftId: Value(r['shift_id'] as String?),
                 orderType: Value(r['order_type'] as String),
                 createdAt: Value(_dt(r['created_at'])!),
@@ -1061,6 +1071,7 @@ class SyncEngine {
                 // Kunci yang tidak ada (server belum menjalankan
                 // `supabase/transaksi_batal.sql`) terbaca null — aman.
                 cancelledByUserId: Value(r['cancelled_by_user_id'] as String?),
+                cancelledByName: _salinanNama(r, 'cancelled_by_name'),
                 cancelReason: Value(r['cancel_reason'] as String?),
                 syncStatus: const Value('synced'),
               ));
@@ -1124,6 +1135,7 @@ class SyncEngine {
                 'id': e.id,
                 'shift_id': e.shiftId,
                 'user_id': e.userId,
+                'user_name': e.userName,
                 'description': e.description,
                 'amount': e.amount,
                 'category': e.category,
@@ -1132,6 +1144,7 @@ class SyncEngine {
                 'updated_at': _iso(e.updatedAt),
                 'deleted_at': _iso(e.deletedAt),
                 'cancelled_by_user_id': e.cancelledByUserId,
+                'cancelled_by_name': e.cancelledByName,
                 'cancel_reason': e.cancelReason,
               }
           ];
@@ -1142,6 +1155,7 @@ class SyncEngine {
                 // Kosong = pengeluaran owner (v33).
                 shiftId: Value(r['shift_id'] as String?),
                 userId: Value(r['user_id'] as String),
+                userName: _salinanNama(r, 'user_name'),
                 description: Value(r['description'] as String),
                 amount: Value((r['amount'] as num).toInt()),
                 // Server sebelum pengeluaran_kategori_wajib.sql bisa kosong.
@@ -1152,6 +1166,7 @@ class SyncEngine {
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),
                 cancelledByUserId: Value(r['cancelled_by_user_id'] as String?),
+                cancelledByName: _salinanNama(r, 'cancelled_by_name'),
                 cancelReason: Value(r['cancel_reason'] as String?),
                 syncStatus: const Value('synced'),
               ));
@@ -1162,6 +1177,15 @@ class SyncEngine {
   // ------------------------------------------------------------------
   // Penanda waktu & konversi
   // ------------------------------------------------------------------
+
+  /// Salinan nama dari server (v35). Kosong — server belum menjalankan
+  /// `salinan_nama_akun.sql`, atau barisnya dibuat HP yang belum diperbarui —
+  /// TIDAK menimpa salinan yang sudah ada di HP ini: nama tidak pernah sah
+  /// kembali kosong.
+  static Value<String?> _salinanNama(Map<String, dynamic> r, String kunci) {
+    final v = r[kunci] as String?;
+    return v == null ? const Value.absent() : Value(v);
+  }
 
   /// Penanda posisi tarikan terakhir, berupa string ISO APA ADANYA dari
   /// server.

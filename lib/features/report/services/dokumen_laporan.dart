@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 
 import '../../../shared/ui/periode/periode.dart';
 import '../../expenses/models/kategori_biaya.dart';
@@ -98,7 +99,7 @@ DokumenLaporan susunDokumenLaporan({
   required DateTime dibuat,
   required String olehNama,
 }) {
-  String namaDari(String? id) => id == null ? '-' : (nama[id] ?? '-');
+  String atauStrip(String? n) => n ?? '-';
   final tanggal = DateFormat('dd/MM/yyyy');
   final jam = DateFormat('HH:mm');
   int persen(int nilai, int total) =>
@@ -291,7 +292,7 @@ DokumenLaporan susunDokumenLaporan({
         SelTeks(t.invoiceNo),
         SelTeks(tanggal.format(t.createdAt.toLocal())),
         SelTeks(jam.format(t.createdAt.toLocal())),
-        SelTeks(namaDari(t.cashierUserId)),
+        SelTeks(atauStrip(t.namaKasir(nama))),
         SelTeks(t.orderType == 'delivery' ? 'Delivery' : 'Dine In'),
         SelTeks(t.paymentMethod == 'qris' ? 'QRIS' : 'Tunai'),
         SelRupiah(t.total),
@@ -364,7 +365,7 @@ DokumenLaporan susunDokumenLaporan({
           SelTeks(KategoriBiaya.labelDari(e.category)),
           SelAngka(e.qty),
           SelRupiah(e.amount),
-          SelTeks(namaDari(e.userId)),
+          SelTeks(atauStrip(e.namaPencatat(nama))),
         ],
     ],
   );
@@ -389,7 +390,7 @@ DokumenLaporan susunDokumenLaporan({
           SelTeks(t.invoiceNo),
           SelTeks(tanggal.format(t.createdAt.toLocal())),
           SelRupiah(t.total),
-          SelTeks(namaDari(t.cancelledByUserId)),
+          SelTeks(atauStrip(t.namaPembatal(nama))),
           SelTeks(_waktu(t.deletedAt!)),
           SelTeks(t.cancelReason ?? 'tidak tercatat'),
         ],
@@ -400,7 +401,7 @@ DokumenLaporan susunDokumenLaporan({
             SelTeks(e.qty > 1 ? '${e.description} (${e.qty}x)' : e.description),
             SelTeks(tanggal.format(e.createdAt.toLocal())),
             SelRupiah(e.amount),
-            SelTeks(namaDari(e.cancelledByUserId)),
+            SelTeks(atauStrip(e.namaPembatal(nama))),
             SelTeks(_waktu(e.deletedAt!)),
             SelTeks(e.cancelReason ?? 'tidak tercatat'),
           ],

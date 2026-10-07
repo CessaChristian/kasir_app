@@ -1363,6 +1363,17 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1404,6 +1415,7 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     recoveryLockedUntil,
     loginAttempts,
     loginLockedUntil,
+    deletedAt,
     updatedAt,
     syncStatus,
   ];
@@ -1538,6 +1550,12 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         ),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1619,6 +1637,10 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}login_locked_until'],
       ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1652,6 +1674,12 @@ class User extends DataClass implements Insertable<User> {
   final DateTime? recoveryLockedUntil;
   final int loginAttempts;
   final DateTime? loginLockedUntil;
+
+  /// Akun DIHAPUS (v35): disembunyikan permanen dari Kelola Kasir dan tidak
+  /// bisa login lagi, tapi barisnya tetap ada karena riwayat menunjuknya
+  /// lewat id. Beda dengan [isActive] = false (nonaktif, bisa diaktifkan
+  /// lagi). Keputusan owner 2026-10-07.
+  final DateTime? deletedAt;
   final DateTime updatedAt;
   final String syncStatus;
   const User({
@@ -1670,6 +1698,7 @@ class User extends DataClass implements Insertable<User> {
     this.recoveryLockedUntil,
     required this.loginAttempts,
     this.loginLockedUntil,
+    this.deletedAt,
     required this.updatedAt,
     required this.syncStatus,
   });
@@ -1702,6 +1731,9 @@ class User extends DataClass implements Insertable<User> {
     map['login_attempts'] = Variable<int>(loginAttempts);
     if (!nullToAbsent || loginLockedUntil != null) {
       map['login_locked_until'] = Variable<DateTime>(loginLockedUntil);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['sync_status'] = Variable<String>(syncStatus);
@@ -1737,6 +1769,9 @@ class User extends DataClass implements Insertable<User> {
       loginLockedUntil: loginLockedUntil == null && nullToAbsent
           ? const Value.absent()
           : Value(loginLockedUntil),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
       updatedAt: Value(updatedAt),
       syncStatus: Value(syncStatus),
     );
@@ -1769,6 +1804,7 @@ class User extends DataClass implements Insertable<User> {
       loginLockedUntil: serializer.fromJson<DateTime?>(
         json['loginLockedUntil'],
       ),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
@@ -1792,6 +1828,7 @@ class User extends DataClass implements Insertable<User> {
       'recoveryLockedUntil': serializer.toJson<DateTime?>(recoveryLockedUntil),
       'loginAttempts': serializer.toJson<int>(loginAttempts),
       'loginLockedUntil': serializer.toJson<DateTime?>(loginLockedUntil),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
@@ -1813,6 +1850,7 @@ class User extends DataClass implements Insertable<User> {
     Value<DateTime?> recoveryLockedUntil = const Value.absent(),
     int? loginAttempts,
     Value<DateTime?> loginLockedUntil = const Value.absent(),
+    Value<DateTime?> deletedAt = const Value.absent(),
     DateTime? updatedAt,
     String? syncStatus,
   }) => User(
@@ -1839,6 +1877,7 @@ class User extends DataClass implements Insertable<User> {
     loginLockedUntil: loginLockedUntil.present
         ? loginLockedUntil.value
         : this.loginLockedUntil,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     updatedAt: updatedAt ?? this.updatedAt,
     syncStatus: syncStatus ?? this.syncStatus,
   );
@@ -1875,6 +1914,7 @@ class User extends DataClass implements Insertable<User> {
       loginLockedUntil: data.loginLockedUntil.present
           ? data.loginLockedUntil.value
           : this.loginLockedUntil,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
@@ -1900,6 +1940,7 @@ class User extends DataClass implements Insertable<User> {
           ..write('recoveryLockedUntil: $recoveryLockedUntil, ')
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
@@ -1923,6 +1964,7 @@ class User extends DataClass implements Insertable<User> {
     recoveryLockedUntil,
     loginAttempts,
     loginLockedUntil,
+    deletedAt,
     updatedAt,
     syncStatus,
   );
@@ -1945,6 +1987,7 @@ class User extends DataClass implements Insertable<User> {
           other.recoveryLockedUntil == this.recoveryLockedUntil &&
           other.loginAttempts == this.loginAttempts &&
           other.loginLockedUntil == this.loginLockedUntil &&
+          other.deletedAt == this.deletedAt &&
           other.updatedAt == this.updatedAt &&
           other.syncStatus == this.syncStatus);
 }
@@ -1965,6 +2008,7 @@ class UsersCompanion extends UpdateCompanion<User> {
   final Value<DateTime?> recoveryLockedUntil;
   final Value<int> loginAttempts;
   final Value<DateTime?> loginLockedUntil;
+  final Value<DateTime?> deletedAt;
   final Value<DateTime> updatedAt;
   final Value<String> syncStatus;
   final Value<int> rowid;
@@ -1984,6 +2028,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.recoveryLockedUntil = const Value.absent(),
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2004,6 +2049,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.recoveryLockedUntil = const Value.absent(),
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2027,6 +2073,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     Expression<DateTime>? recoveryLockedUntil,
     Expression<int>? loginAttempts,
     Expression<DateTime>? loginLockedUntil,
+    Expression<DateTime>? deletedAt,
     Expression<DateTime>? updatedAt,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
@@ -2048,6 +2095,7 @@ class UsersCompanion extends UpdateCompanion<User> {
         'recovery_locked_until': recoveryLockedUntil,
       if (loginAttempts != null) 'login_attempts': loginAttempts,
       if (loginLockedUntil != null) 'login_locked_until': loginLockedUntil,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
@@ -2070,6 +2118,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     Value<DateTime?>? recoveryLockedUntil,
     Value<int>? loginAttempts,
     Value<DateTime?>? loginLockedUntil,
+    Value<DateTime?>? deletedAt,
     Value<DateTime>? updatedAt,
     Value<String>? syncStatus,
     Value<int>? rowid,
@@ -2090,6 +2139,7 @@ class UsersCompanion extends UpdateCompanion<User> {
       recoveryLockedUntil: recoveryLockedUntil ?? this.recoveryLockedUntil,
       loginAttempts: loginAttempts ?? this.loginAttempts,
       loginLockedUntil: loginLockedUntil ?? this.loginLockedUntil,
+      deletedAt: deletedAt ?? this.deletedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
@@ -2146,6 +2196,9 @@ class UsersCompanion extends UpdateCompanion<User> {
     if (loginLockedUntil.present) {
       map['login_locked_until'] = Variable<DateTime>(loginLockedUntil.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2176,6 +2229,7 @@ class UsersCompanion extends UpdateCompanion<User> {
           ..write('recoveryLockedUntil: $recoveryLockedUntil, ')
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
@@ -2210,6 +2264,17 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES users (id)',
     ),
+  );
+  static const VerificationMeta _userNameMeta = const VerificationMeta(
+    'userName',
+  );
+  @override
+  late final GeneratedColumn<String> userName = GeneratedColumn<String>(
+    'user_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _startAtMeta = const VerificationMeta(
     'startAt',
@@ -2271,6 +2336,7 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
   List<GeneratedColumn> get $columns => [
     id,
     userId,
+    userName,
     startAt,
     endAt,
     updatedAt,
@@ -2299,6 +2365,12 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
       );
     } else if (isInserting) {
       context.missing(_userIdMeta);
+    }
+    if (data.containsKey('user_name')) {
+      context.handle(
+        _userNameMeta,
+        userName.isAcceptableOrUnknown(data['user_name']!, _userNameMeta),
+      );
     }
     if (data.containsKey('start_at')) {
       context.handle(
@@ -2347,6 +2419,10 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
         DriftSqlType.string,
         data['${effectivePrefix}user_id'],
       )!,
+      userName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_name'],
+      ),
       startAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}start_at'],
@@ -2379,6 +2455,10 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
 class Shift extends DataClass implements Insertable<Shift> {
   final String id;
   final String userId;
+
+  /// SALINAN nama kasir saat shift dibuka (v35) — untuk ditampilkan saja;
+  /// logika tetap memakai [userId]. Lihat `nama_tercatat.dart`.
+  final String? userName;
   final DateTime startAt;
   final DateTime? endAt;
   final DateTime updatedAt;
@@ -2387,6 +2467,7 @@ class Shift extends DataClass implements Insertable<Shift> {
   const Shift({
     required this.id,
     required this.userId,
+    this.userName,
     required this.startAt,
     this.endAt,
     required this.updatedAt,
@@ -2398,6 +2479,9 @@ class Shift extends DataClass implements Insertable<Shift> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || userName != null) {
+      map['user_name'] = Variable<String>(userName);
+    }
     map['start_at'] = Variable<DateTime>(startAt);
     if (!nullToAbsent || endAt != null) {
       map['end_at'] = Variable<DateTime>(endAt);
@@ -2414,6 +2498,9 @@ class Shift extends DataClass implements Insertable<Shift> {
     return ShiftsCompanion(
       id: Value(id),
       userId: Value(userId),
+      userName: userName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userName),
       startAt: Value(startAt),
       endAt: endAt == null && nullToAbsent
           ? const Value.absent()
@@ -2434,6 +2521,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     return Shift(
       id: serializer.fromJson<String>(json['id']),
       userId: serializer.fromJson<String>(json['userId']),
+      userName: serializer.fromJson<String?>(json['userName']),
       startAt: serializer.fromJson<DateTime>(json['startAt']),
       endAt: serializer.fromJson<DateTime?>(json['endAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -2447,6 +2535,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'userId': serializer.toJson<String>(userId),
+      'userName': serializer.toJson<String?>(userName),
       'startAt': serializer.toJson<DateTime>(startAt),
       'endAt': serializer.toJson<DateTime?>(endAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2458,6 +2547,7 @@ class Shift extends DataClass implements Insertable<Shift> {
   Shift copyWith({
     String? id,
     String? userId,
+    Value<String?> userName = const Value.absent(),
     DateTime? startAt,
     Value<DateTime?> endAt = const Value.absent(),
     DateTime? updatedAt,
@@ -2466,6 +2556,7 @@ class Shift extends DataClass implements Insertable<Shift> {
   }) => Shift(
     id: id ?? this.id,
     userId: userId ?? this.userId,
+    userName: userName.present ? userName.value : this.userName,
     startAt: startAt ?? this.startAt,
     endAt: endAt.present ? endAt.value : this.endAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -2476,6 +2567,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     return Shift(
       id: data.id.present ? data.id.value : this.id,
       userId: data.userId.present ? data.userId.value : this.userId,
+      userName: data.userName.present ? data.userName.value : this.userName,
       startAt: data.startAt.present ? data.startAt.value : this.startAt,
       endAt: data.endAt.present ? data.endAt.value : this.endAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -2491,6 +2583,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     return (StringBuffer('Shift(')
           ..write('id: $id, ')
           ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('startAt: $startAt, ')
           ..write('endAt: $endAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2501,14 +2594,23 @@ class Shift extends DataClass implements Insertable<Shift> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, userId, startAt, endAt, updatedAt, deletedAt, syncStatus);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    userName,
+    startAt,
+    endAt,
+    updatedAt,
+    deletedAt,
+    syncStatus,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Shift &&
           other.id == this.id &&
           other.userId == this.userId &&
+          other.userName == this.userName &&
           other.startAt == this.startAt &&
           other.endAt == this.endAt &&
           other.updatedAt == this.updatedAt &&
@@ -2519,6 +2621,7 @@ class Shift extends DataClass implements Insertable<Shift> {
 class ShiftsCompanion extends UpdateCompanion<Shift> {
   final Value<String> id;
   final Value<String> userId;
+  final Value<String?> userName;
   final Value<DateTime> startAt;
   final Value<DateTime?> endAt;
   final Value<DateTime> updatedAt;
@@ -2528,6 +2631,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   const ShiftsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
+    this.userName = const Value.absent(),
     this.startAt = const Value.absent(),
     this.endAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2538,6 +2642,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   ShiftsCompanion.insert({
     this.id = const Value.absent(),
     required String userId,
+    this.userName = const Value.absent(),
     this.startAt = const Value.absent(),
     this.endAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2548,6 +2653,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   static Insertable<Shift> custom({
     Expression<String>? id,
     Expression<String>? userId,
+    Expression<String>? userName,
     Expression<DateTime>? startAt,
     Expression<DateTime>? endAt,
     Expression<DateTime>? updatedAt,
@@ -2558,6 +2664,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (userId != null) 'user_id': userId,
+      if (userName != null) 'user_name': userName,
       if (startAt != null) 'start_at': startAt,
       if (endAt != null) 'end_at': endAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2570,6 +2677,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   ShiftsCompanion copyWith({
     Value<String>? id,
     Value<String>? userId,
+    Value<String?>? userName,
     Value<DateTime>? startAt,
     Value<DateTime?>? endAt,
     Value<DateTime>? updatedAt,
@@ -2580,6 +2688,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     return ShiftsCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
       startAt: startAt ?? this.startAt,
       endAt: endAt ?? this.endAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2597,6 +2706,9 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     }
     if (userId.present) {
       map['user_id'] = Variable<String>(userId.value);
+    }
+    if (userName.present) {
+      map['user_name'] = Variable<String>(userName.value);
     }
     if (startAt.present) {
       map['start_at'] = Variable<DateTime>(startAt.value);
@@ -2624,6 +2736,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     return (StringBuffer('ShiftsCompanion(')
           ..write('id: $id, ')
           ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('startAt: $startAt, ')
           ..write('endAt: $endAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2743,6 +2856,17 @@ class $TransactionsTable extends Transactions
       'REFERENCES shifts (id)',
     ),
   );
+  static const VerificationMeta _cashierNameMeta = const VerificationMeta(
+    'cashierName',
+  );
+  @override
+  late final GeneratedColumn<String> cashierName = GeneratedColumn<String>(
+    'cashier_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _orderTypeMeta = const VerificationMeta(
     'orderType',
   );
@@ -2793,6 +2917,17 @@ class $TransactionsTable extends Transactions
           'REFERENCES users (id)',
         ),
       );
+  static const VerificationMeta _cancelledByNameMeta = const VerificationMeta(
+    'cancelledByName',
+  );
+  @override
+  late final GeneratedColumn<String> cancelledByName = GeneratedColumn<String>(
+    'cancelled_by_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _cancelReasonMeta = const VerificationMeta(
     'cancelReason',
   );
@@ -2827,10 +2962,12 @@ class $TransactionsTable extends Transactions
     change,
     cashierUserId,
     shiftId,
+    cashierName,
     orderType,
     updatedAt,
     deletedAt,
     cancelledByUserId,
+    cancelledByName,
     cancelReason,
     syncStatus,
   ];
@@ -2910,6 +3047,15 @@ class $TransactionsTable extends Transactions
         shiftId.isAcceptableOrUnknown(data['shift_id']!, _shiftIdMeta),
       );
     }
+    if (data.containsKey('cashier_name')) {
+      context.handle(
+        _cashierNameMeta,
+        cashierName.isAcceptableOrUnknown(
+          data['cashier_name']!,
+          _cashierNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('order_type')) {
       context.handle(
         _orderTypeMeta,
@@ -2934,6 +3080,15 @@ class $TransactionsTable extends Transactions
         cancelledByUserId.isAcceptableOrUnknown(
           data['cancelled_by_user_id']!,
           _cancelledByUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cancelled_by_name')) {
+      context.handle(
+        _cancelledByNameMeta,
+        cancelledByName.isAcceptableOrUnknown(
+          data['cancelled_by_name']!,
+          _cancelledByNameMeta,
         ),
       );
     }
@@ -2997,6 +3152,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}shift_id'],
       ),
+      cashierName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cashier_name'],
+      ),
       orderType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}order_type'],
@@ -3012,6 +3171,10 @@ class $TransactionsTable extends Transactions
       cancelledByUserId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cancelled_by_user_id'],
+      ),
+      cancelledByName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancelled_by_name'],
       ),
       cancelReason: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -3046,6 +3209,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final int? change;
   final String? cashierUserId;
   final String? shiftId;
+
+  /// SALINAN nama kasir saat transaksi dibuat (v35). Riwayat lama tidak ikut
+  /// berubah saat akunnya diganti nama atau dihapus. Logika tetap memakai
+  /// [cashierUserId]. Lihat `nama_tercatat.dart`.
+  final String? cashierName;
   final String orderType;
   final DateTime updatedAt;
 
@@ -3057,6 +3225,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
 
   /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
   final String? cancelledByUserId;
+
+  /// SALINAN nama yang membatalkan (v35).
+  final String? cancelledByName;
 
   /// Alasan pembatalan (v30). Null untuk yang terhapus sebelum fitur ini.
   final String? cancelReason;
@@ -3071,10 +3242,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.change,
     this.cashierUserId,
     this.shiftId,
+    this.cashierName,
     required this.orderType,
     required this.updatedAt,
     this.deletedAt,
     this.cancelledByUserId,
+    this.cancelledByName,
     this.cancelReason,
     required this.syncStatus,
   });
@@ -3098,6 +3271,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     if (!nullToAbsent || shiftId != null) {
       map['shift_id'] = Variable<String>(shiftId);
     }
+    if (!nullToAbsent || cashierName != null) {
+      map['cashier_name'] = Variable<String>(cashierName);
+    }
     map['order_type'] = Variable<String>(orderType);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -3105,6 +3281,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     if (!nullToAbsent || cancelledByUserId != null) {
       map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId);
+    }
+    if (!nullToAbsent || cancelledByName != null) {
+      map['cancelled_by_name'] = Variable<String>(cancelledByName);
     }
     if (!nullToAbsent || cancelReason != null) {
       map['cancel_reason'] = Variable<String>(cancelReason);
@@ -3132,6 +3311,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       shiftId: shiftId == null && nullToAbsent
           ? const Value.absent()
           : Value(shiftId),
+      cashierName: cashierName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cashierName),
       orderType: Value(orderType),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -3140,6 +3322,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       cancelledByUserId: cancelledByUserId == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelledByUserId),
+      cancelledByName: cancelledByName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledByName),
       cancelReason: cancelReason == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelReason),
@@ -3162,12 +3347,14 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       change: serializer.fromJson<int?>(json['change']),
       cashierUserId: serializer.fromJson<String?>(json['cashierUserId']),
       shiftId: serializer.fromJson<String?>(json['shiftId']),
+      cashierName: serializer.fromJson<String?>(json['cashierName']),
       orderType: serializer.fromJson<String>(json['orderType']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       cancelledByUserId: serializer.fromJson<String?>(
         json['cancelledByUserId'],
       ),
+      cancelledByName: serializer.fromJson<String?>(json['cancelledByName']),
       cancelReason: serializer.fromJson<String?>(json['cancelReason']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
@@ -3185,10 +3372,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'change': serializer.toJson<int?>(change),
       'cashierUserId': serializer.toJson<String?>(cashierUserId),
       'shiftId': serializer.toJson<String?>(shiftId),
+      'cashierName': serializer.toJson<String?>(cashierName),
       'orderType': serializer.toJson<String>(orderType),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'cancelledByUserId': serializer.toJson<String?>(cancelledByUserId),
+      'cancelledByName': serializer.toJson<String?>(cancelledByName),
       'cancelReason': serializer.toJson<String?>(cancelReason),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
@@ -3204,10 +3393,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<int?> change = const Value.absent(),
     Value<String?> cashierUserId = const Value.absent(),
     Value<String?> shiftId = const Value.absent(),
+    Value<String?> cashierName = const Value.absent(),
     String? orderType,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
     Value<String?> cancelledByUserId = const Value.absent(),
+    Value<String?> cancelledByName = const Value.absent(),
     Value<String?> cancelReason = const Value.absent(),
     String? syncStatus,
   }) => Transaction(
@@ -3222,12 +3413,16 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         ? cashierUserId.value
         : this.cashierUserId,
     shiftId: shiftId.present ? shiftId.value : this.shiftId,
+    cashierName: cashierName.present ? cashierName.value : this.cashierName,
     orderType: orderType ?? this.orderType,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     cancelledByUserId: cancelledByUserId.present
         ? cancelledByUserId.value
         : this.cancelledByUserId,
+    cancelledByName: cancelledByName.present
+        ? cancelledByName.value
+        : this.cancelledByName,
     cancelReason: cancelReason.present ? cancelReason.value : this.cancelReason,
     syncStatus: syncStatus ?? this.syncStatus,
   );
@@ -3248,12 +3443,18 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? data.cashierUserId.value
           : this.cashierUserId,
       shiftId: data.shiftId.present ? data.shiftId.value : this.shiftId,
+      cashierName: data.cashierName.present
+          ? data.cashierName.value
+          : this.cashierName,
       orderType: data.orderType.present ? data.orderType.value : this.orderType,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       cancelledByUserId: data.cancelledByUserId.present
           ? data.cancelledByUserId.value
           : this.cancelledByUserId,
+      cancelledByName: data.cancelledByName.present
+          ? data.cancelledByName.value
+          : this.cancelledByName,
       cancelReason: data.cancelReason.present
           ? data.cancelReason.value
           : this.cancelReason,
@@ -3275,10 +3476,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('change: $change, ')
           ..write('cashierUserId: $cashierUserId, ')
           ..write('shiftId: $shiftId, ')
+          ..write('cashierName: $cashierName, ')
           ..write('orderType: $orderType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelledByName: $cancelledByName, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
@@ -3296,10 +3499,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     change,
     cashierUserId,
     shiftId,
+    cashierName,
     orderType,
     updatedAt,
     deletedAt,
     cancelledByUserId,
+    cancelledByName,
     cancelReason,
     syncStatus,
   );
@@ -3316,10 +3521,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.change == this.change &&
           other.cashierUserId == this.cashierUserId &&
           other.shiftId == this.shiftId &&
+          other.cashierName == this.cashierName &&
           other.orderType == this.orderType &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.cancelledByUserId == this.cancelledByUserId &&
+          other.cancelledByName == this.cancelledByName &&
           other.cancelReason == this.cancelReason &&
           other.syncStatus == this.syncStatus);
 }
@@ -3334,10 +3541,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<int?> change;
   final Value<String?> cashierUserId;
   final Value<String?> shiftId;
+  final Value<String?> cashierName;
   final Value<String> orderType;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<String?> cancelledByUserId;
+  final Value<String?> cancelledByName;
   final Value<String?> cancelReason;
   final Value<String> syncStatus;
   final Value<int> rowid;
@@ -3351,10 +3560,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.change = const Value.absent(),
     this.cashierUserId = const Value.absent(),
     this.shiftId = const Value.absent(),
+    this.cashierName = const Value.absent(),
     this.orderType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
+    this.cancelledByName = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3369,10 +3580,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.change = const Value.absent(),
     this.cashierUserId = const Value.absent(),
     this.shiftId = const Value.absent(),
+    this.cashierName = const Value.absent(),
     this.orderType = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
+    this.cancelledByName = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3388,10 +3601,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<int>? change,
     Expression<String>? cashierUserId,
     Expression<String>? shiftId,
+    Expression<String>? cashierName,
     Expression<String>? orderType,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<String>? cancelledByUserId,
+    Expression<String>? cancelledByName,
     Expression<String>? cancelReason,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
@@ -3406,10 +3621,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (change != null) 'change': change,
       if (cashierUserId != null) 'cashier_user_id': cashierUserId,
       if (shiftId != null) 'shift_id': shiftId,
+      if (cashierName != null) 'cashier_name': cashierName,
       if (orderType != null) 'order_type': orderType,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (cancelledByUserId != null) 'cancelled_by_user_id': cancelledByUserId,
+      if (cancelledByName != null) 'cancelled_by_name': cancelledByName,
       if (cancelReason != null) 'cancel_reason': cancelReason,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
@@ -3426,10 +3643,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<int?>? change,
     Value<String?>? cashierUserId,
     Value<String?>? shiftId,
+    Value<String?>? cashierName,
     Value<String>? orderType,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
     Value<String?>? cancelledByUserId,
+    Value<String?>? cancelledByName,
     Value<String?>? cancelReason,
     Value<String>? syncStatus,
     Value<int>? rowid,
@@ -3444,10 +3663,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       change: change ?? this.change,
       cashierUserId: cashierUserId ?? this.cashierUserId,
       shiftId: shiftId ?? this.shiftId,
+      cashierName: cashierName ?? this.cashierName,
       orderType: orderType ?? this.orderType,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       cancelledByUserId: cancelledByUserId ?? this.cancelledByUserId,
+      cancelledByName: cancelledByName ?? this.cancelledByName,
       cancelReason: cancelReason ?? this.cancelReason,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
@@ -3484,6 +3705,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (shiftId.present) {
       map['shift_id'] = Variable<String>(shiftId.value);
     }
+    if (cashierName.present) {
+      map['cashier_name'] = Variable<String>(cashierName.value);
+    }
     if (orderType.present) {
       map['order_type'] = Variable<String>(orderType.value);
     }
@@ -3495,6 +3719,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     }
     if (cancelledByUserId.present) {
       map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId.value);
+    }
+    if (cancelledByName.present) {
+      map['cancelled_by_name'] = Variable<String>(cancelledByName.value);
     }
     if (cancelReason.present) {
       map['cancel_reason'] = Variable<String>(cancelReason.value);
@@ -3520,10 +3747,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('change: $change, ')
           ..write('cashierUserId: $cashierUserId, ')
           ..write('shiftId: $shiftId, ')
+          ..write('cashierName: $cashierName, ')
           ..write('orderType: $orderType, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelledByName: $cancelledByName, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
@@ -5077,6 +5306,17 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
       'REFERENCES users (id)',
     ),
   );
+  static const VerificationMeta _userNameMeta = const VerificationMeta(
+    'userName',
+  );
+  @override
+  late final GeneratedColumn<String> userName = GeneratedColumn<String>(
+    'user_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -5172,6 +5412,17 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
           'REFERENCES users (id)',
         ),
       );
+  static const VerificationMeta _cancelledByNameMeta = const VerificationMeta(
+    'cancelledByName',
+  );
+  @override
+  late final GeneratedColumn<String> cancelledByName = GeneratedColumn<String>(
+    'cancelled_by_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _cancelReasonMeta = const VerificationMeta(
     'cancelReason',
   );
@@ -5200,6 +5451,7 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     id,
     shiftId,
     userId,
+    userName,
     description,
     amount,
     category,
@@ -5208,6 +5460,7 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
     updatedAt,
     deletedAt,
     cancelledByUserId,
+    cancelledByName,
     cancelReason,
     syncStatus,
   ];
@@ -5239,6 +5492,12 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
       );
     } else if (isInserting) {
       context.missing(_userIdMeta);
+    }
+    if (data.containsKey('user_name')) {
+      context.handle(
+        _userNameMeta,
+        userName.isAcceptableOrUnknown(data['user_name']!, _userNameMeta),
+      );
     }
     if (data.containsKey('description')) {
       context.handle(
@@ -5298,6 +5557,15 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         ),
       );
     }
+    if (data.containsKey('cancelled_by_name')) {
+      context.handle(
+        _cancelledByNameMeta,
+        cancelledByName.isAcceptableOrUnknown(
+          data['cancelled_by_name']!,
+          _cancelledByNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('cancel_reason')) {
       context.handle(
         _cancelReasonMeta,
@@ -5334,6 +5602,10 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         DriftSqlType.string,
         data['${effectivePrefix}user_id'],
       )!,
+      userName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_name'],
+      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -5366,6 +5638,10 @@ class $ExpensesTable extends Expenses with TableInfo<$ExpensesTable, Expense> {
         DriftSqlType.string,
         data['${effectivePrefix}cancelled_by_user_id'],
       ),
+      cancelledByName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cancelled_by_name'],
+      ),
       cancelReason: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}cancel_reason'],
@@ -5391,6 +5667,9 @@ class Expense extends DataClass implements Insertable<Expense> {
   /// wajib punya shift — ditegakkan `ExpenseRepository.addExpense`.
   final String? shiftId;
   final String userId;
+
+  /// SALINAN nama pencatat saat dicatat (v35). Lihat `nama_tercatat.dart`.
+  final String? userName;
   final String description;
 
   /// TOTAL (harga x [qty]) — semua laporan menjumlahkan kolom ini.
@@ -5413,6 +5692,9 @@ class Expense extends DataClass implements Insertable<Expense> {
   /// Siapa yang membatalkan (v31). Kasir hanya bisa dengan PIN owner.
   final String? cancelledByUserId;
 
+  /// SALINAN nama yang membatalkan (v35).
+  final String? cancelledByName;
+
   /// Alasan pembatalan (v31). Null untuk yang terhapus sebelum fitur ini.
   final String? cancelReason;
   final String syncStatus;
@@ -5420,6 +5702,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     required this.id,
     this.shiftId,
     required this.userId,
+    this.userName,
     required this.description,
     required this.amount,
     required this.category,
@@ -5428,6 +5711,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     required this.updatedAt,
     this.deletedAt,
     this.cancelledByUserId,
+    this.cancelledByName,
     this.cancelReason,
     required this.syncStatus,
   });
@@ -5439,6 +5723,9 @@ class Expense extends DataClass implements Insertable<Expense> {
       map['shift_id'] = Variable<String>(shiftId);
     }
     map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || userName != null) {
+      map['user_name'] = Variable<String>(userName);
+    }
     map['description'] = Variable<String>(description);
     map['amount'] = Variable<int>(amount);
     map['category'] = Variable<String>(category);
@@ -5450,6 +5737,9 @@ class Expense extends DataClass implements Insertable<Expense> {
     }
     if (!nullToAbsent || cancelledByUserId != null) {
       map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId);
+    }
+    if (!nullToAbsent || cancelledByName != null) {
+      map['cancelled_by_name'] = Variable<String>(cancelledByName);
     }
     if (!nullToAbsent || cancelReason != null) {
       map['cancel_reason'] = Variable<String>(cancelReason);
@@ -5465,6 +5755,9 @@ class Expense extends DataClass implements Insertable<Expense> {
           ? const Value.absent()
           : Value(shiftId),
       userId: Value(userId),
+      userName: userName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userName),
       description: Value(description),
       amount: Value(amount),
       category: Value(category),
@@ -5477,6 +5770,9 @@ class Expense extends DataClass implements Insertable<Expense> {
       cancelledByUserId: cancelledByUserId == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelledByUserId),
+      cancelledByName: cancelledByName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cancelledByName),
       cancelReason: cancelReason == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelReason),
@@ -5493,6 +5789,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       id: serializer.fromJson<String>(json['id']),
       shiftId: serializer.fromJson<String?>(json['shiftId']),
       userId: serializer.fromJson<String>(json['userId']),
+      userName: serializer.fromJson<String?>(json['userName']),
       description: serializer.fromJson<String>(json['description']),
       amount: serializer.fromJson<int>(json['amount']),
       category: serializer.fromJson<String>(json['category']),
@@ -5503,6 +5800,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       cancelledByUserId: serializer.fromJson<String?>(
         json['cancelledByUserId'],
       ),
+      cancelledByName: serializer.fromJson<String?>(json['cancelledByName']),
       cancelReason: serializer.fromJson<String?>(json['cancelReason']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
@@ -5514,6 +5812,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       'id': serializer.toJson<String>(id),
       'shiftId': serializer.toJson<String?>(shiftId),
       'userId': serializer.toJson<String>(userId),
+      'userName': serializer.toJson<String?>(userName),
       'description': serializer.toJson<String>(description),
       'amount': serializer.toJson<int>(amount),
       'category': serializer.toJson<String>(category),
@@ -5522,6 +5821,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'cancelledByUserId': serializer.toJson<String?>(cancelledByUserId),
+      'cancelledByName': serializer.toJson<String?>(cancelledByName),
       'cancelReason': serializer.toJson<String?>(cancelReason),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
@@ -5531,6 +5831,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     String? id,
     Value<String?> shiftId = const Value.absent(),
     String? userId,
+    Value<String?> userName = const Value.absent(),
     String? description,
     int? amount,
     String? category,
@@ -5539,12 +5840,14 @@ class Expense extends DataClass implements Insertable<Expense> {
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
     Value<String?> cancelledByUserId = const Value.absent(),
+    Value<String?> cancelledByName = const Value.absent(),
     Value<String?> cancelReason = const Value.absent(),
     String? syncStatus,
   }) => Expense(
     id: id ?? this.id,
     shiftId: shiftId.present ? shiftId.value : this.shiftId,
     userId: userId ?? this.userId,
+    userName: userName.present ? userName.value : this.userName,
     description: description ?? this.description,
     amount: amount ?? this.amount,
     category: category ?? this.category,
@@ -5555,6 +5858,9 @@ class Expense extends DataClass implements Insertable<Expense> {
     cancelledByUserId: cancelledByUserId.present
         ? cancelledByUserId.value
         : this.cancelledByUserId,
+    cancelledByName: cancelledByName.present
+        ? cancelledByName.value
+        : this.cancelledByName,
     cancelReason: cancelReason.present ? cancelReason.value : this.cancelReason,
     syncStatus: syncStatus ?? this.syncStatus,
   );
@@ -5563,6 +5869,7 @@ class Expense extends DataClass implements Insertable<Expense> {
       id: data.id.present ? data.id.value : this.id,
       shiftId: data.shiftId.present ? data.shiftId.value : this.shiftId,
       userId: data.userId.present ? data.userId.value : this.userId,
+      userName: data.userName.present ? data.userName.value : this.userName,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -5575,6 +5882,9 @@ class Expense extends DataClass implements Insertable<Expense> {
       cancelledByUserId: data.cancelledByUserId.present
           ? data.cancelledByUserId.value
           : this.cancelledByUserId,
+      cancelledByName: data.cancelledByName.present
+          ? data.cancelledByName.value
+          : this.cancelledByName,
       cancelReason: data.cancelReason.present
           ? data.cancelReason.value
           : this.cancelReason,
@@ -5590,6 +5900,7 @@ class Expense extends DataClass implements Insertable<Expense> {
           ..write('id: $id, ')
           ..write('shiftId: $shiftId, ')
           ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('category: $category, ')
@@ -5598,6 +5909,7 @@ class Expense extends DataClass implements Insertable<Expense> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelledByName: $cancelledByName, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
@@ -5609,6 +5921,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     id,
     shiftId,
     userId,
+    userName,
     description,
     amount,
     category,
@@ -5617,6 +5930,7 @@ class Expense extends DataClass implements Insertable<Expense> {
     updatedAt,
     deletedAt,
     cancelledByUserId,
+    cancelledByName,
     cancelReason,
     syncStatus,
   );
@@ -5627,6 +5941,7 @@ class Expense extends DataClass implements Insertable<Expense> {
           other.id == this.id &&
           other.shiftId == this.shiftId &&
           other.userId == this.userId &&
+          other.userName == this.userName &&
           other.description == this.description &&
           other.amount == this.amount &&
           other.category == this.category &&
@@ -5635,6 +5950,7 @@ class Expense extends DataClass implements Insertable<Expense> {
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.cancelledByUserId == this.cancelledByUserId &&
+          other.cancelledByName == this.cancelledByName &&
           other.cancelReason == this.cancelReason &&
           other.syncStatus == this.syncStatus);
 }
@@ -5643,6 +5959,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
   final Value<String> id;
   final Value<String?> shiftId;
   final Value<String> userId;
+  final Value<String?> userName;
   final Value<String> description;
   final Value<int> amount;
   final Value<String> category;
@@ -5651,6 +5968,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<String?> cancelledByUserId;
+  final Value<String?> cancelledByName;
   final Value<String?> cancelReason;
   final Value<String> syncStatus;
   final Value<int> rowid;
@@ -5658,6 +5976,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.id = const Value.absent(),
     this.shiftId = const Value.absent(),
     this.userId = const Value.absent(),
+    this.userName = const Value.absent(),
     this.description = const Value.absent(),
     this.amount = const Value.absent(),
     this.category = const Value.absent(),
@@ -5666,6 +5985,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
+    this.cancelledByName = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5674,6 +5994,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.id = const Value.absent(),
     this.shiftId = const Value.absent(),
     required String userId,
+    this.userName = const Value.absent(),
     required String description,
     required int amount,
     this.category = const Value.absent(),
@@ -5682,6 +6003,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
+    this.cancelledByName = const Value.absent(),
     this.cancelReason = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5692,6 +6014,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Expression<String>? id,
     Expression<String>? shiftId,
     Expression<String>? userId,
+    Expression<String>? userName,
     Expression<String>? description,
     Expression<int>? amount,
     Expression<String>? category,
@@ -5700,6 +6023,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<String>? cancelledByUserId,
+    Expression<String>? cancelledByName,
     Expression<String>? cancelReason,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
@@ -5708,6 +6032,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       if (id != null) 'id': id,
       if (shiftId != null) 'shift_id': shiftId,
       if (userId != null) 'user_id': userId,
+      if (userName != null) 'user_name': userName,
       if (description != null) 'description': description,
       if (amount != null) 'amount': amount,
       if (category != null) 'category': category,
@@ -5716,6 +6041,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (cancelledByUserId != null) 'cancelled_by_user_id': cancelledByUserId,
+      if (cancelledByName != null) 'cancelled_by_name': cancelledByName,
       if (cancelReason != null) 'cancel_reason': cancelReason,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
@@ -5726,6 +6052,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Value<String>? id,
     Value<String?>? shiftId,
     Value<String>? userId,
+    Value<String?>? userName,
     Value<String>? description,
     Value<int>? amount,
     Value<String>? category,
@@ -5734,6 +6061,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
     Value<String?>? cancelledByUserId,
+    Value<String?>? cancelledByName,
     Value<String?>? cancelReason,
     Value<String>? syncStatus,
     Value<int>? rowid,
@@ -5742,6 +6070,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       id: id ?? this.id,
       shiftId: shiftId ?? this.shiftId,
       userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
       description: description ?? this.description,
       amount: amount ?? this.amount,
       category: category ?? this.category,
@@ -5750,6 +6079,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       cancelledByUserId: cancelledByUserId ?? this.cancelledByUserId,
+      cancelledByName: cancelledByName ?? this.cancelledByName,
       cancelReason: cancelReason ?? this.cancelReason,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
@@ -5767,6 +6097,9 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     }
     if (userId.present) {
       map['user_id'] = Variable<String>(userId.value);
+    }
+    if (userName.present) {
+      map['user_name'] = Variable<String>(userName.value);
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
@@ -5792,6 +6125,9 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
     if (cancelledByUserId.present) {
       map['cancelled_by_user_id'] = Variable<String>(cancelledByUserId.value);
     }
+    if (cancelledByName.present) {
+      map['cancelled_by_name'] = Variable<String>(cancelledByName.value);
+    }
     if (cancelReason.present) {
       map['cancel_reason'] = Variable<String>(cancelReason.value);
     }
@@ -5810,6 +6146,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
           ..write('id: $id, ')
           ..write('shiftId: $shiftId, ')
           ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
           ..write('description: $description, ')
           ..write('amount: $amount, ')
           ..write('category: $category, ')
@@ -5818,6 +6155,7 @@ class ExpensesCompanion extends UpdateCompanion<Expense> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
+          ..write('cancelledByName: $cancelledByName, ')
           ..write('cancelReason: $cancelReason, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
@@ -6931,6 +7269,7 @@ typedef $$UsersTableCreateCompanionBuilder =
       Value<DateTime?> recoveryLockedUntil,
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
+      Value<DateTime?> deletedAt,
       Value<DateTime> updatedAt,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -6952,6 +7291,7 @@ typedef $$UsersTableUpdateCompanionBuilder =
       Value<DateTime?> recoveryLockedUntil,
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
+      Value<DateTime?> deletedAt,
       Value<DateTime> updatedAt,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -7104,6 +7444,11 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
 
   ColumnFilters<DateTime> get loginLockedUntil => $composableBuilder(
     column: $table.loginLockedUntil,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7277,6 +7622,11 @@ class $$UsersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -7357,6 +7707,9 @@ class $$UsersTableAnnotationComposer
     column: $table.loginLockedUntil,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -7489,6 +7842,7 @@ class $$UsersTableTableManager
                 Value<DateTime?> recoveryLockedUntil = const Value.absent(),
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7508,6 +7862,7 @@ class $$UsersTableTableManager
                 recoveryLockedUntil: recoveryLockedUntil,
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
+                deletedAt: deletedAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -7529,6 +7884,7 @@ class $$UsersTableTableManager
                 Value<DateTime?> recoveryLockedUntil = const Value.absent(),
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7548,6 +7904,7 @@ class $$UsersTableTableManager
                 recoveryLockedUntil: recoveryLockedUntil,
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
+                deletedAt: deletedAt,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -7651,6 +8008,7 @@ typedef $$ShiftsTableCreateCompanionBuilder =
     ShiftsCompanion Function({
       Value<String> id,
       required String userId,
+      Value<String?> userName,
       Value<DateTime> startAt,
       Value<DateTime?> endAt,
       Value<DateTime> updatedAt,
@@ -7662,6 +8020,7 @@ typedef $$ShiftsTableUpdateCompanionBuilder =
     ShiftsCompanion Function({
       Value<String> id,
       Value<String> userId,
+      Value<String?> userName,
       Value<DateTime> startAt,
       Value<DateTime?> endAt,
       Value<DateTime> updatedAt,
@@ -7740,6 +8099,11 @@ class $$ShiftsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userName => $composableBuilder(
+    column: $table.userName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7856,6 +8220,11 @@ class $$ShiftsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get userName => $composableBuilder(
+    column: $table.userName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get startAt => $composableBuilder(
     column: $table.startAt,
     builder: (column) => ColumnOrderings(column),
@@ -7916,6 +8285,9 @@ class $$ShiftsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userName =>
+      $composableBuilder(column: $table.userName, builder: (column) => column);
 
   GeneratedColumn<DateTime> get startAt =>
       $composableBuilder(column: $table.startAt, builder: (column) => column);
@@ -8042,6 +8414,7 @@ class $$ShiftsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> userId = const Value.absent(),
+                Value<String?> userName = const Value.absent(),
                 Value<DateTime> startAt = const Value.absent(),
                 Value<DateTime?> endAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8051,6 +8424,7 @@ class $$ShiftsTableTableManager
               }) => ShiftsCompanion(
                 id: id,
                 userId: userId,
+                userName: userName,
                 startAt: startAt,
                 endAt: endAt,
                 updatedAt: updatedAt,
@@ -8062,6 +8436,7 @@ class $$ShiftsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 required String userId,
+                Value<String?> userName = const Value.absent(),
                 Value<DateTime> startAt = const Value.absent(),
                 Value<DateTime?> endAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -8071,6 +8446,7 @@ class $$ShiftsTableTableManager
               }) => ShiftsCompanion.insert(
                 id: id,
                 userId: userId,
+                userName: userName,
                 startAt: startAt,
                 endAt: endAt,
                 updatedAt: updatedAt,
@@ -8205,10 +8581,12 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<int?> change,
       Value<String?> cashierUserId,
       Value<String?> shiftId,
+      Value<String?> cashierName,
       Value<String> orderType,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
+      Value<String?> cancelledByName,
       Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -8224,10 +8602,12 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<int?> change,
       Value<String?> cashierUserId,
       Value<String?> shiftId,
+      Value<String?> cashierName,
       Value<String> orderType,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
+      Value<String?> cancelledByName,
       Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -8338,6 +8718,11 @@ class $$TransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get cashierName => $composableBuilder(
+    column: $table.cashierName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get orderType => $composableBuilder(
     column: $table.orderType,
     builder: (column) => ColumnFilters(column),
@@ -8350,6 +8735,11 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8477,6 +8867,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cashierName => $composableBuilder(
+    column: $table.cashierName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get orderType => $composableBuilder(
     column: $table.orderType,
     builder: (column) => ColumnOrderings(column),
@@ -8489,6 +8884,11 @@ class $$TransactionsTableOrderingComposer
 
   ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8606,6 +9006,11 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<int> get change =>
       $composableBuilder(column: $table.change, builder: (column) => column);
 
+  GeneratedColumn<String> get cashierName => $composableBuilder(
+    column: $table.cashierName,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get orderType =>
       $composableBuilder(column: $table.orderType, builder: (column) => column);
 
@@ -8614,6 +9019,11 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get cancelReason => $composableBuilder(
     column: $table.cancelReason,
@@ -8736,10 +9146,12 @@ class $$TransactionsTableTableManager
                 Value<int?> change = const Value.absent(),
                 Value<String?> cashierUserId = const Value.absent(),
                 Value<String?> shiftId = const Value.absent(),
+                Value<String?> cashierName = const Value.absent(),
                 Value<String> orderType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelledByName = const Value.absent(),
                 Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8753,10 +9165,12 @@ class $$TransactionsTableTableManager
                 change: change,
                 cashierUserId: cashierUserId,
                 shiftId: shiftId,
+                cashierName: cashierName,
                 orderType: orderType,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
+                cancelledByName: cancelledByName,
                 cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -8772,10 +9186,12 @@ class $$TransactionsTableTableManager
                 Value<int?> change = const Value.absent(),
                 Value<String?> cashierUserId = const Value.absent(),
                 Value<String?> shiftId = const Value.absent(),
+                Value<String?> cashierName = const Value.absent(),
                 Value<String> orderType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelledByName = const Value.absent(),
                 Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8789,10 +9205,12 @@ class $$TransactionsTableTableManager
                 change: change,
                 cashierUserId: cashierUserId,
                 shiftId: shiftId,
+                cashierName: cashierName,
                 orderType: orderType,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
+                cancelledByName: cancelledByName,
                 cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -9688,6 +10106,7 @@ typedef $$ExpensesTableCreateCompanionBuilder =
       Value<String> id,
       Value<String?> shiftId,
       required String userId,
+      Value<String?> userName,
       required String description,
       required int amount,
       Value<String> category,
@@ -9696,6 +10115,7 @@ typedef $$ExpensesTableCreateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
+      Value<String?> cancelledByName,
       Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -9705,6 +10125,7 @@ typedef $$ExpensesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String?> shiftId,
       Value<String> userId,
+      Value<String?> userName,
       Value<String> description,
       Value<int> amount,
       Value<String> category,
@@ -9713,6 +10134,7 @@ typedef $$ExpensesTableUpdateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
+      Value<String?> cancelledByName,
       Value<String?> cancelReason,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -9792,6 +10214,11 @@ class $$ExpensesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get userName => $composableBuilder(
+    column: $table.userName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnFilters(column),
@@ -9824,6 +10251,11 @@ class $$ExpensesTableFilterComposer
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9921,6 +10353,11 @@ class $$ExpensesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get userName => $composableBuilder(
+    column: $table.userName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -9953,6 +10390,11 @@ class $$ExpensesTableOrderingComposer
 
   ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -10048,6 +10490,9 @@ class $$ExpensesTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<String> get userName =>
+      $composableBuilder(column: $table.userName, builder: (column) => column);
+
   GeneratedColumn<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => column,
@@ -10070,6 +10515,11 @@ class $$ExpensesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get cancelledByName => $composableBuilder(
+    column: $table.cancelledByName,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get cancelReason => $composableBuilder(
     column: $table.cancelReason,
@@ -10186,6 +10636,7 @@ class $$ExpensesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String?> shiftId = const Value.absent(),
                 Value<String> userId = const Value.absent(),
+                Value<String?> userName = const Value.absent(),
                 Value<String> description = const Value.absent(),
                 Value<int> amount = const Value.absent(),
                 Value<String> category = const Value.absent(),
@@ -10194,6 +10645,7 @@ class $$ExpensesTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelledByName = const Value.absent(),
                 Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -10201,6 +10653,7 @@ class $$ExpensesTableTableManager
                 id: id,
                 shiftId: shiftId,
                 userId: userId,
+                userName: userName,
                 description: description,
                 amount: amount,
                 category: category,
@@ -10209,6 +10662,7 @@ class $$ExpensesTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
+                cancelledByName: cancelledByName,
                 cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -10218,6 +10672,7 @@ class $$ExpensesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String?> shiftId = const Value.absent(),
                 required String userId,
+                Value<String?> userName = const Value.absent(),
                 required String description,
                 required int amount,
                 Value<String> category = const Value.absent(),
@@ -10226,6 +10681,7 @@ class $$ExpensesTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
+                Value<String?> cancelledByName = const Value.absent(),
                 Value<String?> cancelReason = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -10233,6 +10689,7 @@ class $$ExpensesTableTableManager
                 id: id,
                 shiftId: shiftId,
                 userId: userId,
+                userName: userName,
                 description: description,
                 amount: amount,
                 category: category,
@@ -10241,6 +10698,7 @@ class $$ExpensesTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
+                cancelledByName: cancelledByName,
                 cancelReason: cancelReason,
                 syncStatus: syncStatus,
                 rowid: rowid,

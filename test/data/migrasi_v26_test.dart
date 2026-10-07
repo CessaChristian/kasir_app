@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
@@ -50,7 +50,7 @@ void main() {
     await lama.close();
 
     final mentah = sqlite3.open(jalur);
-    mentah.execute('ALTER TABLE users ADD COLUMN deleted_at INTEGER');
+    // Skema terbaru (v35) sudah punya `deleted_at` — keadaan v25 juga punya.
     mentah.execute('PRAGMA user_version = 25');
     mentah.dispose();
 
@@ -62,9 +62,13 @@ void main() {
     final izin = await baru.select(baru.userPermissions).get();
     await baru.close();
 
-    expect(kolom.map((r) => r.read<String>('name')),
-        isNot(contains('deleted_at')));
+    // v26 mencopot `deleted_at` lama (tak pernah diisi), lalu v35 memasang
+    // kolom baru bernama sama dengan arti baru: akun DIHAPUS (keputusan
+    // owner 2026-10-07). Yang penting: tidak ada akun yang ikut terhapus.
+    expect(kolom.map((r) => r.read<String>('name')), contains('deleted_at'));
     expect(akun.single.username, 'budi');
+    expect(akun.single.deletedAt, isNull,
+        reason: 'nilai lama tidak terbawa — akun tidak tiba-tiba terhapus');
     expect(izin, hasLength(1),
         reason: 'izin kasir ikut lenyap kalau tabel induknya dibangun ulang');
   });

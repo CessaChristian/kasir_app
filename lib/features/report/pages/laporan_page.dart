@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../data/nama_tercatat.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
@@ -354,7 +355,7 @@ class _LaporanPageState extends State<LaporanPage> {
             keterangan: [
               DateFormat('dd/MM').format(t.createdAt.toLocal()),
               DateFormat('HH:mm').format(t.deletedAt!.toLocal()),
-              'oleh ${_nama[t.cancelledByUserId] ?? '-'}',
+              'oleh ${t.namaPembatal(_nama) ?? '-'}',
             ].join(' · '),
             alasan: t.cancelReason,
             nilai: formatRp(t.total),
@@ -377,7 +378,7 @@ class _LaporanPageState extends State<LaporanPage> {
             keterangan: [
               KategoriBiaya.labelDari(e.category),
               DateFormat('HH:mm').format(e.deletedAt!.toLocal()),
-              'oleh ${_nama[e.cancelledByUserId] ?? '-'}',
+              'oleh ${e.namaPembatal(_nama) ?? '-'}',
             ].join(' · '),
             alasan: e.cancelReason,
             nilai: formatRp(e.amount),

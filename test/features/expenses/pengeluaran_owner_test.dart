@@ -185,7 +185,15 @@ void main() {
         "cancelled_by_user_id TEXT NULL REFERENCES users (id), "
         "cancel_reason TEXT NULL, sync_status TEXT NOT NULL DEFAULT 'pending')",
       );
-      mentah.execute('INSERT INTO expenses SELECT * FROM expenses_baru');
+      // Kolom disebut satu per satu: skema terbaru punya kolom yang belum ada
+      // di v32 (salinan nama, v35).
+      const kolomV32 =
+          'id, shift_id, user_id, description, amount, category, qty, '
+          'created_at, updated_at, deleted_at, cancelled_by_user_id, '
+          'cancel_reason, sync_status';
+      mentah.execute(
+        'INSERT INTO expenses ($kolomV32) SELECT $kolomV32 FROM expenses_baru',
+      );
       mentah.execute('DROP TABLE expenses_baru');
       mentah.execute('PRAGMA user_version = 32');
       final notnull = mentah

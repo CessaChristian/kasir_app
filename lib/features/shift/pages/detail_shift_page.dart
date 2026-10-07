@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/nama_tercatat.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
@@ -285,7 +286,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: BarisTransaksiShift(
             transaksi: t,
-            namaPembatal: _nama[t.cancelledByUserId],
+            namaPembatal: t.namaPembatal(_nama),
             onTap: () => bukaDetailTransaksi(context, _sales, t),
           ),
         ),
@@ -306,7 +307,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
           ),
           child: BarisPengeluaran(
             pengeluaran: e,
-            namaPembatal: _nama[e.cancelledByUserId],
+            namaPembatal: e.namaPembatal(_nama),
             ruangTombol: false,
           ),
         ),

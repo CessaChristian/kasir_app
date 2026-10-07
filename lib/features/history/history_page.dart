@@ -4,6 +4,7 @@ import '../../../shared/widgets/error_state_widget.dart';
 import '../../data/db.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../../data/app_database.dart';
+import '../../data/nama_tercatat.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/widgets/transaction_detail_sheet.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
@@ -756,7 +757,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 // kasir hanya miliknya di shift yang sedang berjalan.
                 return _TransactionCard(
                   transaction: tx,
-                  namaPembatal: _namaAkun[tx.cancelledByUserId],
+                  namaPembatal: tx.namaPembatal(_namaAkun),
                   onBatalkan: _salesRepo.bolehDibatalkan(tx)
                       ? () => _batalkan(tx)
                       : null,

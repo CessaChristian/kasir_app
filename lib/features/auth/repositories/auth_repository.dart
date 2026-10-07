@@ -252,6 +252,7 @@ class AuthRepository {
           ShiftsCompanion.insert(
             id: Value(shiftId),
             userId: userId,
+            userName: Value(await _db.usernameAkun(userId)),
           ),
         );
 

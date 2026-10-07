@@ -5,6 +5,7 @@ import '../../data/db.dart';
 import 'repositories/expense_repository.dart';
 import '../shift/repositories/shift_repository.dart';
 import '../../data/app_database.dart';
+import '../../data/nama_tercatat.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -393,7 +394,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     InfoPembatalan(
                       dibatalkanPada: e.deletedAt!,
                       alasan: e.cancelReason,
-                      namaPembatal: _namaAkun[e.cancelledByUserId],
+                      namaPembatal: e.namaPembatal(_namaAkun),
                       ringkas: true,
                     )
                   else
@@ -625,7 +626,7 @@ class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
                                         dibatalkanPada: e.deletedAt!,
                                         alasan: e.cancelReason,
                                         namaPembatal:
-                                            widget.namaAkun[e.cancelledByUserId],
+                                            e.namaPembatal(widget.namaAkun),
                                         ringkas: true,
                                       ),
                                   ],

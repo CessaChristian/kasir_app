@@ -136,6 +136,11 @@ class Transactions extends Table {
       text().nullable().references(Users, #id)();
   TextColumn get shiftId => text().nullable().references(Shifts, #id)();
 
+  /// SALINAN nama kasir saat transaksi dibuat (v35). Riwayat lama tidak ikut
+  /// berubah saat akunnya diganti nama atau dihapus. Logika tetap memakai
+  /// [cashierUserId]. Lihat `nama_tercatat.dart`.
+  TextColumn get cashierName => text().nullable()();
+
   TextColumn get orderType =>
       text().withDefault(const Constant('dine_in'))();
 
@@ -152,6 +157,9 @@ class Transactions extends Table {
   /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
   TextColumn get cancelledByUserId =>
       text().nullable().references(Users, #id)();
+
+  /// SALINAN nama yang membatalkan (v35).
+  TextColumn get cancelledByName => text().nullable()();
 
   /// Alasan pembatalan (v30). Null untuk yang terhapus sebelum fitur ini.
   TextColumn get cancelReason => text().nullable()();
@@ -249,8 +257,12 @@ class Users extends Table {
       integer().withDefault(const Constant(0))();
   DateTimeColumn get loginLockedUntil => dateTime().nullable()();
 
-  // Sengaja TANPA `deleted_at`: akun tidak pernah dihapus — satu akun untuk
-  // satu orang. Karyawan yang keluar dinonaktifkan lewat `isActive`.
+  /// Akun DIHAPUS (v35): disembunyikan permanen dari Kelola Kasir dan tidak
+  /// bisa login lagi, tapi barisnya tetap ada karena riwayat menunjuknya
+  /// lewat id. Beda dengan [isActive] = false (nonaktif, bisa diaktifkan
+  /// lagi). Keputusan owner 2026-10-07.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
   TextColumn get syncStatus =>
@@ -271,6 +283,10 @@ class Users extends Table {
 class Shifts extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
   TextColumn get userId => text().references(Users, #id)();
+
+  /// SALINAN nama kasir saat shift dibuka (v35) — untuk ditampilkan saja;
+  /// logika tetap memakai [userId]. Lihat `nama_tercatat.dart`.
+  TextColumn get userName => text().nullable()();
   DateTimeColumn get startAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get endAt => dateTime().nullable()();
@@ -375,6 +391,9 @@ class Expenses extends Table {
   TextColumn get shiftId => text().nullable().references(Shifts, #id)();
   @ReferenceName('createdExpensesRefs')
   TextColumn get userId => text().references(Users, #id)(); // creator
+
+  /// SALINAN nama pencatat saat dicatat (v35). Lihat `nama_tercatat.dart`.
+  TextColumn get userName => text().nullable()();
   TextColumn get description => text()();
 
   /// TOTAL (harga x [qty]) — semua laporan menjumlahkan kolom ini.
@@ -413,6 +432,9 @@ class Expenses extends Table {
   TextColumn get cancelledByUserId =>
       text().nullable().references(Users, #id)();
 
+  /// SALINAN nama yang membatalkan (v35).
+  TextColumn get cancelledByName => text().nullable()();
+
   /// Alasan pembatalan (v31). Null untuk yang terhapus sebelum fitur ini.
   TextColumn get cancelReason => text().nullable()();
 
@@ -444,7 +466,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 35;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -584,8 +606,8 @@ class AppDatabase extends _$AppDatabase {
             // sana. Menulis prosedur 12 langkah SQLite sendiri justru lebih
             // rawan. Migrasi ini diuji pada database berisi 515 transaksi.
             // ignore_for_file: experimental_member_use
-            await m.alterTable(TableMigration(transactions));
-            await m.alterTable(TableMigration(users));
+            await _bangunUlangTabel(m, transactions);
+            await _bangunUlangTabel(m, users);
           }
           if (from < 13 && to >= 13) {
             // v13 — aplikasi difokuskan ke SATU bisnis.
@@ -620,12 +642,12 @@ class AppDatabase extends _$AppDatabase {
 
             // Bangun ulang tanpa kolom business_id. Induk dulu supaya acuan
             // foreign key dari tabel anak tetap sah saat disalin.
-            await m.alterTable(TableMigration(categories));
-            await m.alterTable(TableMigration(products));
-            await m.alterTable(TableMigration(shifts));
-            await m.alterTable(TableMigration(transactions));
-            await m.alterTable(TableMigration(transactionItems));
-            await m.alterTable(TableMigration(expenses));
+            await _bangunUlangTabel(m, categories);
+            await _bangunUlangTabel(m, products);
+            await _bangunUlangTabel(m, shifts);
+            await _bangunUlangTabel(m, transactions);
+            await _bangunUlangTabel(m, transactionItems);
+            await _bangunUlangTabel(m, expenses);
 
             await m.deleteTable('user_business_roles');
             await m.deleteTable('businesses');
@@ -667,8 +689,8 @@ class AppDatabase extends _$AppDatabase {
             );
 
             // Induk dulu, baru anak.
-            await m.alterTable(TableMigration(transactions));
-            await m.alterTable(TableMigration(transactionItems));
+            await _bangunUlangTabel(m, transactions);
+            await _bangunUlangTabel(m, transactionItems);
           }
           if (from < 15 && to >= 15) {
             // v15 — `products.image_path` kini menyimpan path RELATIF
@@ -697,7 +719,7 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 17 && to >= 17) {
             // v17 — buang dua kolom yang tidak lagi dipakai dari products.
-            await m.alterTable(TableMigration(products));
+            await _bangunUlangTabel(m, products);
           }
           if (from < 18 && to >= 18) {
             // v18 — watermark sinkron disimpan sebagai teks, bukan DateTime.
@@ -911,7 +933,7 @@ class AppDatabase extends _$AppDatabase {
               "WHERE type = 'table' AND name = 'transaction_items'",
             ).get();
             if (adaItem.isNotEmpty) {
-              await m.alterTable(TableMigration(transactionItems));
+              await _bangunUlangTabel(m, transactionItems);
             }
           }
 
@@ -1096,7 +1118,7 @@ class AppDatabase extends _$AppDatabase {
               "WHERE type = 'table' AND name = 'expenses'",
             ).get();
             if (adaPengeluaran.isNotEmpty) {
-              await m.alterTable(TableMigration(expenses));
+              await _bangunUlangTabel(m, expenses);
             }
           }
 
@@ -1117,6 +1139,52 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 35 && to >= 35) {
+            // v35 — salinan nama akun di shift, transaksi, pengeluaran (dan
+            // nama pembatal), plus users.deleted_at untuk Hapus Akun.
+            // Pasangannya di server: supabase/salinan_nama_akun.sql.
+            Future<bool> adaTabel(String t) async => (await customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                  variables: [Variable.withString(t)],
+                ).get())
+                .isNotEmpty;
+            Future<void> tambah(TableInfo tabel, GeneratedColumn kolom) async {
+              if (!await adaTabel(tabel.actualTableName)) return;
+              final ada = await customSelect(
+                "SELECT 1 FROM pragma_table_info(?) WHERE name = ?",
+                variables: [
+                  Variable.withString(tabel.actualTableName),
+                  Variable.withString(kolom.name),
+                ],
+              ).get();
+              if (ada.isEmpty) await m.addColumn(tabel, kolom);
+            }
+
+            await tambah(users, users.deletedAt);
+            await tambah(shifts, shifts.userName);
+            await tambah(transactions, transactions.cashierName);
+            await tambah(transactions, transactions.cancelledByName);
+            await tambah(expenses, expenses.userName);
+            await tambah(expenses, expenses.cancelledByName);
+
+            // Data lama diisi nama akun saat ini — hasilnya sama dengan isian
+            // SQL server, jadi barisnya SENGAJA tidak ditandai pending.
+            for (final (tabel, kolom, acuan) in const [
+              ('shifts', 'user_name', 'user_id'),
+              ('transactions', 'cashier_name', 'cashier_user_id'),
+              ('transactions', 'cancelled_by_name', 'cancelled_by_user_id'),
+              ('expenses', 'user_name', 'user_id'),
+              ('expenses', 'cancelled_by_name', 'cancelled_by_user_id'),
+            ]) {
+              if (!await adaTabel(tabel)) continue;
+              await customStatement(
+                'UPDATE $tabel SET $kolom = '
+                '(SELECT username FROM users WHERE users.id = $tabel.$acuan) '
+                'WHERE $kolom IS NULL AND $acuan IS NOT NULL',
+              );
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1132,6 +1200,34 @@ class AppDatabase extends _$AppDatabase {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// Bangun ulang [tabel] dengan skema TERBARU, menyalin seluruh isinya.
+  ///
+  /// `TableMigration` menyalin semua kolom skema terbaru dari tabel lama.
+  /// Kolom yang belum ada di tabel lama WAJIB disebut sebagai `newColumns`,
+  /// kalau tidak salinannya gagal ("N columns but M values"). Selama setiap
+  /// kolom baru kebetulan sudah ada saat migrasi lama berjalan, ini tidak
+  /// terasa — sampai v35 menambah kolom dan HP yang melompat dari v32 gagal
+  /// di migrasi v33. Maka kolom yang belum ada dihitung dari tabelnya
+  /// sendiri, untuk lompatan versi berapa pun.
+  Future<void> _bangunUlangTabel(Migrator m, TableInfo tabel) async {
+    final ada = {
+      for (final r in await customSelect(
+        'SELECT name FROM pragma_table_info(?)',
+        variables: [Variable.withString(tabel.actualTableName)],
+      ).get())
+        r.read<String>('name'),
+    };
+    await m.alterTable(
+      TableMigration(
+        tabel,
+        newColumns: [
+          for (final c in tabel.$columns)
+            if (!ada.contains(c.name)) c,
+        ],
+      ),
+    );
+  }
 
   Future<void> _seedPermissions() async {
     // Bahasa Indonesia, karena yang membacanya pemilik warung — bukan
@@ -1389,6 +1485,7 @@ class AppDatabase extends _$AppDatabase {
           cashReceived: Value(cashReceived),
           change: Value(changeAmount),
           cashierUserId: Value(cashierUserId),
+          cashierName: Value(await usernameAkun(cashierUserId)),
           shiftId: Value(shiftId),
           orderType: Value(orderType),
           syncStatus: const Value('pending'),
@@ -1538,6 +1635,15 @@ class AppDatabase extends _$AppDatabase {
     return {for (final b in baris) b.read<String>('transaction_id')};
   }
 
+  /// Username akun [id] SAAT INI — untuk salinan nama di catatan baru
+  /// (v35, lihat `nama_tercatat.dart`). Null kalau id kosong/tidak dikenal.
+  Future<String?> usernameAkun(String? id) async {
+    if (id == null) return null;
+    final u = await (select(users)..where((x) => x.id.equals(id)))
+        .getSingleOrNull();
+    return u?.username;
+  }
+
   /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
   Future<Map<String, String>> namaAkun() async => {
         for (final u in await select(users).get()) u.id: u.username,
@@ -1584,6 +1690,7 @@ class AppDatabase extends _$AppDatabase {
         id: Value(newUuid()),
         shiftId: Value(shiftId),
         userId: Value(userId),
+        userName: Value(await usernameAkun(userId)),
         description: Value(description),
         amount: Value(amount),
         category: Value(category),
@@ -1608,6 +1715,7 @@ class AppDatabase extends _$AppDatabase {
         .write(ExpensesCompanion(
       deletedAt: Value(sekarang),
       cancelledByUserId: Value(olehUserId),
+      cancelledByName: Value(await usernameAkun(olehUserId)),
       cancelReason: Value(alasan),
       updatedAt: Value(sekarang),
       syncStatus: const Value('pending'),
@@ -1629,12 +1737,14 @@ class AppDatabase extends _$AppDatabase {
     required String alasan,
   }) async {
     final sekarang = DateTime.now();
+    final namaPembatal = await usernameAkun(olehUserId);
     await transaction(() async {
       final diubah = await (update(transactions)
             ..where((t) => t.id.equals(transactionId) & t.deletedAt.isNull()))
           .write(TransactionsCompanion(
         deletedAt: Value(sekarang),
         cancelledByUserId: Value(olehUserId),
+        cancelledByName: Value(namaPembatal),
         cancelReason: Value(alasan),
         updatedAt: Value(sekarang),
         syncStatus: const Value('pending'),
@@ -1683,7 +1793,10 @@ class AppDatabase extends _$AppDatabase {
     return baris
         .map((b) => ShiftEntry(
               shift: b.readTable(shifts),
-              username: b.readTable(users).username,
+              // Salinan nama saat shift dibuka (v35); shift dari HP lama
+              // tanpa salinan memakai nama akun saat ini.
+              username: b.readTable(shifts).userName ??
+                  b.readTable(users).username,
             ))
         .toList();
   }

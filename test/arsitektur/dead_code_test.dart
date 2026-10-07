@@ -17,6 +17,9 @@ void main() {
   /// Kalau menambah entri di sini, tulis alasannya.
   const diizinkan = <String, String>{
     'lib/main.dart': 'entry point — dipanggil Flutter, bukan dirujuk file lain',
+    'lib/data/nama_tercatat.dart':
+        'isinya extension — dipakai lewat method-nya (t.namaKasir(...)), '
+        'bukan lewat nama extension',
   };
 
   /// Nama deklarasi tingkat atas yang diekspor sebuah file Dart.

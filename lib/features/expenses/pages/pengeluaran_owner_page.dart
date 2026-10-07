@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/bar_kategori.dart';
@@ -237,8 +238,8 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
               for (final e in h.isi)
                 BarisPengeluaran(
                   pengeluaran: e,
-                  namaPencatat: _nama[e.userId],
-                  namaPembatal: _nama[e.cancelledByUserId],
+                  namaPencatat: e.namaPencatat(_nama),
+                  namaPembatal: e.namaPembatal(_nama),
                   onBatalkan: _repo.bolehDibatalkan(e)
                       ? () => batalkanPengeluaranLewatDialog(context, _repo, e)
                       : null,

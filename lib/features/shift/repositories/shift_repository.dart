@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../models/ringkasan_shift.dart';
 
@@ -97,7 +98,7 @@ class ShiftRepository {
       for (final s in shifts)
         RingkasanShift(
           shift: s,
-          namaKasir: nama[s.userId],
+          namaKasir: s.namaKasir(nama),
           transaksi: transaksi.where((t) => t.shiftId == s.id).toList(),
           pengeluaran: pengeluaran.where((e) => e.shiftId == s.id).toList(),
         ),

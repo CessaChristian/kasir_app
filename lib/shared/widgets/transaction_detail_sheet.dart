@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/app_database.dart';
+import '../../data/nama_tercatat.dart';
 import '../../data/db.dart';
 import '../../features/sales/repositories/sales_repository.dart';
 import '../../utils/currency_formatter.dart';
@@ -81,7 +82,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     if (mounted) {
       setState(() {
         _items = items;
-        _namaKasir = nama[tx.cashierUserId];
+        _namaKasir = tx.namaKasir(nama);
       });
     }
   }

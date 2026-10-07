@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/ui/kotak_cari.dart';
@@ -121,7 +122,7 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
                     for (final t in h.isi)
                       BarisTransaksi(
                         transaksi: t,
-                        namaPembatal: _nama[t.cancelledByUserId],
+                        namaPembatal: t.namaPembatal(_nama),
                         onTap: () => bukaDetailTransaksi(context, _repo, t),
                         onBatalkan: _repo.bolehDibatalkan(t)
                             ? () => batalkanTransaksiLewatDialog(
