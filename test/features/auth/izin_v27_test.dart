@@ -64,7 +64,8 @@ void main() {
         () async {
       await masuk('budi', 'cashier', izin: const ['manage_cashiers']);
       final repo = CashierRepository(db,
-          namaDipakaiDiServer: (_, _) async => false);
+          namaDipakaiDiServer: (_, _) async => false,
+          terhubung: () async => true);
 
       await expectLater(
           repo.createCashier(username: 'baru', pin: '727272'),
@@ -80,7 +81,8 @@ void main() {
     test('owner tetap bisa', () async {
       await masuk('owner', 'owner');
       final repo = CashierRepository(db,
-          namaDipakaiDiServer: (_, _) async => false);
+          namaDipakaiDiServer: (_, _) async => false,
+          terhubung: () async => true);
 
       await repo.gantiNamaKasir('sari', 'sarii');
       await repo.toggleCashierStatus('sari', false);

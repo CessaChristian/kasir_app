@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
+import '../../../data/supabase/server_terjangkau.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
@@ -8,16 +9,39 @@ import '../models/ringkasan_kasir.dart';
 
 /// Menjawab: apakah [nama] sudah dipakai akun LAIN (selain [kecualiId]) di
 /// server? Melempar [StateError] kalau tidak bisa memastikan.
-typedef PemeriksaNamaServer = Future<bool> Function(
-    String nama, String kecualiId);
+typedef PemeriksaNamaServer =
+    Future<bool> Function(String nama, String kecualiId);
+
+/// Menjawab: apakah server bisa dihubungi sekarang?
+typedef PemeriksaKoneksi = Future<bool> Function();
+
+/// Pesan saat Kelola Kasir dipakai tanpa internet.
+const pesanButuhInternet = 'Butuh internet — coba lagi setelah tersambung.';
 
 /// Repository for managing cashier accounts
+///
+/// Semua perubahan akun kasir WAJIB online (keputusan owner 2026-10-07):
+/// akibatnya dirasakan di HP kasir, dan username harus dicek ke server
+/// supaya dua HP tidak membuat akun bernama sama. Ditegakkan di sini, bukan
+/// hanya di halaman.
 class CashierRepository {
   final AppDatabase _db;
   final PemeriksaNamaServer _namaDipakaiDiServer;
+  final PemeriksaKoneksi _terhubung;
 
-  CashierRepository(this._db, {PemeriksaNamaServer? namaDipakaiDiServer})
-      : _namaDipakaiDiServer = namaDipakaiDiServer ?? _periksaKeSupabase;
+  CashierRepository(
+    this._db, {
+    PemeriksaNamaServer? namaDipakaiDiServer,
+    PemeriksaKoneksi? terhubung,
+  }) : _namaDipakaiDiServer = namaDipakaiDiServer ?? _periksaKeSupabase,
+       _terhubung = terhubung ?? serverTerjangkau;
+
+  /// Server bisa dihubungi sekarang? Dipakai halaman sebelum membuka lembar.
+  Future<bool> terhubung() => _terhubung();
+
+  Future<void> _wajibOnline() async {
+    if (!await _terhubung()) throw StateError(pesanButuhInternet);
+  }
 
   static const panjangNamaMin = 3;
   static const panjangNamaMaks = 30;
@@ -39,13 +63,16 @@ class CashierRepository {
     if (!CryptoUtils.isValidPinFormat(pin)) {
       throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
+    await _wajibOnline();
 
-    // 2. Check if username already exists
-    final existing = await (_db.select(_db.users)
-          ..where((u) => u.username.equals(username)))
-        .get();
+    // 2. Username tidak boleh kembar — di HP ini MAUPUN di server. HP lain
+    // bisa saja baru membuat akun bernama sama yang belum tertarik ke sini;
+    // kalau lolos, server menolak salah satunya dan sinkronnya macet.
+    final existing = await (_db.select(
+      _db.users,
+    )..where((u) => u.username.equals(username))).get();
 
-    if (existing.isNotEmpty) {
+    if (existing.isNotEmpty || await _namaDipakaiDiServer(username, '')) {
       throw StateError('Username sudah dipakai.');
     }
 
@@ -60,7 +87,9 @@ class CashierRepository {
     // Kalau permissions gagal di-set, user juga di-rollback agar tidak
     // ada akun "zombie" tanpa permission.
     return await _db.transaction<User>(() async {
-      await _db.into(_db.users).insert(
+      await _db
+          .into(_db.users)
+          .insert(
             UsersCompanion.insert(
               id: Value(userId),
               username: username,
@@ -73,12 +102,13 @@ class CashierRepository {
 
       await _setDefaultCashierPermissions(userId);
 
-      final created = await (_db.select(_db.users)
-            ..where((u) => u.id.equals(userId)))
-          .getSingleOrNull();
+      final created = await (_db.select(
+        _db.users,
+      )..where((u) => u.id.equals(userId))).getSingleOrNull();
       if (created == null) {
         throw StateError(
-            'Akun kasir berhasil dibuat. Kasir dapat login menggunakan username dan PIN yang baru.');
+          'Akun kasir berhasil dibuat. Kasir dapat login menggunakan username dan PIN yang baru.',
+        );
       }
       return created;
     });
@@ -113,15 +143,15 @@ class CashierRepository {
     if (kasir.isEmpty) return const [];
     final id = [for (final k in kasir) k.id];
 
-    final shift = await (_db.select(_db.shifts)
-          ..where((s) => s.deletedAt.isNull() & s.userId.isIn(id)))
-        .get();
+    final shift = await (_db.select(
+      _db.shifts,
+    )..where((s) => s.deletedAt.isNull() & s.userId.isIn(id))).get();
     final kodeIzin = {
       for (final p in await _db.select(_db.permissions).get()) p.code,
     };
-    final izinMenyala = await (_db.select(_db.userPermissions)
-          ..where((u) => u.enabled.equals(true) & u.userId.isIn(id)))
-        .get();
+    final izinMenyala = await (_db.select(
+      _db.userPermissions,
+    )..where((u) => u.enabled.equals(true) & u.userId.isIn(id))).get();
 
     final hasil = [
       for (final k in kasir)
@@ -134,16 +164,18 @@ class CashierRepository {
             mulaiShiftBerjalan: berjalan.isEmpty
                 ? null
                 : berjalan
-                    .map((s) => s.startAt)
-                    .reduce((a, b) => a.isAfter(b) ? a : b),
+                      .map((s) => s.startAt)
+                      .reduce((a, b) => a.isAfter(b) ? a : b),
             selesaiShiftTerakhir: selesai.isEmpty
                 ? null
                 : selesai
-                    .map((s) => s.endAt!)
-                    .reduce((a, b) => a.isAfter(b) ? a : b),
+                      .map((s) => s.endAt!)
+                      .reduce((a, b) => a.isAfter(b) ? a : b),
             izinAktif: izinMenyala
-                .where((u) =>
-                    u.userId == k.id && kodeIzin.contains(u.permissionCode))
+                .where(
+                  (u) =>
+                      u.userId == k.id && kodeIzin.contains(u.permissionCode),
+                )
                 .length,
             izinTotal: kodeIzin.length,
           );
@@ -156,16 +188,39 @@ class CashierRepository {
     ];
   }
 
-  /// Toggle cashier active status
+  /// Aktifkan / nonaktifkan akun kasir.
+  ///
+  /// Menonaktifkan ikut MENGAKHIRI shift kasir itu yang masih berjalan.
+  /// Kasirnya dikeluarkan dari HP-nya, jadi tidak ada lagi yang bisa
+  /// menutupnya — tanpa ini shiftnya tercatat "Aktif" selamanya di Riwayat
+  /// Shift dan Dashboard.
   Future<void> toggleCashierStatus(String userId, bool isActive) async {
     _requireManageCashiers();
-    await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
-      UsersCompanion(
-        isActive: Value(isActive),
-        updatedAt: Value(DateTime.now()),
-        syncStatus: const Value('pending'),
-      ),
-    );
+    await _wajibOnline();
+    final sekarang = DateTime.now();
+    await _db.transaction(() async {
+      await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
+        UsersCompanion(
+          isActive: Value(isActive),
+          updatedAt: Value(sekarang),
+          syncStatus: const Value('pending'),
+        ),
+      );
+      if (isActive) return;
+      await (_db.update(_db.shifts)..where(
+            (s) =>
+                s.userId.equals(userId) &
+                s.endAt.isNull() &
+                s.deletedAt.isNull(),
+          ))
+          .write(
+            ShiftsCompanion(
+              endAt: Value(sekarang),
+              updatedAt: Value(sekarang),
+              syncStatus: const Value('pending'),
+            ),
+          );
+    });
   }
 
   /// Reset cashier PIN
@@ -176,6 +231,8 @@ class CashierRepository {
     if (!CryptoUtils.isValidPinFormat(newPin)) {
       throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
+
+    await _wajibOnline();
 
     // 2. Generate new salt and hash
     final salt = CryptoUtils.generateSalt();
@@ -208,22 +265,24 @@ class CashierRepository {
     final nama = namaBaru.trim();
     if (nama.length < panjangNamaMin || nama.length > panjangNamaMaks) {
       throw ArgumentError(
-          'Nama harus $panjangNamaMin–$panjangNamaMaks karakter.');
+        'Nama harus $panjangNamaMin–$panjangNamaMaks karakter.',
+      );
     }
 
-    final akun = await (_db.select(_db.users)
-          ..where((u) => u.id.equals(userId)))
-        .getSingleOrNull();
+    await _wajibOnline();
+
+    final akun = await (_db.select(
+      _db.users,
+    )..where((u) => u.id.equals(userId))).getSingleOrNull();
     if (akun == null || akun.role != 'cashier') {
       throw StateError('Akun kasir tidak ditemukan.');
     }
     if (akun.username == nama) return;
 
-    final kembarDiSini = await (_db.select(_db.users)
-          ..where((u) => u.username.equals(nama) & u.id.equals(userId).not()))
-        .get();
-    if (kembarDiSini.isNotEmpty ||
-        await _namaDipakaiDiServer(nama, userId)) {
+    final kembarDiSini = await (_db.select(
+      _db.users,
+    )..where((u) => u.username.equals(nama) & u.id.equals(userId).not())).get();
+    if (kembarDiSini.isNotEmpty || await _namaDipakaiDiServer(nama, userId)) {
       throw StateError('Nama "$nama" sudah dipakai akun lain.');
     }
 
@@ -239,8 +298,10 @@ class CashierRepository {
   static Future<bool> _periksaKeSupabase(String nama, String kecualiId) async {
     final supabase = SupabaseService.instance;
     if (!supabase.online) {
-      throw StateError('Ganti nama butuh internet, supaya nama yang sama '
-          'tidak dipakai dua akun.');
+      throw StateError(
+        'Butuh internet, supaya username yang sama tidak '
+        'dipakai dua akun.',
+      );
     }
     try {
       final baris = await supabase.client!
@@ -265,7 +326,9 @@ class CashierRepository {
     // Daftarnya diambil dari satu tetapan bersama supaya tidak berbeda dengan
     // yang dipakai migrasi saat mengisi ulang izin yang hilang.
     for (final kode in izinBawaanKasir) {
-      await _db.into(_db.userPermissions).insert(
+      await _db
+          .into(_db.userPermissions)
+          .insert(
             UserPermissionsCompanion.insert(
               id: uuidTurunan('$userId:$kode'),
               userId: userId,
@@ -276,5 +339,4 @@ class CashierRepository {
           );
     }
   }
-
 }

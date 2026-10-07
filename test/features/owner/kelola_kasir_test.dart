@@ -69,6 +69,8 @@ void main() {
     late AppDatabase db;
     late CashierRepository repo;
     late PermissionRepository repoIzin;
+    var online = true;
+    var namaServer = <String>{};
 
     Future<void> akun(
       String id,
@@ -93,7 +95,13 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       db = AppDatabase.forTesting(NativeDatabase.memory());
       SessionManager.dbOverride = db;
-      repo = CashierRepository(db, namaDipakaiDiServer: (_, _) async => false);
+      online = true;
+      namaServer = {};
+      repo = CashierRepository(
+        db,
+        namaDipakaiDiServer: (nama, _) async => namaServer.contains(nama),
+        terhubung: () async => online,
+      );
       repoIzin = PermissionRepository(db);
       await akun('o-0', 'owner', 'owner');
       await akun('k-1', 'sari', 'cashier');
@@ -146,6 +154,75 @@ void main() {
       expect(sari.mulaiShiftBerjalan, isNull);
     });
 
+    test('tanpa internet: semua perubahan akun ditolak', () async {
+      online = false;
+      Future<void> ditolak(Future<void> f) => expectLater(
+        f,
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'pesan',
+            pesanButuhInternet,
+          ),
+        ),
+      );
+      await ditolak(repo.createCashier(username: 'rina', pin: '727272'));
+      await ditolak(repo.toggleCashierStatus('k-1', false));
+      await ditolak(repo.resetCashierPin('k-1', '123456'));
+      await ditolak(repo.gantiNamaKasir('k-1', 'sari.w'));
+      final sari = await (db.select(
+        db.users,
+      )..where((u) => u.id.equals('k-1'))).getSingle();
+      expect(sari.isActive, isTrue, reason: 'tidak ada yang berubah');
+    });
+
+    test('tambah akun: username yang sudah ada di SERVER ditolak', () async {
+      namaServer = {'rina'};
+      await expectLater(
+        repo.createCashier(username: 'rina', pin: '727272'),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        await (db.select(
+          db.users,
+        )..where((u) => u.username.equals('rina'))).get(),
+        isEmpty,
+      );
+      await repo.createCashier(username: 'tari', pin: '727272');
+    });
+
+    test('menonaktifkan ikut mengakhiri shift yang berjalan', () async {
+      await db
+          .into(db.shifts)
+          .insert(
+            ShiftsCompanion.insert(
+              id: const Value('s-jalan'),
+              userId: 'k-3',
+              startAt: Value(DateTime(2026, 10, 7, 13, 26)),
+            ),
+          );
+      await repo.toggleCashierStatus('k-3', true);
+      var s = await (db.select(
+        db.shifts,
+      )..where((x) => x.id.equals('s-jalan'))).getSingle();
+      expect(s.endAt, isNull, reason: 'mengaktifkan tidak menyentuh shift');
+
+      await repo.toggleCashierStatus('k-3', false);
+      s = await (db.select(
+        db.shifts,
+      )..where((x) => x.id.equals('s-jalan'))).getSingle();
+      expect(s.endAt, isNotNull);
+      expect(s.syncStatus, 'pending', reason: 'ikut terkirim ke server');
+      final lama = await (db.select(
+        db.shifts,
+      )..where((x) => x.id.equals('s1'))).getSingle();
+      expect(
+        lama.endAt,
+        DateTime(2026, 9, 22, 21, 4),
+        reason: 'shift yang sudah selesai tidak diubah',
+      );
+    });
+
     test('kelompok izin sesuai desain (Kelola Kategori belum ada)', () async {
       final kelompok = kelompokIzinDari(await repoIzin.getAllPermissions());
       // Dibandingkan sebagai teks: List di dalam record tidak dibandingkan
@@ -177,8 +254,13 @@ void main() {
             home: KelolaKasirPage(repo: repo, repoIzin: repoIzin),
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await Future<void>.delayed(const Duration(milliseconds: 40));
       });
+      // Koneksi diperiksa dulu, baru daftar kasir dimuat.
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
       await t.pump();
     }
 
@@ -211,6 +293,48 @@ void main() {
             (db.select(db.users)..where((u) => u.id.equals('k-1'))).getSingle(),
       );
       expect(sari!.isActive, isTrue);
+      await lepas(t);
+    });
+
+    testWidgets('tanpa internet: layar "butuh internet", Coba lagi', (t) async {
+      online = false;
+      await bukaKelola(t);
+      expect(find.text('Kelola Kasir butuh internet'), findsOneWidget);
+      expect(find.text('sari'), findsNothing);
+
+      online = true;
+      await t.tap(find.text('Coba lagi'));
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await t.pump();
+      expect(find.text('sari'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('nonaktifkan kasir yang sedang shift: disebut ikut diakhiri', (
+      t,
+    ) async {
+      await t.runAsync(
+        () => db
+            .into(db.shifts)
+            .insert(
+              ShiftsCompanion.insert(
+                id: const Value('s-jalan'),
+                userId: 'k-3',
+                startAt: Value(
+                  DateTime.now().subtract(const Duration(minutes: 5)),
+                ),
+              ),
+            ),
+      );
+      await bukaKelola(t);
+      await t.tap(find.bySemanticsLabel('Akun budi aktif'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('ikut diakhiri'), findsOneWidget);
+      await t.tap(find.text('Batal'));
+      await t.pumpAndSettle();
       await lepas(t);
     });
 

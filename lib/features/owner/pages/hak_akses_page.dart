@@ -9,7 +9,10 @@ import '../../../shared/ui/sakelar.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
+import '../../../data/supabase/server_terjangkau.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/simpan_lalu_kirim.dart';
+import '../repositories/cashier_repository.dart';
 import '../../auth/repositories/permission_repository.dart';
 import '../models/ringkasan_kasir.dart';
 
@@ -24,7 +27,16 @@ class HakAksesPage extends StatefulWidget {
   /// Diisi test; aplikasi memakai basis data utama.
   final PermissionRepository? repo;
 
-  const HakAksesPage({super.key, required this.akun, this.repo});
+  /// Pemeriksa koneksi sebelum menyimpan (halaman ini wajib online, sama
+  /// seperti Kelola Kasir). Bawaan: [serverTerjangkau].
+  final Future<bool> Function()? cekKoneksi;
+
+  const HakAksesPage({
+    super.key,
+    required this.akun,
+    this.repo,
+    this.cekKoneksi,
+  });
 
   @override
   State<HakAksesPage> createState() => _HakAksesPageState();
@@ -72,6 +84,13 @@ class _HakAksesPageState extends State<HakAksesPage> {
 
   Future<void> _simpan() async {
     setState(() => _menyimpan = true);
+    final terhubung = await (widget.cekKoneksi ?? serverTerjangkau)();
+    if (!mounted) return;
+    if (!terhubung) {
+      setState(() => _menyimpan = false);
+      AppToast.error(context, pesanButuhInternet);
+      return;
+    }
     final tersimpan = await simpanLaluKirim(
       context,
       simpan: () =>

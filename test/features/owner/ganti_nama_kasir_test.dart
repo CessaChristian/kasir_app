@@ -24,6 +24,7 @@ void main() {
 
   CashierRepository repo() => CashierRepository(
         db,
+        terhubung: () async => true,
         namaDipakaiDiServer: (nama, kecualiId) async {
           ditanyakanKeServer.add((nama, kecualiId));
           if (galatServer != null) throw galatServer!;

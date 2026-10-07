@@ -276,14 +276,6 @@ Future<bool> tampilkanMenuAkun(BuildContext context, User akun) async {
                         color: WarnaTeras.teks,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${akun.username}',
-                      style: const TextStyle(
-                        fontSize: TeksTeras.kecil,
-                        color: WarnaTeras.teksPudar,
-                      ),
-                    ),
                   ],
                 ),
               ),
