@@ -15,7 +15,7 @@ import '../../history/widgets/batalkan_transaksi.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../models/ringkasan_shift.dart';
 import '../repositories/shift_repository.dart';
-import '../widgets/kartu_shift.dart';
+import '../../../shared/ui/inisial_akun.dart';
 
 /// Detail Shift (desain): kartu ringkasan · tab Transaksi/Pengeluaran.
 ///

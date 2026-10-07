@@ -4,6 +4,7 @@ import '../../../data/supabase/supabase_service.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../shared/auth/session_manager.dart';
+import '../models/ringkasan_kasir.dart';
 
 /// Menjawab: apakah [nama] sudah dipakai akun LAIN (selain [kecualiId]) di
 /// server? Melempar [StateError] kalau tidak bisa memastikan.
@@ -89,6 +90,70 @@ class CashierRepository {
           ..where((u) => u.role.equals('cashier'))
           ..orderBy([(u) => OrderingTerm.desc(u.createdAt)]))
         .get();
+  }
+
+  /// Daftar kartu Kelola Kasir: akun aktif dulu, lalu yang nonaktif;
+  /// masing-masing terbaru dulu. Ikut berubah setiap kali akun, shift, atau
+  /// izin berubah — termasuk yang datang dari sinkron.
+  Stream<List<RingkasanKasir>> watchDaftarKasir() => _db
+      .customSelect(
+        'SELECT 1',
+        readsFrom: {
+          _db.users,
+          _db.shifts,
+          _db.userPermissions,
+          _db.permissions,
+        },
+      )
+      .watch()
+      .asyncMap((_) => _daftarKasir());
+
+  Future<List<RingkasanKasir>> _daftarKasir() async {
+    final kasir = await getAllCashiers();
+    if (kasir.isEmpty) return const [];
+    final id = [for (final k in kasir) k.id];
+
+    final shift = await (_db.select(_db.shifts)
+          ..where((s) => s.deletedAt.isNull() & s.userId.isIn(id)))
+        .get();
+    final kodeIzin = {
+      for (final p in await _db.select(_db.permissions).get()) p.code,
+    };
+    final izinMenyala = await (_db.select(_db.userPermissions)
+          ..where((u) => u.enabled.equals(true) & u.userId.isIn(id)))
+        .get();
+
+    final hasil = [
+      for (final k in kasir)
+        () {
+          final milik = shift.where((s) => s.userId == k.id);
+          final berjalan = milik.where((s) => s.endAt == null);
+          final selesai = milik.where((s) => s.endAt != null);
+          return RingkasanKasir(
+            akun: k,
+            mulaiShiftBerjalan: berjalan.isEmpty
+                ? null
+                : berjalan
+                    .map((s) => s.startAt)
+                    .reduce((a, b) => a.isAfter(b) ? a : b),
+            selesaiShiftTerakhir: selesai.isEmpty
+                ? null
+                : selesai
+                    .map((s) => s.endAt!)
+                    .reduce((a, b) => a.isAfter(b) ? a : b),
+            izinAktif: izinMenyala
+                .where((u) =>
+                    u.userId == k.id && kodeIzin.contains(u.permissionCode))
+                .length,
+            izinTotal: kodeIzin.length,
+          );
+        }(),
+    ];
+    // Aktif dulu; urutan bawaan (terbaru dulu) dipertahankan di tiap bagian.
+    return [
+      ...hasil.where((r) => r.akun.isActive),
+      ...hasil.where((r) => !r.akun.isActive),
+    ];
   }
 
   /// Toggle cashier active status

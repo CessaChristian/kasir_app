@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/ui/baris_menu.dart';
-import '../../../shared/ui/pegang_lembar.dart';
+import '../../../shared/ui/lembar_bawah.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
@@ -48,59 +48,13 @@ enum FormatLaporan {
   });
 }
 
-/// Bentuk lembar unduh (desain): sudut 24, pegangan kecil terang.
-Future<T?> _tampilkan<T>(BuildContext context, WidgetBuilder isi) {
-  return showModalBottomSheet<T>(
-    context: context,
-    useSafeArea: true,
-    isScrollControlled: true,
-    backgroundColor: WarnaTeras.kartu,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) => SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [const PegangLembar.kecil(), isi(context)],
-        ),
-      ),
-    ),
-  );
-}
-
-Widget _judul(String judul, String keterangan) => Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Text(
-      judul,
-      style: const TextStyle(
-        fontSize: TeksTeras.judulBagian,
-        fontWeight: FontWeight.w700,
-        color: WarnaTeras.teks,
-      ),
-    ),
-    const SizedBox(height: 4),
-    Text(
-      keterangan,
-      style: const TextStyle(
-        fontSize: TeksTeras.biasa,
-        color: WarnaTeras.teksPudar,
-      ),
-    ),
-  ],
-);
-
 /// Lembar "Download Laporan": pilih PDF atau Excel (PDF terpilih bawaan,
 /// desain). Null = Batal.
 Future<FormatLaporan?> pilihFormatLaporan(
   BuildContext context, {
   required String labelPeriode,
 }) {
-  return _tampilkan<FormatLaporan>(
+  return tampilkanLembarBawah<FormatLaporan>(
     context,
     (context) => _PilihFormat(labelPeriode: labelPeriode),
   );
@@ -123,7 +77,10 @@ class _PilihFormatState extends State<_PilihFormat> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _judul('Download Laporan', 'Periode ${widget.labelPeriode}'),
+        JudulLembar(
+          judul: 'Download Laporan',
+          keterangan: 'Periode ${widget.labelPeriode}',
+        ),
         const SizedBox(height: 16),
         const Text(
           'Pilih format file',
@@ -210,12 +167,15 @@ Future<CaraSimpan?> tampilkanLaporanSiap(
   required String namaFile,
   required String keterangan,
 }) {
-  return _tampilkan<CaraSimpan>(
+  return tampilkanLembarBawah<CaraSimpan>(
     context,
     (context) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _judul('Laporan siap', 'Pilih cara menyimpan laporan'),
+        const JudulLembar(
+          judul: 'Laporan siap',
+          keterangan: 'Pilih cara menyimpan laporan',
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

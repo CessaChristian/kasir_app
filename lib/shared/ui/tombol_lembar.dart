@@ -22,6 +22,9 @@ class TombolLembar extends StatelessWidget {
   final double ukuranTeks;
   final FontWeight beratTeks;
 
+  /// Garis tepi, mis. tombol Batal bergaris di lembar Ubah Username.
+  final Color? tepi;
+
   const TombolLembar({
     super.key,
     required this.label,
@@ -33,6 +36,7 @@ class TombolLembar extends StatelessWidget {
     this.sudut = 14,
     this.ukuranTeks = TeksTeras.biasa,
     this.beratTeks = FontWeight.w600,
+    this.tepi,
   });
 
   @override
@@ -52,6 +56,7 @@ class TombolLembar extends StatelessWidget {
           disabledForegroundColor: warna,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(sudut),
+            side: tepi == null ? BorderSide.none : BorderSide(color: tepi!),
           ),
         ),
         child: ikon == null

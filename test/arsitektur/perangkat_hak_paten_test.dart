@@ -40,13 +40,13 @@ void main() {
     final shell = File('lib/app/app_shell.dart').readAsStringSync();
     expect(shell.contains('DaftarPerangkatPage'), isFalse,
         reason: 'drawer kasir tidak boleh memuat menu Perangkat');
-    expect(shell.contains('ManageCashiersPage'), isFalse,
+    expect(shell.contains('KelolaKasirPage'), isFalse,
         reason: 'drawer kasir tidak boleh memuat menu Kelola Kasir');
 
     final profil = File('lib/features/profil/pages/profil_owner_page.dart')
         .readAsStringSync();
     expect(profil.contains('DaftarPerangkatPage()'), isTrue);
-    expect(profil.contains('ManageCashiersPage()'), isTrue);
+    expect(profil.contains('KelolaKasirPage()'), isTrue);
 
     // Siapa saja yang memasang halaman Profil owner dan KerangkaOwner.
     List<String> pemakai(String nama) => Directory('lib')

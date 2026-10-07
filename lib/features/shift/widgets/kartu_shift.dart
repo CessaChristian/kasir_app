@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/ui/chip_status.dart';
+import '../../../shared/ui/inisial_akun.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
@@ -151,35 +152,6 @@ class KartuShift extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Kotak oranye muda berisi huruf pertama nama kasir.
-class InisialKasir extends StatelessWidget {
-  final String nama;
-  final double ukuran;
-
-  const InisialKasir({super.key, required this.nama, required this.ukuran});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: ukuran,
-      height: ukuran,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: WarnaTeras.oranyeLembut,
-        borderRadius: BorderRadius.circular(ukuran * 0.28),
-      ),
-      child: Text(
-        nama.isEmpty ? '?' : nama.characters.first.toUpperCase(),
-        style: TextStyle(
-          fontSize: ukuran * 0.45,
-          fontWeight: FontWeight.w700,
-          color: WarnaTeras.oranye,
-        ),
       ),
     );
   }

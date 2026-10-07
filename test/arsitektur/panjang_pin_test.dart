@@ -49,8 +49,6 @@ void main() {
       'lib/utils/crypto_utils.dart': 'tempat pinLength didefinisikan',
       'lib/features/products/sheets/product_form_sheet.dart':
           'maxLength pada field nama/harga produk, bukan PIN',
-      'lib/features/owner/pages/manage_cashiers_page.dart':
-          'maxLength pada field username, bukan PIN',
     };
 
     final pelanggar = <String>[];

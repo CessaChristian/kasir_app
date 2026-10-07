@@ -10,7 +10,7 @@ import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../auth/recovery/widgets/lembar_kode_recovery.dart';
-import '../../owner/pages/manage_cashiers_page.dart';
+import '../../owner/pages/kelola_kasir_page.dart';
 import '../../perangkat/pages/daftar_perangkat_page.dart';
 import '../../products/category_manager.dart';
 import '../../report/pages/laporan_page.dart';
@@ -95,7 +95,7 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             keterangan: 'Akun & akses kasir',
             warnaIkon: WarnaTeras.biru,
             latarIkon: _biru,
-            onTap: () => _buka(const ManageCashiersPage()),
+            onTap: () => _buka(const KelolaKasirPage()),
           ),
         ]),
         _judulBagian('PERANGKAT & AKUN'),
