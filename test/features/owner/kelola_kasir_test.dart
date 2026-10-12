@@ -62,6 +62,12 @@ void main() {
       expect(periksaUsername('  '), 'Username wajib diisi');
       expect(periksaUsername('ab'), 'Username harus 3–30 karakter');
       expect(periksaUsername('sari'), isNull);
+      expect(periksaUsername('sa ri'), 'Username tidak boleh memuat spasi');
+      expect(
+        periksaUsername('sari~1'),
+        'Username tidak boleh memuat "~"',
+        reason: '~ adalah penanda akun yang dihapus',
+      );
     });
   });
 
@@ -338,22 +344,80 @@ void main() {
       await lepas(t);
     });
 
-    testWidgets('menu ⋮: Hapus Akun tampil tapi belum melakukan apa-apa', (
+    testWidgets('menu ⋮ → Hapus Akun: konfirmasi sesuai desain, lalu hilang', (
       t,
     ) async {
       await bukaKelola(t);
+      // Kartu pertama: budi (aktif, terbaru).
       await t.tap(find.byTooltip('Menu akun').first);
       await t.pumpAndSettle();
       expect(find.text('Ubah Username'), findsOneWidget);
       await t.tap(find.text('Hapus Akun'));
-      await t.pumpAndSettle();
-      expect(
-        find.text('Hapus Akun'),
-        findsOneWidget,
-        reason: 'lembar tetap terbuka, tidak ada yang terjadi',
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
       );
-      final jumlah = await t.runAsync(() => db.select(db.users).get());
-      expect(jumlah, hasLength(4));
+      await t.pumpAndSettle();
+      expect(find.text('Hapus akun budi?'), findsOneWidget);
+      expect(
+        find.text(
+          'Akun @budi tidak bisa dipakai login lagi. Riwayat transaksi dan '
+          'shift yang sudah tercatat tetap tersimpan.',
+        ),
+        findsOneWidget,
+      );
+
+      await t.tap(find.text('Hapus'));
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 120)),
+      );
+      await t.pumpAndSettle();
+      final budi = await t.runAsync(
+        () =>
+            (db.select(db.users)..where((u) => u.id.equals('k-3'))).getSingle(),
+      );
+      expect(budi!.deletedAt, isNotNull);
+      expect(find.text('budi'), findsNothing, reason: 'hilang dari daftar');
+      expect(find.text('sari'), findsOneWidget);
+      // Toast "dihapus" punya pewaktu sendiri.
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('hapus kasir yang sedang shift: disebut ikut diakhiri', (
+      t,
+    ) async {
+      await t.runAsync(
+        () => db
+            .into(db.shifts)
+            .insert(
+              ShiftsCompanion.insert(
+                id: const Value('s-jalan'),
+                userId: 'k-3',
+                startAt: Value(
+                  DateTime.now().subtract(const Duration(minutes: 5)),
+                ),
+              ),
+            ),
+      );
+      await bukaKelola(t);
+      await t.tap(find.byTooltip('Menu akun').first);
+      await t.pumpAndSettle();
+      await t.tap(find.text('Hapus Akun'));
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
+      );
+      await t.pumpAndSettle();
+      expect(find.textContaining('ikut diakhiri'), findsOneWidget);
+      await t.tap(find.text('Batal'));
+      await t.pumpAndSettle();
+      final budi = await t.runAsync(
+        () =>
+            (db.select(db.users)..where((u) => u.id.equals('k-3'))).getSingle(),
+      );
+      expect(budi!.deletedAt, isNull, reason: 'Batal tidak mengubah apa pun');
       await lepas(t);
     });
 
@@ -365,6 +429,12 @@ void main() {
       expect(find.text('PIN (6 digit)'), findsOneWidget);
 
       final kolom = find.byType(TextField);
+      await t.enterText(kolom.at(0), ' ri na~ ');
+      expect(
+        (t.widget<TextField>(kolom.at(0))).controller!.text,
+        'rina',
+        reason: 'spasi dan ~ tidak bisa diketik di username',
+      );
       await t.enterText(kolom.at(0), 'rina');
       await t.enterText(kolom.at(1), '1234567890');
       expect(

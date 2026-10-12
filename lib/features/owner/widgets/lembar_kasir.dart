@@ -9,12 +9,20 @@ import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/crypto_utils.dart';
+import '../../../data/nama_tercatat.dart';
 import '../repositories/cashier_repository.dart';
 
 /// Isian PIN: hanya angka, sepanjang [CryptoUtils.pinLength].
 final _formatPin = [
   FilteringTextInputFormatter.digitsOnly,
   LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
+];
+
+/// Isian username: spasi dan [penandaDihapus] tidak bisa diketik sama sekali
+/// (termasuk lewat tempel). Aturannya tetap ditegakkan di
+/// [CashierRepository.periksaUsername].
+final _formatUsername = [
+  FilteringTextInputFormatter.deny(RegExp('[\\s$penandaDihapus]')),
 ];
 
 /// Pesan di bawah dua isian PIN (desain): kosong selama belum diisi,
@@ -30,16 +38,7 @@ final _formatPin = [
 }
 
 /// Galat username (desain Tambah Akun / Ubah Username); null = sah.
-String? periksaUsername(String nama) {
-  final n = nama.trim();
-  if (n.isEmpty) return 'Username wajib diisi';
-  if (n.length < CashierRepository.panjangNamaMin ||
-      n.length > CashierRepository.panjangNamaMaks) {
-    return 'Username harus ${CashierRepository.panjangNamaMin}–'
-        '${CashierRepository.panjangNamaMaks} karakter';
-  }
-  return null;
-}
+String? periksaUsername(String nama) => CashierRepository.periksaUsername(nama);
 
 String _pesanGalat(Object e) => switch (e) {
   StateError(:final message) => message,
@@ -167,6 +166,7 @@ class _TambahKasirState extends State<_TambahKasir> {
           controller: _nama,
           ikon: Icons.person_rounded,
           petunjuk: 'contoh: sari',
+          inputFormatters: _formatUsername,
           onChanged: (_) => setState(() => _galat = null),
         ),
         const SizedBox(height: 12),
@@ -244,13 +244,13 @@ class _TambahKasirState extends State<_TambahKasir> {
 // Menu akun (⋮)
 // ---------------------------------------------------------------------------
 
-/// Lembar ⋮ (desain): kepala akun, Ubah Username, Hapus Akun.
-///
-/// Hapus Akun SENGAJA belum berfungsi — tampil sesuai desain tapi diketuk
-/// tidak melakukan apa-apa. Keputusan "satu akun = satu orang, tanpa hapus"
-/// sedang dibuka lagi bersama owner (2026-10-07). True = pilih Ubah Username.
-Future<bool> tampilkanMenuAkun(BuildContext context, User akun) async {
-  final hasil = await tampilkanLembarBawah<bool>(
+/// Pilihan di lembar ⋮.
+enum PilihanAkun { ubahUsername, hapus }
+
+/// Lembar ⋮ (desain): kepala akun, Ubah Username, Hapus Akun. Null = ditutup
+/// tanpa memilih.
+Future<PilihanAkun?> tampilkanMenuAkun(BuildContext context, User akun) {
+  return tampilkanLembarBawah<PilihanAkun>(
     context,
     (context) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -289,7 +289,7 @@ Future<bool> tampilkanMenuAkun(BuildContext context, User akun) async {
           keterangan: 'Dipakai kasir untuk login',
           warna: WarnaTeras.oranye,
           latar: WarnaTeras.oranyeMuda,
-          onTap: () => Navigator.pop(context, true),
+          onTap: () => Navigator.pop(context, PilihanAkun.ubahUsername),
         ),
         _pilihanMenu(
           ikon: Icons.delete_rounded,
@@ -298,12 +298,11 @@ Future<bool> tampilkanMenuAkun(BuildContext context, User akun) async {
           warna: WarnaTeras.merah,
           latar: WarnaTeras.merahMuda,
           warnaJudul: WarnaTeras.merah,
-          onTap: () {},
+          onTap: () => Navigator.pop(context, PilihanAkun.hapus),
         ),
       ],
     ),
   );
-  return hasil == true;
 }
 
 Widget _pilihanMenu({
@@ -448,6 +447,7 @@ class _UbahUsernameState extends State<_UbahUsername> {
           petunjuk: 'username',
           galat: galat != null,
           autofocus: true,
+          inputFormatters: _formatUsername,
           onChanged: (_) => setState(() => _galatSimpan = null),
         ),
         Container(

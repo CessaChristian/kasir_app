@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
+import '../../../data/nama_tercatat.dart';
 import '../../../data/supabase/server_terjangkau.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/uuid_helper.dart';
@@ -47,6 +48,22 @@ class CashierRepository {
   static const panjangNamaMin = 3;
   static const panjangNamaMaks = 30;
 
+  /// Aturan username, ditegakkan di sini untuk akun baru maupun ganti nama
+  /// (lembarnya memakai [periksaUsername] yang sama).
+  static String? periksaUsername(String nama) {
+    final n = nama.trim();
+    if (n.isEmpty) return 'Username wajib diisi';
+    if (n.length < panjangNamaMin || n.length > panjangNamaMaks) {
+      return 'Username harus $panjangNamaMin–$panjangNamaMaks karakter';
+    }
+    if (n.contains(RegExp(r'\s'))) return 'Username tidak boleh memuat spasi';
+    // Dipakai sebagai penanda akun yang dihapus (lihat [usernameTerhapus]).
+    if (n.contains(penandaDihapus)) {
+      return 'Username tidak boleh memuat "$penandaDihapus"';
+    }
+    return null;
+  }
+
   /// Kelola Kasir adalah hak PATEN owner, bukan izin yang bisa diberikan —
   /// semua fungsi yang mengubah akun kasir memeriksanya di sini, tidak hanya
   /// lewat menu yang disembunyikan. Izin bawaan kasir baru: [izinBawaanKasir].
@@ -59,6 +76,10 @@ class CashierRepository {
     required String pin,
   }) async {
     _requireManageCashiers();
+
+    final galatNama = periksaUsername(username);
+    if (galatNama != null) throw ArgumentError(galatNama);
+    username = username.trim();
 
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(pin)) {
@@ -115,10 +136,11 @@ class CashierRepository {
     });
   }
 
-  /// Semua akun kasir, terbaru dulu.
+  /// Semua akun kasir yang belum dihapus, terbaru dulu. Akun yang dihapus
+  /// tidak tampil lagi di mana pun selain sebagai nama di riwayat.
   Future<List<User>> getAllCashiers() async {
     return await (_db.select(_db.users)
-          ..where((u) => u.role.equals('cashier'))
+          ..where((u) => u.role.equals('cashier') & u.deletedAt.isNull())
           ..orderBy([(u) => OrderingTerm.desc(u.createdAt)]))
         .get();
   }
@@ -207,8 +229,49 @@ class CashierRepository {
           syncStatus: const Value('pending'),
         ),
       );
-      if (isActive) return;
-      await (_db.update(_db.shifts)..where(
+      if (!isActive) await _akhiriShiftBerjalan(userId, sekarang);
+    });
+  }
+
+  /// Hapus akun kasir (keputusan owner 2026-10-07): PERMANEN, tidak bisa
+  /// dipulihkan — beda dengan nonaktif.
+  ///
+  /// Barisnya TIDAK dibuang: shift, transaksi, dan pengeluaran lamanya masih
+  /// menunjuk id-nya. Yang terjadi, dalam satu transaksi:
+  /// - `deleted_at` diisi → hilang dari Kelola Kasir, login & sesi ditolak;
+  /// - ikut dinonaktifkan → HP dengan APK lama (belum kenal `deleted_at`)
+  ///   tetap menolaknya;
+  /// - username diganti [usernameTerhapus] → nama aslinya bebas dipakai
+  ///   akun baru; riwayat lama memakai salinan nama + " (dihapus)";
+  /// - shift yang masih berjalan diakhiri (sama seperti nonaktif).
+  Future<void> hapusKasir(String userId) async {
+    _requireManageCashiers();
+    await _wajibOnline();
+    final akun = await (_db.select(
+      _db.users,
+    )..where((u) => u.id.equals(userId))).getSingleOrNull();
+    if (akun == null || akun.role != 'cashier') {
+      throw StateError('Akun kasir tidak ditemukan.');
+    }
+    if (akun.deletedAt != null) return;
+
+    final sekarang = DateTime.now();
+    await _db.transaction(() async {
+      await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
+        UsersCompanion(
+          username: Value(usernameTerhapus(akun.username, akun.id)),
+          isActive: const Value(false),
+          deletedAt: Value(sekarang),
+          updatedAt: Value(sekarang),
+          syncStatus: const Value('pending'),
+        ),
+      );
+      await _akhiriShiftBerjalan(userId, sekarang);
+    });
+  }
+
+  Future<void> _akhiriShiftBerjalan(String userId, DateTime sekarang) =>
+      (_db.update(_db.shifts)..where(
             (s) =>
                 s.userId.equals(userId) &
                 s.endAt.isNull() &
@@ -221,8 +284,6 @@ class CashierRepository {
               syncStatus: const Value('pending'),
             ),
           );
-    });
-  }
 
   /// Reset cashier PIN
   Future<void> resetCashierPin(String userId, String newPin) async {
@@ -264,18 +325,15 @@ class CashierRepository {
     _requireManageCashiers();
 
     final nama = namaBaru.trim();
-    if (nama.length < panjangNamaMin || nama.length > panjangNamaMaks) {
-      throw ArgumentError(
-        'Nama harus $panjangNamaMin–$panjangNamaMaks karakter.',
-      );
-    }
+    final galatNama = periksaUsername(nama);
+    if (galatNama != null) throw ArgumentError(galatNama);
 
     await _wajibOnline();
 
     final akun = await (_db.select(
       _db.users,
     )..where((u) => u.id.equals(userId))).getSingleOrNull();
-    if (akun == null || akun.role != 'cashier') {
+    if (akun == null || akun.role != 'cashier' || akun.deletedAt != null) {
       throw StateError('Akun kasir tidak ditemukan.');
     }
     if (akun.username == nama) return;

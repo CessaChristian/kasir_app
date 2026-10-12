@@ -144,6 +144,17 @@ void main() {
     },
   );
 
+  test('username berspasi ditolak, juga lewat repositori', () async {
+    await expectLater(
+      repo().createCashier(username: 'sa ri', pin: '727272'),
+      throwsA(isA<ArgumentError>()),
+    );
+    await expectLater(
+      repo().gantiNamaKasir('k-1', 'sari w'),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
   test('nama yang sudah dipakai akun lain DI HP INI ditolak', () async {
     await expectLater(
       repo().gantiNamaKasir('k-1', 'sari'),

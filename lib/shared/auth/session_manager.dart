@@ -75,8 +75,9 @@ class SessionManager {
             ..limit(1))
           .getSingleOrNull();
 
-      if (user == null || !user.isActive) {
-        // Akun dinonaktifkan (atau barisnya tidak ada) setelah sesi dibuat
+      if (user == null || !user.isActive || user.deletedAt != null) {
+        // Akun dinonaktifkan/dihapus (atau barisnya tidak ada) setelah sesi
+        // dibuat
         await clearSession();
         return;
       }
@@ -188,6 +189,8 @@ class SessionManager {
 
     final alasan = user == null
         ? 'Akun Anda sudah tidak ada.'
+        : user.deletedAt != null
+        ? 'Akun Anda dihapus oleh pemilik.'
         : !user.isActive
             ? 'Akses Anda dinonaktifkan oleh pemilik.'
             : null;

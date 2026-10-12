@@ -121,15 +121,45 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
     );
   }
 
-  Future<void> _menu(User akun) async {
-    if (!await tampilkanMenuAkun(context, akun) || !mounted) return;
+  Future<void> _menu(RingkasanKasir r) async {
+    final akun = r.akun;
+    final pilihan = await tampilkanMenuAkun(context, akun);
+    if (pilihan == null || !mounted) return;
     if (!await _wajibOnline() || !mounted) return;
+    if (pilihan == PilihanAkun.hapus) return _hapus(r);
     if (!await tampilkanUbahUsername(context, _repo, akun) || !mounted) return;
     await kirimSekarang(
       context,
       pesanTerkirim: 'Username diganti & terkirim',
       pesanTertunda:
           'Tersimpan — username baru berlaku di HP lain setelah online',
+    );
+  }
+
+  /// Teks konfirmasi mengikuti Claude Design; kalimat shift ditambahkan
+  /// (sama seperti nonaktif) karena akibatnya perlu diketahui owner.
+  Future<void> _hapus(RingkasanKasir r) async {
+    final akun = r.akun;
+    final mulai = r.mulaiShiftBerjalan;
+    final yakin = await tampilkanLembarKonfirmasi(
+      context,
+      ikon: Icons.person_remove_outlined,
+      judul: 'Hapus akun ${akun.username}?',
+      catatan:
+          'Akun @${akun.username} tidak bisa dipakai login lagi. Riwayat '
+          'transaksi dan shift yang sudah tercatat tetap tersimpan.'
+          '${mulai == null ? '' : ' Shift-nya yang berjalan sejak '
+                    '${DateFormat('HH:mm').format(mulai.toLocal())} '
+                    'ikut diakhiri.'}',
+      labelAksi: 'Hapus',
+    );
+    if (!yakin || !mounted) return;
+    await simpanLaluKirim(
+      context,
+      simpan: () => _repo.hapusKasir(akun.id),
+      pesanTerkirim: 'Akun ${akun.username} dihapus',
+      pesanTertunda: 'Tersimpan — akun baru terhapus di HP lain setelah online',
+      pesanGagal: (e) => 'Gagal: $e',
     );
   }
 
@@ -264,7 +294,7 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
                       ringkasan: r,
                       sekarang: sekarang,
                       onUbahAktif: (v) => _ubahAktif(r, v),
-                      onMenu: () => _menu(r.akun),
+                      onMenu: () => _menu(r),
                       onHakAkses: () => _hakAkses(r.akun),
                       onResetPin: () => _resetPin(r.akun),
                     ),

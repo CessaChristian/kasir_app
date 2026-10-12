@@ -90,7 +90,11 @@ class AuthRepository {
 
     if (user == null) return null;
 
-    // 2. Check if user is active
+    // 2. Akun dihapus (username-nya sudah diganti, jadi praktis tak
+    // tertemukan — ini jaring kedua) atau dinonaktifkan.
+    if (user.deletedAt != null) {
+      throw StateError('Akun Anda sudah dihapus oleh pemilik.');
+    }
     if (!user.isActive) {
       throw StateError('Akun Anda dinonaktifkan oleh pemilik.');
     }
@@ -345,7 +349,7 @@ class AuthRepository {
   /// Aman karena dilindungi rate limit (S5) dan session anti-tamper (S6).
   Future<List<String>> getAllActiveUsernames() async {
     final users = await (_db.select(_db.users)
-          ..where((u) => u.isActive.equals(true))
+          ..where((u) => u.isActive.equals(true) & u.deletedAt.isNull())
           ..orderBy([(u) => OrderingTerm.asc(u.username)]))
         .get();
     return users.map((u) => u.username).toList();
