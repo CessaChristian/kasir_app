@@ -8,9 +8,10 @@ import '../../../shared/auth/session_manager.dart';
 import '../models/ringkasan_kasir.dart';
 
 /// Menjawab: apakah [nama] sudah dipakai akun LAIN (selain [kecualiId]) di
-/// server? Melempar [StateError] kalau tidak bisa memastikan.
+/// server? [kecualiId] null untuk akun baru. Melempar [StateError] kalau
+/// tidak bisa memastikan.
 typedef PemeriksaNamaServer =
-    Future<bool> Function(String nama, String kecualiId);
+    Future<bool> Function(String nama, String? kecualiId);
 
 /// Menjawab: apakah server bisa dihubungi sekarang?
 typedef PemeriksaKoneksi = Future<bool> Function();
@@ -72,7 +73,7 @@ class CashierRepository {
       _db.users,
     )..where((u) => u.username.equals(username))).get();
 
-    if (existing.isNotEmpty || await _namaDipakaiDiServer(username, '')) {
+    if (existing.isNotEmpty || await _namaDipakaiDiServer(username, null)) {
       throw StateError('Username sudah dipakai.');
     }
 
@@ -295,7 +296,7 @@ class CashierRepository {
     );
   }
 
-  static Future<bool> _periksaKeSupabase(String nama, String kecualiId) async {
+  static Future<bool> _periksaKeSupabase(String nama, String? kecualiId) async {
     final supabase = SupabaseService.instance;
     if (!supabase.online) {
       throw StateError(
@@ -304,12 +305,16 @@ class CashierRepository {
       );
     }
     try {
-      final baris = await supabase.client!
+      // `id` di server bertipe uuid: membandingkannya dengan teks kosong
+      // ditolak Postgres ("invalid input syntax for type uuid") — dulu itu
+      // membuat Tambah Akun SELALU gagal. Akun baru belum punya id, jadi
+      // syaratnya cukup dilewati.
+      var kueri = supabase.client!
           .from('users')
           .select('id')
-          .eq('username', nama)
-          .neq('id', kecualiId)
-          .limit(1);
+          .eq('username', nama);
+      if (kecualiId != null) kueri = kueri.neq('id', kecualiId);
+      final baris = await kueri.limit(1);
       return baris.isNotEmpty;
     } catch (_) {
       throw StateError('Gagal memeriksa nama ke server. Coba lagi.');
