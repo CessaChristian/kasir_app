@@ -199,9 +199,9 @@ class _ProductsPageState extends State<ProductsPage> {
                       for (final p in tampil) ...[
                         BarisProduk(
                           produk: p,
-                          namaKategori: byId[p.categoryId]?.name ?? 'Tanpa Kategori',
+                          namaKategori: byId[p.categoryId]?.name ?? namaTanpaKategori,
                           ikonKategori: byId[p.categoryId] == null
-                              ? Icons.block_rounded
+                              ? kIkonTanpaKategori
                               : categoryIconFromCodepoint(
                                   byId[p.categoryId]!.iconCodepoint),
                           onEdit: () => _openForm(context, editing: p),

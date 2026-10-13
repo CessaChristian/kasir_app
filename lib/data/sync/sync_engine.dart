@@ -922,6 +922,7 @@ class SyncEngine {
                 'id': c.id,
                 'name': c.name,
                 'icon_codepoint': c.iconCodepoint,
+                'tampil_di_kasir': c.tampilDiKasir,
                 'created_at': _iso(c.createdAt),
                 'updated_at': _iso(c.updatedAt),
                 'deleted_at': _iso(c.deletedAt),
@@ -935,6 +936,11 @@ class SyncEngine {
                 id: Value(r['id'] as String),
                 name: Value(r['name'] as String),
                 iconCodepoint: Value(r['icon_codepoint'] as int?),
+                // Server yang belum menjalankan kategori_tampil.sql tidak
+                // punya kolomnya: nilai di HP dibiarkan, bukan direset.
+                tampilDiKasir: r.containsKey('tampil_di_kasir')
+                    ? Value(r['tampil_di_kasir'] as bool? ?? true)
+                    : const Value.absent(),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),

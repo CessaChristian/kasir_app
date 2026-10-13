@@ -60,7 +60,7 @@ void main() {
     expect(all, isEmpty, reason: 'tidak boleh ada baris yatim yang lolos');
   });
 
-  test('3. deleteCategory tetap berhasil walau kategori masih dipakai produk',
+  test('3. hapus kategori tetap berhasil walau kategori masih dipakai produk',
       () async {
     await loginAsOwner();
 
@@ -75,10 +75,10 @@ void main() {
           categoryId: const Value('cat-1'),
         ));
 
-    // deleteCategory melepas produk dulu (category_id = NULL) baru menandai
+    // simpanKategori melepas produk dulu (category_id = NULL) baru menandai
     // kategorinya terhapus, semuanya dalam satu transaction — jadi FK tidak
     // terlanggar.
-    await db.deleteCategory('cat-1');
+    await db.simpanKategori(hapus: ['cat-1']);
 
     // Soft delete: barisnya SENGAJA tetap ada supaya penghapusannya bisa
     // disebarkan ke device lain saat sync.

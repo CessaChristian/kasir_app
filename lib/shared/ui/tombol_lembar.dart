@@ -25,6 +25,12 @@ class TombolLembar extends StatelessWidget {
   /// Garis tepi, mis. tombol Batal bergaris di lembar Ubah Username.
   final Color? tepi;
 
+  /// Latar saat nonaktif. Bawaan: [latar] dipudarkan.
+  final Color? latarNonaktif;
+
+  /// Warna teks/ikon saat nonaktif. Bawaan: [warna].
+  final Color? warnaNonaktif;
+
   const TombolLembar({
     super.key,
     required this.label,
@@ -37,6 +43,8 @@ class TombolLembar extends StatelessWidget {
     this.ukuranTeks = TeksTeras.biasa,
     this.beratTeks = FontWeight.w600,
     this.tepi,
+    this.latarNonaktif,
+    this.warnaNonaktif,
   });
 
   @override
@@ -52,8 +60,9 @@ class TombolLembar extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: latar,
           foregroundColor: warna,
-          disabledBackgroundColor: latar.withValues(alpha: 0.35),
-          disabledForegroundColor: warna,
+          disabledBackgroundColor:
+              latarNonaktif ?? latar.withValues(alpha: 0.35),
+          disabledForegroundColor: warnaNonaktif ?? warna,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(sudut),
             side: tepi == null ? BorderSide.none : BorderSide(color: tepi!),

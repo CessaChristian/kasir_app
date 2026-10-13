@@ -39,6 +39,21 @@ class $CategoriesTable extends Categories
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _tampilDiKasirMeta = const VerificationMeta(
+    'tampilDiKasir',
+  );
+  @override
+  late final GeneratedColumn<bool> tampilDiKasir = GeneratedColumn<bool>(
+    'tampil_di_kasir',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tampil_di_kasir" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -91,6 +106,7 @@ class $CategoriesTable extends Categories
     id,
     name,
     iconCodepoint,
+    tampilDiKasir,
     createdAt,
     updatedAt,
     deletedAt,
@@ -125,6 +141,15 @@ class $CategoriesTable extends Categories
         iconCodepoint.isAcceptableOrUnknown(
           data['icon_codepoint']!,
           _iconCodepointMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tampil_di_kasir')) {
+      context.handle(
+        _tampilDiKasirMeta,
+        tampilDiKasir.isAcceptableOrUnknown(
+          data['tampil_di_kasir']!,
+          _tampilDiKasirMeta,
         ),
       );
     }
@@ -173,6 +198,10 @@ class $CategoriesTable extends Categories
         DriftSqlType.int,
         data['${effectivePrefix}icon_codepoint'],
       ),
+      tampilDiKasir: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tampil_di_kasir'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -202,6 +231,11 @@ class Category extends DataClass implements Insertable<Category> {
   final String id;
   final String name;
   final int? iconCodepoint;
+
+  /// v36: false = tombolnya disembunyikan di halaman Kasir. Produknya TETAP
+  /// tampil di "Semua" dan pencarian — yang disembunyikan cuma tombolnya
+  /// (keputusan owner 2026-10-13).
+  final bool tampilDiKasir;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -210,6 +244,7 @@ class Category extends DataClass implements Insertable<Category> {
     required this.id,
     required this.name,
     this.iconCodepoint,
+    required this.tampilDiKasir,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -223,6 +258,7 @@ class Category extends DataClass implements Insertable<Category> {
     if (!nullToAbsent || iconCodepoint != null) {
       map['icon_codepoint'] = Variable<int>(iconCodepoint);
     }
+    map['tampil_di_kasir'] = Variable<bool>(tampilDiKasir);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -239,6 +275,7 @@ class Category extends DataClass implements Insertable<Category> {
       iconCodepoint: iconCodepoint == null && nullToAbsent
           ? const Value.absent()
           : Value(iconCodepoint),
+      tampilDiKasir: Value(tampilDiKasir),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -257,6 +294,7 @@ class Category extends DataClass implements Insertable<Category> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       iconCodepoint: serializer.fromJson<int?>(json['iconCodepoint']),
+      tampilDiKasir: serializer.fromJson<bool>(json['tampilDiKasir']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -270,6 +308,7 @@ class Category extends DataClass implements Insertable<Category> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'iconCodepoint': serializer.toJson<int?>(iconCodepoint),
+      'tampilDiKasir': serializer.toJson<bool>(tampilDiKasir),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -281,6 +320,7 @@ class Category extends DataClass implements Insertable<Category> {
     String? id,
     String? name,
     Value<int?> iconCodepoint = const Value.absent(),
+    bool? tampilDiKasir,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -291,6 +331,7 @@ class Category extends DataClass implements Insertable<Category> {
     iconCodepoint: iconCodepoint.present
         ? iconCodepoint.value
         : this.iconCodepoint,
+    tampilDiKasir: tampilDiKasir ?? this.tampilDiKasir,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -303,6 +344,9 @@ class Category extends DataClass implements Insertable<Category> {
       iconCodepoint: data.iconCodepoint.present
           ? data.iconCodepoint.value
           : this.iconCodepoint,
+      tampilDiKasir: data.tampilDiKasir.present
+          ? data.tampilDiKasir.value
+          : this.tampilDiKasir,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -318,6 +362,7 @@ class Category extends DataClass implements Insertable<Category> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('iconCodepoint: $iconCodepoint, ')
+          ..write('tampilDiKasir: $tampilDiKasir, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -331,6 +376,7 @@ class Category extends DataClass implements Insertable<Category> {
     id,
     name,
     iconCodepoint,
+    tampilDiKasir,
     createdAt,
     updatedAt,
     deletedAt,
@@ -343,6 +389,7 @@ class Category extends DataClass implements Insertable<Category> {
           other.id == this.id &&
           other.name == this.name &&
           other.iconCodepoint == this.iconCodepoint &&
+          other.tampilDiKasir == this.tampilDiKasir &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
@@ -353,6 +400,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
   final Value<String> id;
   final Value<String> name;
   final Value<int?> iconCodepoint;
+  final Value<bool> tampilDiKasir;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -362,6 +410,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.iconCodepoint = const Value.absent(),
+    this.tampilDiKasir = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -372,6 +421,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.id = const Value.absent(),
     required String name,
     this.iconCodepoint = const Value.absent(),
+    this.tampilDiKasir = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -382,6 +432,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? iconCodepoint,
+    Expression<bool>? tampilDiKasir,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -392,6 +443,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (iconCodepoint != null) 'icon_codepoint': iconCodepoint,
+      if (tampilDiKasir != null) 'tampil_di_kasir': tampilDiKasir,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -404,6 +456,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Value<String>? id,
     Value<String>? name,
     Value<int?>? iconCodepoint,
+    Value<bool>? tampilDiKasir,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -414,6 +467,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       id: id ?? this.id,
       name: name ?? this.name,
       iconCodepoint: iconCodepoint ?? this.iconCodepoint,
+      tampilDiKasir: tampilDiKasir ?? this.tampilDiKasir,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -433,6 +487,9 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     }
     if (iconCodepoint.present) {
       map['icon_codepoint'] = Variable<int>(iconCodepoint.value);
+    }
+    if (tampilDiKasir.present) {
+      map['tampil_di_kasir'] = Variable<bool>(tampilDiKasir.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -458,6 +515,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('iconCodepoint: $iconCodepoint, ')
+          ..write('tampilDiKasir: $tampilDiKasir, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -6453,6 +6511,7 @@ typedef $$CategoriesTableCreateCompanionBuilder =
       Value<String> id,
       required String name,
       Value<int?> iconCodepoint,
+      Value<bool> tampilDiKasir,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -6464,6 +6523,7 @@ typedef $$CategoriesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<int?> iconCodepoint,
+      Value<bool> tampilDiKasir,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -6516,6 +6576,11 @@ class $$CategoriesTableFilterComposer
 
   ColumnFilters<int> get iconCodepoint => $composableBuilder(
     column: $table.iconCodepoint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tampilDiKasir => $composableBuilder(
+    column: $table.tampilDiKasir,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6589,6 +6654,11 @@ class $$CategoriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get tampilDiKasir => $composableBuilder(
+    column: $table.tampilDiKasir,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -6627,6 +6697,11 @@ class $$CategoriesTableAnnotationComposer
 
   GeneratedColumn<int> get iconCodepoint => $composableBuilder(
     column: $table.iconCodepoint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get tampilDiKasir => $composableBuilder(
+    column: $table.tampilDiKasir,
     builder: (column) => column,
   );
 
@@ -6701,6 +6776,7 @@ class $$CategoriesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<int?> iconCodepoint = const Value.absent(),
+                Value<bool> tampilDiKasir = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -6710,6 +6786,7 @@ class $$CategoriesTableTableManager
                 id: id,
                 name: name,
                 iconCodepoint: iconCodepoint,
+                tampilDiKasir: tampilDiKasir,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -6721,6 +6798,7 @@ class $$CategoriesTableTableManager
                 Value<String> id = const Value.absent(),
                 required String name,
                 Value<int?> iconCodepoint = const Value.absent(),
+                Value<bool> tampilDiKasir = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -6730,6 +6808,7 @@ class $$CategoriesTableTableManager
                 id: id,
                 name: name,
                 iconCodepoint: iconCodepoint,
+                tampilDiKasir: tampilDiKasir,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

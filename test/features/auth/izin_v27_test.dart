@@ -194,7 +194,7 @@ void main() {
 
     expect(katalog.map((p) => p.code),
         isNot(anyOf(contains('manage_cashiers'), contains('view_shift_reports'))));
-    expect(katalog, hasLength(6));
+    expect(katalog, hasLength(7), reason: 'v36 menambah Kelola Kategori');
     expect(katalog.firstWhere((p) => p.code == 'view_history').name,
         'Lihat Riwayat Lengkap',
         reason: 'arti barunya harus terbaca di halaman Izin Akses');

@@ -15,8 +15,10 @@ Future<bool> tampilkanLembarKonfirmasi(
   required String judul,
   required String catatan,
   required String labelAksi,
+  String labelBatal = 'Batal',
   Color warnaAksi = WarnaTeras.merah,
   Color latarIkon = WarnaTeras.merahMuda,
+  Color? warnaIkon,
 }) async {
   final hasil = await showModalBottomSheet<bool>(
     context: context,
@@ -37,7 +39,7 @@ Future<bool> tampilkanLembarKonfirmasi(
               color: latarIkon,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(ikon, size: 28, color: warnaAksi),
+            child: Icon(ikon, size: 28, color: warnaIkon ?? warnaAksi),
           ),
           const SizedBox(height: 12),
           Text(
@@ -64,7 +66,7 @@ Future<bool> tampilkanLembarKonfirmasi(
             children: [
               Expanded(
                 child: TombolLembar(
-                  label: 'Batal',
+                  label: labelBatal,
                   latar: WarnaTeras.latarAbu,
                   warna: WarnaTeras.teks,
                   onPressed: () => Navigator.pop(context, false),
@@ -87,3 +89,19 @@ Future<bool> tampilkanLembarKonfirmasi(
   );
   return hasil == true;
 }
+
+/// "Buang perubahan?" (desain halaman Kategori): ditanyakan saat kembali
+/// dengan perubahan yang belum disimpan. True = buang.
+Future<bool> tanyaBuangPerubahan(
+  BuildContext context, {
+  required String catatan,
+}) => tampilkanLembarKonfirmasi(
+  context,
+  ikon: Icons.edit_off_rounded,
+  judul: 'Buang perubahan?',
+  catatan: catatan,
+  labelAksi: 'Buang',
+  labelBatal: 'Lanjut edit',
+  latarIkon: WarnaTeras.oranyeMuda,
+  warnaIkon: WarnaTeras.oranye,
+);

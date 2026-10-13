@@ -60,6 +60,12 @@ class Categories extends Table {
   TextColumn get name => text()();
   IntColumn get iconCodepoint => integer().nullable()();
 
+  /// v36: false = tombolnya disembunyikan di halaman Kasir. Produknya TETAP
+  /// tampil di "Semua" dan pencarian — yang disembunyikan cuma tombolnya
+  /// (keputusan owner 2026-10-13).
+  BoolColumn get tampilDiKasir =>
+      boolean().withDefault(const Constant(true))();
+
   // Sync-friendly (NEW in v10)
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -466,7 +472,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 35;
+  int get schemaVersion => 36;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1185,6 +1191,25 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 36 && to >= 36) {
+            // v36 — kategori bisa disembunyikan dari Kasir, plus izin baru
+            // Kelola Kategori. Pasangannya di server: supabase/kategori_tampil.sql.
+            final adaKategori = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'categories'",
+            ).get();
+            if (adaKategori.isNotEmpty) {
+              final adaKolom = await customSelect(
+                "SELECT 1 FROM pragma_table_info('categories') "
+                "WHERE name = 'tampil_di_kasir'",
+              ).get();
+              if (adaKolom.isEmpty) {
+                await m.addColumn(categories, categories.tampilDiKasir);
+              }
+            }
+            await _seedPermissions();
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1272,6 +1297,12 @@ class AppDatabase extends _$AppDatabase {
         'name': 'Lihat Shift Semua Kasir',
         'description': 'Melihat shift kasir lain, bukan hanya miliknya sendiri'
       },
+      {
+        'code': 'manage_categories',
+        'name': 'Kelola Kategori',
+        'description': 'Menambah, menghapus, dan mengatur kategori yang '
+            'tampil di Kasir'
+      },
     ];
 
     for (final perm in permissionsData) {
@@ -1291,51 +1322,75 @@ class AppDatabase extends _$AppDatabase {
     return (select(categories)
           ..where((t) =>
               t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+          // Tanpa membedakan huruf besar-kecil: "kopi" tidak terlempar ke
+          // belakang "Snack".
+          ..orderBy([(t) => OrderingTerm.asc(t.name.collate(Collate.noCase))]))
         .watch();
   }
 
-  Future<void> upsertCategory({
-    required String id,
-    required String name,
-    int? iconCodepoint,
-  }) async {
-    SessionManager.instance.requirePermission('manage_products');
-    await into(categories).insertOnConflictUpdate(
-      CategoriesCompanion(
-        id: Value(id),
-        name: Value(name),
-        iconCodepoint: Value(iconCodepoint),
-        updatedAt: Value(DateTime.now()),
-        syncStatus: const Value('pending'),
-      ),
-    );
-  }
-
-  /// Soft delete kategori: produk dilepas jadi tanpa kategori, lalu kategori
-  /// ditandai terhapus.
+  /// Menyimpan seluruh perubahan halaman Kategori SEKALIGUS: semuanya
+  /// berhasil atau tidak satu pun (keputusan owner 2026-10-13 — perubahan
+  /// dikumpulkan dulu, baru berlaku saat "Simpan Perubahan").
   ///
-  /// Sengaja TIDAK menghapus baris secara fisik. Baris yang lenyap tidak bisa
-  /// diberitahukan ke device lain saat sync — server hanya melihat ketiadaan,
-  /// dan ketiadaan tidak bisa dikirim. Akibatnya baris yang sudah dihapus akan
-  /// dikirim balik oleh server dan "hidup lagi" (zombie record). Dengan
-  /// menandai `deleted_at`, penghapusannya ikut tersinkron.
-  Future<void> deleteCategory(String id) async {
-    SessionManager.instance.requirePermission('manage_products');
+  /// - [tambah]: kategori baru (nama sudah dirapikan pemanggil).
+  /// - [tampil]: id kategori -> tampil di Kasir atau tidak.
+  /// - [hapus]: id kategori yang dihapus. Produknya dilepas jadi Tanpa
+  ///   Kategori, BUKAN ikut terhapus.
+  ///
+  /// Hapusnya lunak (`deleted_at`), bukan menghapus baris: baris yang lenyap
+  /// tidak bisa diberitahukan ke HP lain saat sinkron — server hanya melihat
+  /// ketiadaan, lalu mengirim baris itu balik dan kategorinya "hidup lagi".
+  Future<void> simpanKategori({
+    List<({String nama, int? ikon})> tambah = const [],
+    Map<String, bool> tampil = const {},
+    List<String> hapus = const [],
+  }) async {
+    SessionManager.instance.requirePermission('manage_categories');
     final now = DateTime.now();
     await transaction(() async {
-      await (update(products)..where((p) => p.categoryId.equals(id)))
-          .write(ProductsCompanion(
-        categoryId: const Value(null),
-        updatedAt: Value(now),
-        syncStatus: const Value('pending'),
-      ));
-      await (update(categories)..where((t) => t.id.equals(id)))
-          .write(CategoriesCompanion(
-        deletedAt: Value(now),
-        updatedAt: Value(now),
-        syncStatus: const Value('pending'),
-      ));
+      for (final id in hapus) {
+        await (update(products)..where((p) => p.categoryId.equals(id)))
+            .write(ProductsCompanion(
+          categoryId: const Value(null),
+          updatedAt: Value(now),
+          syncStatus: const Value('pending'),
+        ));
+        await (update(categories)..where((t) => t.id.equals(id)))
+            .write(CategoriesCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+          syncStatus: const Value('pending'),
+        ));
+      }
+      for (final MapEntry(key: id, value: nilai) in tampil.entries) {
+        if (hapus.contains(id)) continue;
+        await (update(categories)
+              ..where((t) => t.id.equals(id) & t.tampilDiKasir.equals(!nilai)))
+            .write(CategoriesCompanion(
+          tampilDiKasir: Value(nilai),
+          updatedAt: Value(now),
+          syncStatus: const Value('pending'),
+        ));
+      }
+      if (tambah.isNotEmpty) {
+        final ada = {
+          for (final c in await (select(categories)
+                ..where((t) => t.deletedAt.isNull()))
+              .get())
+            c.name.toLowerCase(),
+        };
+        for (final k in tambah) {
+          if (!ada.add(k.nama.toLowerCase())) {
+            throw StateError('Kategori "${k.nama}" sudah ada');
+          }
+          await into(categories).insert(CategoriesCompanion.insert(
+            name: k.nama,
+            iconCodepoint: Value(k.ikon),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ));
+        }
+      }
     });
   }
 

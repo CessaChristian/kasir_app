@@ -256,12 +256,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
           Navigator.of(context).pop();
           return;
         }
-        final keluar = await tampilkanLembarKonfirmasi(
+        final keluar = await tanyaBuangPerubahan(
           context,
-          ikon: Icons.edit_off_rounded,
-          judul: 'Buang perubahan?',
           catatan: 'Data produk yang sudah diisi akan hilang.',
-          labelAksi: 'Buang',
         );
         if (keluar) {
           // Semua gambar sesi ini jadi yatim. Gambar LAMA milik produk tidak
@@ -584,8 +581,8 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
               opsi: [
                 const OpsiLembar(
                   nilai: null,
-                  label: 'Tanpa Kategori',
-                  ikon: Icons.block_rounded,
+                  label: namaTanpaKategori,
+                  ikon: kIkonTanpaKategori,
                 ),
                 for (final c in categories)
                   OpsiLembar(

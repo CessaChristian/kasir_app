@@ -112,6 +112,12 @@ const kelompokIzin = <(String, List<DefinisiIzin>)>[
         'Tambah, ubah, hapus produk',
         Icons.inventory_2_outlined,
       ),
+      DefinisiIzin(
+        'manage_categories',
+        'Kelola Kategori',
+        'Atur kategori & tampilan di Kasir',
+        Icons.category_outlined,
+      ),
     ],
   ),
 ];

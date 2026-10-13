@@ -10,11 +10,14 @@ import '../../data/app_database.dart';
 import '../../data/uuid_helper.dart';
 import '../../utils/currency_formatter.dart';
 import '../../shared/auth/session_manager.dart';
+import 'dart:async';
 import 'dart:io';
 
 import '../../shared/services/image_storage_service.dart';
 import '../../shared/widgets/sync_refresh.dart';
+import '../../shared/constants/category_icons.dart';
 import 'models/keranjang.dart';
+import 'models/saring_kategori.dart';
 import 'models/pilihan_produk.dart';
 import 'sheets/pilihan_produk_sheet.dart';
 import 'cart_page.dart';
@@ -37,6 +40,11 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   // C4: Cache hasil File.existsSync agar tidak blocking main thread setiap rebuild
   final Map<String, bool> _imageExistsCache = {};
   String? _selectedCategoryId;
+
+  /// Semua kategori (termasuk yang disembunyikan) — penyaring produk perlu
+  /// tahu kategori mana yang masih ada.
+  List<Category> _kategori = const [];
+  late final StreamSubscription<List<Category>> _langgananKategori;
   String _searchQuery = '';
   final GlobalKey _cartIconKey = GlobalKey();
 
@@ -49,6 +57,9 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     SyncOtomatis.instance.picu('halaman kasir dibuka');
     SyncService.instance.terakhirBerhasil.addListener(_sesudahSync);
     _keranjang.addListener(_keranjangBerubah);
+    _langgananKategori = _productRepo.watchCategories().listen((k) {
+      if (mounted) setState(() => _kategori = k);
+    });
   }
 
   /// Satu titik untuk SEMUA perubahan keranjang — dari halaman ini maupun
@@ -81,6 +92,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _langgananKategori.cancel();
     SyncService.instance.terakhirBerhasil.removeListener(_sesudahSync);
     _keranjang
       ..removeListener(_keranjangBerubah)
@@ -310,29 +322,40 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           // Category Filter
           SizedBox(
             height: 48,
-            child: StreamBuilder<List<Category>>(
-              stream: _productRepo.watchCategories(),
+            child: StreamBuilder<List<Product>>(
+              stream: _productRepo.watchProducts(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return const SizedBox.shrink();
-                final categories = snapshot.data ?? [];
+                final pilihan = pilihanEfektif(_kategori, _selectedCategoryId);
+                final tanpa = adaProdukTanpaKategori(
+                  snapshot.data ?? const [],
+                  _kategori,
+                );
                 return ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
                     _buildCategoryChip(
                       label: 'Semua',
-                      isSelected: _selectedCategoryId == null,
+                      isSelected: pilihan == null,
                       onTap: () => setState(() => _selectedCategoryId = null),
                     ),
                     const SizedBox(width: 8),
-                    for (final c in categories) ...[
+                    for (final c in kategoriDiKasir(_kategori)) ...[
                       _buildCategoryChip(
                         label: c.name,
-                        isSelected: _selectedCategoryId == c.id,
+                        isSelected: pilihan == c.id,
                         onTap: () => setState(() => _selectedCategoryId = c.id),
                       ),
                       const SizedBox(width: 8),
                     ],
+                    if (tanpa || pilihan == pilihanTanpaKategori)
+                      _buildCategoryChip(
+                        label: namaTanpaKategori,
+                        isSelected: pilihan == pilihanTanpaKategori,
+                        onTap: () => setState(
+                          () => _selectedCategoryId = pilihanTanpaKategori,
+                        ),
+                      ),
                   ],
                 );
               },
@@ -352,13 +375,11 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
                     onRetry: () => setState(() {}),
                   );
                 }
-                var items = snapshot.data ?? [];
-
-                if (_selectedCategoryId != null) {
-                  items = items
-                      .where((p) => p.categoryId == _selectedCategoryId)
-                      .toList();
-                }
+                var items = saringPerKategori(
+                  snapshot.data ?? [],
+                  _kategori,
+                  _selectedCategoryId,
+                );
 
                 if (_searchQuery.isNotEmpty) {
                   final query = _searchQuery.toLowerCase();
@@ -645,7 +666,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
           Text(
             _searchQuery.isNotEmpty
                 ? 'Produk tidak ditemukan'
-                : (_selectedCategoryId != null
+                : (pilihanEfektif(_kategori, _selectedCategoryId) != null
                       ? 'Tidak ada produk di kategori ini'
                       : 'Belum ada produk'),
             style: const TextStyle(

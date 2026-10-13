@@ -155,7 +155,7 @@ void main() {
       final d = await repo.watchDaftarKasir().first;
       expect([for (final r in d) r.akun.username], ['budi', 'sari', 'dimas']);
       final sari = d.firstWhere((r) => r.akun.username == 'sari');
-      expect((sari.izinAktif, sari.izinTotal), (3, 6));
+      expect((sari.izinAktif, sari.izinTotal), (3, 7));
       expect(sari.selesaiShiftTerakhir, DateTime(2026, 9, 22, 21, 4));
       expect(sari.mulaiShiftBerjalan, isNull);
     });
@@ -229,7 +229,7 @@ void main() {
       );
     });
 
-    test('kelompok izin sesuai desain (Kelola Kategori belum ada)', () async {
+    test('kelompok izin sesuai desain', () async {
       final kelompok = kelompokIzinDari(await repoIzin.getAllPermissions());
       // Dibandingkan sebagai teks: List di dalam record tidak dibandingkan
       // isinya.
@@ -241,7 +241,7 @@ void main() {
         [
           'OPERASIONAL: Buka Shift, Buat Transaksi, Lihat Riwayat Lengkap',
           'LAPORAN: Lihat Laporan, Lihat Shift Semua Kasir',
-          'MANAJEMEN: Kelola Produk',
+          'MANAJEMEN: Kelola Produk, Kelola Kategori',
         ],
       );
     });
@@ -279,7 +279,7 @@ void main() {
       await bukaKelola(t);
       expect(find.text('sari'), findsOneWidget);
       expect(find.text('Shift terakhir 22 Sep 2026, 21:04'), findsOneWidget);
-      expect(find.text('3 dari 6 hak akses aktif'), findsOneWidget);
+      expect(find.text('3 dari 7 hak akses aktif'), findsOneWidget);
       expect(find.text('Belum pernah shift'), findsNWidgets(2));
       expect(find.byTooltip('Tambah akun kasir'), findsOneWidget);
       await lepas(t);
@@ -470,12 +470,12 @@ void main() {
       (t) async {
         await bukaHakAkses(t);
         await t.pump();
-        expect(find.text('3 dari 6 akses aktif'), findsOneWidget);
+        expect(find.text('3 dari 7 akses aktif'), findsOneWidget);
         expect(find.text('OPERASIONAL'), findsOneWidget);
 
         await t.tap(find.text('Aktifkan semua'));
         await t.pump();
-        expect(find.text('6 dari 6 akses aktif'), findsOneWidget);
+        expect(find.text('7 dari 7 akses aktif'), findsOneWidget);
         expect(find.text('Nonaktifkan semua'), findsOneWidget);
 
         final tersimpan = await t.runAsync(

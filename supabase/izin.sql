@@ -60,7 +60,8 @@ insert into public.permissions (code, name, description) values
   ('view_history', 'Lihat Riwayat Lengkap', 'Melihat transaksi dan pengeluaran sendiri dari shift-shift sebelumnya. Tanpa izin ini hanya shift yang sedang berjalan'),
   ('view_report', 'Lihat Laporan', 'Membuka analisis penjualan'),
   ('manage_products', 'Kelola Produk', 'Menambah, mengubah, dan menghapus produk'),
-  ('view_all_shifts', 'Lihat Shift Semua Kasir', 'Melihat shift kasir lain, bukan hanya miliknya sendiri')
+  ('view_all_shifts', 'Lihat Shift Semua Kasir', 'Melihat shift kasir lain, bukan hanya miliknya sendiri'),
+  ('manage_categories', 'Kelola Kategori', 'Menambah, menghapus, dan mengatur kategori yang tampil di Kasir')
 on conflict (code) do update
   set name = excluded.name,
       description = excluded.description;

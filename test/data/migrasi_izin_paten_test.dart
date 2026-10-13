@@ -48,8 +48,9 @@ void main() {
         await db.customSelect('PRAGMA foreign_key_check').get();
     await db.close();
 
-    expect(katalog, hasLength(6),
-        reason: '12 kode menjadi 8 di v21, lalu 6 di v27');
+    expect(katalog, hasLength(7),
+        reason: '12 kode menjadi 8 di v21, 6 di v27, lalu 7 di v36 '
+            '(Kelola Kategori)');
     for (final mati in const [
       'edit_own_expense',
       'edit_any_expense',

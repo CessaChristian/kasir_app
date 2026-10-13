@@ -10,6 +10,7 @@ import '../features/auth/pages/login_page.dart';
 import '../shared/constants/app_constants.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/business_logo.dart';
+import '../features/products/pages/kategori_page.dart';
 import '../features/shift/pages/riwayat_shift_page.dart';
 import 'kerangka_owner.dart';
 import 'keluar_akun.dart';
@@ -429,6 +430,26 @@ class AppShellState extends State<AppShell> {
                             context,
                             MaterialPageRoute(
                                 builder: (_) => const RiwayatShiftPage()),
+                          );
+                        },
+                      ),
+
+                    // Kategori — halaman sendiri (bukan isi tab) supaya
+                    // perubahan yang belum disimpan selalu ditanya dulu
+                    // saat kembali.
+                    if (SessionManager.instance
+                        .hasPermission('manage_categories'))
+                      _buildDrawerMenuItem(
+                        context,
+                        icon: Icons.category_rounded,
+                        label: 'Kategori',
+                        isSelected: false,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const KategoriPage()),
                           );
                         },
                       ),

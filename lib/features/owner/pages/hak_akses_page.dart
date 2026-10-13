@@ -108,12 +108,9 @@ class _HakAksesPageState extends State<HakAksesPage> {
   }
 
   Future<void> _kembali() async {
-    final buang = await tampilkanLembarKonfirmasi(
+    final buang = await tanyaBuangPerubahan(
       context,
-      ikon: Icons.edit_off_rounded,
-      judul: 'Buang perubahan?',
       catatan: 'Hak akses yang diubah belum disimpan.',
-      labelAksi: 'Buang',
     );
     if (buang && mounted) {
       setState(() => _awal = Map.of(_draf));

@@ -83,6 +83,7 @@ void main() {
       id: 'k-makan',
       name: 'Makanan',
       iconCodepoint: null,
+      tampilDiKasir: true,
       createdAt: hari,
       updatedAt: hari,
       syncStatus: 'synced',

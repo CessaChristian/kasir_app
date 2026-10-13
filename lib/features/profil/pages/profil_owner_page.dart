@@ -12,7 +12,7 @@ import '../../../shared/ui/warna_teras.dart';
 import '../../auth/recovery/widgets/lembar_kode_recovery.dart';
 import '../../owner/pages/kelola_kasir_page.dart';
 import '../../perangkat/pages/daftar_perangkat_page.dart';
-import '../../products/category_manager.dart';
+import '../../products/pages/kategori_page.dart';
 import '../../report/pages/laporan_page.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
 
@@ -84,7 +84,7 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             ikon: Icons.category_rounded,
             judul: 'Kategori',
             keterangan: 'Atur kategori & tampilan di Kasir',
-            onTap: () => CategoryManager.show(context),
+            onTap: () => _buka(const KategoriPage()),
           ),
         ]),
         _judulBagian('MANAJEMEN'),

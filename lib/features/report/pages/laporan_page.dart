@@ -653,7 +653,7 @@ class _LaporanPageState extends State<LaporanPage> {
               children: [
                 Icon(
                   r.perKategori[i].ikon == null
-                      ? Icons.block_rounded
+                      ? kIkonTanpaKategori
                       : categoryIconFromCodepoint(r.perKategori[i].ikon),
                   size: 18,
                   color: WarnaTeras.oranye,

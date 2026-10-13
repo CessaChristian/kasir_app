@@ -18,7 +18,7 @@ import '../../../data/app_database.dart';
 /// Halaman UI tidak perlu diubah sebaris pun.
 ///
 /// Produk dan kategori digabung dalam satu repository karena keduanya saling
-/// terikat: produk menyimpan `categoryId`, dan [deleteCategory] ikut melepas
+/// terikat: produk menyimpan `categoryId`, dan [simpanKategori] ikut melepas
 /// kategori dari produk yang memakainya.
 class ProductRepository {
   final AppDatabase _db;
@@ -30,18 +30,14 @@ class ProductRepository {
   /// Kategori milik business aktif, urut nama. Yang sudah dihapus tidak ikut.
   Stream<List<Category>> watchCategories() => _db.watchCategories();
 
-  /// Tambah kategori baru atau perbarui yang sudah ada.
-  /// Butuh izin `manage_products`.
-  Future<void> upsertCategory({
-    required String id,
-    required String name,
-    int? iconCodepoint,
+  /// Simpan seluruh perubahan halaman Kategori sekaligus.
+  /// Butuh izin `manage_categories`. Lihat [AppDatabase.simpanKategori].
+  Future<void> simpanKategori({
+    List<({String nama, int? ikon})> tambah = const [],
+    Map<String, bool> tampil = const {},
+    List<String> hapus = const [],
   }) =>
-      _db.upsertCategory(id: id, name: name, iconCodepoint: iconCodepoint);
-
-  /// Tandai kategori terhapus. Produk yang memakainya dilepas jadi tanpa
-  /// kategori, bukan ikut terhapus.
-  Future<void> deleteCategory(String id) => _db.deleteCategory(id);
+      _db.simpanKategori(tambah: tambah, tampil: tampil, hapus: hapus);
 
   // ---- PRODUK ----
 
