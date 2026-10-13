@@ -297,6 +297,10 @@ class Shifts extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get endAt => dateTime().nullable()();
 
+  /// Uang tunai di laci saat shift dibuka (v37). Null = shift dari versi
+  /// sebelum shift dibuka manual — tidak ada kas awal yang dicatat.
+  IntColumn get kasAwal => integer().nullable()();
+
   // Sync-friendly (NEW in v10)
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -472,7 +476,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 37;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1210,6 +1214,24 @@ class AppDatabase extends _$AppDatabase {
             await _seedPermissions();
           }
 
+          if (from < 37 && to >= 37) {
+            // v37 — shift dibuka manual oleh kasir dengan uang kas awal.
+            // Pasangannya di server: supabase/shift_kas_awal.sql.
+            final adaShifts = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'shifts'",
+            ).get();
+            if (adaShifts.isNotEmpty) {
+              final adaKolom = await customSelect(
+                "SELECT 1 FROM pragma_table_info('shifts') "
+                "WHERE name = 'kas_awal'",
+              ).get();
+              if (adaKolom.isEmpty) {
+                await m.addColumn(shifts, shifts.kasAwal);
+              }
+            }
+          }
+
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1509,6 +1531,11 @@ class AppDatabase extends _$AppDatabase {
     // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
     // DB layer juga reject jika permission tidak ada.
     SessionManager.instance.requirePermission('create_transaction');
+    // Sejak v37 kasir bisa masuk tanpa shift; penjualan tanpa shift tidak
+    // masuk rekap shift mana pun.
+    if (shiftId == null) {
+      throw StateError('Buka shift dulu untuk mulai berjualan');
+    }
 
     if (lines.isEmpty) throw ArgumentError('Keranjang masih kosong');
 

@@ -42,6 +42,16 @@ void main() {
         reason: 'drawer kasir tidak boleh memuat menu Perangkat');
     expect(shell.contains('KelolaKasirPage'), isFalse,
         reason: 'drawer kasir tidak boleh memuat menu Kelola Kasir');
+    for (final berkas in const [
+      'lib/app/kerangka_kasir.dart',
+      'lib/features/profil/pages/profil_kasir_page.dart',
+    ]) {
+      final isi = File(berkas).readAsStringSync();
+      expect(isi.contains('DaftarPerangkatPage'), isFalse,
+          reason: '$berkas tidak boleh memuat menu Perangkat');
+      expect(isi.contains('KelolaKasirPage'), isFalse,
+          reason: '$berkas tidak boleh memuat menu Kelola Kasir');
+    }
 
     final profil = File('lib/features/profil/pages/profil_owner_page.dart')
         .readAsStringSync();

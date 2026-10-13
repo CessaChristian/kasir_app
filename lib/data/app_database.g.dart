@@ -2355,6 +2355,17 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _kasAwalMeta = const VerificationMeta(
+    'kasAwal',
+  );
+  @override
+  late final GeneratedColumn<int> kasAwal = GeneratedColumn<int>(
+    'kas_awal',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -2397,6 +2408,7 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
     userName,
     startAt,
     endAt,
+    kasAwal,
     updatedAt,
     deletedAt,
     syncStatus,
@@ -2440,6 +2452,12 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
       context.handle(
         _endAtMeta,
         endAt.isAcceptableOrUnknown(data['end_at']!, _endAtMeta),
+      );
+    }
+    if (data.containsKey('kas_awal')) {
+      context.handle(
+        _kasAwalMeta,
+        kasAwal.isAcceptableOrUnknown(data['kas_awal']!, _kasAwalMeta),
       );
     }
     if (data.containsKey('updated_at')) {
@@ -2489,6 +2507,10 @@ class $ShiftsTable extends Shifts with TableInfo<$ShiftsTable, Shift> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}end_at'],
       ),
+      kasAwal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}kas_awal'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -2519,6 +2541,10 @@ class Shift extends DataClass implements Insertable<Shift> {
   final String? userName;
   final DateTime startAt;
   final DateTime? endAt;
+
+  /// Uang tunai di laci saat shift dibuka (v37). Null = shift dari versi
+  /// sebelum shift dibuka manual — tidak ada kas awal yang dicatat.
+  final int? kasAwal;
   final DateTime updatedAt;
   final DateTime? deletedAt;
   final String syncStatus;
@@ -2528,6 +2554,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     this.userName,
     required this.startAt,
     this.endAt,
+    this.kasAwal,
     required this.updatedAt,
     this.deletedAt,
     required this.syncStatus,
@@ -2543,6 +2570,9 @@ class Shift extends DataClass implements Insertable<Shift> {
     map['start_at'] = Variable<DateTime>(startAt);
     if (!nullToAbsent || endAt != null) {
       map['end_at'] = Variable<DateTime>(endAt);
+    }
+    if (!nullToAbsent || kasAwal != null) {
+      map['kas_awal'] = Variable<int>(kasAwal);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -2563,6 +2593,9 @@ class Shift extends DataClass implements Insertable<Shift> {
       endAt: endAt == null && nullToAbsent
           ? const Value.absent()
           : Value(endAt),
+      kasAwal: kasAwal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(kasAwal),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -2582,6 +2615,7 @@ class Shift extends DataClass implements Insertable<Shift> {
       userName: serializer.fromJson<String?>(json['userName']),
       startAt: serializer.fromJson<DateTime>(json['startAt']),
       endAt: serializer.fromJson<DateTime?>(json['endAt']),
+      kasAwal: serializer.fromJson<int?>(json['kasAwal']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
@@ -2596,6 +2630,7 @@ class Shift extends DataClass implements Insertable<Shift> {
       'userName': serializer.toJson<String?>(userName),
       'startAt': serializer.toJson<DateTime>(startAt),
       'endAt': serializer.toJson<DateTime?>(endAt),
+      'kasAwal': serializer.toJson<int?>(kasAwal),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'syncStatus': serializer.toJson<String>(syncStatus),
@@ -2608,6 +2643,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     Value<String?> userName = const Value.absent(),
     DateTime? startAt,
     Value<DateTime?> endAt = const Value.absent(),
+    Value<int?> kasAwal = const Value.absent(),
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
     String? syncStatus,
@@ -2617,6 +2653,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     userName: userName.present ? userName.value : this.userName,
     startAt: startAt ?? this.startAt,
     endAt: endAt.present ? endAt.value : this.endAt,
+    kasAwal: kasAwal.present ? kasAwal.value : this.kasAwal,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     syncStatus: syncStatus ?? this.syncStatus,
@@ -2628,6 +2665,7 @@ class Shift extends DataClass implements Insertable<Shift> {
       userName: data.userName.present ? data.userName.value : this.userName,
       startAt: data.startAt.present ? data.startAt.value : this.startAt,
       endAt: data.endAt.present ? data.endAt.value : this.endAt,
+      kasAwal: data.kasAwal.present ? data.kasAwal.value : this.kasAwal,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       syncStatus: data.syncStatus.present
@@ -2644,6 +2682,7 @@ class Shift extends DataClass implements Insertable<Shift> {
           ..write('userName: $userName, ')
           ..write('startAt: $startAt, ')
           ..write('endAt: $endAt, ')
+          ..write('kasAwal: $kasAwal, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('syncStatus: $syncStatus')
@@ -2658,6 +2697,7 @@ class Shift extends DataClass implements Insertable<Shift> {
     userName,
     startAt,
     endAt,
+    kasAwal,
     updatedAt,
     deletedAt,
     syncStatus,
@@ -2671,6 +2711,7 @@ class Shift extends DataClass implements Insertable<Shift> {
           other.userName == this.userName &&
           other.startAt == this.startAt &&
           other.endAt == this.endAt &&
+          other.kasAwal == this.kasAwal &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.syncStatus == this.syncStatus);
@@ -2682,6 +2723,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
   final Value<String?> userName;
   final Value<DateTime> startAt;
   final Value<DateTime?> endAt;
+  final Value<int?> kasAwal;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<String> syncStatus;
@@ -2692,6 +2734,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     this.userName = const Value.absent(),
     this.startAt = const Value.absent(),
     this.endAt = const Value.absent(),
+    this.kasAwal = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -2703,6 +2746,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     this.userName = const Value.absent(),
     this.startAt = const Value.absent(),
     this.endAt = const Value.absent(),
+    this.kasAwal = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
@@ -2714,6 +2758,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     Expression<String>? userName,
     Expression<DateTime>? startAt,
     Expression<DateTime>? endAt,
+    Expression<int>? kasAwal,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<String>? syncStatus,
@@ -2725,6 +2770,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
       if (userName != null) 'user_name': userName,
       if (startAt != null) 'start_at': startAt,
       if (endAt != null) 'end_at': endAt,
+      if (kasAwal != null) 'kas_awal': kasAwal,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
@@ -2738,6 +2784,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     Value<String?>? userName,
     Value<DateTime>? startAt,
     Value<DateTime?>? endAt,
+    Value<int?>? kasAwal,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
     Value<String>? syncStatus,
@@ -2749,6 +2796,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
       userName: userName ?? this.userName,
       startAt: startAt ?? this.startAt,
       endAt: endAt ?? this.endAt,
+      kasAwal: kasAwal ?? this.kasAwal,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       syncStatus: syncStatus ?? this.syncStatus,
@@ -2774,6 +2822,9 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
     if (endAt.present) {
       map['end_at'] = Variable<DateTime>(endAt.value);
     }
+    if (kasAwal.present) {
+      map['kas_awal'] = Variable<int>(kasAwal.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2797,6 +2848,7 @@ class ShiftsCompanion extends UpdateCompanion<Shift> {
           ..write('userName: $userName, ')
           ..write('startAt: $startAt, ')
           ..write('endAt: $endAt, ')
+          ..write('kasAwal: $kasAwal, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('syncStatus: $syncStatus, ')
@@ -8090,6 +8142,7 @@ typedef $$ShiftsTableCreateCompanionBuilder =
       Value<String?> userName,
       Value<DateTime> startAt,
       Value<DateTime?> endAt,
+      Value<int?> kasAwal,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String> syncStatus,
@@ -8102,6 +8155,7 @@ typedef $$ShiftsTableUpdateCompanionBuilder =
       Value<String?> userName,
       Value<DateTime> startAt,
       Value<DateTime?> endAt,
+      Value<int?> kasAwal,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String> syncStatus,
@@ -8193,6 +8247,11 @@ class $$ShiftsTableFilterComposer
 
   ColumnFilters<DateTime> get endAt => $composableBuilder(
     column: $table.endAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get kasAwal => $composableBuilder(
+    column: $table.kasAwal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8314,6 +8373,11 @@ class $$ShiftsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get kasAwal => $composableBuilder(
+    column: $table.kasAwal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8373,6 +8437,9 @@ class $$ShiftsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get endAt =>
       $composableBuilder(column: $table.endAt, builder: (column) => column);
+
+  GeneratedColumn<int> get kasAwal =>
+      $composableBuilder(column: $table.kasAwal, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -8496,6 +8563,7 @@ class $$ShiftsTableTableManager
                 Value<String?> userName = const Value.absent(),
                 Value<DateTime> startAt = const Value.absent(),
                 Value<DateTime?> endAt = const Value.absent(),
+                Value<int?> kasAwal = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
@@ -8506,6 +8574,7 @@ class $$ShiftsTableTableManager
                 userName: userName,
                 startAt: startAt,
                 endAt: endAt,
+                kasAwal: kasAwal,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 syncStatus: syncStatus,
@@ -8518,6 +8587,7 @@ class $$ShiftsTableTableManager
                 Value<String?> userName = const Value.absent(),
                 Value<DateTime> startAt = const Value.absent(),
                 Value<DateTime?> endAt = const Value.absent(),
+                Value<int?> kasAwal = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
@@ -8528,6 +8598,7 @@ class $$ShiftsTableTableManager
                 userName: userName,
                 startAt: startAt,
                 endAt: endAt,
+                kasAwal: kasAwal,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 syncStatus: syncStatus,

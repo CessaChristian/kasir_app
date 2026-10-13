@@ -73,10 +73,10 @@ void main() {
   });
 
   test('kerangka owner dipilih berdasarkan role, bukan permission', () {
-    // Owner mendapat KerangkaOwner (dashboard owner, tanpa shift); semua
-    // akun lain tetap di drawer kasir dengan ActiveShiftCard. Kalau pilihan
-    // ini memakai permission, kasir yang diberi izin tertentu akan "menjadi
-    // owner" dan kehilangan kartu shiftnya — bug lama yang sama.
+    // Owner mendapat KerangkaOwner (tanpa shift); semua akun lain mendapat
+    // KerangkaKasir. Kalau pilihan ini memakai permission, kasir yang diberi
+    // izin tertentu akan "menjadi owner" dan kehilangan shiftnya — bug lama
+    // yang sama.
     final isi = File('lib/app/app_shell.dart').readAsStringSync();
     expect(
       RegExp(r'if \(SessionManager\.instance\.isOwner\) return const KerangkaOwner\(\);')
@@ -84,8 +84,12 @@ void main() {
       isTrue,
       reason: 'AppShell harus memilih KerangkaOwner dari role (isOwner).',
     );
-    expect(isi.contains('hasPermission'), isTrue,
-        reason: 'menu kasir tetap disaring izin — test ini membaca berkas '
-            'yang benar');
+    expect(isi.contains('hasPermission'), isFalse,
+        reason: 'pemilihan kerangka tidak boleh melibatkan izin');
+    final profil =
+        File('lib/features/profil/pages/profil_kasir_page.dart').readAsStringSync();
+    expect(profil.contains('hasPermission'), isTrue,
+        reason: 'menu tambahan kasir tetap disaring izin — test ini membaca '
+            'berkas yang benar');
   });
 }

@@ -104,6 +104,7 @@ create table public.shifts (
   user_id    uuid        not null references public.users(id),
   start_at   timestamptz not null default now(),
   end_at     timestamptz,
+  kas_awal   bigint,
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );

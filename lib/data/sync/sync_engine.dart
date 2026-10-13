@@ -1009,6 +1009,7 @@ class SyncEngine {
                 'user_name': s.userName,
                 'start_at': _iso(s.startAt),
                 'end_at': _iso(s.endAt),
+                'kas_awal': s.kasAwal,
                 'updated_at': _iso(s.updatedAt),
                 'deleted_at': _iso(s.deletedAt),
               }
@@ -1021,6 +1022,11 @@ class SyncEngine {
                 userName: _salinanNama(r, 'user_name'),
                 startAt: Value(_dt(r['start_at'])!),
                 endAt: Value(_dt(r['end_at'])),
+                // Server yang belum menjalankan shift_kas_awal.sql tidak
+                // punya kolomnya: nilai di HP dibiarkan, bukan dikosongkan.
+                kasAwal: r.containsKey('kas_awal')
+                    ? Value((r['kas_awal'] as num?)?.toInt())
+                    : const Value.absent(),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),
                 syncStatus: const Value('synced'),

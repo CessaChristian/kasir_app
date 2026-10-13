@@ -27,7 +27,7 @@ void main() {
       expect(shifts, isEmpty, reason: 'tidak ada shift dibuat untuk owner');
     });
 
-    test('cashier login membuka shift baru', () async {
+    test('cashier login TIDAK membuka shift — dibuka manual (v37)', () async {
       SharedPreferences.setMockInitialValues({});
       final dbTest = AppDatabase.forTesting(NativeDatabase.memory());
       addTearDown(dbTest.close);
@@ -45,12 +45,9 @@ void main() {
       final session = await repo.login(username: 'sari', pin: '654321');
 
       expect(session, isNotNull);
-      expect(session!.shiftId, isNotNull, reason: 'cashier harus punya shift');
-
-      final shifts = await dbTest.select(dbTest.shifts).get();
-      expect(shifts, hasLength(1));
-      expect(shifts.first.userId, 'cashier-1');
-      expect(shifts.first.endAt, isNull, reason: 'shift baru masih aktif');
+      expect(session!.shiftId, isNull,
+          reason: 'kasir membuka shift sendiri lewat "Buka shift"');
+      expect(await dbTest.select(dbTest.shifts).get(), isEmpty);
     });
   });
 

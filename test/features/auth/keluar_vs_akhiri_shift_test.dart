@@ -7,7 +7,7 @@ import 'package:kasir_app/features/auth/repositories/auth_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// "Keluar" dan "Akhiri Shift" adalah dua perbuatan yang BERBEDA.
+/// "Keluar" dan "Tutup shift" adalah dua perbuatan yang BERBEDA.
 ///
 /// ── MASALAH YANG DIKUNCI ──
 ///
@@ -49,6 +49,7 @@ void main() {
   tearDown(() async {
     await SessionManager.instance.clearSession();
     SessionManager.instance.sesiDicabut.value = null;
+    SessionManager.instance.shiftDitutupDariLuar.value = null;
     SessionManager.dbOverride = null;
     await db.close();
   });
@@ -57,28 +58,11 @@ void main() {
       (db.select(db.shifts)..where((s) => s.id.equals('shift-1'))).getSingle();
 
   test('"Keluar" TIDAK menutup shift', () async {
-    await repo.logout(
-      userId: 'kasir-1',
-      shiftId: 'shift-1',
-      akhiriShift: false,
-    );
+    await repo.logout();
 
     expect((await shift()).endAt, isNull,
-        reason: 'kasir yang cuma meminjam HP rekan harus bisa keluar tanpa '
-            'mematikan shift yang masih berjalan di HP-nya sendiri');
-  });
-
-  test('"Akhiri Shift" menutup shift', () async {
-    await repo.logout(
-      userId: 'kasir-1',
-      shiftId: 'shift-1',
-      akhiriShift: true,
-    );
-
-    final s = await shift();
-    expect(s.endAt, isNotNull);
-    expect(s.syncStatus, 'pending',
-        reason: 'penutupannya harus ikut tersinkron ke perangkat lain');
+        reason: 'kasir yang cuma gantian memegang HP harus bisa keluar tanpa '
+            'mematikan shiftnya, dan melanjutkannya setelah masuk lagi');
   });
 
   group('jaring pengaman: shift ditutup dari perangkat lain', () {
@@ -91,7 +75,8 @@ void main() {
           permissions: const ['create_transaction'],
         ));
 
-    test('sesi dibersihkan dan alasannya diumumkan', () async {
+    test('shiftnya dilepas dari sesi (kasir TETAP masuk) dan alasannya '
+        'diumumkan', () async {
       await masuk();
 
       // HP lain menutup shiftnya; barisnya sampai ke sini lewat sinkron.
@@ -100,9 +85,11 @@ void main() {
 
       await SessionManager.instance.periksaShiftMasihBerjalan();
 
-      expect(SessionManager.instance.isLoggedIn, isFalse);
-      expect(SessionManager.instance.sesiDicabut.value,
-          contains('diakhiri dari perangkat lain'));
+      expect(SessionManager.instance.isLoggedIn, isTrue);
+      expect(SessionManager.instance.currentSession!.shiftId, isNull);
+      expect(SessionManager.instance.sesiDicabut.value, isNull);
+      expect(SessionManager.instance.shiftDitutupDariLuar.value,
+          contains('ditutup dari perangkat lain'));
     });
 
     test('shift yang MASIH terbuka tidak mengganggu siapa pun', () async {

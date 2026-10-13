@@ -32,6 +32,10 @@ void main() {
           salt: 'salt',
           role: 'cashier',
         ));
+    await db.into(db.shifts).insert(ShiftsCompanion.insert(
+          id: const Value('shift-1'),
+          userId: 'kasir-1',
+        ));
     await SessionManager.instance.setSession(AuthSession.create(
       userId: 'kasir-1',
       username: 'sari',
@@ -54,6 +58,7 @@ void main() {
   Future<void> jual(String trxId) => db.createSale(
           kodePerangkat: 'TEST',
         transactionId: trxId,
+          shiftId: 'shift-1',
         paymentMethod: 'cash',
         cashReceived: 50000,
         orderType: 'dine_in',

@@ -86,6 +86,7 @@ void main() {
 
   Future<String> jual() => db.createSale(
         transactionId: 'trx-1',
+        shiftId: 'shift-1',
         paymentMethod: 'cash',
         cashReceived: 5000,
         orderType: 'dine_in',

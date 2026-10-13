@@ -166,15 +166,25 @@ class FotoProduk extends StatelessWidget {
   final String? path;
   final double ukuran;
 
-  const FotoProduk({super.key, required this.path, required this.ukuran});
+  /// Lebar kalau tidak persegi, mis. `double.infinity` untuk kartu.
+  final double? lebar;
+  final double sudut;
+
+  const FotoProduk({
+    super.key,
+    required this.path,
+    required this.ukuran,
+    this.lebar,
+    this.sudut = 8,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ada = ImageStorageService.adaSync(path);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(sudut),
       child: SizedBox(
-        width: ukuran,
+        width: lebar ?? ukuran,
         height: ukuran,
         child: ada
             ? Image.file(

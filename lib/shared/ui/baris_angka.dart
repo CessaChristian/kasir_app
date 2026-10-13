@@ -9,7 +9,15 @@ class Angka {
   final String nilai;
   final Color warna;
 
-  const Angka(this.label, this.nilai, {this.warna = WarnaTeras.teks});
+  /// Lebar relatif kolomnya (desain kadang memberi angka uang 1,5×).
+  final int lebar;
+
+  const Angka(
+    this.label,
+    this.nilai, {
+    this.warna = WarnaTeras.teks,
+    this.lebar = 2,
+  });
 }
 
 /// Beberapa angka sejajar dengan garis pemisah, mis. Transaksi · Pengeluaran
@@ -26,6 +34,7 @@ class BarisAngka extends StatelessWidget {
       children: [
         for (var i = 0; i < isi.length; i++)
           Expanded(
+            flex: isi[i].lebar,
             child: Container(
               padding: EdgeInsets.only(left: i == 0 ? 0 : 12),
               decoration: i == 0

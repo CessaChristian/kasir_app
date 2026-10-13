@@ -9,7 +9,7 @@ import '../shared/widgets/app_toast.dart';
 
 /// Tanya dulu, lalu keluar dari akun dan kembali ke layar login.
 ///
-/// Dipakai menu Keluar di drawer kasir dan di Profil owner.
+/// Dipakai tombol Keluar di Profil owner dan Profil kasir.
 Future<void> keluarDariAkun(BuildContext context) async {
   // Lembar konfirmasi desain ("Keluar dari akun?"). Catatannya tetap
   // membedakan kasir yang shiftnya masih berjalan.
@@ -19,28 +19,19 @@ Future<void> keluarDariAkun(BuildContext context) async {
     ikon: Icons.logout_rounded,
     judul: 'Keluar dari akun?',
     catatan: adaShift
-        ? 'Kamu keluar dari akun, tapi SHIFT TETAP BERJALAN. Untuk menutup '
-            'shift, pakai tombol Akhiri Shift di halaman utama.'
+        ? 'Shift Anda masih aktif. Shift tetap berjalan dan bisa dilanjutkan '
+              'setelah masuk lagi.'
         : 'Kamu perlu masuk lagi dengan username dan PIN untuk memakai '
-            'aplikasi.',
+              'aplikasi.',
     labelAksi: 'Keluar',
   );
 
   if (!confirmed) return;
 
   try {
-    final session = SessionManager.instance.currentSession;
-    if (session != null) {
-      final authRepo = AuthRepository(db);
-      // Sengaja TIDAK menutup shift. Ini tombol "Keluar", bukan
-      // "Akhiri Shift" — kasir yang cuma meminjam HP rekan harus bisa
-      // menyerahkannya kembali tanpa mematikan shift yang masih
-      // berjalan di HP-nya sendiri.
-      await authRepo.logout(
-        userId: session.userId,
-        shiftId: session.shiftId,
-        akhiriShift: false,
-      );
+    // Sengaja TIDAK menutup shift — lihat AuthRepository.logout.
+    if (SessionManager.instance.currentSession != null) {
+      await AuthRepository(db).logout();
     }
 
     await SessionManager.instance.clearSession();

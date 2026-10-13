@@ -30,6 +30,10 @@ void main() {
           salt: 's',
           role: 'owner',
         ));
+    await db.into(db.shifts).insert(ShiftsCompanion.insert(
+          id: const Value('shift-1'),
+          userId: 'owner-1',
+        ));
     await db.into(db.products).insert(ProductsCompanion.insert(
           id: const Value('prod-1'),
           name: 'Es Teh',
@@ -54,6 +58,7 @@ void main() {
     final id = newUuid();
     final nota = await db.createSale(
       transactionId: id,
+      shiftId: 'shift-1',
       paymentMethod: 'qris',
       orderType: 'dine_in',
       lines: [
@@ -153,6 +158,7 @@ void main() {
         ));
     final dariB = await dbB.createSale(
       transactionId: 'trx-b',
+      shiftId: 'shift-1',
       paymentMethod: 'cash',
       cashReceived: 50000,
       orderType: 'dine_in',

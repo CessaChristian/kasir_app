@@ -8,12 +8,15 @@ import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/bar_rasio.dart';
 import '../../../shared/ui/baris_angka.dart';
 import '../../../shared/ui/kartu_teras.dart';
+import '../../../shared/ui/kepala_sapaan.dart';
 import '../../../shared/ui/tombol_lembut.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
-import '../../../utils/sapaan.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
+import '../../shift/models/produk_laris.dart';
+import '../../shift/repositories/shift_repository.dart';
 import '../repositories/dasbor_owner_repository.dart';
+import '../widgets/kisi_produk_laris.dart';
 import '../../../shared/ui/teks_teras.dart';
 
 /// Dashboard owner: satu kartu "Ringkasan hari ini".
@@ -46,6 +49,21 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
     super.dispose();
   }
 
+  final _repoShift = ShiftRepository(db);
+  DateTime? _minggu;
+  Stream<List<ProdukLaris>>? _aliranLaris;
+
+  /// Produk Paling Laris minggu berjalan; dibuat ulang saat minggu berganti
+  /// (pemuatan tiap menit ikut menggambar ulang).
+  Stream<List<ProdukLaris>> _laris() {
+    final minggu = awalMinggu(DateTime.now());
+    if (minggu != _minggu) {
+      _minggu = minggu;
+      _aliranLaris = _repoShift.watchProdukLarisMinggu(minggu);
+    }
+    return _aliranLaris!;
+  }
+
   Future<void> _muat() async {
     final data = await _repo.muat();
     if (mounted) setState(() => _data = data);
@@ -64,8 +82,16 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             padding: EdgeInsets.only(top: 80),
             child: Center(child: CircularProgressIndicator()),
           )
-        else
+        else ...[
           _kartuRingkasan(data),
+          // Hanya dilihat: owner tidak menjual.
+          StreamBuilder<List<ProdukLaris>>(
+            stream: _laris(),
+            builder: (context, snap) => snap.hasData
+                ? KisiProdukLaris(daftar: snap.data!)
+                : const SizedBox.shrink(),
+          ),
+        ],
       ],
     );
   }
@@ -133,48 +159,11 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
     );
   }
 
-  Widget _sapaan() {
-    final nama = SessionManager.instance.currentSession?.username ?? '';
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: WarnaTeras.oranyeLembut,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.storefront_rounded,
-              size: 22, color: WarnaTeras.oranye),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Selamat ${sapaanWaktu(DateTime.now()).toLowerCase()},',
-                  style: const TextStyle(
-                      fontSize: TeksTeras.biasa, color: WarnaTeras.teksSedang)),
-              Text(nama,
-                  style: const TextStyle(
-                      fontSize: TeksTeras.biasa,
-                      fontWeight: FontWeight.w700,
-                      color: WarnaTeras.teks)),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          decoration: BoxDecoration(
-            color: WarnaTeras.oranyeLembut,
-            borderRadius: BorderRadius.circular(99),
-          ),
-          child: const Text('Ringkasan hari ini',
-              style: TextStyle(fontSize: TeksTeras.kecil, color: WarnaTeras.oranye)),
-        ),
-      ],
-    );
-  }
+  Widget _sapaan() => KepalaSapaan(
+    nama: SessionManager.instance.currentSession?.username ?? '',
+    ikon: Icons.storefront_rounded,
+    lencana: const LencanaSapaan('Ringkasan hari ini'),
+  );
 
   Widget _lencanaPersen(int persen) {
     final naik = persen >= 0;

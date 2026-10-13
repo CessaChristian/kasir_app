@@ -41,6 +41,10 @@ void main() {
             salt: 'salt',
             role: 'owner',
           ));
+      await db.into(db.shifts).insert(ShiftsCompanion.insert(
+            id: const Value('shift-1'),
+            userId: 'owner-1',
+          ));
       await SessionManager.instance.setSession(AuthSession.create(
         userId: 'owner-1',
         username: 'owner',
@@ -56,11 +60,6 @@ void main() {
     });
 
     test('addExpense menghasilkan id UUID', () async {
-      await db.into(db.shifts).insert(ShiftsCompanion.insert(
-            id: const Value('shift-1'),
-            userId: 'owner-1',
-          ));
-
       await db.addExpense(
         shiftId: 'shift-1',
         userId: 'owner-1',
@@ -84,6 +83,7 @@ void main() {
 
       await db.createSale(
         transactionId: 'trx-1',
+        shiftId: 'shift-1',
         paymentMethod: 'cash',
         cashReceived: 30000,
         orderType: 'dine_in',
@@ -113,6 +113,7 @@ void main() {
 
       await db.createSale(
         transactionId: '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+        shiftId: 'shift-1',
         paymentMethod: 'qris',
         orderType: 'dine_in',
         lines: [

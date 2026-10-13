@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
-import '../../../data/sync/sync_otomatis.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
@@ -140,19 +139,12 @@ class AuthRepository {
       ));
     }
 
-    // 4. Start a new shift — HANYA untuk non-owner (cashier).
-    // Owner memantau dari device sendiri dan TIDAK menjalankan shift, jadi
-    // shiftId owner = null (spec: shift page monitoring). I4: bungkus dengan
-    // pesan error spesifik agar user tahu PIN sudah benar tapi gagal di shift.
-    String? shiftId;
-    if (user.role != 'owner') {
-      try {
-        shiftId = await _startShift(user.id);
-      } catch (e) {
-        throw StateError(
-            'PIN benar, tapi gagal membuka shift. Cek storage device dan coba lagi.');
-      }
-    }
+    // 4. Lanjutkan shift yang masih berjalan — HANYA untuk kasir. Sejak v37
+    // login TIDAK membuka shift: kasir membukanya sendiri lewat "Buka shift"
+    // sambil mencatat kas awal (keputusan owner 2026-10-13). Owner tidak
+    // menjalankan shift sama sekali.
+    final shiftId =
+        user.role == 'owner' ? null : await cariShiftTerbuka(user.id);
 
     // 5. Get user permissions
     final permissions = await _getUserPermissions(user.id, user.role);
@@ -167,44 +159,21 @@ class AuthRepository {
     );
   }
 
-  /// Logout - end the current shift.
-  ///
-  /// [shiftId] boleh null (mis. owner yang tidak menjalankan shift) — dalam
-  /// kasus itu tidak ada shift yang perlu ditutup.
-  /// [akhiriShift] memisahkan dua perbuatan yang dulu tertumpuk jadi satu:
-  ///
-  ///   true   "Akhiri Shift"  -> shiftnya ditutup. Kerjaku selesai.
-  ///   false  "Keluar"        -> shiftnya DIBIARKAN terbuka. Cuma pinjam HP.
-  ///
-  /// Dulu keduanya menutup shift, padahal tombolnya dua dan namanya berbeda.
-  /// Akibatnya kasir yang cuma meminjam HP rekan lalu keluar ikut menutup
-  /// shift yang masih berjalan di HP-nya sendiri.
-  Future<void> logout({
-    required String userId,
-    required String? shiftId,
-    bool akhiriShift = true,
-  }) async {
-    // Lepaskan tanda "perangkat ini memegang shift X" di server LEBIH DULU.
+  /// Keluar dari akun. Shift yang sedang berjalan SENGAJA tidak ditutup:
+  /// kasir yang cuma gantian memegang HP harus bisa keluar tanpa mematikan
+  /// shiftnya, dan bisa melanjutkannya setelah masuk lagi. Menutup shift
+  /// adalah perbuatan terpisah — "Tutup shift" di Profil.
+  Future<void> logout() async {
+    // Lepaskan tanda "perangkat ini memegang shift X" di server.
     //
     // Tanpa ini, perangkat yang sudah keluar tetap tercatat memegang shiftnya,
-    // dan perangkat lain akan ditolak selamanya saat hendak mengakhiri shift
+    // dan perangkat lain akan ditolak selamanya saat hendak menutup shift
     // itu — ditahan oleh HP yang bahkan tidak ada yang memegangnya.
     //
     // Best-effort: `hadir` menelan galatnya sendiri. Kalau sedang offline,
     // tandanya baru terlepas saat perangkat ini online lagi. Keluar dari akun
     // tidak boleh gagal hanya karena jaringannya mati.
     await PerangkatRepository.instance.hadir(null);
-
-    if (shiftId == null || !akhiriShift) return;
-    // End the shift by setting end_at
-    final now = DateTime.now();
-    await (_db.update(_db.shifts)..where((s) => s.id.equals(shiftId))).write(
-      ShiftsCompanion(
-        endAt: Value(now),
-        updatedAt: Value(now),
-        syncStatus: const Value('pending'),
-      ),
-    );
   }
 
   Future<User?> getUserById(String userId) {
@@ -218,20 +187,19 @@ class AuthRepository {
   /// warung harus tetap bisa melayani saat internet mati.
   static const _jedaTungguShift = Duration(seconds: 4);
 
-  /// Buka shift baru untuk user, atau pakai shift yang masih terbuka.
+  /// Shift yang masih berjalan milik [userId], atau null.
+  ///
+  /// Dipakai saat login (melanjutkan shift) dan sebelum membuka shift baru
+  /// (supaya tidak lahir shift kedua untuk orang yang sama).
   ///
   /// ── KENAPA SERVER DITANYA DULU ──
   ///
-  /// Dulu yang dilihat hanya database LOKAL. Kalau kasir yang sama login di
-  /// HP kedua sebelum HP itu sempat menarik shift buatan HP pertama, lahirlah
-  /// shift KEDUA untuk orang yang sama. Akibatnya transaksinya terpecah ke dua
-  /// shift, dan "Akhiri Shift" hanya menutup salah satunya — yang lain
-  /// menggantung "Berlangsung" selamanya, dan sekarang ikut terlihat di
-  /// halaman Pengeluaran milik pemilik.
-  ///
-  /// Menariknya lebih dulu menutup kasus yang paling sering: dua HP
-  /// sama-sama online, kasir berpindah HP.
-  Future<String> _startShift(String userId) async {
+  /// Kalau yang dilihat hanya database LOKAL, kasir yang sama di HP kedua
+  /// tidak tahu shift buatan HP pertama, lalu membuka shift KEDUA. Akibatnya
+  /// transaksinya terpecah ke dua shift dan rekapnya tidak bisa dipercaya.
+  /// Menariknya lebih dulu menutup kasus yang paling sering: dua HP sama-sama
+  /// online, kasir berpindah HP.
+  Future<String?> cariShiftTerbuka(String userId) async {
     await _tarikShiftDariServer();
 
     // Urutannya WAJIB pasti. Tanpa `orderBy`, kalau ada dua shift terbuka,
@@ -245,27 +213,10 @@ class AuthRepository {
               s.deletedAt.isNull())
           ..orderBy([(s) => OrderingTerm.asc(s.startAt)]))
         .get();
+    if (terbuka.isEmpty) return null;
 
-    if (terbuka.isNotEmpty) {
-      await _tutupShiftHantu(terbuka.skip(1));
-      return terbuka.first.id;
-    }
-
-    final shiftId = newUuid();
-    await _db.into(_db.shifts).insert(
-          ShiftsCompanion.insert(
-            id: Value(shiftId),
-            userId: userId,
-            userName: Value(await _db.usernameAkun(userId)),
-          ),
-        );
-
-    // Awal kerja: pastikan kasir memulai dari daftar produk dan harga yang
-    // terbaru. Sengaja tidak ditunggu — shift tidak boleh gagal dibuka hanya
-    // karena jaringannya sedang mati.
-    unawaited(SyncOtomatis.instance.picu('shift dibuka', abaikanJeda: true));
-
-    return shiftId;
+    await _tutupShiftHantu(terbuka.skip(1));
+    return terbuka.first.id;
   }
 
   /// Menarik tabel `shifts` dari server, sebisanya.

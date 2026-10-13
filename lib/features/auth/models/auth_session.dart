@@ -10,9 +10,9 @@ class AuthSession {
   final String username;
   final String role; // 'owner' atau 'cashier'
 
-  /// ID shift aktif. NULL untuk owner — owner memantau dari device sendiri
-  /// dan TIDAK menjalankan shift (lihat login flow). Hanya cashier yang
-  /// otomatis membuka shift saat login.
+  /// ID shift yang sedang berjalan. NULL untuk owner (tidak menjalankan
+  /// shift) dan untuk kasir yang belum membuka shift — sejak v37 shift
+  /// dibuka manual lewat "Buka shift", bukan otomatis saat login.
   final String? shiftId;
   final List<String> permissions;
   final DateTime createdAt;
@@ -70,6 +70,18 @@ class AuthSession {
       expiresAt: expiresAt,
     );
   }
+
+  /// Sesi yang sama dengan shift berjalan [shiftId] — null = tanpa shift
+  /// ([copyWith] tidak bisa mengosongkan karena `null` berarti "tetap").
+  AuthSession denganShift(String? shiftId) => AuthSession(
+    userId: userId,
+    username: username,
+    role: role,
+    shiftId: shiftId,
+    permissions: permissions,
+    createdAt: createdAt,
+    expiresAt: expiresAt,
+  );
 
   Map<String, dynamic> toJson() {
     return {

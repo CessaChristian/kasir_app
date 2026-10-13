@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/keluar_akun.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../shared/auth/session_manager.dart';
-import '../../../shared/constants/app_constants.dart';
 import '../../../shared/ui/baris_menu.dart';
+import '../widgets/komponen_profil.dart';
 import '../../../shared/ui/halaman_turunan.dart';
-import '../../../shared/ui/kartu_teras.dart';
-import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../auth/recovery/widgets/lembar_kode_recovery.dart';
 import '../../owner/pages/kelola_kasir_page.dart';
@@ -63,9 +60,9 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       children: [
-        _kartuAkun(nama),
-        _judulBagian('MENU LAINNYA'),
-        _kelompok([
+        KartuAkunProfil(nama: nama, peran: 'Owner'),
+        JudulBagianProfil('MENU LAINNYA'),
+        KelompokMenuProfil([
           BarisMenu(
             ikon: Icons.bar_chart_rounded,
             judul: 'Laporan',
@@ -87,8 +84,8 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             onTap: () => _buka(const KategoriPage()),
           ),
         ]),
-        _judulBagian('MANAJEMEN'),
-        _kelompok([
+        JudulBagianProfil('MANAJEMEN'),
+        KelompokMenuProfil([
           BarisMenu(
             ikon: Icons.group_rounded,
             judul: 'Kelola Kasir',
@@ -98,8 +95,8 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             onTap: () => _buka(const KelolaKasirPage()),
           ),
         ]),
-        _judulBagian('PERANGKAT & AKUN'),
-        _kelompok([
+        JudulBagianProfil('PERANGKAT & AKUN'),
+        KelompokMenuProfil([
           BarisMenu(
             ikon: Icons.print_rounded,
             judul: 'Printer Struk',
@@ -136,137 +133,8 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             onTap: () => perbaruiKodeRecovery(context),
           ),
         ]),
-        const SizedBox(height: 22),
-        Material(
-          color: WarnaTeras.kartu,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => keluarDariAkun(context),
-            child: const SizedBox(
-              height: 52,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.logout_rounded, size: 21, color: WarnaTeras.merah),
-                  SizedBox(width: 8),
-                  Text(
-                    'Keluar',
-                    style: TextStyle(
-                      fontSize: TeksTeras.biasa,
-                      fontWeight: FontWeight.w600,
-                      color: WarnaTeras.merah,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          '${AppConstants.storeName} POS · v${AppConstants.versiAplikasi}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: TeksTeras.kecil,
-            color: WarnaTeras.teksSamar,
-          ),
-        ),
+        const TombolKeluarProfil(),
       ],
-    );
-  }
-
-  Widget _kartuAkun(String nama) {
-    return KartuTeras(
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: WarnaTeras.oranyeLembut,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              nama.isEmpty ? '?' : nama.characters.first.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.w700,
-                color: WarnaTeras.oranye,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  nama,
-                  style: const TextStyle(
-                    fontSize: TeksTeras.judulBagian,
-                    fontWeight: FontWeight.w700,
-                    color: WarnaTeras.teks,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: WarnaTeras.oranyeLembut,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.shield_rounded,
-                        size: 14,
-                        color: WarnaTeras.oranye,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Owner',
-                        style: TextStyle(
-                          fontSize: TeksTeras.kecil,
-                          fontWeight: FontWeight.w600,
-                          color: WarnaTeras.oranye,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _judulBagian(String teks) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 22, 4, 8),
-      child: Text(
-        teks,
-        style: const TextStyle(
-          fontSize: TeksTeras.kecil,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.5,
-          color: WarnaTeras.teksSamar,
-        ),
-      ),
-    );
-  }
-
-  Widget _kelompok(List<Widget> isi) {
-    return KartuTeras(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(children: isi),
     );
   }
 }

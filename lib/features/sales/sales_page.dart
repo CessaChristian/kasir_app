@@ -25,7 +25,11 @@ import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/ikon_pilihan_produk.dart';
 
 class SalesPage extends StatefulWidget {
-  const SalesPage({super.key});
+  /// Milik kerangka kasir, dipakai bersama Dashboard (produk laris yang
+  /// diketuk masuk ke sini). Halaman ini tidak membuangnya.
+  final Keranjang keranjang;
+
+  const SalesPage({super.key, required this.keranjang});
 
   @override
   State<SalesPage> createState() => _SalesPageState();
@@ -34,8 +38,7 @@ class SalesPage extends StatefulWidget {
 class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   final _salesRepo = SalesRepository(db);
   final _productRepo = ProductRepository(db);
-  final _keranjang = Keranjang();
-  bool _keranjangTadinyaBerisi = false;
+  Keranjang get _keranjang => widget.keranjang;
   final Set<String> _addingProducts = {};
   // C4: Cache hasil File.existsSync agar tidak blocking main thread setiap rebuild
   final Map<String, bool> _imageExistsCache = {};
@@ -62,19 +65,10 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
     });
   }
 
-  /// Satu titik untuk SEMUA perubahan keranjang — dari halaman ini maupun
-  /// dari halaman Keranjang yang memakai objek yang sama.
+  /// Keranjang berubah (dari halaman ini, halaman Keranjang, atau
+  /// Dashboard). Penundaan sinkron selama pesanan disusun diurus kerangka
+  /// kasir, pemilik keranjangnya.
   void _keranjangBerubah() {
-    final berisi = !_keranjang.isEmpty;
-    // Sinkron otomatis ditunda selama pesanan disusun.
-    SyncOtomatis.instance.sedangMenyusunPesanan = berisi;
-    // Keranjang yang baru saja kosong adalah titik teraman untuk menyegarkan.
-    // Tanpa ini sinkron yang tertunda bisa tertahan sepanjang jam ramai,
-    // karena keranjang nyaris tidak pernah kosong lebih dari sesaat.
-    if (_keranjangTadinyaBerisi && !berisi) {
-      SyncOtomatis.instance.lanjutkanYangTertunda();
-    }
-    _keranjangTadinyaBerisi = berisi;
     if (mounted) setState(() {});
   }
 
@@ -94,13 +88,7 @@ class _SalesPageState extends State<SalesPage> with TickerProviderStateMixin {
   void dispose() {
     _langgananKategori.cancel();
     SyncService.instance.terakhirBerhasil.removeListener(_sesudahSync);
-    _keranjang
-      ..removeListener(_keranjangBerubah)
-      ..dispose();
-    // Kalau tidak dibersihkan, meninggalkan halaman dengan keranjang berisi
-    // membuat penjadwal mengira pesanan masih disusun — dan sinkron otomatis
-    // berhenti selamanya.
-    SyncOtomatis.instance.sedangMenyusunPesanan = false;
+    _keranjang.removeListener(_keranjangBerubah);
     super.dispose();
   }
 

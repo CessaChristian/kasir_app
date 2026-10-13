@@ -208,22 +208,40 @@ class SessionManager {
     sesiDicabut.value = alasan;
   }
 
-  /// Keluarkan kasir kalau shiftnya sudah diakhiri dari perangkat lain.
+  /// Ganti shift berjalan di sesi ini — sesudah kasir membuka (id) atau
+  /// menutup (null) shift. Layar yang mendengarkan [sesiBerubah] ikut
+  /// digambar ulang.
+  Future<void> aturShift(String? shiftId) async {
+    final sesi = _currentSession;
+    if (sesi == null || sesi.shiftId == shiftId) return;
+    await setSession(sesi.denganShift(shiftId));
+    sesiBerubah.value++;
+  }
+
+  /// Berisi pesan kalau shift yang sedang dipegang HP ini DITUTUP dari
+  /// perangkat lain; layar menampilkannya lalu mengosongkannya kembali.
+  final ValueNotifier<String?> shiftDitutupDariLuar = ValueNotifier(null);
+
+  /// Lepaskan shift dari sesi ini kalau shiftnya sudah ditutup dari
+  /// perangkat lain.
   ///
   /// ── KENAPA PERLU ──
   ///
-  /// Satu shift kini bisa dipegang lebih dari satu HP — disengaja, supaya
-  /// kasir yang berpindah perangkat tidak melahirkan shift kedua. Tapi
-  /// akibatnya menekan "Akhiri Shift" di satu HP ikut menutup shift yang
-  /// masih dipakai HP satunya.
+  /// Satu shift bisa dipegang lebih dari satu HP — disengaja, supaya kasir
+  /// yang berpindah perangkat tidak melahirkan shift kedua. Akibatnya "Tutup
+  /// shift" di satu HP ikut menutup shift yang masih dipakai HP satunya.
   ///
-  /// Tanpa pemeriksaan ini HP itu tidak diberi tahu apa-apa: menunya masih
-  /// lengkap, penjualannya tetap berhasil, dan transaksinya menempel ke shift
-  /// yang sudah tutup. Rekapnya lalu memuat penjualan yang terjadi SESUDAH
-  /// jam tutupnya sendiri — sudah terbukti terjadi di emulator, bukan dugaan.
+  /// Tanpa pemeriksaan ini HP itu tidak diberi tahu apa-apa: penjualannya
+  /// tetap berhasil dan transaksinya menempel ke shift yang sudah tutup.
+  /// Rekapnya lalu memuat penjualan SESUDAH jam tutupnya sendiri — sudah
+  /// terbukti terjadi di emulator, bukan dugaan.
+  ///
+  /// Sejak v37 kasirnya TIDAK dikeluarkan dari akun: login dan shift sudah
+  /// terpisah, jadi cukup shiftnya yang dilepas — kasir tetap di dalam dan
+  /// bisa membuka shift baru.
   ///
   /// Gagal membaca sengaja diam: kasir yang sedang melayani tidak boleh
-  /// dilempar keluar hanya karena satu kueri tersendat.
+  /// diganggu hanya karena satu kueri tersendat.
   Future<void> periksaShiftMasihBerjalan() async {
     final sesi = _currentSession;
     final shiftId = sesi?.shiftId;
@@ -245,9 +263,10 @@ class SessionManager {
       return;
     }
 
-    await clearSession();
-    sesiDicabut.value = 'Shift ini sudah diakhiri dari perangkat lain. '
-        'Masuk lagi untuk membuka shift baru.';
+    await aturShift(null);
+    shiftDitutupDariLuar.value =
+        'Shift ini sudah ditutup dari perangkat lain. Buka shift baru untuk '
+        'melanjutkan.';
   }
 
   /// Dipanggil layar setelah selesai memindahkan pengguna ke halaman login.

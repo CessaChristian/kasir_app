@@ -141,9 +141,9 @@ void main() {
 
     final dipakai = await masuk();
 
-    expect(dipakai, isNot('terhapus'));
-    expect(await db.select(db.shifts).get(), hasLength(2),
-        reason: 'harus membuat shift baru, bukan menghidupkan yang terhapus');
+    expect(dipakai, isNull,
+        reason: 'yang terhapus tidak dihidupkan; login tidak membuka shift '
+            'baru (v37) — kasir membukanya sendiri');
   });
 
   test('shift milik kasir LAIN tidak ikut terpilih maupun ditutup', () async {
@@ -163,13 +163,20 @@ void main() {
     expect((await ambilShift('punya-sari')).endAt, isNull);
   });
 
-  test('tanpa server, login tetap berhasil dan shift tetap terbuka', () async {
+  test('tanpa server, login tetap berhasil dan shift lama dilanjutkan',
+      () async {
     // Supabase tidak disiapkan sama sekali di test ini. Menanyakan shift ke
     // server BOLEH gagal — yang tidak boleh adalah login ikut gagal. Warung
     // harus tetap melayani saat internet mati.
+    await pasangShift('pagi', mulai: DateTime(2026, 9, 28, 8));
     final dipakai = await masuk();
 
-    expect(dipakai, isNotNull);
-    expect((await ambilShift(dipakai!)).endAt, isNull);
+    expect(dipakai, 'pagi');
+    expect((await ambilShift('pagi')).endAt, isNull);
+  });
+
+  test('tanpa shift terbuka, login TIDAK membuka shift (v37)', () async {
+    expect(await masuk(), isNull);
+    expect(await db.select(db.shifts).get(), isEmpty);
   });
 }

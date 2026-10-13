@@ -8,10 +8,9 @@ import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/data/nama_tercatat.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
-import 'package:kasir_app/features/auth/repositories/auth_repository.dart';
 import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
+import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
-import 'package:kasir_app/utils/crypto_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -261,28 +260,26 @@ void main() {
     });
   });
 
-  test('membuka shift saat login menyimpan nama kasir', () async {
+  test('membuka shift menyimpan nama kasir dan kas awal', () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
-    const pin = '112233';
-    final salt = CryptoUtils.generateSalt();
-    await db
-        .into(db.users)
-        .insert(
-          UsersCompanion.insert(
-            id: const Value('k-1'),
-            username: 'budi',
-            pinHash: CryptoUtils.hashPin(pin, salt),
-            salt: salt,
-            role: 'cashier',
-          ),
-        );
-    final sesi = await AuthRepository(db).login(username: 'budi', pin: pin);
+    await akun(db, 'k-1', 'budi', 'cashier');
+    await SessionManager.instance.setSession(
+      AuthSession.create(
+        userId: 'k-1',
+        username: 'budi',
+        role: 'cashier',
+        shiftId: null,
+        permissions: const ['open_close_shift'],
+      ),
+    );
+    addTearDown(SessionManager.instance.clearSession);
+    final id = await ShiftRepository(db).bukaShift(userId: 'k-1', kasAwal: 0);
     final s = await (db.select(
       db.shifts,
-    )..where((x) => x.id.equals(sesi!.shiftId!))).getSingle();
+    )..where((x) => x.id.equals(id))).getSingle();
     expect(s.userName, 'budi');
-    await SessionManager.instance.clearSession();
+    expect(s.kasAwal, 0);
   });
 
   group('sinkron', () {
