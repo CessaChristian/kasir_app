@@ -35,9 +35,6 @@ class DeretanKategori extends StatelessWidget {
     this.tepi = 16,
   });
 
-  /// Oranye chip terpilih di desain (#FF911D), sedikit beda dari oranye merek.
-  static const _oranyeTerpilih = Color(0xFFFF911D);
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -62,7 +59,7 @@ class DeretanKategori extends StatelessWidget {
   Widget _chip(ChipKategori c, bool aktif) {
     return Container(
       decoration: BoxDecoration(
-        color: aktif ? _oranyeTerpilih : WarnaTeras.kartu,
+        color: aktif ? WarnaTeras.oranyeCerah : WarnaTeras.kartu,
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(

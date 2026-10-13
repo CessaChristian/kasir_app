@@ -93,6 +93,7 @@ flutter:
 
   assets:
     - assets/images/Logo Teras Inn.png
+    - assets/images/logo_login.png
     - assets/images/Neon Box 40x40cm (1).png
     # Font untuk file PDF laporan (paket pdf butuh TTF untuk huruf di luar
     # ASCII seperti "–" dan "·"). Roboto, lisensi Apache 2.0.

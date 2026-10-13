@@ -1,470 +1,173 @@
 import 'package:flutter/material.dart';
-import '../../../shared/constants/app_constants.dart';
-import '../../../utils/crypto_utils.dart';
-import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
-import '../../../data/db.dart';
-import '../repositories/auth_repository.dart';
-import '../../../shared/auth/session_manager.dart';
-import '../recovery/pages/owner_recovery_page.dart';
-import '../../../app/app_shell.dart';
-import '../../../shared/widgets/app_toast.dart';
-import '../../../shared/widgets/sync_refresh.dart';
 
+import '../../../app/app_shell.dart';
+import '../../../data/db.dart';
+import '../../../shared/auth/session_manager.dart';
+import '../../../shared/ui/kerangka_masuk.dart';
+import '../../../shared/ui/warna_teras.dart';
+import '../../../shared/widgets/sync_refresh.dart';
+import '../../../utils/crypto_utils.dart';
+import '../recovery/pages/owner_recovery_page.dart';
+import '../repositories/auth_repository.dart';
+
+/// Halaman Login (desain): username + PIN, galat sebaris di bawah PIN
+/// berdampingan dengan "Lupa PIN Owner?".
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  /// Diisi test; aplikasi memakai basis data utama.
+  final AuthRepository? repo;
+
+  const LoginPage({super.key, this.repo});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
-  final _pinController = TextEditingController();
+  late final _repo = widget.repo ?? AuthRepository(db);
+  final _username = TextEditingController();
+  final _pin = TextEditingController();
 
-  bool _isLoading = false;
-  bool _obscurePin = true;
-  List<String> _availableUsernames = [];
-
-  String get _brandName => AppConstants.storeName;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUsernames();
-  }
+  var _memuat = false;
+  String? _galat;
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _pinController.dispose();
+    _username.dispose();
+    _pin.dispose();
     super.dispose();
   }
 
-  Future<void> _loadUsernames() async {
-    try {
-      final authRepo = AuthRepository(db);
-      final usernames = await authRepo.getAllActiveUsernames();
-      if (!mounted) return;
-      setState(() => _availableUsernames = usernames);
-    } catch (_) {
-      // Silent fail — user tetap bisa input manual
-    }
+  void _hapusGalat(String _) {
+    if (_galat != null) setState(() => _galat = null);
   }
 
-  Future<void> _pickUsername() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Pilih Akun',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ),
-            ),
-            Divider(height: 1, color: Colors.grey.shade100),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.4,
-              ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _availableUsernames.length,
-                itemBuilder: (_, i) {
-                  final username = _availableUsernames[i];
-                  return ListTile(
-                    leading: Icon(
-                      Icons.person_outline_rounded,
-                      color: Colors.grey.shade600,
-                    ),
-                    title: Text(
-                      username,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    onTap: () => Navigator.pop(ctx, username),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-
-    if (selected != null && mounted) {
-      setState(() => _usernameController.text = selected);
+  String? _periksa() {
+    if (_username.text.trim().isEmpty) return 'Username wajib diisi';
+    if (_pin.text.isEmpty) return 'PIN wajib diisi';
+    if (_pin.text.length != CryptoUtils.pinLength) {
+      return 'PIN harus ${CryptoUtils.pinLength} digit';
     }
+    return null;
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+  Future<void> _masuk() async {
+    final galat = _periksa();
+    if (galat != null) {
+      setState(() => _galat = galat);
+      return;
+    }
+    setState(() {
+      _memuat = true;
+      _galat = null;
+    });
 
     try {
-      final authRepo = AuthRepository(db);
-      final username = _usernameController.text.trim();
-
-      final session = await authRepo.login(
-        username: username,
-        pin: _pinController.text,
+      final sesi = await _repo.login(
+        username: _username.text.trim(),
+        pin: _pin.text,
       );
-
-      if (session == null) {
-        if (!mounted) return;
-        AppToast.error(context, 'Username atau PIN salah');
-        setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (sesi == null) {
+        setState(() {
+          _memuat = false;
+          _galat = 'Username atau PIN salah';
+        });
         return;
       }
 
-      await SessionManager.instance.setSession(session);
+      await SessionManager.instance.setSession(sesi);
       if (!mounted) return;
-
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => AppShell(key: AppShell.globalKey)),
       );
     } on StateError catch (e) {
+      // Akun dinonaktifkan/dihapus, terlalu banyak percobaan, dsb.
       if (!mounted) return;
-      AppToast.warning(context, e.message);
-      setState(() => _isLoading = false);
+      setState(() {
+        _memuat = false;
+        _galat = e.message;
+      });
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, 'Terjadi kesalahan: $e');
-      setState(() => _isLoading = false);
+      setState(() {
+        _memuat = false;
+        _galat = 'Terjadi kesalahan: $e';
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final viewInsets = MediaQuery.of(context).viewInsets;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        // Halaman login pun perlu bisa disegarkan.
-        //
-        // Kasir yang akunnya baru diaktifkan kembali pemilik tidak bisa masuk
-        // sampai kabarnya sampai ke HP ini — dan di layar login tidak ada satu
-        // pun jalan untuk memintanya. Menunggu putaran otomatis bisa sampai
-        // lima menit, sementara orangnya berdiri di depan kasir mencoba
-        // berulang kali dan gagal terus tanpa tahu kenapa.
-        child: SyncRefresh(
-          sesudah: _loadUsernames,
-          child: SingleChildScrollView(
-            // WAJIB: tanpa ini gerakan menarik tidak terbaca saat isinya
-            // sudah muat di layar.
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.only(bottom: viewInsets.bottom),
-            child: Column(
-              children: [
-                // ── Header / Logo ──
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 52, 24, 40),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: const BusinessLogo(size: 80),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _brandName,
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'POS Sistem',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                          letterSpacing: 2.0,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+    final galat = _galat != null;
+    return KerangkaMasuk(
+      judul: 'Login to Access Your',
+      // Halaman login pun perlu bisa disegarkan.
+      //
+      // Kasir yang akunnya baru diaktifkan kembali pemilik tidak bisa masuk
+      // sampai kabarnya sampai ke HP ini — dan di layar login tidak ada satu
+      // pun jalan untuk memintanya. Menunggu putaran otomatis bisa sampai
+      // lima menit, sementara orangnya berdiri di depan kasir mencoba
+      // berulang kali dan gagal terus tanpa tahu kenapa.
+      bungkus: (gulir) => SyncRefresh(child: gulir),
+      isi: [
+        const LabelMasuk('Username', atas: 36),
+        KolomMasuk(
+          controller: _username,
+          ikon: Icons.person_rounded,
+          petunjuk: 'Masukkan username',
+          galat: galat,
+          textInputAction: TextInputAction.next,
+          onChanged: _hapusGalat,
+        ),
+        const LabelMasuk('PIN'),
+        KolomMasuk(
+          controller: _pin,
+          ikon: Icons.lock_rounded,
+          petunjuk: '• • • • • •',
+          rahasia: true,
+          galat: galat,
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.done,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
+          ],
+          onChanged: _hapusGalat,
+          onSubmitted: (_) => _masuk(),
+        ),
+        const SizedBox(height: 16),
+        BarisGalatMasuk(
+          galat: _galat,
+          kanan: GestureDetector(
+            onTap: () {
+              setState(() => _galat = null);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OwnerRecoveryPage(repo: _repo),
                 ),
-
-                // ── Form Section ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Masuk ke akun Anda',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Masukkan username dan PIN untuk melanjutkan',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-
-                        // ── Username ──
-                        _buildLabel('Username'),
-                        const SizedBox(height: 8),
-                        _buildUsernameTextField(),
-
-                        const SizedBox(height: 20),
-
-                        // ── PIN ──
-                        _buildLabel('PIN'),
-                        const SizedBox(height: 8),
-                        _buildPinField(),
-
-                        const SizedBox(height: 10),
-
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const OwnerRecoveryPage(),
-                              ),
-                            ),
-                            child: Text(
-                              'Lupa PIN Owner?',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // ── Tombol Login ──
-                        SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: Colors.grey.shade300,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Masuk',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.only(left: 12),
+              child: Text(
+                'Lupa PIN Owner?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: WarnaTeras.oranyeCerah,
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey.shade700,
-      ),
-    );
-  }
-
-  Widget _buildUsernameTextField() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return TextFormField(
-      controller: _usernameController,
-      textInputAction: TextInputAction.next,
-      autofocus: true,
-      style: const TextStyle(fontSize: 15),
-      decoration: InputDecoration(
-        hintText: 'Masukkan username',
-        hintStyle: TextStyle(color: Colors.grey.shade400),
-        prefixIcon: Icon(
-          Icons.person_outline_rounded,
-          color: Colors.grey.shade500,
+        const SizedBox(height: 36),
+        TombolMasuk(
+          label: _memuat ? 'Memeriksa…' : 'Masuk',
+          onPressed: _memuat ? null : _masuk,
         ),
-        suffixIcon: _availableUsernames.isNotEmpty
-            ? IconButton(
-                icon: Icon(
-                  Icons.expand_more_rounded,
-                  color: Colors.grey.shade500,
-                ),
-                tooltip: 'Pilih dari daftar',
-                onPressed: _pickUsername,
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
-      validator: (v) =>
-          v == null || v.trim().isEmpty ? 'Username wajib diisi' : null,
-    );
-  }
-
-  Widget _buildPinField() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return TextFormField(
-      controller: _pinController,
-      obscureText: _obscurePin,
-      keyboardType: TextInputType.number,
-      textInputAction: TextInputAction.done,
-      onFieldSubmitted: (_) => _login(),
-      inputFormatters: [
-        FilteringTextInputFormatter.digitsOnly,
-        LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
       ],
-      style: const TextStyle(fontSize: 20, letterSpacing: 8),
-      decoration: InputDecoration(
-        hintText: '• • • • • •',
-        hintStyle: TextStyle(
-          color: Colors.grey.shade300,
-          fontSize: 16,
-          letterSpacing: 4,
-        ),
-        prefixIcon: Icon(
-          Icons.lock_outline_rounded,
-          color: Colors.grey.shade500,
-        ),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePin
-                ? Icons.visibility_outlined
-                : Icons.visibility_off_outlined,
-            color: Colors.grey.shade500,
-          ),
-          onPressed: () => setState(() => _obscurePin = !_obscurePin),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
-      validator: (v) {
-        if (v == null || v.isEmpty) return 'PIN wajib diisi';
-        if (v.length != CryptoUtils.pinLength) {
-          return 'PIN harus ${CryptoUtils.pinLength} digit';
-        }
-        return null;
-      },
     );
   }
 }

@@ -178,7 +178,7 @@ void main() {
   );
 
   test(
-    'login, daftar nama login, dan sesi berjalan menolak akun dihapus',
+    'login dan sesi berjalan menolak akun dihapus',
     () async {
       final auth = AuthRepository(db);
       final sesi = await auth.login(username: 'sari', pin: pin);
@@ -191,7 +191,6 @@ void main() {
       );
       await SessionManager.instance.periksaAkunMasihBerlaku();
       expect(SessionManager.instance.currentSession, isNull);
-      expect(await auth.getAllActiveUsernames(), ['owner']);
       await expectLater(
         auth.login(username: 'sari', pin: pin),
         throwsA(

@@ -15,6 +15,10 @@ abstract final class WarnaTeras {
   // Oranye merek
   static const oranye = Color(0xFFF08A2C);
   static const oranyeMuda = Color(0xFFFFF1E2);
+
+  /// Oranye cerah desain (#FF911D): latar halaman masuk dan chip kategori
+  /// terpilih — sedikit beda dari oranye merek.
+  static const oranyeCerah = Color(0xFFFF911D);
   static const oranyeLembut = Color(0xFFFDEBD8);
   static const garisOranye = Color(0xFFF6DDC2);
   static const latarBilah = Color(0xFFFBEBDB);

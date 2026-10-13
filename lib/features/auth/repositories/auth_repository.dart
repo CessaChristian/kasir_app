@@ -345,16 +345,6 @@ class AuthRepository {
     return userPerms.map((up) => up.permissionCode).toList();
   }
 
-  /// Get all active usernames untuk dropdown login.
-  /// Aman karena dilindungi rate limit (S5) dan session anti-tamper (S6).
-  Future<List<String>> getAllActiveUsernames() async {
-    final users = await (_db.select(_db.users)
-          ..where((u) => u.isActive.equals(true) & u.deletedAt.isNull())
-          ..orderBy([(u) => OrderingTerm.asc(u.username)]))
-        .get();
-    return users.map((u) => u.username).toList();
-  }
-
   // ============================================================================
   // RECOVERY CODE METHODS
   // ============================================================================
