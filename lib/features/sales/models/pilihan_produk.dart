@@ -5,7 +5,7 @@ enum KelompokPilihan {
   pedas('Pedas', ['Tidak Pedas', 'Sedang', 'Pedas', 'Ekstra Pedas'],
       'Tidak Pedas'),
   manis('Manis', ['Tanpa Gula', 'Sedikit', 'Normal', 'Ekstra Gula'], 'Normal'),
-  es('Es', ['Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es'], 'Normal');
+  es('Es', ['Panas', 'Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es'], 'Normal');
 
   const KelompokPilihan(this.label, this.daftar, this.bawaan);
 

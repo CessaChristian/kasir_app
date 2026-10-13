@@ -116,7 +116,7 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
       idProduk: p.id,
       nama: p.name,
       harga: p.price,
-      catatan: catatan,
+      catatan: catatan == null ? null : catatanItem(catatan),
     );
     AppToast.success(context, '${p.name} ditambahkan ke keranjang');
   }

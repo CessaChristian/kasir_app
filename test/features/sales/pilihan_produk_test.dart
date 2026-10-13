@@ -32,7 +32,7 @@ void main() {
     expect(KelompokPilihan.manis.daftar,
         ['Tanpa Gula', 'Sedikit', 'Normal', 'Ekstra Gula']);
     expect(KelompokPilihan.es.daftar,
-        ['Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es']);
+        ['Panas', 'Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es']);
     expect(
         [for (final k in KelompokPilihan.values) k.bawaan],
         ['Tidak Pedas', 'Normal', 'Normal']);

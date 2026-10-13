@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../data/app_database.dart';
 import '../../data/nama_tercatat.dart';
 import '../../data/db.dart';
 import '../../features/sales/repositories/sales_repository.dart';
-import '../../utils/currency_formatter.dart';
-import '../constants/app_constants.dart';
 import '../ui/header_teras.dart';
 import '../ui/pegang_lembar.dart';
 import '../ui/teks_teras.dart';
 import '../ui/warna_teras.dart';
-import 'business_logo.dart';
+import 'isi_struk.dart';
 
 /// Detail transaksi berbentuk STRUK (desain): logo, info, item, total,
 /// pembayaran — lalu "Cetak ulang struk" dan (kalau boleh) "Batalkan
@@ -87,11 +84,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     }
   }
 
-  static String _tipePesanan(String kode) => switch (kode) {
-        'delivery' => 'Delivery',
-        _ => 'Dine In',
-      };
-
   // Tinggi dibatasi dari ruang yang BENAR-BENAR tersedia untuk lembar (di
   // bawah status bar), bukan dari tinggi layar: dulu "layar − 56" habis
   // dimakan status bar, lembarnya sampai ke lubang kamera dan tidak tersisa
@@ -107,8 +99,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
 
   Widget _lembar(double tinggiMaks) {
     final tx = widget.transaction;
-    final tunai = tx.paymentMethod == 'cash';
-    final dibayar = tunai ? (tx.cashReceived ?? tx.total) : tx.total;
 
     return Container(
       constraints: BoxConstraints(maxHeight: tinggiMaks),
@@ -141,7 +131,11 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                     onNotification: (n) => _perbaruiBayangan(n.metrics),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _struk(tx, tunai, dibayar),
+                      child: IsiStruk(
+                        transaksi: tx,
+                        items: _items,
+                        namaKasir: _namaKasir,
+                      ),
                     ),
                   ),
                 ),
@@ -173,111 +167,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     );
   }
 
-  Widget _struk(Transaction tx, bool tunai, int dibayar) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Center(child: BusinessLogo(size: 52)),
-          const SizedBox(height: 8),
-          Text(
-            AppConstants.storeName.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: TeksTeras.judulBagian,
-              fontWeight: FontWeight.w800,
-              color: WarnaTeras.teks,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            '${AppConstants.storeName} ${AppConstants.storeAddress}\n'
-            '${AppConstants.storePhone}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: TeksTeras.kecil,
-              color: Color(0xFFB5ADA6),
-            ),
-          ),
-          const _GarisPutus(),
-          _baris('Tanggal', DateFormat('dd/MM/yyyy').format(tx.createdAt)),
-          _baris('Waktu', DateFormat('HH:mm:ss').format(tx.createdAt)),
-          _baris('Kasir', _namaKasir ?? '-'),
-          _baris('Tipe Pesanan', _tipePesanan(tx.orderType)),
-          _baris('No. Transaksi', tx.invoiceNo),
-          const _GarisPutus(),
-          ..._daftarItem(),
-          const _GarisPutus(),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: WarnaTeras.latar,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'TOTAL',
-                    style: TextStyle(
-                      fontSize: TeksTeras.biasa,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  formatRp(tx.total),
-                  style: const TextStyle(
-                    fontSize: TeksTeras.biasa,
-                    fontWeight: FontWeight.w700,
-                    color: WarnaTeras.oranye,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          _baris(
-            'Dibayar (${tunai ? 'Cash' : 'QRIS'})',
-            formatRp(dibayar),
-          ),
-          if (tunai)
-            _baris(
-              'Kembalian',
-              formatRp(tx.change ?? (dibayar - tx.total)),
-              warnaNilai: WarnaTeras.hijau,
-            ),
-          const _GarisPutus(),
-          const Text(
-            'Terima Kasih!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: TeksTeras.biasa,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'Selamat Menikmati',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: TeksTeras.biasa,
-              color: WarnaTeras.teksSamar,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   List<Widget> _tombol() => [
     SizedBox(
       height: 44,
@@ -288,9 +177,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
         onPressed: () {},
         style: FilledButton.styleFrom(
           backgroundColor: WarnaTeras.oranye,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
         icon: const Icon(Icons.print_rounded, size: 19),
         label: const Text(
@@ -366,128 +253,6 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _baris(String kunci, String nilai, {Color? warnaNilai}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              kunci,
-              style: const TextStyle(
-                fontSize: TeksTeras.kecil,
-                color: WarnaTeras.teksSamar,
-              ),
-            ),
-          ),
-          Text(
-            nilai,
-            style: TextStyle(
-              fontSize: TeksTeras.kecil,
-              color: warnaNilai ?? WarnaTeras.teks,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _daftarItem() {
-    final items = _items;
-    if (items == null) {
-      return const [
-        Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-      ];
-    }
-    if (items.isEmpty) {
-      return const [
-        Text(
-          'Tidak ada item',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: TeksTeras.kecil,
-            color: WarnaTeras.teksSamar,
-          ),
-        ),
-      ];
-    }
-    return [
-      for (final item in items)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.productName,
-                style: const TextStyle(fontSize: TeksTeras.kecil),
-              ),
-              if (item.notes != null && item.notes!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    '**${item.notes}',
-                    style: const TextStyle(
-                      fontSize: TeksTeras.kecil,
-                      color: WarnaTeras.merah,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${item.qty} x ${formatRp(item.priceAtSale)}',
-                      style: const TextStyle(
-                        fontSize: TeksTeras.kecil,
-                        color: WarnaTeras.teksSamar,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    formatRupiah(item.subtotal),
-                    style: const TextStyle(fontSize: TeksTeras.kecil),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-    ];
-  }
-}
-
-/// Garis putus-putus pemisah bagian struk.
-class _GarisPutus extends StatelessWidget {
-  const _GarisPutus();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final jumlah = (c.maxWidth / 7).floor();
-          return Row(
-            children: [
-              for (var i = 0; i < jumlah; i++)
-                Container(
-                  width: 4,
-                  height: 1,
-                  margin: const EdgeInsets.only(right: 3),
-                  color: const Color(0xFFC9C3BD),
-                ),
-            ],
-          );
-        },
-      ),
     );
   }
 }

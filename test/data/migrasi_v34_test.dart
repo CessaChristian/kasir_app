@@ -4,7 +4,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
-import 'package:kasir_app/features/sales/cart_page.dart';
+import 'package:kasir_app/features/sales/models/pesanan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -66,6 +66,6 @@ void main() {
   });
 
   test('keranjang hanya menawarkan Dine In dan Delivery', () {
-    expect(OrderType.values.map((t) => t.value), ['dine_in', 'delivery']);
+    expect(TipePesanan.values.map((t) => t.kode), ['dine_in', 'delivery']);
   });
 }

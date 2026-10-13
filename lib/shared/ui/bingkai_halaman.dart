@@ -16,11 +16,15 @@ class BingkaiHalaman extends StatefulWidget {
   final VoidCallback? onKembali;
   final Widget child;
 
+  /// Tombol tambahan di header, sebelum tombol segarkan (mis. keranjang).
+  final List<Widget> aksi;
+
   const BingkaiHalaman({
     super.key,
     required this.judul,
     required this.child,
     this.onKembali,
+    this.aksi = const [],
   });
 
   @override
@@ -70,7 +74,7 @@ class _BingkaiHalamanState extends State<BingkaiHalaman> {
           judul: widget.judul,
           onKembali: widget.onKembali,
           bertepi: _tergulir,
-          aksi: [TombolSegarkan(pengendali: _segarkan)],
+          aksi: [...widget.aksi, TombolSegarkan(pengendali: _segarkan)],
         ),
         Expanded(
           child: Stack(

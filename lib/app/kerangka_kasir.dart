@@ -7,6 +7,7 @@ import '../features/history/history_page.dart';
 import '../features/profil/pages/profil_kasir_page.dart';
 import '../features/sales/models/keranjang.dart';
 import '../features/sales/sales_page.dart';
+import '../features/sales/widgets/tombol_keranjang.dart';
 import '../features/shift/widgets/perlu_buka_shift.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/ui/bingkai_halaman.dart';
@@ -155,6 +156,12 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
           bottom: false,
           child: BingkaiHalaman(
             judul: _nav[_tab].label,
+            aksi: [
+              if (_tab == _iKasir &&
+                  shiftId != null &&
+                  SessionManager.instance.hasPermission('create_transaction'))
+                TombolKeranjang(keranjang: _keranjang),
+            ],
             // Halaman dibuat ulang saat shift dibuka/ditutup: beberapa
             // halaman lama membaca shift sekali saat dibuat.
             child: KeyedSubtree(

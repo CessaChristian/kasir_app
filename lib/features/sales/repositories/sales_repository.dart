@@ -124,6 +124,11 @@ class SalesRepository {
   Future<Set<String>> idTransaksiBerisiMenu(String kata) =>
       _db.idTransaksiBerisiMenu(kata);
 
+  /// Satu transaksi berdasarkan id — untuk struk sesudah bayar.
+  Future<Transaction?> ambilTransaksi(String id) =>
+      (_db.select(_db.transactions)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
   /// Item milik satu transaksi — dipakai layar detail struk. [termasukBatal]
   /// untuk struk yang dibatalkan, yang isinya tetap perlu terlihat.
   Future<List<TransactionItem>> getTransactionItems(
