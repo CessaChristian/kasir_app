@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../shared/ui/halaman_turunan.dart';
+import '../../../shared/ui/layar_butuh_internet.dart';
 import '../../../shared/ui/lembar_konfirmasi.dart';
 import '../../../shared/ui/teks_teras.dart';
-import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/tombol_tambah.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -195,67 +195,15 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
       judul: 'Kelola Kasir',
       child: switch (_terhubung) {
         null => const Center(child: CircularProgressIndicator()),
-        false => _butuhInternet(),
+        false => LayarButuhInternet(
+          keterangan:
+              'Kelola Kasir hanya bisa dibuka saat online supaya perubahan '
+              'akun langsung sampai ke server dan tidak bentrok dengan HP lain.',
+          memeriksa: false,
+          onCobaLagi: _periksaKoneksi,
+        ),
         true => _daftar(),
       },
-    );
-  }
-
-  Widget _butuhInternet() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: WarnaTeras.oranyeMuda,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.wifi_off_rounded,
-                size: 28,
-                color: WarnaTeras.oranye,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Kelola Kasir butuh internet',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: TeksTeras.judulBagian,
-                fontWeight: FontWeight.w700,
-                color: WarnaTeras.teks,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Perubahan akun kasir harus langsung sampai ke server supaya '
-              'tidak bentrok dengan HP lain.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: TeksTeras.biasa,
-                height: 1.4,
-                color: WarnaTeras.teksPudar,
-              ),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: 180,
-              child: TombolLembar(
-                label: 'Coba lagi',
-                ikon: Icons.refresh_rounded,
-                latar: WarnaTeras.oranye,
-                warna: Colors.white,
-                onPressed: _periksaKoneksi,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

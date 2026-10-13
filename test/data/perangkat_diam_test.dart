@@ -14,6 +14,7 @@ void main() {
         nama: 'HP kasir',
         aktif: aktif,
         terakhirAktif: kini.subtract(diam),
+        didaftarkan: DateTime(2026, 6, 1),
       );
 
   bool dicek(Perangkat p) => p.perluDicek(sekarang: kini, idSaya: 'hp-owner');

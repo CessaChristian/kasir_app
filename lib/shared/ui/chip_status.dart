@@ -4,22 +4,31 @@ import 'teks_teras.dart';
 import 'warna_teras.dart';
 
 /// Chip status berbintik (desain): "● Aktif" hijau atau "● Selesai" abu.
+/// [warna]/[latar] mengganti warna bawaan, mis. "● Dicabut" merah.
 class ChipStatus extends StatelessWidget {
   final String label;
   final bool aktif;
+  final Color? warna;
+  final Color? latar;
 
-  const ChipStatus({super.key, required this.label, required this.aktif});
+  const ChipStatus({
+    super.key,
+    required this.label,
+    required this.aktif,
+    this.warna,
+    this.latar,
+  });
 
   static const _abu = Color(0xFF6B6058);
   static const _latarAbu = Color(0xFFF1ECE7);
 
   @override
   Widget build(BuildContext context) {
-    final warna = aktif ? WarnaTeras.hijau : _abu;
+    final warna = this.warna ?? (aktif ? WarnaTeras.hijau : _abu);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: aktif ? WarnaTeras.hijauMuda : _latarAbu,
+        color: latar ?? (aktif ? WarnaTeras.hijauMuda : _latarAbu),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(

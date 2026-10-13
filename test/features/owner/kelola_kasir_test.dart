@@ -305,7 +305,7 @@ void main() {
     testWidgets('tanpa internet: layar "butuh internet", Coba lagi', (t) async {
       online = false;
       await bukaKelola(t);
-      expect(find.text('Kelola Kasir butuh internet'), findsOneWidget);
+      expect(find.text('Tidak ada koneksi internet'), findsOneWidget);
       expect(find.text('sari'), findsNothing);
 
       online = true;

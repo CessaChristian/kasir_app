@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'pegang_lembar.dart';
+import 'tombol_lembar.dart';
 import 'teks_teras.dart';
 import 'warna_teras.dart';
 
@@ -116,6 +117,47 @@ class KepalaLembarIkon extends StatelessWidget {
             fontSize: TeksTeras.biasa,
             height: 1.4,
             color: WarnaTeras.teksPudar,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// [Batal] bergaris + [Simpan] di dasar lembar (desain Ubah Username,
+/// Reset PIN, Ganti Nama Perangkat). Batal menutup lembar dengan false.
+class TombolBatalSimpan extends StatelessWidget {
+  final String labelSimpan;
+  final VoidCallback? onSimpan;
+
+  const TombolBatalSimpan({
+    super.key,
+    required this.labelSimpan,
+    required this.onSimpan,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 10,
+          child: TombolLembar(
+            label: 'Batal',
+            latar: WarnaTeras.kartu,
+            warna: const Color(0xFF5A5048),
+            tepi: const Color(0xFFDDD6CF),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 14,
+          child: TombolLembar(
+            label: labelSimpan,
+            latar: WarnaTeras.oranye,
+            warna: Colors.white,
+            onPressed: onSimpan,
           ),
         ),
       ],

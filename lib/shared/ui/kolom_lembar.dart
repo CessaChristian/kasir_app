@@ -6,9 +6,10 @@ import 'warna_teras.dart';
 
 /// Kolom isian di lembar (desain Kelola Kasir): label di atas, kotak bertepi
 /// berikon, dan [akhiran] opsional di kanan (ikon mata, centang cocok).
-/// [galat] memerahkan tepinya.
+/// [galat] memerahkan tepinya. Tanpa [label], kotaknya saja (desain Ganti
+/// Nama Perangkat).
 class KolomLembar extends StatelessWidget {
-  final String label;
+  final String? label;
   final TextEditingController controller;
   final IconData? ikon;
 
@@ -25,7 +26,7 @@ class KolomLembar extends StatelessWidget {
 
   const KolomLembar({
     super.key,
-    required this.label,
+    this.label,
     required this.controller,
     this.ikon,
     this.awalan,
@@ -44,15 +45,17 @@ class KolomLembar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: TeksTeras.kecil,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF5A5048),
+        if (label != null) ...[
+          Text(
+            label!,
+            style: const TextStyle(
+              fontSize: TeksTeras.kecil,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF5A5048),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
+        ],
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           height: 50,

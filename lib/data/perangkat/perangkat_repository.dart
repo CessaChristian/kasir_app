@@ -6,48 +6,43 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
 
-/// "2 menit lalu", "3 hari lalu" — sejak [waktu] sampai [sekarang].
-///
-/// Dipakai pemilik untuk menilai mana HP yang masih dipakai dan mana yang
-/// sudah lama diam. Angka pastinya tidak penting; yang penting bisa dibaca
-/// sekilas sambil memutuskan HP mana yang dicabut.
-String waktuRelatif(DateTime waktu, {DateTime? sekarang}) {
-  final jarak = (sekarang ?? DateTime.now()).difference(waktu);
-
-  if (jarak.isNegative || jarak.inSeconds < 60) return 'baru saja';
-  if (jarak.inMinutes < 60) return '${jarak.inMinutes} menit lalu';
-  if (jarak.inHours < 24) return '${jarak.inHours} jam lalu';
-  if (jarak.inDays < 30) return '${jarak.inDays} hari lalu';
-  final bulan = jarak.inDays ~/ 30;
-  if (bulan < 12) return '$bulan bulan lalu';
-  return '${jarak.inDays ~/ 365} tahun lalu';
-}
-
 /// Satu perangkat yang terdaftar boleh menyentuh data toko.
 class Perangkat {
   final String id;
   final String nama;
   final bool aktif;
   final DateTime terakhirAktif;
+  final DateTime didaftarkan;
+
+  /// Mis. "Xiaomi Redmi Note 12 · Android 13". Null kalau HP-nya belum
+  /// pernah mengirim (APK lama, atau supabase/perangkat_model.sql belum
+  /// dijalankan).
+  final String? model;
+  final bool tablet;
 
   const Perangkat({
     required this.id,
     required this.nama,
     required this.aktif,
     required this.terakhirAktif,
+    required this.didaftarkan,
+    this.model,
+    this.tablet = false,
   });
 
-  factory Perangkat.dariBaris(Map<String, dynamic> b) => Perangkat(
-        id: b['id'] as String,
-        nama: (b['nama'] as String?) ?? 'Perangkat',
-        aktif: (b['status'] as String?) == 'aktif',
-        terakhirAktif:
-            DateTime.parse(b['terakhir_aktif'] as String).toLocal(),
-      );
-
-  /// Ini perangkat yang sedang dipakai membaca daftarnya?
-  bool get iniSaya =>
-      id == SupabaseService.instance.client?.auth.currentUser?.id;
+  factory Perangkat.dariBaris(Map<String, dynamic> b) {
+    final terakhir = DateTime.parse(b['terakhir_aktif'] as String).toLocal();
+    final dibuat = b['dibuat_pada'] as String?;
+    return Perangkat(
+      id: b['id'] as String,
+      nama: (b['nama'] as String?) ?? 'Perangkat',
+      aktif: (b['status'] as String?) == 'aktif',
+      terakhirAktif: terakhir,
+      didaftarkan: dibuat == null ? terakhir : DateTime.parse(dibuat).toLocal(),
+      model: b['model'] as String?,
+      tablet: b['tablet'] == true,
+    );
+  }
 
   /// Berapa lama HP aktif boleh diam sebelum ditandai perlu dicek.
   ///
@@ -106,6 +101,13 @@ enum StatusPerangkatIni {
 class PerangkatRepository {
   PerangkatRepository._();
   static final PerangkatRepository instance = PerangkatRepository._();
+
+  /// Untuk test: subkelas yang mengganti cara membaca & mengubah daftar.
+  @visibleForTesting
+  PerangkatRepository.untukTest();
+
+  /// Id perangkat ini (identitas di server). Null kalau belum masuk.
+  String? get idSaya => _klien?.auth.currentUser?.id;
 
   SupabaseClient? get _klien => SupabaseService.instance.client;
 
@@ -220,7 +222,53 @@ class PerangkatRepository {
       await k.rpc('perangkat_hadir', params: {'p_shift_id': shiftId});
     } catch (e) {
       if (!belumDisiapkan(e)) debugPrint('[perangkat] hadir gagal: $e');
+      return;
     }
+    await _catatModel(k);
+  }
+
+  /// Sudah mengirim model sejak aplikasi dibuka?
+  bool _modelTercatat = false;
+
+  /// Kirim model & jenis HP ini sekali per aplikasi dibuka — begitu HP lama
+  /// ikut terisi tanpa perlu mendaftar ulang. Gagal = dicoba lagi di
+  /// sinkron berikutnya; "belum disiapkan" (perangkat_model.sql belum
+  /// dijalankan) juga, tanpa mengganggu apa pun.
+  Future<void> _catatModel(SupabaseClient k) async {
+    if (_modelTercatat) return;
+    try {
+      final (model, tablet) = await infoModel();
+      await k.rpc(
+        'catat_model_perangkat',
+        params: {'p_model': model, 'p_tablet': tablet},
+      );
+      _modelTercatat = true;
+    } catch (e) {
+      if (!belumDisiapkan(e)) debugPrint('[perangkat] catat model gagal: $e');
+    }
+  }
+
+  /// Model dan jenis HP ini, mis. ("Xiaomi Redmi Note 12 · Android 13",
+  /// false). Tablet = sisi layar terpendek minimal 600dp — batas yang sama
+  /// dengan pedoman Android untuk tata letak tablet.
+  Future<(String?, bool)> infoModel() async {
+    String? model;
+    try {
+      if (Platform.isAndroid) {
+        final i = await DeviceInfoPlugin().androidInfo;
+        final nama = await tebakNama();
+        model = '$nama · Android ${i.version.release}';
+      } else if (Platform.isIOS) {
+        final i = await DeviceInfoPlugin().iosInfo;
+        model = '${i.model} · iOS ${i.systemVersion}';
+      }
+    } catch (_) {
+      // Model cuma keterangan; kegagalannya tidak boleh mengganggu sinkron.
+    }
+    final layar = PlatformDispatcher.instance.views.firstOrNull;
+    final tablet = layar != null &&
+        layar.physicalSize.shortestSide / layar.devicePixelRatio >= 600;
+    return (model, tablet);
   }
 
   /// Apakah shift ini masih dipegang perangkat AKTIF selain perangkat ini.

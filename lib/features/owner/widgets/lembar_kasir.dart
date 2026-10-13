@@ -462,46 +462,13 @@ class _UbahUsernameState extends State<_UbahUsername> {
           ),
         ),
         const SizedBox(height: 12),
-        _tombolBawah(
-          context,
+        TombolBatalSimpan(
           labelSimpan: _menyimpan ? 'Memeriksa…' : 'Simpan',
           onSimpan: bolehSimpan ? _simpan : null,
         ),
       ],
     );
   }
-}
-
-/// [Batal] bergaris + [Simpan] (desain lembar Ubah Username dan Reset PIN).
-Widget _tombolBawah(
-  BuildContext context, {
-  required String labelSimpan,
-  required VoidCallback? onSimpan,
-}) {
-  return Row(
-    children: [
-      Expanded(
-        flex: 10,
-        child: TombolLembar(
-          label: 'Batal',
-          latar: WarnaTeras.kartu,
-          warna: const Color(0xFF5A5048),
-          tepi: const Color(0xFFDDD6CF),
-          onPressed: () => Navigator.pop(context, false),
-        ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        flex: 14,
-        child: TombolLembar(
-          label: labelSimpan,
-          latar: WarnaTeras.oranye,
-          warna: Colors.white,
-          onPressed: onSimpan,
-        ),
-      ),
-    ],
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -605,8 +572,7 @@ class _ResetPinState extends State<_ResetPin> {
             ? _pesanPin(pesan, cocok)
             : _pesanPin(_galatSimpan, false),
         const SizedBox(height: 12),
-        _tombolBawah(
-          context,
+        TombolBatalSimpan(
           labelSimpan: _menyimpan ? 'Menyimpan…' : 'Simpan PIN',
           onSimpan: cocok && !_menyimpan ? _simpan : null,
         ),
