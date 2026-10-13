@@ -1,20 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../utils/currency_formatter.dart';
-import '../../data/db.dart';
-import 'repositories/expense_repository.dart';
-import '../shift/repositories/shift_repository.dart';
+
 import '../../data/app_database.dart';
+import '../../data/db.dart';
 import '../../data/nama_tercatat.dart';
 import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
+import '../../shared/ui/judul_bagian.dart';
+import '../../shared/ui/kartu_teras.dart';
+import '../../shared/ui/tombol_tambah.dart';
+import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/app_toast.dart';
-import '../../shared/widgets/dialog_pembatalan.dart';
-import 'widgets/dialog_pengeluaran.dart';
+import '../../utils/currency_formatter.dart';
+import '../shift/models/format_shift.dart';
+import '../shift/models/ringkasan_shift.dart';
+import '../shift/pages/detail_shift_page.dart';
+import '../shift/repositories/shift_repository.dart';
+import 'models/ringkasan_pengeluaran.dart';
+import 'repositories/expense_repository.dart';
+import 'widgets/baris_pengeluaran.dart';
 import 'widgets/batalkan_pengeluaran.dart';
-import '../../shared/widgets/sync_refresh.dart';
+import 'widgets/dialog_pengeluaran.dart';
+import 'widgets/kelompok_hari_pengeluaran.dart';
 
-/// Shift mana yang layak muncul di daftar "Riwayat Shift".
+/// Shift mana yang layak muncul di "Riwayat Pengeluaran".
 ///
 /// Dipisah dari halamannya supaya bisa diuji — dulu aturannya terkubur di
 /// dalam pemuat data, jadi satu-satunya cara memeriksanya adalah lewat
@@ -23,415 +34,364 @@ import '../../shared/widgets/sync_refresh.dart';
 /// ── SHIFT YANG MASIH BERJALAN IKUT ──
 ///
 /// Dulu syaratnya `endAt != null` — hanya shift yang sudah ditutup. Akibatnya
-/// pemilik tidak bisa melihat pengeluaran kasir yang sedang bertugas sampai
-/// kasirnya menekan "Akhiri Shift"; pengeluaran sore hari baru terlihat besok
-/// pagi. Untuk halaman yang gunanya mengawasi, itu titik buta.
+/// pengeluaran kasir yang sedang bertugas tidak terlihat sampai shiftnya
+/// ditutup. Untuk halaman yang gunanya mengawasi, itu titik buta.
 ///
 /// ── SHIFT AKTIF SENDIRI TIDAK IKUT ──
 ///
 /// Punya sendiri sudah tampil utuh di bagian "Shift Aktif" di atasnya.
-/// Menampilkannya lagi di riwayat hanya menduplikasi.
 ///
 /// ── SHIFT KOSONG TIDAK IKUT ──
 ///
 /// Ini riwayat PENGELUARAN. Shift tanpa satu pun catatan tidak menambah
-/// keterangan apa pun, dan dulu harus dibuka satu per satu untuk ketahuan
-/// kosong.
+/// keterangan apa pun.
 List<ShiftEntry> riwayatLayakTampil({
   required List<ShiftEntry> semua,
   required Map<String, List<Expense>> perShift,
   required String? shiftAktifSaya,
 }) {
   return semua
-      .where((e) =>
-          e.shift.id != shiftAktifSaya &&
-          (perShift[e.shift.id]?.isNotEmpty ?? false))
+      .where(
+        (e) =>
+            e.shift.id != shiftAktifSaya &&
+            (perShift[e.shift.id]?.isNotEmpty ?? false),
+      )
       .toList();
 }
 
-/// Halaman Pengeluaran KASIR (tampilan lama, dimigrasi di fase kasir).
-/// Owner memakai `PengeluaranOwnerPage`.
+/// Halaman Pengeluaran KASIR (desain): Shift Aktif · Rincian Pengeluaran ·
+/// tombol tambah; tanpa shift kartu "Belum ada pengeluaran".
+///
+/// "Riwayat Pengeluaran" (shift-shift sebelumnya) TIDAK ada di desain, tapi
+/// dipertahankan untuk kasir yang punya izin Lihat Riwayat Lengkap supaya
+/// bisa langsung mencari (keputusan owner 2026-10-13); tampilannya mengikuti
+/// gaya desain. Owner memakai `PengeluaranOwnerPage`.
 class ExpensesPage extends StatefulWidget {
-  const ExpensesPage({super.key});
+  /// Diisi test; aplikasi memakai basis data utama.
+  final ExpenseRepository? repo;
+  final ShiftRepository? repoShift;
+
+  const ExpensesPage({super.key, this.repo, this.repoShift});
 
   @override
   State<ExpensesPage> createState() => _ExpensesPageState();
 }
 
 class _ExpensesPageState extends State<ExpensesPage> {
-  final _expenseRepo = ExpenseRepository(db);
-  final _shiftRepo = ShiftRepository(db);
-  List<ShiftEntry> _pastShifts = [];
+  late final _repo = widget.repo ?? ExpenseRepository(db);
+  late final _repoShift = widget.repoShift ?? ShiftRepository(db);
 
-  /// Untuk menampilkan siapa yang membatalkan sebuah pengeluaran.
-  Map<String, String> _namaAkun = const {};
-  bool _bolehLihatRiwayat = true;
-  Map<String, List<Expense>> _expensesByShift = {};
-  bool _loadingHistory = true;
+  Map<String, String> _nama = const {};
+  Stream<List<Expense>>? _aliranAktif;
+  Stream<RingkasanShift?>? _aliranShift;
 
-  // Stream dibuat sekali di initState — stabil, tidak re-create tiap rebuild
-  Stream<List<Expense>>? _expensesStream;
-  String? _activeShiftId;
+  final _cakupan = CakupanRiwayat.dariSesi();
+  List<ShiftEntry> _riwayat = const [];
+  Map<String, List<Expense>> _perShift = const {};
+  StreamSubscription<void>? _langgananRiwayat;
+
+  String? get _shiftId => SessionManager.instance.currentSession?.shiftId;
+  bool get _bolehLihatRiwayat => _cakupan.jenis != JenisCakupan.shiftAktif;
 
   @override
   void initState() {
     super.initState();
-    final session = SessionManager.instance.currentSession;
-    _activeShiftId = session?.shiftId;
-    if (_activeShiftId != null) {
-      _expensesStream = _expenseRepo.watchExpensesByShift(_activeShiftId!);
+    final sesi = SessionManager.instance.currentSession;
+    final shiftId = sesi?.shiftId;
+    if (shiftId != null) {
+      _aliranAktif = _repo.watchExpensesByShift(shiftId);
+      _aliranShift = _repoShift.watchShift(shiftId);
+    } else if (sesi != null) {
+      _aliranShift = _repoShift.watchShiftTerakhirSelesai(sesi.userId);
     }
-    _loadPastShifts();
-    _expenseRepo.namaAkun().then((m) {
-      if (mounted) setState(() => _namaAkun = m);
+    _langgananRiwayat = _repo.perubahanRiwayat().listen((_) => _muat());
+  }
+
+  @override
+  void dispose() {
+    _langgananRiwayat?.cancel();
+    super.dispose();
+  }
+
+  /// Nama akun dan riwayat; dimuat ulang tiap ada perubahan (termasuk dari
+  /// sinkron).
+  Future<void> _muat() async {
+    final nama = await _repo.namaAkun();
+    var riwayat = const <ShiftEntry>[];
+    var perShift = const <String, List<Expense>>{};
+    if (_bolehLihatRiwayat) {
+      final semua = await _repoShift.getShiftsWithUser(
+        userId: _cakupan.jenis == JenisCakupan.semua ? null : _cakupan.userId,
+      );
+      final kandidat = semua.where((e) => e.shift.id != _shiftId).toList();
+      perShift = await _repo.getExpensesForShifts(
+        kandidat.map((e) => e.shift.id).toList(),
+      );
+      riwayat = riwayatLayakTampil(
+        semua: semua,
+        perShift: perShift,
+        shiftAktifSaya: _shiftId,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _nama = nama;
+      _riwayat = riwayat;
+      _perShift = perShift;
     });
   }
 
-  Future<void> _loadPastShifts() async {
-    final session = SessionManager.instance.currentSession;
-    if (session == null) {
-      setState(() => _loadingHistory = false);
-      return;
-    }
-
-    // Aturannya sama dengan halaman Riwayat — lihat `CakupanRiwayat`. Kasir
-    // dengan izin `view_history` melihat shift-shift lamanya sendiri; tanpa
-    // izin itu hanya shift yang sedang berjalan, yang sudah tampil di atas.
-    // (Owner memakai `PengeluaranOwnerPage`, bukan halaman ini.)
-    final cakupan = CakupanRiwayat.dariSesi();
-    if (cakupan.jenis == JenisCakupan.shiftAktif) {
-      if (mounted) {
-        setState(() {
-          _bolehLihatRiwayat = false;
-          _pastShifts = [];
-          _loadingHistory = false;
-        });
-      }
-      return;
-    }
-    final semua = await _shiftRepo.getShiftsWithUser(
-      userId: cakupan.jenis == JenisCakupan.semua ? null : cakupan.userId,
-    );
-
-    final kandidat = semua
-        .where((e) => e.shift.id != session.shiftId)
-        .toList();
-
-    // Dimuat di depan, satu kueri untuk semua kartu. Selain lebih hemat, ini
-    // yang membuat halaman tahu shift mana yang kosong — shift tanpa
-    // pengeluaran tidak ada gunanya muncul di riwayat PENGELUARAN.
-    final perShift = await _expenseRepo.getExpensesForShifts(
-      kandidat.map((e) => e.shift.id).toList(),
-    );
-    final berisi = riwayatLayakTampil(
-      semua: semua,
-      perShift: perShift,
-      shiftAktifSaya: session.shiftId,
-    );
-
-    if (mounted) {
-      setState(() {
-        _pastShifts = berisi;
-        _expensesByShift = perShift;
-        _loadingHistory = false;
-      });
-    }
-  }
-
-  Future<void> _showAddExpenseDialog() async {
-    final session = SessionManager.instance.currentSession;
-    if (session == null) return;
-
-    // Pengeluaran selalu menempel ke sebuah shift. Tombolnya hanya tampil
-    // saat shift berjalan; penjaga ini pengaman kalau sesi tanpa shift.
-    final shiftId = session.shiftId;
-    if (shiftId == null) {
-      AppToast.error(
-          context, 'Pengeluaran hanya bisa dicatat saat shift aktif (kasir).');
-      return;
-    }
+  Future<void> _catat() async {
+    final sesi = SessionManager.instance.currentSession;
+    final shiftId = sesi?.shiftId;
+    if (sesi == null || shiftId == null) return;
 
     // Dialog hanya mengumpulkan isian; DB baru disentuh setelah dialog
     // benar-benar tertutup (stream yang memancar saat dialog masih beranimasi
     // keluar dulu memicu galat _dependents.isEmpty).
-    final result = await tampilkanDialogPengeluaran(
+    final isian = await tampilkanDialogPengeluaran(
       context,
       subjudul: 'Masukan Pengeluaran shift',
     );
-    if (result == null || !mounted) return;
-
-    await _expenseRepo.addExpense(
-      shiftId: shiftId,
-      userId: session.userId,
-      description: result.keterangan,
-      amount: result.amount,
-      category: result.kategori.kode,
-      qty: result.qty,
-    );
+    if (isian == null || !mounted) return;
+    try {
+      await _repo.addExpense(
+        shiftId: shiftId,
+        userId: sesi.userId,
+        description: isian.keterangan,
+        amount: isian.amount,
+        category: isian.kategori.kode,
+        qty: isian.qty,
+      );
+      if (mounted) AppToast.success(context, 'Pengeluaran dicatat');
+    } catch (e) {
+      if (mounted) AppToast.error(context, 'Gagal mencatat: $e');
+    }
   }
 
-  /// Batalkan pengeluaran: pilih alasan, dan — untuk kasir — masukkan PIN
-  /// owner. Pengeluaran tidak bisa diedit: yang salah dibatalkan lalu
-  /// dicatat ulang.
-  Future<void> _batalkan(Expense e) async {
-    final berhasil =
-        await batalkanPengeluaranLewatDialog(context, _expenseRepo, e);
-    if (berhasil && mounted) _loadPastShifts();
-  }
+  void _bukaRekap(String shiftId) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DetailShiftPage(shiftId: shiftId, repo: _repoShift),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final hasActiveShift = _activeShiftId != null;
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: hasActiveShift
-          ? FloatingActionButton(
-              onPressed: _showAddExpenseDialog,
-              backgroundColor: primaryColor,
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-            )
-          : null,
-      body: SyncRefresh(
-        sesudah: _loadPastShifts,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+    final berjalan = _aliranAktif != null;
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
           children: [
-            // ---- Shift Aktif ----
-            if (hasActiveShift) ...[
-              _buildSectionHeader('Shift Aktif', isActive: true),
-              const SizedBox(height: 8),
-              StreamBuilder<List<Expense>>(
-                // Gunakan field yang stabil, bukan buat stream baru tiap build
-                stream: _expensesStream,
-                builder: (context, snapshot) {
-                  final expenses = snapshot.data ?? [];
-                  // Yang dibatalkan tetap tampil, tapi TIDAK dihitung.
-                  final total = expenses
-                      .where((e) => e.deletedAt == null)
-                      .fold<int>(0, (s, e) => s + e.amount);
+            if (berjalan) ..._shiftAktif() else _belumAda(),
+            if (_bolehLihatRiwayat) ..._riwayatPengeluaran(),
+          ],
+        ),
+        if (berjalan)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: TombolTambah(
+              tooltip: 'Catat pengeluaran',
+              ukuran: 46,
+              sudut: 6,
+              onTap: _catat,
+            ),
+          ),
+      ],
+    );
+  }
 
-                  return Column(
-                    children: [
-                      if (expenses.isEmpty)
-                        _buildEmptyCard('Belum ada pengeluaran di shift ini.\nTap + untuk menambah.'),
-                      for (final e in expenses)
-                        _buildExpenseCard(e),
-                      if (expenses.isNotEmpty)
-                        _buildTotalCard(total, primaryColor),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-            ] else ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade200),
+  List<Widget> _shiftAktif() => [
+    const JudulBagian('Shift Aktif', ukuran: 18),
+    const SizedBox(height: 12),
+    StreamBuilder<List<Expense>>(
+      stream: _aliranAktif,
+      builder: (context, snap) {
+        final r = ringkasPengeluaran(snap.data ?? const []);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            StreamBuilder<RingkasanShift?>(
+              stream: _aliranShift,
+              builder: (context, s) => _kartuTotal(r, s.data?.shift.startAt),
+            ),
+            const SizedBox(height: 22),
+            const JudulBagian('Rincian Pengeluaran', ukuran: 18),
+            const SizedBox(height: 12),
+            if (!snap.hasData)
+              const Padding(
+                padding: EdgeInsets.only(top: 32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (r.kosong)
+              const _TeksKosong('Belum ada pengeluaran di shift ini')
+            else
+              for (final h in r.perHari) ...[
+                KelompokHariPengeluaran(
+                  hari: h,
+                  repo: _repo,
+                  nama: _nama,
+                  tampilkanPencatat: false,
                 ),
-                child: Row(
+                const SizedBox(height: 14),
+              ],
+          ],
+        );
+      },
+    ),
+  ];
+
+  Widget _kartuTotal(RingkasanPengeluaran r, DateTime? mulai) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+      decoration: BoxDecoration(
+        color: WarnaTeras.kartu,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x243C230A),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded,
-                        color: Colors.orange.shade700),
-                    const SizedBox(width: 12),
-                    const Expanded(
+                    const Text(
+                      'Total Pengeluaran Shift ini',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: WarnaTeras.teksPudar,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      formatRp(r.total),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: WarnaTeras.merah,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: WarnaTeras.oranyeLembut,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
                       child: Text(
-                        'Tidak ada shift aktif saat ini.',
-                        style: TextStyle(fontSize: 14),
+                        '${r.jumlahItem} Transaksi',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFF0A94E),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Waktu Shift',
+                    style: TextStyle(fontSize: 15, color: WarnaTeras.teksPudar),
+                  ),
+                  const SizedBox(height: 10),
+                  if (mulai != null) ...[
+                    Text(
+                      '${DateFormat('EEEE', 'id_ID').format(mulai)},',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: WarnaTeras.teks,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('d MMM yyyy', 'id_ID').format(mulai),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: WarnaTeras.teks,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
-
-            // ---- Riwayat Shift Sebelumnya ----
-            // Disembunyikan seluruhnya untuk kasir tanpa izin `view_history`:
-            // ia hanya bekerja dengan shift yang sedang berjalan.
-            if (_bolehLihatRiwayat) ...[
-              _buildSectionHeader('Riwayat Shift'),
-              const SizedBox(height: 8),
-              if (_loadingHistory)
-                const Center(child: CircularProgressIndicator())
-              else if (_pastShifts.isEmpty)
-                _buildEmptyCard('Belum ada pengeluaran tercatat.')
-              else
-                for (final entri in _pastShifts)
-                  _ShiftHistoryCard(
-                    entri: entri,
-                    expenses: _expensesByShift[entri.shift.id] ?? const [],
-                    namaAkun: _namaAkun,
-                  ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, {bool isActive = false}) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 18,
-          decoration: BoxDecoration(
-            color: primaryColor,
-            borderRadius: BorderRadius.circular(2),
           ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        if (isActive) ...[
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade200),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade500,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Live',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, thickness: 1, color: WarnaTeras.garis),
+          const SizedBox(height: 10),
+          _Tautan(
+            'Cek Rekapitulasi Shift',
+            ukuran: 13,
+            onTap: () => _bukaRekap(_shiftId!),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildEmptyCard(String message) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
       ),
     );
   }
 
-  Widget _buildExpenseCard(Expense e) {
-    final batal = e.deletedAt != null;
-    // Aturannya di ExpenseRepository.bolehDibatalkan: owner semua, kasir
-    // hanya miliknya di shift yang sedang berjalan.
-    final bolehBatal = _expenseRepo.bolehDibatalkan(e);
-
-    return Opacity(
-      opacity: batal ? 0.6 : 1,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: batal ? Colors.grey.shade50 : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
+  Widget _belumAda() {
+    return StreamBuilder<RingkasanShift?>(
+      stream: _aliranShift,
+      builder: (context, snap) => KartuTeras(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+        child: Column(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFF1ECE7),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.arrow_downward_rounded,
-                  color: Colors.red, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    e.description,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  if (batal)
-                    InfoPembatalan(
-                      dibatalkanPada: e.deletedAt!,
-                      alasan: e.cancelReason,
-                      namaPembatal: e.namaPembatal(_namaAkun),
-                      ringkas: true,
-                    )
-                  else
-                    Text(
-                      DateFormat('HH:mm').format(e.createdAt),
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                    ),
-                ],
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                size: 26,
+                color: WarnaTeras.teksPudar,
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '- Rp ${formatRupiah(e.amount)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    decoration: batal ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-                if (batal) ...[
-                  const SizedBox(height: 4),
-                  const LabelDibatalkan(),
-                ],
-              ],
+            const SizedBox(height: 12),
+            const Text(
+              'Belum ada pengeluaran',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: WarnaTeras.teks,
+              ),
             ),
-            if (bolehBatal) ...[
-              const SizedBox(width: 4),
-              IconButton(
-                onPressed: () => _batalkan(e),
-                tooltip: 'Batalkan pengeluaran',
-                icon: Icon(Icons.block_rounded,
-                    size: 18, color: Colors.red.shade400),
-                visualDensity: VisualDensity.compact,
+            const SizedBox(height: 6),
+            const Text(
+              'Shift sudah ditutup dan data pengeluaran direset. Buka shift '
+              'baru dari halaman Profil untuk mencatat pengeluaran.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: WarnaTeras.teksPudar,
+              ),
+            ),
+            if (snap.data != null) ...[
+              const SizedBox(height: 14),
+              _Tautan(
+                'Lihat rekap shift terakhir',
+                onTap: () => _bukaRekap(snap.data!.shift.id),
               ),
             ],
           ],
@@ -440,44 +400,79 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
-  Widget _buildTotalCard(int total, Color primaryColor) {
-    return Container(
-      margin: const EdgeInsets.only(top: 4, bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+  List<Widget> _riwayatPengeluaran() => [
+    const SizedBox(height: 22),
+    const JudulBagian('Riwayat Pengeluaran', ukuran: 18),
+    const SizedBox(height: 12),
+    if (_riwayat.isEmpty)
+      const _TeksKosong('Belum ada pengeluaran di shift sebelumnya')
+    else
+      KartuTeras(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (var i = 0; i < _riwayat.length; i++)
+              _KartuRiwayatShift(
+                key: ValueKey(_riwayat[i].shift.id),
+                entri: _riwayat[i],
+                pengeluaran: _perShift[_riwayat[i].shift.id] ?? const [],
+                nama: _nama,
+                repo: _repo,
+                pertama: i == 0,
+              ),
+          ],
+        ),
       ),
+  ];
+}
+
+class _TeksKosong extends StatelessWidget {
+  final String teks;
+
+  const _TeksKosong(this.teks);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Text(
+        teks,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 15, color: WarnaTeras.teksPudar),
+      ),
+    );
+  }
+}
+
+/// Tautan oranye kecil berpanah, mis. "Cek Rekapitulasi Shift ›".
+class _Tautan extends StatelessWidget {
+  final String teks;
+  final double ukuran;
+  final VoidCallback onTap;
+
+  const _Tautan(this.teks, {required this.onTap, this.ukuran = 13});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.account_balance_wallet_outlined,
-                color: Colors.red.shade400, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
+          Flexible(
             child: Text(
-              'Total Pengeluaran',
+              teks,
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700),
+                fontSize: ukuran,
+                fontWeight: FontWeight.w600,
+                color: WarnaTeras.oranye,
+              ),
             ),
           ),
-          Text(
-            'Rp ${formatRupiah(total)}',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.red.shade600,
-            ),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: ukuran + 4,
+            color: WarnaTeras.oranye,
           ),
         ],
       ),
@@ -485,195 +480,125 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 }
 
-/// Widget kartu riwayat shift (bisa collapsed/expanded)
-///
-/// Pengeluaran DITERIMA sudah jadi, tidak dimuat sendiri. Halaman induk
-/// memuatnya sekali untuk semua kartu — kalau tiap kartu memuat sendiri,
-/// halaman tidak pernah tahu kartu mana yang kosong, dan nominalnya baru
-/// terlihat setelah kartunya dibuka.
-class _ShiftHistoryCard extends StatefulWidget {
+/// Satu shift lama di "Riwayat Pengeluaran": bisa dibuka untuk melihat
+/// barisnya. Pengeluaran diterima jadi — halaman memuatnya sekali untuk
+/// semua kartu, jadi total tampil tanpa harus membuka kartunya.
+class _KartuRiwayatShift extends StatefulWidget {
   final ShiftEntry entri;
-  final List<Expense> expenses;
+  final List<Expense> pengeluaran;
+  final Map<String, String> nama;
+  final ExpenseRepository repo;
+  final bool pertama;
 
-  /// Untuk menampilkan siapa yang membatalkan.
-  final Map<String, String> namaAkun;
-
-  const _ShiftHistoryCard({
+  const _KartuRiwayatShift({
+    super.key,
     required this.entri,
-    required this.expenses,
-    required this.namaAkun,
+    required this.pengeluaran,
+    required this.nama,
+    required this.repo,
+    required this.pertama,
   });
 
   @override
-  State<_ShiftHistoryCard> createState() => _ShiftHistoryCardState();
+  State<_KartuRiwayatShift> createState() => _KartuRiwayatShiftState();
 }
 
-class _ShiftHistoryCardState extends State<_ShiftHistoryCard> {
-  bool _expanded = false;
+class _KartuRiwayatShiftState extends State<_KartuRiwayatShift> {
+  var _terbuka = false;
 
   @override
   Widget build(BuildContext context) {
     final shift = widget.entri.shift;
-    final expenses = widget.expenses;
-    // Yang dibatalkan tetap tampil, tapi TIDAK dihitung.
-    final total = expenses
-        .where((e) => e.deletedAt == null)
-        .fold<int>(0, (s, e) => s + e.amount);
-    final fmt = DateFormat('dd MMM yyyy');
-    final timeFmt = DateFormat('HH:mm');
-
+    final aktif = widget.pengeluaran.where((e) => e.deletedAt == null);
+    final total = aktif.fold<int>(0, (s, e) => s + e.amount);
+    final judul =
+        '${DateFormat('EEEE, d MMM', 'id_ID').format(shift.startAt)} · '
+        '${rentangShift(shift.startAt, shift.endAt, shift.startAt)}';
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+      decoration: widget.pertama
+          ? null
+          : const BoxDecoration(
+              border: Border(top: BorderSide(color: WarnaTeras.garis)),
+            ),
       child: Column(
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: () => setState(() => _terbuka = !_terbuka),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(10, 12, 14, 12),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.work_history_rounded,
-                        color: Colors.grey.shade500, size: 20),
+                  Icon(
+                    _terbuka
+                        ? Icons.expand_more_rounded
+                        : Icons.chevron_right_rounded,
+                    size: 22,
+                    color: WarnaTeras.teksPudar,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          fmt.format(shift.startAt),
+                          judul,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: WarnaTeras.teks,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${timeFmt.format(shift.startAt)} – ${shift.endAt != null ? timeFmt.format(shift.endAt!) : 'Berlangsung'}',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade500),
+                          [
+                            '${aktif.length} transaksi',
+                            if (shift.endAt == null) 'berlangsung',
+                            if (_cakupanSemua) widget.entri.username,
+                          ].join(' · '),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: WarnaTeras.teksPudar,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  if (total > 0)
-                    Text(
-                      'Rp ${formatRupiah(total)}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                      ),
-                    ),
                   const SizedBox(width: 8),
-                  Icon(
-                    _expanded
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
-                    color: Colors.grey.shade400,
+                  Text(
+                    '-${formatRp(total)}',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: WarnaTeras.merah,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          if (_expanded) ...[
-            Divider(height: 1, color: Colors.grey.shade100),
-            if (expenses.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  'Tidak ada pengeluaran pada shift ini.',
-                  style: TextStyle(
-                      fontSize: 13, color: Colors.grey.shade500),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    for (final e in expenses)
-                      Opacity(
-                        opacity: e.deletedAt != null ? 0.6 : 1,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.arrow_downward_rounded,
-                                  size: 14, color: Colors.red),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      e.description,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                    if (e.deletedAt != null)
-                                      InfoPembatalan(
-                                        dibatalkanPada: e.deletedAt!,
-                                        alasan: e.cancelReason,
-                                        namaPembatal:
-                                            e.namaPembatal(widget.namaAkun),
-                                        ringkas: true,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                'Rp ${formatRupiah(e.amount)}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.red,
-                                  decoration: e.deletedAt != null
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Divider(color: Colors.grey.shade100),
-                    Row(
-                      children: [
-                        Text('Total',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red.shade700)),
-                        const Spacer(),
-                        Text(
-                          'Rp ${formatRupiah(total)}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+          if (_terbuka) ...[
+            const Divider(height: 1, thickness: 1, color: WarnaTeras.garis),
+            for (final e in widget.pengeluaran)
+              BarisPengeluaran(
+                pengeluaran: e,
+                namaPembatal: e.namaPembatal(widget.nama),
+                onBatalkan: widget.repo.bolehDibatalkan(e)
+                    ? () => batalkanPengeluaranLewatDialog(
+                        context,
+                        widget.repo,
+                        e,
+                      )
+                    : null,
               ),
+            const SizedBox(height: 4),
           ],
         ],
       ),
     );
   }
-}
 
-// ---- Data model yang dikembalikan dialog ----
+  bool get _cakupanSemua =>
+      CakupanRiwayat.dariSesi().jenis == JenisCakupan.semua;
+}

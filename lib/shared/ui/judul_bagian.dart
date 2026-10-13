@@ -6,8 +6,13 @@ import 'warna_teras.dart';
 /// Judul bagian bergaris oranye di kiri, mis. "Rincian Pengeluaran".
 class JudulBagian extends StatelessWidget {
   final String teks;
+  final double ukuran;
 
-  const JudulBagian(this.teks, {super.key});
+  const JudulBagian(
+    this.teks, {
+    super.key,
+    this.ukuran = TeksTeras.judulBagian,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,8 +23,8 @@ class JudulBagian extends StatelessWidget {
       ),
       child: Text(
         teks,
-        style: const TextStyle(
-          fontSize: TeksTeras.judulBagian,
+        style: TextStyle(
+          fontSize: ukuran,
           color: WarnaTeras.teks,
         ),
       ),

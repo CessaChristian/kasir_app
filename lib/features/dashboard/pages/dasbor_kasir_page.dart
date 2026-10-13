@@ -18,32 +18,11 @@ import '../../sales/models/keranjang.dart';
 import '../../sales/models/pilihan_produk.dart';
 import '../../sales/sheets/pilihan_produk_sheet.dart';
 import '../../shift/aksi_shift.dart';
+import '../../shift/models/format_shift.dart';
 import '../../shift/models/produk_laris.dart';
 import '../../shift/models/ringkasan_shift.dart';
 import '../../shift/repositories/shift_repository.dart';
 import '../widgets/kisi_produk_laris.dart';
-
-/// "2j 15m" — lama shift berjalan.
-String lamaShift(DateTime mulai, DateTime sekarang) {
-  final d = sekarang.difference(mulai);
-  if (d.isNegative) return '0m';
-  final jam = d.inHours;
-  final menit = d.inMinutes % 60;
-  return jam == 0 ? '${menit}m' : '${jam}j ${menit}m';
-}
-
-/// "13:26–21:04", atau "1 Okt 13:26–21:04" kalau bukan hari ini.
-String rentangShift(DateTime mulai, DateTime? selesai, DateTime sekarang) {
-  final jam = DateFormat('HH:mm');
-  final hariIni =
-      mulai.year == sekarang.year &&
-      mulai.month == sekarang.month &&
-      mulai.day == sekarang.day;
-  final awal = hariIni
-      ? jam.format(mulai)
-      : '${DateFormat('d MMM', 'id_ID').format(mulai)} ${jam.format(mulai)}';
-  return selesai == null ? '$awal–sekarang' : '$awal–${jam.format(selesai)}';
-}
 
 /// Dashboard KASIR (desain): kartu shift berjalan atau "Shift selesai",
 /// lalu Produk Paling Laris minggu ini. Owner memakai `DasborOwnerPage`.

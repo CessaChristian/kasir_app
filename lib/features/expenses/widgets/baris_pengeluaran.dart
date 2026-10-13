@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../data/app_database.dart';
 import '../../../shared/ui/keterangan_batal.dart';
-import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/kategori_biaya.dart';
@@ -50,15 +49,15 @@ class BarisPengeluaran extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: batal ? const Color(0xFFF1ECE7) : WarnaTeras.merahIkon,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
               Icons.trending_down_rounded,
-              size: 18,
+              size: 20,
               color: batal ? const Color(0xFFB8AEA5) : WarnaTeras.merah,
             ),
           ),
@@ -72,7 +71,7 @@ class BarisPengeluaran extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: TeksTeras.biasa,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: batal ? WarnaTeras.teksSamar : WarnaTeras.teks,
                   ),
@@ -80,8 +79,10 @@ class BarisPengeluaran extends StatelessWidget {
                 const SizedBox(height: 1),
                 Text(
                   meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: TeksTeras.kecil,
+                    fontSize: 13,
                     color: WarnaTeras.teksPudar,
                   ),
                 ),
@@ -90,16 +91,17 @@ class BarisPengeluaran extends StatelessWidget {
                     waktu: e.deletedAt!,
                     nama: namaPembatal,
                     alasan: e.cancelReason,
+                    ukuran: 13,
                   ),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 5, left: 8),
+            padding: const EdgeInsets.only(top: 6, left: 8),
             child: Text(
               '-${formatRp(e.amount)}',
               style: TextStyle(
-                fontSize: TeksTeras.biasa,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: batal ? const Color(0xFFB8AEA5) : WarnaTeras.merah,
                 decoration: batal ? TextDecoration.lineThrough : null,

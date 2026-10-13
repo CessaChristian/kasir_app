@@ -12,6 +12,7 @@ import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/dashboard/pages/dasbor_kasir_page.dart';
 import 'package:kasir_app/features/profil/pages/profil_kasir_page.dart';
 import 'package:kasir_app/features/sales/models/keranjang.dart';
+import 'package:kasir_app/features/shift/models/format_shift.dart';
 import 'package:kasir_app/features/shift/models/produk_laris.dart';
 import 'package:kasir_app/features/shift/pengelola_shift.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
@@ -290,6 +291,31 @@ void main() {
       expect(s!.endAt, isNotNull, reason: 'baris server memang diterima');
       expect(s.kasAwal, 150000);
     });
+  });
+
+  test('rentang shift: hari ini, hari lain, dan melewati tengah malam', () {
+    final kini = DateTime(2026, 10, 13, 22);
+    expect(
+      rentangShift(DateTime(2026, 10, 13, 13, 26), null, kini),
+      '13:26–sekarang',
+    );
+    expect(
+      rentangShift(
+        DateTime(2026, 10, 1, 13, 26),
+        DateTime(2026, 10, 1, 21, 4),
+        kini,
+      ),
+      '1 Okt 13:26–21:04',
+    );
+    expect(
+      rentangShift(
+        DateTime(2026, 10, 2, 20, 39),
+        DateTime(2026, 10, 3, 18, 55),
+        kini,
+      ),
+      '2 Okt 20:39–3 Okt 18:55',
+      reason: 'jam selesai tidak boleh tampak lebih awal dari jam mulai',
+    );
   });
 
   group('produk paling laris', () {

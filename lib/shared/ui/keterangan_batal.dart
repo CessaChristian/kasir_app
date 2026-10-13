@@ -18,6 +18,7 @@ class KeteranganBatal extends StatelessWidget {
 
   /// Riwayat menaruhnya di bawah nominal (rata kanan).
   final bool rataKanan;
+  final double ukuran;
 
   const KeteranganBatal({
     super.key,
@@ -25,14 +26,10 @@ class KeteranganBatal extends StatelessWidget {
     required this.nama,
     required this.alasan,
     this.rataKanan = false,
+    this.ukuran = TeksTeras.kecil,
   });
 
   static const _merah = Color(0xFFC0392B);
-  static const _abu = TextStyle(
-    fontSize: TeksTeras.kecil,
-    height: 1.4,
-    color: WarnaTeras.teksPudar,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +37,11 @@ class KeteranganBatal extends StatelessWidget {
     final siapaKapan = nama == null ? jam : '$nama, $jam';
     final teksAlasan = 'Alasan: ${alasan ?? 'tidak tercatat'}';
     final rata = rataKanan ? TextAlign.right : TextAlign.left;
+    final abu = TextStyle(
+      fontSize: ukuran,
+      height: 1.4,
+      color: WarnaTeras.teksPudar,
+    );
     // Satu Text.rich, bukan Row: boleh turun baris di layar sempit atau huruf
     // yang diperbesar, alih-alih tumpah ke samping.
     return Column(
@@ -59,9 +61,9 @@ class KeteranganBatal extends StatelessWidget {
             ],
           ),
           textAlign: rata,
-          style: _abu,
+          style: abu,
         ),
-        Text(teksAlasan, textAlign: rata, style: _abu),
+        Text(teksAlasan, textAlign: rata, style: abu),
       ],
     );
   }

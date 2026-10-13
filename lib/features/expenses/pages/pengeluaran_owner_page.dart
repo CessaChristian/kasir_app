@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
-import '../../../data/nama_tercatat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/bar_kategori.dart';
@@ -19,9 +17,8 @@ import '../../../utils/currency_formatter.dart';
 import '../models/kategori_biaya.dart';
 import '../models/ringkasan_pengeluaran.dart';
 import '../repositories/expense_repository.dart';
-import '../widgets/baris_pengeluaran.dart';
-import '../widgets/batalkan_pengeluaran.dart';
 import '../widgets/dialog_pengeluaran.dart';
+import '../widgets/kelompok_hari_pengeluaran.dart';
 
 /// Pengeluaran untuk owner: per periode, ringkasan per kategori, rincian per
 /// hari. Owner juga bisa mencatat pengeluaran sendiri — tanpa shift, jadi
@@ -123,7 +120,7 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
                 else ...[
                   _ringkasan(r),
                   const SizedBox(height: 22),
-                  const JudulBagian('Rincian Pengeluaran'),
+                  const JudulBagian('Rincian Pengeluaran', ukuran: 18),
                   const SizedBox(height: 12),
                   if (r.kosong)
                     const Padding(
@@ -139,7 +136,7 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
                     )
                   else
                     for (final h in r.perHari) ...[
-                      _hari(h),
+                      KelompokHariPengeluaran(hari: h, repo: _repo, nama: _nama),
                       const SizedBox(height: 14),
                     ],
                 ],
@@ -199,55 +196,6 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
           ],
         ],
       ),
-    );
-  }
-
-  Widget _hari(HariPengeluaran h) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  DateFormat('EEEE, d MMM yyyy', 'id_ID').format(h.tanggal),
-                  style: const TextStyle(
-                    fontSize: TeksTeras.biasa,
-                    fontWeight: FontWeight.w700,
-                    color: WarnaTeras.teks,
-                  ),
-                ),
-              ),
-              Text(
-                '-${formatRp(h.total)}',
-                style: const TextStyle(
-                  fontSize: TeksTeras.biasa,
-                  fontWeight: FontWeight.w600,
-                  color: WarnaTeras.merah,
-                ),
-              ),
-            ],
-          ),
-        ),
-        KartuTeras(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            children: [
-              for (final e in h.isi)
-                BarisPengeluaran(
-                  pengeluaran: e,
-                  namaPencatat: e.namaPencatat(_nama),
-                  namaPembatal: e.namaPembatal(_nama),
-                  onBatalkan: _repo.bolehDibatalkan(e)
-                      ? () => batalkanPengeluaranLewatDialog(context, _repo, e)
-                      : null,
-                ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
