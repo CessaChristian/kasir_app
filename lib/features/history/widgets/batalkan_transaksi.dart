@@ -49,6 +49,7 @@ void bukaDetailTransaksi(
     backgroundColor: Colors.transparent,
     builder: (lembar) => TransactionDetailSheet(
       transaction: tx,
+      repo: repo,
       onBatalkan: repo.bolehDibatalkan(tx)
           ? () async {
               final ok = await batalkanTransaksiLewatDialog(lembar, repo, tx);

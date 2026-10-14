@@ -9,6 +9,7 @@ import '../../data/db.dart';
 import '../../data/sync/sync_otomatis.dart';
 import '../../data/sync/sync_service.dart';
 import '../../shared/constants/category_icons.dart';
+import '../../shared/ui/kotak_cari.dart';
 import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/sync_refresh.dart';
 import '../../utils/currency_formatter.dart';
@@ -51,7 +52,7 @@ class SalesPage extends StatefulWidget {
 class _SalesPageState extends State<SalesPage> {
   late final _productRepo = widget.repo ?? ProductRepository(db);
   late final _aliranProduk = _productRepo.watchProducts();
-  final _cari = TextEditingController();
+  var _kata = '';
   final Set<String> _sedangDitambah = {};
 
   /// null = semua; [pilihanTanpaKategori]; atau id kategori.
@@ -81,7 +82,6 @@ class _SalesPageState extends State<SalesPage> {
   void dispose() {
     _langgananKategori.cancel();
     _keranjang.removeListener(_segarkan);
-    _cari.dispose();
     super.dispose();
   }
 
@@ -128,7 +128,7 @@ class _SalesPageState extends State<SalesPage> {
         final semua = snap.data ?? const <Product>[];
         final pilihan = pilihanEfektif(_kategori, _pilihan);
         var produk = saringPerKategori(semua, _kategori, pilihan);
-        final kata = _cari.text.trim().toLowerCase();
+        final kata = _kata.trim().toLowerCase();
         if (kata.isNotEmpty) {
           produk = [
             for (final p in produk)
@@ -142,7 +142,11 @@ class _SalesPageState extends State<SalesPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
-              _kotakCari(),
+              KotakCari(
+                petunjuk: 'Cari produk...',
+                besar: true,
+                onBerubah: (v) => setState(() => _kata = v),
+              ),
               const SizedBox(height: 10),
               _sinkronTerakhir(),
               const Padding(
@@ -184,54 +188,6 @@ class _SalesPageState extends State<SalesPage> {
           ),
         );
       },
-    );
-  }
-
-  Widget _kotakCari() {
-    return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: WarnaTeras.kartu,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F3C230A),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search_rounded, size: 24, color: WarnaTeras.oranye),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _cari,
-              onChanged: (_) => setState(() {}),
-              style: const TextStyle(fontSize: 15, color: WarnaTeras.teks),
-              decoration: const InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: 'Cari produk...',
-                hintStyle: TextStyle(color: Color(0xFFB5ADA6)),
-              ),
-            ),
-          ),
-          if (_cari.text.isNotEmpty)
-            IconButton(
-              tooltip: 'Hapus pencarian',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => setState(_cari.clear),
-              icon: const Icon(
-                Icons.close_rounded,
-                size: 21,
-                color: WarnaTeras.teksSamar,
-              ),
-            ),
-        ],
-      ),
     );
   }
 

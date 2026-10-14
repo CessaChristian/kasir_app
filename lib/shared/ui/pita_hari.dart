@@ -72,6 +72,8 @@ class PitaHari extends StatelessWidget {
                           ),
                           Text(
                             keterangan,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: TeksTeras.kecil,
                               color: Colors.white,

@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
-import '../../../data/nama_tercatat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/ui/kotak_cari.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
 import '../../../shared/ui/periode/bagian_filter.dart';
 import '../../../shared/ui/periode/periode.dart';
-import '../../../shared/ui/pita_hari.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
-import '../../../utils/currency_formatter.dart';
 import '../../sales/repositories/sales_repository.dart';
 import '../models/kelompok_riwayat.dart';
-import '../widgets/baris_transaksi.dart';
-import '../widgets/batalkan_transaksi.dart';
+import '../widgets/daftar_hari_riwayat.dart';
 
 /// Riwayat untuk owner (desain): cari · filter periode + metode · kelompok
 /// per hari berpita oranye · detail berbentuk struk.
@@ -106,36 +101,15 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
                 ),
               )
             else
-              for (final h in hari) ...[
-                PitaHari(
-                  judul: DateFormat(
-                    'EEEE, d MMM yyyy',
-                    'id_ID',
-                  ).format(h.tanggal),
-                  keterangan: '${h.isi.length} Transaksi',
-                  total: formatRp(h.total),
-                  terbuka: !_terlipat.contains(h.tanggal),
-                  onTap: () => setState(() {
-                    if (!_terlipat.remove(h.tanggal)) _terlipat.add(h.tanggal);
-                  }),
-                  isi: [
-                    for (final t in h.isi)
-                      BarisTransaksi(
-                        transaksi: t,
-                        namaPembatal: t.namaPembatal(_nama),
-                        onTap: () => bukaDetailTransaksi(context, _repo, t),
-                        onBatalkan: _repo.bolehDibatalkan(t)
-                            ? () => batalkanTransaksiLewatDialog(
-                                context,
-                                _repo,
-                                t,
-                              )
-                            : null,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-              ],
+              DaftarHariRiwayat(
+                hari: hari,
+                repo: _repo,
+                nama: _nama,
+                terlipat: _terlipat,
+                onLipat: (h) => setState(() {
+                  if (!_terlipat.remove(h)) _terlipat.add(h);
+                }),
+              ),
           ],
         );
       },

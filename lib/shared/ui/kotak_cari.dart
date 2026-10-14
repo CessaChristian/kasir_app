@@ -8,10 +8,14 @@ class KotakCari extends StatefulWidget {
   final String petunjuk;
   final ValueChanged<String> onBerubah;
 
+  /// Halaman kasir memakai ukuran sedikit lebih besar (permintaan owner).
+  final bool besar;
+
   const KotakCari({
     super.key,
     required this.onBerubah,
     this.petunjuk = 'Cari...',
+    this.besar = false,
   });
 
   @override
@@ -30,7 +34,7 @@ class _KotakCariState extends State<KotakCari> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
+      height: widget.besar ? 50 : 48,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: WarnaTeras.kartu,
@@ -45,7 +49,11 @@ class _KotakCariState extends State<KotakCari> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_rounded, size: 22, color: WarnaTeras.oranye),
+          Icon(
+            Icons.search_rounded,
+            size: widget.besar ? 24 : 22,
+            color: WarnaTeras.oranye,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
@@ -54,8 +62,8 @@ class _KotakCariState extends State<KotakCari> {
                 setState(() {});
                 widget.onBerubah(v);
               },
-              style: const TextStyle(
-                fontSize: TeksTeras.biasa,
+              style: TextStyle(
+                fontSize: widget.besar ? 15 : TeksTeras.biasa,
                 color: WarnaTeras.teks,
               ),
               decoration: InputDecoration(

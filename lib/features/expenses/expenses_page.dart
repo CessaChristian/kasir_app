@@ -14,9 +14,9 @@ import '../../shared/ui/tombol_tambah.dart';
 import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../utils/currency_formatter.dart';
-import '../shift/models/format_shift.dart';
 import '../shift/models/ringkasan_shift.dart';
 import '../shift/pages/detail_shift_page.dart';
+import '../shift/widgets/kartu_shift_lipat.dart';
 import '../shift/repositories/shift_repository.dart';
 import 'models/ringkasan_pengeluaran.dart';
 import 'repositories/expense_repository.dart';
@@ -412,18 +412,41 @@ class _ExpensesPageState extends State<ExpensesPage> {
         child: Column(
           children: [
             for (var i = 0; i < _riwayat.length; i++)
-              _KartuRiwayatShift(
-                key: ValueKey(_riwayat[i].shift.id),
-                entri: _riwayat[i],
-                pengeluaran: _perShift[_riwayat[i].shift.id] ?? const [],
-                nama: _nama,
-                repo: _repo,
-                pertama: i == 0,
-              ),
+              _kartuRiwayat(_riwayat[i], pertama: i == 0),
           ],
         ),
       ),
   ];
+}
+
+extension on _ExpensesPageState {
+  Widget _kartuRiwayat(ShiftEntry entri, {required bool pertama}) {
+    final semua = _perShift[entri.shift.id] ?? const <Expense>[];
+    final aktif = semua.where((e) => e.deletedAt == null);
+    return KartuShiftLipat(
+      key: ValueKey(entri.shift.id),
+      mulai: entri.shift.startAt,
+      selesai: entri.shift.endAt,
+      pertama: pertama,
+      keterangan: [
+        '${aktif.length} transaksi',
+        if (entri.shift.endAt == null) 'berlangsung',
+        if (_cakupan.jenis == JenisCakupan.semua) entri.username,
+      ].join(' · '),
+      total: '-${formatRp(aktif.fold<int>(0, (s, e) => s + e.amount))}',
+      warnaTotal: WarnaTeras.merah,
+      isi: () => [
+        for (final e in semua)
+          BarisPengeluaran(
+            pengeluaran: e,
+            namaPembatal: e.namaPembatal(_nama),
+            onBatalkan: _repo.bolehDibatalkan(e)
+                ? () => batalkanPengeluaranLewatDialog(context, _repo, e)
+                : null,
+          ),
+      ],
+    );
+  }
 }
 
 class _TeksKosong extends StatelessWidget {
@@ -478,127 +501,4 @@ class _Tautan extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Satu shift lama di "Riwayat Pengeluaran": bisa dibuka untuk melihat
-/// barisnya. Pengeluaran diterima jadi — halaman memuatnya sekali untuk
-/// semua kartu, jadi total tampil tanpa harus membuka kartunya.
-class _KartuRiwayatShift extends StatefulWidget {
-  final ShiftEntry entri;
-  final List<Expense> pengeluaran;
-  final Map<String, String> nama;
-  final ExpenseRepository repo;
-  final bool pertama;
-
-  const _KartuRiwayatShift({
-    super.key,
-    required this.entri,
-    required this.pengeluaran,
-    required this.nama,
-    required this.repo,
-    required this.pertama,
-  });
-
-  @override
-  State<_KartuRiwayatShift> createState() => _KartuRiwayatShiftState();
-}
-
-class _KartuRiwayatShiftState extends State<_KartuRiwayatShift> {
-  var _terbuka = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final shift = widget.entri.shift;
-    final aktif = widget.pengeluaran.where((e) => e.deletedAt == null);
-    final total = aktif.fold<int>(0, (s, e) => s + e.amount);
-    final judul =
-        '${DateFormat('EEEE, d MMM', 'id_ID').format(shift.startAt)} · '
-        '${rentangShift(shift.startAt, shift.endAt, shift.startAt)}';
-    return Container(
-      decoration: widget.pertama
-          ? null
-          : const BoxDecoration(
-              border: Border(top: BorderSide(color: WarnaTeras.garis)),
-            ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _terbuka = !_terbuka),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 12, 14, 12),
-              child: Row(
-                children: [
-                  Icon(
-                    _terbuka
-                        ? Icons.expand_more_rounded
-                        : Icons.chevron_right_rounded,
-                    size: 22,
-                    color: WarnaTeras.teksPudar,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          judul,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: WarnaTeras.teks,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          [
-                            '${aktif.length} transaksi',
-                            if (shift.endAt == null) 'berlangsung',
-                            if (_cakupanSemua) widget.entri.username,
-                          ].join(' · '),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: WarnaTeras.teksPudar,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '-${formatRp(total)}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: WarnaTeras.merah,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_terbuka) ...[
-            const Divider(height: 1, thickness: 1, color: WarnaTeras.garis),
-            for (final e in widget.pengeluaran)
-              BarisPengeluaran(
-                pengeluaran: e,
-                namaPembatal: e.namaPembatal(widget.nama),
-                onBatalkan: widget.repo.bolehDibatalkan(e)
-                    ? () => batalkanPengeluaranLewatDialog(
-                        context,
-                        widget.repo,
-                        e,
-                      )
-                    : null,
-              ),
-            const SizedBox(height: 4),
-          ],
-        ],
-      ),
-    );
-  }
-
-  bool get _cakupanSemua =>
-      CakupanRiwayat.dariSesi().jenis == JenisCakupan.semua;
 }

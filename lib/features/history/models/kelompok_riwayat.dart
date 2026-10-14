@@ -21,7 +21,8 @@ class HariRiwayat {
 /// `SalesRepository.idTransaksiBerisiMenu`).
 List<HariRiwayat> kelompokkanRiwayat(
   List<Transaction> semua, {
-  required Periode periode,
+  /// Null = semua tanggal (Riwayat kasir).
+  required Periode? periode,
 
   /// Kode `payment_method` ('cash'/'qris'); null = semua metode.
   required String? metode,
@@ -37,7 +38,10 @@ List<HariRiwayat> kelompokkanRiwayat(
   final kelompok = <DateTime, List<Transaction>>{};
   for (final t in semua) {
     final h = hari(t.createdAt);
-    if (h.isBefore(periode.dari) || h.isAfter(periode.sampai)) continue;
+    if (periode != null &&
+        (h.isBefore(periode.dari) || h.isAfter(periode.sampai))) {
+      continue;
+    }
     if (metode != null && t.paymentMethod != metode) continue;
     if (kata.isNotEmpty &&
         !t.invoiceNo.toLowerCase().contains(kata) &&
