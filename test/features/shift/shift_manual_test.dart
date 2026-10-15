@@ -10,6 +10,7 @@ import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/dashboard/pages/dasbor_kasir_page.dart';
+import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
 import 'package:kasir_app/features/profil/pages/profil_kasir_page.dart';
 import 'package:kasir_app/features/sales/models/keranjang.dart';
 import 'package:kasir_app/features/shift/models/format_shift.dart';
@@ -548,7 +549,12 @@ void main() {
       await siapkanShift(t);
       await t.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: ProfilKasirPage(repo: repo)),
+          home: Scaffold(
+            body: ProfilKasirPage(
+              repo: repo,
+              repoBill: OpenBillRepository(db),
+            ),
+          ),
         ),
       );
       await tunggu(t);
@@ -575,7 +581,12 @@ void main() {
       );
       await t.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: ProfilKasirPage(repo: repo)),
+          home: Scaffold(
+            body: ProfilKasirPage(
+              repo: repo,
+              repoBill: OpenBillRepository(db),
+            ),
+          ),
         ),
       );
       await tunggu(t);

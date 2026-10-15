@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import '../../data/db.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/ui/dialog_tengah.dart';
+import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../utils/currency_formatter.dart';
+import '../open_bill/repositories/open_bill_repository.dart';
 import 'pengelola_shift.dart';
 import 'repositories/shift_repository.dart';
 import 'widgets/dialog_buka_shift.dart';
@@ -47,13 +49,40 @@ Future<void> bukaShiftLewatDialog(
 
 /// "Tutup shift sekarang?" (desain): ringkasan shift, lalu tutup kalau tidak
 /// ada yang menghalangi. Kasir tetap masuk dan bisa membuka shift baru.
+///
+/// Masih ada open bill → "Shift belum bisa ditutup" (desain); tombol Lihat
+/// Open Bill menjalankan [onLihatOpenBill].
 Future<void> tutupShiftLewatDialog(
   BuildContext context, {
   PengelolaShift? pengelola,
   ShiftRepository? repo,
+  OpenBillRepository? repoBill,
+  VoidCallback? onLihatOpenBill,
 }) async {
   final shiftId = SessionManager.instance.currentSession?.shiftId;
   if (shiftId == null) return;
+
+  final rb = repoBill ?? OpenBillRepository(db);
+  // Bill dari HP lain di shift yang sama ikut terhitung.
+  await rb.segarkanDariServer();
+  final jumlahBill = await rb.jumlahTerbuka(shiftId);
+  if (!context.mounted) return;
+  if (jumlahBill > 0) {
+    final lihat = await tampilkanDialogTengah(
+      context,
+      ikon: Icons.receipt_long_rounded,
+      judul: 'Shift belum bisa ditutup',
+      catatan:
+          'Masih ada $jumlahBill open bill yang belum dibayar. Selesaikan '
+          'pembayaran atau hapus bill tersebut sebelum menutup shift.',
+      labelBatal: 'Tutup',
+      labelAksi: 'Lihat Open Bill',
+      warnaAksi: WarnaTeras.oranye,
+      latarIkon: WarnaTeras.oranyeMuda,
+    );
+    if (lihat) onLihatOpenBill?.call();
+    return;
+  }
   final ringkasan = await (repo ?? ShiftRepository(db))
       .watchShift(shiftId)
       .first;

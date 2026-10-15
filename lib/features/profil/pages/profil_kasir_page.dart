@@ -7,6 +7,7 @@ import '../../../shared/ui/baris_menu.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
+import '../../open_bill/repositories/open_bill_repository.dart';
 import '../../products/pages/kategori_page.dart';
 import '../../products/pages/products_page.dart';
 import '../../report/pages/laporan_page.dart';
@@ -25,8 +26,17 @@ import '../widgets/komponen_profil.dart';
 class ProfilKasirPage extends StatefulWidget {
   /// Diisi test; aplikasi memakai basis data utama.
   final ShiftRepository? repo;
+  final OpenBillRepository? repoBill;
 
-  const ProfilKasirPage({super.key, this.repo});
+  /// "Lihat Open Bill" di dialog "Shift belum bisa ditutup".
+  final VoidCallback? onLihatOpenBill;
+
+  const ProfilKasirPage({
+    super.key,
+    this.repo,
+    this.repoBill,
+    this.onLihatOpenBill,
+  });
 
   @override
   State<ProfilKasirPage> createState() => _ProfilKasirPageState();
@@ -182,7 +192,12 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
           if (boleh)
             OutlinedButton(
               onPressed: () => berjalan
-                  ? tutupShiftLewatDialog(context, repo: _repo)
+                  ? tutupShiftLewatDialog(
+                      context,
+                      repo: _repo,
+                      repoBill: widget.repoBill,
+                      onLihatOpenBill: widget.onLihatOpenBill,
+                    )
                   : bukaShiftLewatDialog(context),
               style: OutlinedButton.styleFrom(
                 foregroundColor: WarnaTeras.oranye,

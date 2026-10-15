@@ -70,7 +70,7 @@ declare t text;
 begin
   foreach t in array array[
     'users','user_permissions','categories','products','shifts',
-    'transactions','transaction_items','expenses'
+    'transactions','transaction_items','expenses','open_bills'
   ] loop
     -- Kolomnya ditambahkan TANPA default dulu, lalu baris lama diisi dari
     -- `updated_at`-nya sendiri.
@@ -132,11 +132,11 @@ end $$;
 --    where table_schema = 'public' and column_name = 'server_urut'
 --    order by table_name;
 --
---  Hasil yang benar: 8 baris.
+--  Hasil yang benar: 9 baris.
 --
 --    select tgname, tgrelid::regclass
 --    from pg_trigger where tgname like 'trg_%_server_urut'
 --    order by 2;
 --
---  Hasil yang benar: 8 baris.
+--  Hasil yang benar: 9 baris.
 -- =====================================================================

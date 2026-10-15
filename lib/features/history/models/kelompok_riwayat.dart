@@ -16,7 +16,7 @@ class HariRiwayat {
 
 /// Saring lalu kelompokkan per hari, hari terbaru dulu.
 ///
-/// [cari] mencocokkan nomor nota; [idCocokMenu] adalah transaksi yang berisi
+/// [cari] mencocokkan nomor nota dan nama open bill; [idCocokMenu] adalah transaksi yang berisi
 /// menu bernama mengandung kata cari itu (lihat
 /// `SalesRepository.idTransaksiBerisiMenu`).
 List<HariRiwayat> kelompokkanRiwayat(
@@ -45,6 +45,7 @@ List<HariRiwayat> kelompokkanRiwayat(
     if (metode != null && t.paymentMethod != metode) continue;
     if (kata.isNotEmpty &&
         !t.invoiceNo.toLowerCase().contains(kata) &&
+        !(t.billName?.toLowerCase().contains(kata) ?? false) &&
         !idCocokMenu.contains(t.id)) {
       continue;
     }

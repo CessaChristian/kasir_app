@@ -57,7 +57,7 @@ declare t text;
 begin
   foreach t in array array[
     'users','user_permissions','categories','products','shifts',
-    'transactions','transaction_items','expenses'
+    'transactions','transaction_items','expenses','open_bills'
   ] loop
     execute format('drop policy if exists %I on public.%I', 'baca_'||t, t);
     execute format('drop policy if exists %I on public.%I', 'tambah_'||t, t);

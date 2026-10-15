@@ -10,6 +10,8 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../open_bill/repositories/open_bill_repository.dart';
+import '../../open_bill/widgets/dialog_simpan_bill.dart';
 import '../models/keranjang.dart';
 import '../models/pesanan.dart';
 import '../repositories/sales_repository.dart';
@@ -17,13 +19,12 @@ import '../widgets/dialog_struk.dart';
 import 'lembar_pembayaran.dart';
 
 /// Buka Keranjang (desain). Sesudah dibayar, struknya ditampilkan.
-///
-/// Tombol "Simpan Bill" (open bill) belum ditampilkan — dikerjakan bersama
-/// fitur Open Bill.
+/// "Simpan Bill" menyimpan isinya sebagai open bill lalu menutup keranjang.
 Future<void> bukaKeranjang(
   BuildContext context,
   Keranjang keranjang, {
   SalesRepository? repo,
+  OpenBillRepository? repoBill,
 }) async {
   final r = repo ?? SalesRepository(db);
   final transaksiId = await showModalBottomSheet<String>(
@@ -34,7 +35,11 @@ Future<void> bukaKeranjang(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
     ),
-    builder: (_) => _LembarKeranjang(keranjang: keranjang, repo: r),
+    builder: (_) => _LembarKeranjang(
+      keranjang: keranjang,
+      repo: r,
+      repoBill: repoBill ?? OpenBillRepository(db),
+    ),
   );
   if (transaksiId == null || !context.mounted) return;
   await tampilkanStrukSesudahBayar(context, transaksiId: transaksiId, repo: r);
@@ -43,8 +48,13 @@ Future<void> bukaKeranjang(
 class _LembarKeranjang extends StatefulWidget {
   final Keranjang keranjang;
   final SalesRepository repo;
+  final OpenBillRepository repoBill;
 
-  const _LembarKeranjang({required this.keranjang, required this.repo});
+  const _LembarKeranjang({
+    required this.keranjang,
+    required this.repo,
+    required this.repoBill,
+  });
 
   @override
   State<_LembarKeranjang> createState() => _LembarKeranjangState();
@@ -83,16 +93,47 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
     if (ya) _k.kosongkan();
   }
 
+  /// True kalau shift berjalan; kalau tidak, kasir diberi tahu.
+  bool _adaShift() {
+    if (SessionManager.instance.currentSession?.shiftId != null) return true;
+    AppToast.warning(
+      context,
+      'Shift sedang ditutup. Buka shift dulu sebelum membuat transaksi.',
+    );
+    return false;
+  }
+
+  Future<void> _simpanBill() async {
+    if (_k.isEmpty || !_adaShift()) return;
+    final aktif = _k.bill;
+    final baris = List<SaleLine>.of(_k.baris);
+    final nama = await tanyaSimpanBill(
+      context,
+      perbarui: aktif != null,
+      jumlahItem: baris.fold(0, (s, b) => s + b.qty),
+      total: _k.total,
+      namaAwal: aktif?.nama ?? '',
+      simpan: (nama) async {
+        try {
+          await widget.repoBill.simpan(id: aktif?.id, nama: nama, baris: baris);
+          return null;
+        } catch (e) {
+          return e is StateError ? e.message : 'Gagal: $e';
+        }
+      },
+    );
+    if (nama == null || !mounted) return;
+    _k.kosongkan();
+    AppToast.success(
+      context,
+      '${aktif != null ? 'Bill diperbarui' : 'Bill disimpan'} · $nama',
+    );
+    Navigator.pop(context);
+  }
+
   Future<void> _bayar() async {
-    if (_k.isEmpty) return;
+    if (_k.isEmpty || !_adaShift()) return;
     final sesi = SessionManager.instance.currentSession;
-    if (sesi?.shiftId == null) {
-      AppToast.warning(
-        context,
-        'Shift sedang ditutup. Buka shift dulu sebelum membuat transaksi.',
-      );
-      return;
-    }
     // Total diambil SEKALI sebagai acuan: yang tampil di pembayaran dan
     // yang disimpan memakai angka yang sama.
     final total = _k.total;
@@ -111,6 +152,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           cashReceived: _metode == MetodeBayar.tunai ? uang : null,
           cashierUserId: sesi!.userId,
           shiftId: sesi.shiftId,
+          billId: _k.bill?.id,
         );
         _k.kosongkan();
       },
@@ -394,16 +436,67 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
                 ],
               ),
             ),
+            if (_k.bill case final bill?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 2),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.receipt_long_rounded,
+                      size: 18,
+                      color: WarnaTeras.oranye,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Open bill: ${bill.nama}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: WarnaTeras.teksPudar,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 10),
-            TombolLembar(
-              label: 'Bayar ${formatRp(_k.total)}',
-              ikon: Icons.add_shopping_cart_rounded,
-              latar: WarnaTeras.oranye,
-              warna: Colors.white,
-              tinggi: 46,
-              sudut: 8,
-              ukuranTeks: 15,
-              onPressed: _bayar,
+            Row(
+              children: [
+                SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: _simpanBill,
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 20),
+                    label: Text(
+                      _k.bill == null ? 'Simpan Bill' : 'Perbarui Bill',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: WarnaTeras.oranye,
+                      side: const BorderSide(color: WarnaTeras.oranye),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      textStyle: const TextStyle(fontSize: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TombolLembar(
+                    label: 'Bayar ${formatRp(_k.total)}',
+                    ikon: Icons.add_shopping_cart_rounded,
+                    latar: WarnaTeras.oranye,
+                    warna: Colors.white,
+                    tinggi: 46,
+                    sudut: 8,
+                    ukuranTeks: 15,
+                    onPressed: _bayar,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

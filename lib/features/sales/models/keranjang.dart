@@ -14,6 +14,11 @@ import '../../../data/models/sale_line.dart';
 class Keranjang extends ChangeNotifier {
   final List<SaleLine> _baris = [];
 
+  /// Open bill yang sedang dimuat di keranjang; null = pesanan biasa. Lepas
+  /// sendiri begitu keranjangnya kosong.
+  BillAktif? _bill;
+  BillAktif? get bill => _bill;
+
   /// Isi keranjang, urut sesuai saat dimasukkan. Tidak bisa diubah dari luar:
   /// setiap perubahan wajib lewat [Keranjang] supaya pendengarnya tahu.
   List<SaleLine> get baris => List.unmodifiable(_baris);
@@ -66,20 +71,43 @@ class Keranjang extends ChangeNotifier {
     } else {
       _baris[indeks] = _baris[indeks].copyWith(qty: sisa);
     }
+    _lepasKalauKosong();
     notifyListeners();
   }
 
   void hapus(int indeks) {
     if (!_sah(indeks)) return;
     _baris.removeAt(indeks);
+    _lepasKalauKosong();
     notifyListeners();
   }
 
+  /// Kosongkan isi sekaligus melepas open bill yang dimuat.
   void kosongkan() {
-    if (_baris.isEmpty) return;
+    if (_baris.isEmpty && _bill == null) return;
     _baris.clear();
+    _bill = null;
     notifyListeners();
+  }
+
+  /// Ganti seluruh isi keranjang dengan isi open bill [bill].
+  void muatBill(BillAktif bill, List<SaleLine> baris) {
+    _baris
+      ..clear()
+      ..addAll(baris);
+    _bill = bill;
+    _lepasKalauKosong();
+    notifyListeners();
+  }
+
+  // Keranjang kosong tidak bisa "memperbarui" bill — bill-nya tetap utuh di
+  // daftar Open Bill.
+  void _lepasKalauKosong() {
+    if (_baris.isEmpty) _bill = null;
   }
 
   bool _sah(int indeks) => indeks >= 0 && indeks < _baris.length;
 }
+
+/// Open bill yang sedang ada di keranjang.
+typedef BillAktif = ({String id, String nama});

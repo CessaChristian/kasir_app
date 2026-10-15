@@ -121,6 +121,8 @@ create table public.transactions (
   shift_id        uuid        references public.shifts(id),
   order_type      text        not null default 'dine_in'
                               check (order_type in ('dine_in','take_away','delivery')),
+  -- Salinan nama open bill yang dibayar (open_bill.sql).
+  bill_name       text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   -- Untuk transaksi, `deleted_at` berarti DIBATALKAN — bukan sampah. Baris
@@ -174,6 +176,20 @@ create table public.expenses (
   cancel_reason      text
 );
 
+-- ------------------------------------------------------------ open_bills
+-- Pesanan disimpan dulu, dibayar belakangan (open_bill.sql).
+create table public.open_bills (
+  id             uuid primary key default gen_random_uuid(),
+  name           text        not null check (length(name) between 1 and 40),
+  shift_id       uuid        not null references public.shifts(id),
+  user_id        uuid        not null references public.users(id),
+  items          jsonb       not null default '[]'::jsonb,
+  transaction_id uuid        references public.transactions(id),
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  deleted_at     timestamptz
+);
+
 -- =====================================================================
 --  INDEKS
 --
@@ -198,6 +214,7 @@ create index idx_items_updated             on public.transaction_items(updated_a
 create index idx_items_transaction         on public.transaction_items(transaction_id);
 create index idx_expenses_updated          on public.expenses(updated_at);
 create index idx_expenses_shift            on public.expenses(shift_id);
+create index idx_open_bills_updated        on public.open_bills(updated_at);
 
 -- =====================================================================
 --  ROW LEVEL SECURITY
@@ -230,6 +247,7 @@ alter table public.shifts            enable row level security;
 alter table public.transactions      enable row level security;
 alter table public.transaction_items enable row level security;
 alter table public.expenses          enable row level security;
+alter table public.open_bills        enable row level security;
 
 -- LANGKAH BERIKUTNYA YANG WAJIB: jalankan `supabase/rls.sql`.
 -- Tanpa itu, RLS menyala tanpa satu pun policy dan seluruh tabel menolak

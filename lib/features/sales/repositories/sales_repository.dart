@@ -27,6 +27,8 @@ class SalesRepository {
   ///
   /// [transactionId] wajib UUID (kunci internal, tidak pernah tampil).
   /// Nomor nota dibuat sendiri oleh database dan dikembalikan method ini.
+  /// [billId] diisi saat yang dibayar adalah open bill — bill-nya ikut
+  /// ditandai lunas.
   Future<String> createSale({
     required String transactionId,
     required List<SaleLine> lines,
@@ -35,6 +37,7 @@ class SalesRepository {
     int? cashReceived,
     String? cashierUserId,
     String? shiftId,
+    String? billId,
   }) async {
     // Penanda perangkat diambil di sini, bukan di halaman: halaman tidak
     // perlu tahu nomor nota dibentuk dari apa, dan database tetap menerima
@@ -49,6 +52,7 @@ class SalesRepository {
       cashierUserId: cashierUserId,
       shiftId: shiftId,
       kodePerangkat: kode,
+      billId: billId,
     );
   }
 

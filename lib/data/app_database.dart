@@ -150,6 +150,11 @@ class Transactions extends Table {
   TextColumn get orderType =>
       text().withDefault(const Constant('dine_in'))();
 
+  /// SALINAN nama open bill yang dibayar lewat transaksi ini (v38), mis.
+  /// "Meja 4 · Pak Budi" — tampil di struk sebagai Pelanggan. Null untuk
+  /// penjualan langsung tanpa open bill.
+  TextColumn get billName => text().nullable()();
+
   // Sync-friendly (NEW in v10)
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -456,6 +461,49 @@ class Expenses extends Table {
 }
 
 /// =======================
+/// TABLE: OPEN_BILLS (v38)
+///
+/// Pesanan yang disimpan dulu, dibayar belakangan. Milik SATU shift: semua
+/// perangkat yang memakai shift itu melihatnya, dan shift tidak bisa ditutup
+/// selama masih ada yang terbuka.
+///
+/// Terbuka = [transactionId] dan [deletedAt] sama-sama kosong. Dibayar =
+/// [transactionId] terisi. Dihapus = [deletedAt] terisi — hapus lunak supaya
+/// perangkat lain ikut tahu saat sinkron.
+/// =======================
+class OpenBills extends Table {
+  TextColumn get id => text().clientDefault(() => newUuid())();
+  TextColumn get name => text()();
+  TextColumn get shiftId => text().references(Shifts, #id)();
+
+  /// Pembuat bill.
+  TextColumn get userId => text().references(Users, #id)();
+
+  /// Isi pesanan sebagai JSON: `[{"p": idProduk, "q": jumlah, "c": catatan}]`.
+  /// Nama dan harga SENGAJA tidak disimpan — saat dibuka, keduanya diambil
+  /// dari produk terbaru (keputusan owner 2026-10-14). Lihat `isi_bill.dart`.
+  ///
+  /// Satu kolom, bukan tabel item terpisah: bill selalu disimpan utuh, jadi
+  /// isinya ikut sinkron sebagai satu baris dan tidak mungkin tiba separuh.
+  TextColumn get items => text()();
+
+  /// Transaksi yang melunasi bill ini.
+  TextColumn get transactionId =>
+      text().nullable().references(Transactions, #id)();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// =======================
 /// DATABASE
 /// =======================
 @DriftDatabase(tables: [
@@ -469,6 +517,7 @@ class Expenses extends Table {
   UserPermissions,
   Expenses,
   SyncState,          // v16 — penanda waktu sinkron, murni lokal
+  OpenBills,          // v38
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -476,7 +525,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1232,6 +1281,24 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
+          if (from < 38 && to >= 38) {
+            // v38 — Open Bill. Pasangannya di server: supabase/open_bill.sql.
+            Future<bool> adaTabel(String t) async => (await customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                  variables: [Variable.withString(t)],
+                ).get())
+                .isNotEmpty;
+            if (!await adaTabel('open_bills')) await m.createTable(openBills);
+            if (await adaTabel('transactions')) {
+              final adaKolom = await customSelect(
+                "SELECT 1 FROM pragma_table_info('transactions') "
+                "WHERE name = 'bill_name'",
+              ).get();
+              if (adaKolom.isEmpty) {
+                await m.addColumn(transactions, transactions.billName);
+              }
+            }
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1518,6 +1585,11 @@ class AppDatabase extends _$AppDatabase {
   /// Nomor nota dibuat DI SINI, bukan di UI, supaya menghitung nomor dan
   /// menyimpan transaksi terjadi dalam satu transaction database. Kalau
   /// dipisah, ada celah di mana dua checkout bisa membaca hitungan yang sama.
+  ///
+  /// [billId] diisi saat yang dibayar adalah open bill: bill itu ditandai
+  /// lunas di transaction yang SAMA, jadi tidak mungkin uangnya tercatat
+  /// sementara bill-nya masih terbuka. Bill yang sudah dibayar atau dihapus
+  /// (mis. dari HP lain) ditolak.
   Future<String> createSale({
     required String transactionId,
     required List<SaleLine> lines,
@@ -1527,6 +1599,7 @@ class AppDatabase extends _$AppDatabase {
     String? cashierUserId,
     String? shiftId,
     required String kodePerangkat,
+    String? billId,
   }) async {
     // M-A: Defense-in-depth — selain UI yang sudah hide tombol "Kasir",
     // DB layer juga reject jika permission tidak ada.
@@ -1556,6 +1629,13 @@ class AppDatabase extends _$AppDatabase {
     late String invoiceNo;
     await transaction(() async {
       await _validasiProdukMasihAda(lines);
+      final bill = billId == null ? null : await _billTerbuka(billId);
+      if (billId != null && bill == null) {
+        throw StateError(
+          'Bill ini sudah dibayar atau dihapus di perangkat lain. '
+          'Kosongkan keranjang lalu muat ulang dari Open Bill.',
+        );
+      }
       invoiceNo = await _nextInvoiceNo(DateTime.now(), kodePerangkat);
 
       await into(transactions).insert(
@@ -1570,14 +1650,30 @@ class AppDatabase extends _$AppDatabase {
           cashierName: Value(await usernameAkun(cashierUserId)),
           shiftId: Value(shiftId),
           orderType: Value(orderType),
+          billName: Value(bill?.name),
           syncStatus: const Value('pending'),
         ),
       );
 
       await _insertTransactionItems(transactionId, lines);
+
+      if (bill != null) {
+        await (update(openBills)..where((b) => b.id.equals(bill.id)))
+            .write(OpenBillsCompanion(
+          transactionId: Value(transactionId),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value('pending'),
+        ));
+      }
     });
     return invoiceNo;
   }
+
+  /// Bill [id] kalau masih terbuka (belum dibayar, belum dihapus).
+  Future<OpenBill?> _billTerbuka(String id) => (select(openBills)
+        ..where((b) =>
+            b.id.equals(id) & b.transactionId.isNull() & b.deletedAt.isNull()))
+      .getSingleOrNull();
 
   /// Nomor nota berikutnya untuk hari ini: `TRX/dd/MM/yy/KODE-NNNN`.
   ///

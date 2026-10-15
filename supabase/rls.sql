@@ -17,7 +17,7 @@
 --
 --  Keadaan server saat berkas ini ditulis (2026-09-28):
 --
---    8 tabel data  → baca/tambah/ubah sudah `perangkat_aktif()`, DELETE nihil
+--    9 tabel data  → baca/tambah/ubah sudah `perangkat_aktif()`, DELETE nihil
 --    perangkat     → `baca_perangkat` sengaja `using (true)`, lihat di bawah
 --    permissions   → MASIH `spike_permissions` = ALL + true   ← yang ditambal
 -- =====================================================================
@@ -60,7 +60,7 @@ declare t text;
 begin
   foreach t in array array[
     'users','user_permissions','categories','products','shifts',
-    'transactions','transaction_items','expenses'
+    'transactions','transaction_items','expenses','open_bills'
   ] loop
     execute format('drop policy if exists %I on public.%I', 'spike_'||t, t);
   end loop;
@@ -86,7 +86,8 @@ declare t text;
 begin
   foreach t in array array[
     'users','permissions','user_permissions','categories','products',
-    'shifts','transactions','transaction_items','expenses','perangkat'
+    'shifts','transactions','transaction_items','expenses','open_bills',
+    'perangkat'
   ] loop
     execute format('revoke delete on public.%I from anon, authenticated', t);
   end loop;
@@ -126,7 +127,7 @@ revoke all on public.rahasia from anon, authenticated;
 -- =====================================================================
 --  PEMERIKSAAN SESUDAH DIJALANKAN
 --
---  (a) `permissions` tidak boleh punya policy sama sekali, dan 8 tabel data
+--  (a) `permissions` tidak boleh punya policy sama sekali, dan 9 tabel data
 --      tidak boleh punya satu pun baris DELETE:
 --
 --        select tablename, policyname, cmd, qual

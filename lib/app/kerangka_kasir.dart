@@ -4,6 +4,8 @@ import '../data/sync/sync_otomatis.dart';
 import '../features/dashboard/pages/dasbor_kasir_page.dart';
 import '../features/expenses/expenses_page.dart';
 import '../features/history/history_page.dart';
+import '../features/open_bill/sheets/lembar_open_bill.dart';
+import '../features/open_bill/widgets/tombol_open_bill.dart';
 import '../features/profil/pages/profil_kasir_page.dart';
 import '../features/sales/models/keranjang.dart';
 import '../features/sales/sales_page.dart';
@@ -136,13 +138,18 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
       case 3:
         return const HistoryPage();
       default:
-        return const ProfilKasirPage();
+        return ProfilKasirPage(
+          onLihatOpenBill: () => bukaDaftarOpenBill(context, _keranjang),
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final shiftId = SessionManager.instance.currentSession?.shiftId;
+    final bolehJual = SessionManager.instance.hasPermission(
+      'create_transaction',
+    );
     return PopScope(
       // Tombol kembali di tab lain → ke Dashboard; di Dashboard tidak
       // menutup aplikasi.
@@ -157,10 +164,11 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
           child: BingkaiHalaman(
             judul: _nav[_tab].label,
             aksi: [
-              if (_tab == _iKasir &&
-                  shiftId != null &&
-                  SessionManager.instance.hasPermission('create_transaction'))
+              if (_tab == _iKasir && shiftId != null && bolehJual)
                 TombolKeranjang(keranjang: _keranjang),
+              // Desain: ikon Open Bill di Dashboard dan Kasir.
+              if ((_tab == 0 || _tab == _iKasir) && bolehJual)
+                TombolOpenBill(keranjang: _keranjang, shiftId: shiftId),
             ],
             // Halaman dibuat ulang saat shift dibuka/ditutup: beberapa
             // halaman lama membaca shift sekali saat dibuat.

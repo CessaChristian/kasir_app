@@ -2989,6 +2989,17 @@ class $TransactionsTable extends Transactions
     requiredDuringInsert: false,
     defaultValue: const Constant('dine_in'),
   );
+  static const VerificationMeta _billNameMeta = const VerificationMeta(
+    'billName',
+  );
+  @override
+  late final GeneratedColumn<String> billName = GeneratedColumn<String>(
+    'bill_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -3074,6 +3085,7 @@ class $TransactionsTable extends Transactions
     shiftId,
     cashierName,
     orderType,
+    billName,
     updatedAt,
     deletedAt,
     cancelledByUserId,
@@ -3170,6 +3182,12 @@ class $TransactionsTable extends Transactions
       context.handle(
         _orderTypeMeta,
         orderType.isAcceptableOrUnknown(data['order_type']!, _orderTypeMeta),
+      );
+    }
+    if (data.containsKey('bill_name')) {
+      context.handle(
+        _billNameMeta,
+        billName.isAcceptableOrUnknown(data['bill_name']!, _billNameMeta),
       );
     }
     if (data.containsKey('updated_at')) {
@@ -3270,6 +3288,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}order_type'],
       )!,
+      billName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bill_name'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -3325,6 +3347,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   /// [cashierUserId]. Lihat `nama_tercatat.dart`.
   final String? cashierName;
   final String orderType;
+
+  /// SALINAN nama open bill yang dibayar lewat transaksi ini (v38), mis.
+  /// "Meja 4 · Pak Budi" — tampil di struk sebagai Pelanggan. Null untuk
+  /// penjualan langsung tanpa open bill.
+  final String? billName;
   final DateTime updatedAt;
 
   /// Untuk transaksi artinya DIBATALKAN, bukan sampah. Transaksi tidak pernah
@@ -3354,6 +3381,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.shiftId,
     this.cashierName,
     required this.orderType,
+    this.billName,
     required this.updatedAt,
     this.deletedAt,
     this.cancelledByUserId,
@@ -3385,6 +3413,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       map['cashier_name'] = Variable<String>(cashierName);
     }
     map['order_type'] = Variable<String>(orderType);
+    if (!nullToAbsent || billName != null) {
+      map['bill_name'] = Variable<String>(billName);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
@@ -3425,6 +3456,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? const Value.absent()
           : Value(cashierName),
       orderType: Value(orderType),
+      billName: billName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(billName),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -3459,6 +3493,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       shiftId: serializer.fromJson<String?>(json['shiftId']),
       cashierName: serializer.fromJson<String?>(json['cashierName']),
       orderType: serializer.fromJson<String>(json['orderType']),
+      billName: serializer.fromJson<String?>(json['billName']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       cancelledByUserId: serializer.fromJson<String?>(
@@ -3484,6 +3519,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'shiftId': serializer.toJson<String?>(shiftId),
       'cashierName': serializer.toJson<String?>(cashierName),
       'orderType': serializer.toJson<String>(orderType),
+      'billName': serializer.toJson<String?>(billName),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'cancelledByUserId': serializer.toJson<String?>(cancelledByUserId),
@@ -3505,6 +3541,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> shiftId = const Value.absent(),
     Value<String?> cashierName = const Value.absent(),
     String? orderType,
+    Value<String?> billName = const Value.absent(),
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
     Value<String?> cancelledByUserId = const Value.absent(),
@@ -3525,6 +3562,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     shiftId: shiftId.present ? shiftId.value : this.shiftId,
     cashierName: cashierName.present ? cashierName.value : this.cashierName,
     orderType: orderType ?? this.orderType,
+    billName: billName.present ? billName.value : this.billName,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     cancelledByUserId: cancelledByUserId.present
@@ -3557,6 +3595,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? data.cashierName.value
           : this.cashierName,
       orderType: data.orderType.present ? data.orderType.value : this.orderType,
+      billName: data.billName.present ? data.billName.value : this.billName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       cancelledByUserId: data.cancelledByUserId.present
@@ -3588,6 +3627,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('shiftId: $shiftId, ')
           ..write('cashierName: $cashierName, ')
           ..write('orderType: $orderType, ')
+          ..write('billName: $billName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
@@ -3611,6 +3651,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     shiftId,
     cashierName,
     orderType,
+    billName,
     updatedAt,
     deletedAt,
     cancelledByUserId,
@@ -3633,6 +3674,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.shiftId == this.shiftId &&
           other.cashierName == this.cashierName &&
           other.orderType == this.orderType &&
+          other.billName == this.billName &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.cancelledByUserId == this.cancelledByUserId &&
@@ -3653,6 +3695,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> shiftId;
   final Value<String?> cashierName;
   final Value<String> orderType;
+  final Value<String?> billName;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<String?> cancelledByUserId;
@@ -3672,6 +3715,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.shiftId = const Value.absent(),
     this.cashierName = const Value.absent(),
     this.orderType = const Value.absent(),
+    this.billName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
@@ -3692,6 +3736,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.shiftId = const Value.absent(),
     this.cashierName = const Value.absent(),
     this.orderType = const Value.absent(),
+    this.billName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.cancelledByUserId = const Value.absent(),
@@ -3713,6 +3758,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? shiftId,
     Expression<String>? cashierName,
     Expression<String>? orderType,
+    Expression<String>? billName,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<String>? cancelledByUserId,
@@ -3733,6 +3779,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (shiftId != null) 'shift_id': shiftId,
       if (cashierName != null) 'cashier_name': cashierName,
       if (orderType != null) 'order_type': orderType,
+      if (billName != null) 'bill_name': billName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (cancelledByUserId != null) 'cancelled_by_user_id': cancelledByUserId,
@@ -3755,6 +3802,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? shiftId,
     Value<String?>? cashierName,
     Value<String>? orderType,
+    Value<String?>? billName,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
     Value<String?>? cancelledByUserId,
@@ -3775,6 +3823,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       shiftId: shiftId ?? this.shiftId,
       cashierName: cashierName ?? this.cashierName,
       orderType: orderType ?? this.orderType,
+      billName: billName ?? this.billName,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       cancelledByUserId: cancelledByUserId ?? this.cancelledByUserId,
@@ -3821,6 +3870,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (orderType.present) {
       map['order_type'] = Variable<String>(orderType.value);
     }
+    if (billName.present) {
+      map['bill_name'] = Variable<String>(billName.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -3859,6 +3911,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('shiftId: $shiftId, ')
           ..write('cashierName: $cashierName, ')
           ..write('orderType: $orderType, ')
+          ..write('billName: $billName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('cancelledByUserId: $cancelledByUserId, ')
@@ -6523,6 +6576,631 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
   }
 }
 
+class $OpenBillsTable extends OpenBills
+    with TableInfo<$OpenBillsTable, OpenBill> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OpenBillsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => newUuid(),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _shiftIdMeta = const VerificationMeta(
+    'shiftId',
+  );
+  @override
+  late final GeneratedColumn<String> shiftId = GeneratedColumn<String>(
+    'shift_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES shifts (id)',
+    ),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES users (id)',
+    ),
+  );
+  static const VerificationMeta _itemsMeta = const VerificationMeta('items');
+  @override
+  late final GeneratedColumn<String> items = GeneratedColumn<String>(
+    'items',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _transactionIdMeta = const VerificationMeta(
+    'transactionId',
+  );
+  @override
+  late final GeneratedColumn<String> transactionId = GeneratedColumn<String>(
+    'transaction_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES transactions (id)',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncStatusMeta = const VerificationMeta(
+    'syncStatus',
+  );
+  @override
+  late final GeneratedColumn<String> syncStatus = GeneratedColumn<String>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    shiftId,
+    userId,
+    items,
+    transactionId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    syncStatus,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'open_bills';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OpenBill> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('shift_id')) {
+      context.handle(
+        _shiftIdMeta,
+        shiftId.isAcceptableOrUnknown(data['shift_id']!, _shiftIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_shiftIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('items')) {
+      context.handle(
+        _itemsMeta,
+        items.isAcceptableOrUnknown(data['items']!, _itemsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemsMeta);
+    }
+    if (data.containsKey('transaction_id')) {
+      context.handle(
+        _transactionIdMeta,
+        transactionId.isAcceptableOrUnknown(
+          data['transaction_id']!,
+          _transactionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('sync_status')) {
+      context.handle(
+        _syncStatusMeta,
+        syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  OpenBill map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OpenBill(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      shiftId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}shift_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      items: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}items'],
+      )!,
+      transactionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      syncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_status'],
+      )!,
+    );
+  }
+
+  @override
+  $OpenBillsTable createAlias(String alias) {
+    return $OpenBillsTable(attachedDatabase, alias);
+  }
+}
+
+class OpenBill extends DataClass implements Insertable<OpenBill> {
+  final String id;
+  final String name;
+  final String shiftId;
+
+  /// Pembuat bill.
+  final String userId;
+
+  /// Isi pesanan sebagai JSON: `[{"p": idProduk, "q": jumlah, "c": catatan}]`.
+  /// Nama dan harga SENGAJA tidak disimpan — saat dibuka, keduanya diambil
+  /// dari produk terbaru (keputusan owner 2026-10-14). Lihat `isi_bill.dart`.
+  ///
+  /// Satu kolom, bukan tabel item terpisah: bill selalu disimpan utuh, jadi
+  /// isinya ikut sinkron sebagai satu baris dan tidak mungkin tiba separuh.
+  final String items;
+
+  /// Transaksi yang melunasi bill ini.
+  final String? transactionId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String syncStatus;
+  const OpenBill({
+    required this.id,
+    required this.name,
+    required this.shiftId,
+    required this.userId,
+    required this.items,
+    this.transactionId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.syncStatus,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['shift_id'] = Variable<String>(shiftId);
+    map['user_id'] = Variable<String>(userId);
+    map['items'] = Variable<String>(items);
+    if (!nullToAbsent || transactionId != null) {
+      map['transaction_id'] = Variable<String>(transactionId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['sync_status'] = Variable<String>(syncStatus);
+    return map;
+  }
+
+  OpenBillsCompanion toCompanion(bool nullToAbsent) {
+    return OpenBillsCompanion(
+      id: Value(id),
+      name: Value(name),
+      shiftId: Value(shiftId),
+      userId: Value(userId),
+      items: Value(items),
+      transactionId: transactionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transactionId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      syncStatus: Value(syncStatus),
+    );
+  }
+
+  factory OpenBill.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OpenBill(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      shiftId: serializer.fromJson<String>(json['shiftId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      items: serializer.fromJson<String>(json['items']),
+      transactionId: serializer.fromJson<String?>(json['transactionId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      syncStatus: serializer.fromJson<String>(json['syncStatus']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'shiftId': serializer.toJson<String>(shiftId),
+      'userId': serializer.toJson<String>(userId),
+      'items': serializer.toJson<String>(items),
+      'transactionId': serializer.toJson<String?>(transactionId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'syncStatus': serializer.toJson<String>(syncStatus),
+    };
+  }
+
+  OpenBill copyWith({
+    String? id,
+    String? name,
+    String? shiftId,
+    String? userId,
+    String? items,
+    Value<String?> transactionId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? syncStatus,
+  }) => OpenBill(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    shiftId: shiftId ?? this.shiftId,
+    userId: userId ?? this.userId,
+    items: items ?? this.items,
+    transactionId: transactionId.present
+        ? transactionId.value
+        : this.transactionId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    syncStatus: syncStatus ?? this.syncStatus,
+  );
+  OpenBill copyWithCompanion(OpenBillsCompanion data) {
+    return OpenBill(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      shiftId: data.shiftId.present ? data.shiftId.value : this.shiftId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      items: data.items.present ? data.items.value : this.items,
+      transactionId: data.transactionId.present
+          ? data.transactionId.value
+          : this.transactionId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OpenBill(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('shiftId: $shiftId, ')
+          ..write('userId: $userId, ')
+          ..write('items: $items, ')
+          ..write('transactionId: $transactionId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('syncStatus: $syncStatus')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    shiftId,
+    userId,
+    items,
+    transactionId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    syncStatus,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OpenBill &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.shiftId == this.shiftId &&
+          other.userId == this.userId &&
+          other.items == this.items &&
+          other.transactionId == this.transactionId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.syncStatus == this.syncStatus);
+}
+
+class OpenBillsCompanion extends UpdateCompanion<OpenBill> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> shiftId;
+  final Value<String> userId;
+  final Value<String> items;
+  final Value<String?> transactionId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> syncStatus;
+  final Value<int> rowid;
+  const OpenBillsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.shiftId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.items = const Value.absent(),
+    this.transactionId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OpenBillsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required String shiftId,
+    required String userId,
+    required String items,
+    this.transactionId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : name = Value(name),
+       shiftId = Value(shiftId),
+       userId = Value(userId),
+       items = Value(items);
+  static Insertable<OpenBill> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? shiftId,
+    Expression<String>? userId,
+    Expression<String>? items,
+    Expression<String>? transactionId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? syncStatus,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (shiftId != null) 'shift_id': shiftId,
+      if (userId != null) 'user_id': userId,
+      if (items != null) 'items': items,
+      if (transactionId != null) 'transaction_id': transactionId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OpenBillsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? shiftId,
+    Value<String>? userId,
+    Value<String>? items,
+    Value<String?>? transactionId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? syncStatus,
+    Value<int>? rowid,
+  }) {
+    return OpenBillsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      shiftId: shiftId ?? this.shiftId,
+      userId: userId ?? this.userId,
+      items: items ?? this.items,
+      transactionId: transactionId ?? this.transactionId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      syncStatus: syncStatus ?? this.syncStatus,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (shiftId.present) {
+      map['shift_id'] = Variable<String>(shiftId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (items.present) {
+      map['items'] = Variable<String>(items.value);
+    }
+    if (transactionId.present) {
+      map['transaction_id'] = Variable<String>(transactionId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<String>(syncStatus.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OpenBillsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('shiftId: $shiftId, ')
+          ..write('userId: $userId, ')
+          ..write('items: $items, ')
+          ..write('transactionId: $transactionId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6540,6 +7218,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $ExpensesTable expenses = $ExpensesTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
+  late final $OpenBillsTable openBills = $OpenBillsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6555,6 +7234,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     userPermissions,
     expenses,
     syncState,
+    openBills,
   ];
 }
 
@@ -7493,6 +8173,24 @@ final class $$UsersTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
+  _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.openBills,
+    aliasName: $_aliasNameGenerator(db.users.id, db.openBills.userId),
+  );
+
+  $$OpenBillsTableProcessedTableManager get openBillsRefs {
+    final manager = $$OpenBillsTableTableManager(
+      $_db,
+      $_db.openBills,
+    ).filter((f) => f.userId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_openBillsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
@@ -7659,6 +8357,31 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
           }) => $$ExpensesTableFilterComposer(
             $db: $db,
             $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> openBillsRefs(
+    Expression<bool> Function($$OpenBillsTableFilterComposer f) f,
+  ) {
+    final $$OpenBillsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableFilterComposer(
+            $db: $db,
+            $table: $db.openBills,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7924,6 +8647,31 @@ class $$UsersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> openBillsRefs<T extends Object>(
+    Expression<T> Function($$OpenBillsTableAnnotationComposer a) f,
+  ) {
+    final $$OpenBillsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.userId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.openBills,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$UsersTableTableManager
@@ -7943,6 +8691,7 @@ class $$UsersTableTableManager
             bool shiftsRefs,
             bool createdExpensesRefs,
             bool cancelledExpensesRefs,
+            bool openBillsRefs,
           })
         > {
   $$UsersTableTableManager(_$AppDatabase db, $UsersTable table)
@@ -8051,6 +8800,7 @@ class $$UsersTableTableManager
                 shiftsRefs = false,
                 createdExpensesRefs = false,
                 cancelledExpensesRefs = false,
+                openBillsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -8058,6 +8808,7 @@ class $$UsersTableTableManager
                     if (shiftsRefs) db.shifts,
                     if (createdExpensesRefs) db.expenses,
                     if (cancelledExpensesRefs) db.expenses,
+                    if (openBillsRefs) db.openBills,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -8109,6 +8860,23 @@ class $$UsersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (openBillsRefs)
+                        await $_getPrefetchedData<User, $UsersTable, OpenBill>(
+                          currentTable: table,
+                          referencedTable: $$UsersTableReferences
+                              ._openBillsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$UsersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).openBillsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.userId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8133,6 +8901,7 @@ typedef $$UsersTableProcessedTableManager =
         bool shiftsRefs,
         bool createdExpensesRefs,
         bool cancelledExpensesRefs,
+        bool openBillsRefs,
       })
     >;
 typedef $$ShiftsTableCreateCompanionBuilder =
@@ -8215,6 +8984,24 @@ final class $$ShiftsTableReferences
     ).filter((f) => f.shiftId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_expensesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
+  _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.openBills,
+    aliasName: $_aliasNameGenerator(db.shifts.id, db.openBills.shiftId),
+  );
+
+  $$OpenBillsTableProcessedTableManager get openBillsRefs {
+    final manager = $$OpenBillsTableTableManager(
+      $_db,
+      $_db.openBills,
+    ).filter((f) => f.shiftId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_openBillsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -8334,6 +9121,31 @@ class $$ShiftsTableFilterComposer
           }) => $$ExpensesTableFilterComposer(
             $db: $db,
             $table: $db.expenses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> openBillsRefs(
+    Expression<bool> Function($$OpenBillsTableFilterComposer f) f,
+  ) {
+    final $$OpenBillsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.shiftId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableFilterComposer(
+            $db: $db,
+            $table: $db.openBills,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8524,6 +9336,31 @@ class $$ShiftsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> openBillsRefs<T extends Object>(
+    Expression<T> Function($$OpenBillsTableAnnotationComposer a) f,
+  ) {
+    final $$OpenBillsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.shiftId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.openBills,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ShiftsTableTableManager
@@ -8543,6 +9380,7 @@ class $$ShiftsTableTableManager
             bool userId,
             bool transactionsRefs,
             bool expensesRefs,
+            bool openBillsRefs,
           })
         > {
   $$ShiftsTableTableManager(_$AppDatabase db, $ShiftsTable table)
@@ -8615,12 +9453,14 @@ class $$ShiftsTableTableManager
                 userId = false,
                 transactionsRefs = false,
                 expensesRefs = false,
+                openBillsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (transactionsRefs) db.transactions,
                     if (expensesRefs) db.expenses,
+                    if (openBillsRefs) db.openBills,
                   ],
                   addJoins:
                       <
@@ -8694,6 +9534,27 @@ class $$ShiftsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (openBillsRefs)
+                        await $_getPrefetchedData<
+                          Shift,
+                          $ShiftsTable,
+                          OpenBill
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ShiftsTableReferences
+                              ._openBillsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ShiftsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).openBillsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.shiftId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8718,6 +9579,7 @@ typedef $$ShiftsTableProcessedTableManager =
         bool userId,
         bool transactionsRefs,
         bool expensesRefs,
+        bool openBillsRefs,
       })
     >;
 typedef $$TransactionsTableCreateCompanionBuilder =
@@ -8733,6 +9595,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> shiftId,
       Value<String?> cashierName,
       Value<String> orderType,
+      Value<String?> billName,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
@@ -8754,6 +9617,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> shiftId,
       Value<String?> cashierName,
       Value<String> orderType,
+      Value<String?> billName,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String?> cancelledByUserId,
@@ -8822,6 +9686,27 @@ final class $$TransactionsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
+  _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.openBills,
+    aliasName: $_aliasNameGenerator(
+      db.transactions.id,
+      db.openBills.transactionId,
+    ),
+  );
+
+  $$OpenBillsTableProcessedTableManager get openBillsRefs {
+    final manager = $$OpenBillsTableTableManager(
+      $_db,
+      $_db.openBills,
+    ).filter((f) => f.transactionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_openBillsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TransactionsTableFilterComposer
@@ -8875,6 +9760,11 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<String> get orderType => $composableBuilder(
     column: $table.orderType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get billName => $composableBuilder(
+    column: $table.billName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8971,6 +9861,31 @@ class $$TransactionsTableFilterComposer
     );
     return composer;
   }
+
+  Expression<bool> openBillsRefs(
+    Expression<bool> Function($$OpenBillsTableFilterComposer f) f,
+  ) {
+    final $$OpenBillsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.transactionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableFilterComposer(
+            $db: $db,
+            $table: $db.openBills,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TransactionsTableOrderingComposer
@@ -9024,6 +9939,11 @@ class $$TransactionsTableOrderingComposer
 
   ColumnOrderings<String> get orderType => $composableBuilder(
     column: $table.orderType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get billName => $composableBuilder(
+    column: $table.billName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -9164,6 +10084,9 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<String> get orderType =>
       $composableBuilder(column: $table.orderType, builder: (column) => column);
 
+  GeneratedColumn<String> get billName =>
+      $composableBuilder(column: $table.billName, builder: (column) => column);
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
@@ -9253,6 +10176,31 @@ class $$TransactionsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> openBillsRefs<T extends Object>(
+    Expression<T> Function($$OpenBillsTableAnnotationComposer a) f,
+  ) {
+    final $$OpenBillsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.openBills,
+      getReferencedColumn: (t) => t.transactionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OpenBillsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.openBills,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TransactionsTableTableManager
@@ -9272,6 +10220,7 @@ class $$TransactionsTableTableManager
             bool cashierUserId,
             bool shiftId,
             bool cancelledByUserId,
+            bool openBillsRefs,
           })
         > {
   $$TransactionsTableTableManager(_$AppDatabase db, $TransactionsTable table)
@@ -9298,6 +10247,7 @@ class $$TransactionsTableTableManager
                 Value<String?> shiftId = const Value.absent(),
                 Value<String?> cashierName = const Value.absent(),
                 Value<String> orderType = const Value.absent(),
+                Value<String?> billName = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
@@ -9317,6 +10267,7 @@ class $$TransactionsTableTableManager
                 shiftId: shiftId,
                 cashierName: cashierName,
                 orderType: orderType,
+                billName: billName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
@@ -9338,6 +10289,7 @@ class $$TransactionsTableTableManager
                 Value<String?> shiftId = const Value.absent(),
                 Value<String?> cashierName = const Value.absent(),
                 Value<String> orderType = const Value.absent(),
+                Value<String?> billName = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> cancelledByUserId = const Value.absent(),
@@ -9357,6 +10309,7 @@ class $$TransactionsTableTableManager
                 shiftId: shiftId,
                 cashierName: cashierName,
                 orderType: orderType,
+                billName: billName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 cancelledByUserId: cancelledByUserId,
@@ -9378,10 +10331,11 @@ class $$TransactionsTableTableManager
                 cashierUserId = false,
                 shiftId = false,
                 cancelledByUserId = false,
+                openBillsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [],
+                  explicitlyWatchedTables: [if (openBillsRefs) db.openBills],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -9447,7 +10401,29 @@ class $$TransactionsTableTableManager
                         return state;
                       },
                   getPrefetchedDataCallback: (items) async {
-                    return [];
+                    return [
+                      if (openBillsRefs)
+                        await $_getPrefetchedData<
+                          Transaction,
+                          $TransactionsTable,
+                          OpenBill
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TransactionsTableReferences
+                              ._openBillsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TransactionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).openBillsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.transactionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
                 );
               },
@@ -9471,6 +10447,7 @@ typedef $$TransactionsTableProcessedTableManager =
         bool cashierUserId,
         bool shiftId,
         bool cancelledByUserId,
+        bool openBillsRefs,
       })
     >;
 typedef $$TransactionItemsTableCreateCompanionBuilder =
@@ -11096,6 +12073,601 @@ typedef $$SyncStateTableProcessedTableManager =
       SyncStateData,
       PrefetchHooks Function()
     >;
+typedef $$OpenBillsTableCreateCompanionBuilder =
+    OpenBillsCompanion Function({
+      Value<String> id,
+      required String name,
+      required String shiftId,
+      required String userId,
+      required String items,
+      Value<String?> transactionId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> syncStatus,
+      Value<int> rowid,
+    });
+typedef $$OpenBillsTableUpdateCompanionBuilder =
+    OpenBillsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> shiftId,
+      Value<String> userId,
+      Value<String> items,
+      Value<String?> transactionId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> syncStatus,
+      Value<int> rowid,
+    });
+
+final class $$OpenBillsTableReferences
+    extends BaseReferences<_$AppDatabase, $OpenBillsTable, OpenBill> {
+  $$OpenBillsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ShiftsTable _shiftIdTable(_$AppDatabase db) => db.shifts.createAlias(
+    $_aliasNameGenerator(db.openBills.shiftId, db.shifts.id),
+  );
+
+  $$ShiftsTableProcessedTableManager get shiftId {
+    final $_column = $_itemColumn<String>('shift_id')!;
+
+    final manager = $$ShiftsTableTableManager(
+      $_db,
+      $_db.shifts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_shiftIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $UsersTable _userIdTable(_$AppDatabase db) => db.users.createAlias(
+    $_aliasNameGenerator(db.openBills.userId, db.users.id),
+  );
+
+  $$UsersTableProcessedTableManager get userId {
+    final $_column = $_itemColumn<String>('user_id')!;
+
+    final manager = $$UsersTableTableManager(
+      $_db,
+      $_db.users,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_userIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TransactionsTable _transactionIdTable(_$AppDatabase db) =>
+      db.transactions.createAlias(
+        $_aliasNameGenerator(db.openBills.transactionId, db.transactions.id),
+      );
+
+  $$TransactionsTableProcessedTableManager? get transactionId {
+    final $_column = $_itemColumn<String>('transaction_id');
+    if ($_column == null) return null;
+    final manager = $$TransactionsTableTableManager(
+      $_db,
+      $_db.transactions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_transactionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$OpenBillsTableFilterComposer
+    extends Composer<_$AppDatabase, $OpenBillsTable> {
+  $$OpenBillsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get items => $composableBuilder(
+    column: $table.items,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ShiftsTableFilterComposer get shiftId {
+    final $$ShiftsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.shiftId,
+      referencedTable: $db.shifts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ShiftsTableFilterComposer(
+            $db: $db,
+            $table: $db.shifts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableFilterComposer get userId {
+    final $$UsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableFilterComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TransactionsTableFilterComposer get transactionId {
+    final $$TransactionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transactionId,
+      referencedTable: $db.transactions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransactionsTableFilterComposer(
+            $db: $db,
+            $table: $db.transactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OpenBillsTableOrderingComposer
+    extends Composer<_$AppDatabase, $OpenBillsTable> {
+  $$OpenBillsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get items => $composableBuilder(
+    column: $table.items,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ShiftsTableOrderingComposer get shiftId {
+    final $$ShiftsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.shiftId,
+      referencedTable: $db.shifts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ShiftsTableOrderingComposer(
+            $db: $db,
+            $table: $db.shifts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableOrderingComposer get userId {
+    final $$UsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TransactionsTableOrderingComposer get transactionId {
+    final $$TransactionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transactionId,
+      referencedTable: $db.transactions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransactionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.transactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OpenBillsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OpenBillsTable> {
+  $$OpenBillsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get items =>
+      $composableBuilder(column: $table.items, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => column,
+  );
+
+  $$ShiftsTableAnnotationComposer get shiftId {
+    final $$ShiftsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.shiftId,
+      referencedTable: $db.shifts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ShiftsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.shifts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableAnnotationComposer get userId {
+    final $$UsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.userId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TransactionsTableAnnotationComposer get transactionId {
+    final $$TransactionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transactionId,
+      referencedTable: $db.transactions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransactionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OpenBillsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OpenBillsTable,
+          OpenBill,
+          $$OpenBillsTableFilterComposer,
+          $$OpenBillsTableOrderingComposer,
+          $$OpenBillsTableAnnotationComposer,
+          $$OpenBillsTableCreateCompanionBuilder,
+          $$OpenBillsTableUpdateCompanionBuilder,
+          (OpenBill, $$OpenBillsTableReferences),
+          OpenBill,
+          PrefetchHooks Function({
+            bool shiftId,
+            bool userId,
+            bool transactionId,
+          })
+        > {
+  $$OpenBillsTableTableManager(_$AppDatabase db, $OpenBillsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OpenBillsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$OpenBillsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$OpenBillsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> shiftId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> items = const Value.absent(),
+                Value<String?> transactionId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => OpenBillsCompanion(
+                id: id,
+                name: name,
+                shiftId: shiftId,
+                userId: userId,
+                items: items,
+                transactionId: transactionId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                syncStatus: syncStatus,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String name,
+                required String shiftId,
+                required String userId,
+                required String items,
+                Value<String?> transactionId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => OpenBillsCompanion.insert(
+                id: id,
+                name: name,
+                shiftId: shiftId,
+                userId: userId,
+                items: items,
+                transactionId: transactionId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                syncStatus: syncStatus,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$OpenBillsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({shiftId = false, userId = false, transactionId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (shiftId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.shiftId,
+                                    referencedTable: $$OpenBillsTableReferences
+                                        ._shiftIdTable(db),
+                                    referencedColumn: $$OpenBillsTableReferences
+                                        ._shiftIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (userId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.userId,
+                                    referencedTable: $$OpenBillsTableReferences
+                                        ._userIdTable(db),
+                                    referencedColumn: $$OpenBillsTableReferences
+                                        ._userIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (transactionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.transactionId,
+                                    referencedTable: $$OpenBillsTableReferences
+                                        ._transactionIdTable(db),
+                                    referencedColumn: $$OpenBillsTableReferences
+                                        ._transactionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$OpenBillsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OpenBillsTable,
+      OpenBill,
+      $$OpenBillsTableFilterComposer,
+      $$OpenBillsTableOrderingComposer,
+      $$OpenBillsTableAnnotationComposer,
+      $$OpenBillsTableCreateCompanionBuilder,
+      $$OpenBillsTableUpdateCompanionBuilder,
+      (OpenBill, $$OpenBillsTableReferences),
+      OpenBill,
+      PrefetchHooks Function({bool shiftId, bool userId, bool transactionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -11120,4 +12692,6 @@ class $AppDatabaseManager {
       $$ExpensesTableTableManager(_db, _db.expenses);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
+  $$OpenBillsTableTableManager get openBills =>
+      $$OpenBillsTableTableManager(_db, _db.openBills);
 }

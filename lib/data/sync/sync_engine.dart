@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, visibleForTesting;
@@ -215,6 +217,8 @@ class SyncEngine {
     _transactions(),
     _transactionItems(),
     _expenses(),
+    // Paling akhir: menunjuk shift, akun, dan transaksi.
+    _openBills(),
   ];
 
   Future<HasilSync> jalankan() async {
@@ -1054,6 +1058,7 @@ class SyncEngine {
                 'cashier_name': t.cashierName,
                 'shift_id': t.shiftId,
                 'order_type': t.orderType,
+                'bill_name': t.billName,
                 'created_at': _iso(t.createdAt),
                 'updated_at': _iso(t.updatedAt),
                 'deleted_at': _iso(t.deletedAt),
@@ -1077,6 +1082,11 @@ class SyncEngine {
                 cashierName: _salinanNama(r, 'cashier_name'),
                 shiftId: Value(r['shift_id'] as String?),
                 orderType: Value(r['order_type'] as String),
+                // Server yang belum menjalankan open_bill.sql tidak punya
+                // kolomnya: nilai di HP dibiarkan, bukan dikosongkan.
+                billName: r.containsKey('bill_name')
+                    ? Value(r['bill_name'] as String?)
+                    : const Value.absent(),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),
@@ -1184,6 +1194,48 @@ class SyncEngine {
               ));
         },
         tandaiTerkirim: (ids) => _tandai('expenses', ids),
+      );
+
+  _Entitas _openBills() => _Entitas(
+        nama: 'open_bills',
+        ambilTertunda: () async {
+          final r = await (_db.select(_db.openBills)
+                ..where((t) => t.syncStatus.equals('pending')))
+              .get();
+          return [
+            for (final b in r)
+              {
+                'id': b.id,
+                'name': b.name,
+                'shift_id': b.shiftId,
+                'user_id': b.userId,
+                // jsonb di server — dikirim sebagai daftar, bukan teks.
+                'items': jsonDecode(b.items),
+                'transaction_id': b.transactionId,
+                'created_at': _iso(b.createdAt),
+                'updated_at': _iso(b.updatedAt),
+                'deleted_at': _iso(b.deletedAt),
+              }
+          ];
+        },
+        tulis: (r) async {
+          final items = r['items'];
+          await _db.into(_db.openBills).insertOnConflictUpdate(
+                OpenBillsCompanion(
+                  id: Value(r['id'] as String),
+                  name: Value(r['name'] as String),
+                  shiftId: Value(r['shift_id'] as String),
+                  userId: Value(r['user_id'] as String),
+                  items: Value(items is String ? items : jsonEncode(items)),
+                  transactionId: Value(r['transaction_id'] as String?),
+                  createdAt: Value(_dt(r['created_at'])!),
+                  updatedAt: Value(_dt(r['updated_at'])!),
+                  deletedAt: Value(_dt(r['deleted_at'])),
+                  syncStatus: const Value('synced'),
+                ),
+              );
+        },
+        tandaiTerkirim: (ids) => _tandai('open_bills', ids),
       );
 
   // ------------------------------------------------------------------

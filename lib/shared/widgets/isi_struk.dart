@@ -74,6 +74,9 @@ class IsiStruk extends StatelessWidget {
           _baris('Waktu', DateFormat('HH:mm:ss').format(tx.createdAt)),
           _baris('Kasir', namaKasir ?? '-'),
           _baris('Tipe Pesanan', _tipePesanan(tx.orderType)),
+          // Nama open bill; penjualan langsung tidak punya nama pelanggan.
+          if (tx.billName case final nama? when nama.isNotEmpty)
+            _baris('Pelanggan', nama),
           _baris('No. Transaksi', tx.invoiceNo),
           const GarisPutus(),
           ..._daftarItem(),
