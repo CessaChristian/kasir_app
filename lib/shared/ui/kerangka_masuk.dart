@@ -170,7 +170,10 @@ class LabelMasuk extends StatelessWidget {
 
 /// Kolom isian halaman masuk (desain): kotak putih bersudut dengan ikon
 /// abu di kiri. [rahasia] = PIN: disembunyikan dengan tombol mata di kanan.
-/// [galat] memerahkan tepinya.
+/// [galat] memerahkan tepinya. [latar] bawaan putih; Daftarkan Perangkat
+/// memakai krem halaman. [namaRahasia] untuk label tombol mata.
+/// [jarakHuruf] bawaan: 4 untuk kolom rahasia (titik PIN renggang), 0 untuk
+/// yang lain.
 class KolomMasuk extends StatefulWidget {
   final TextEditingController controller;
   final IconData ikon;
@@ -185,6 +188,9 @@ class KolomMasuk extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final Color latar;
+  final String namaRahasia;
+  final double? jarakHuruf;
 
   const KolomMasuk({
     super.key,
@@ -201,6 +207,9 @@ class KolomMasuk extends StatefulWidget {
     this.inputFormatters,
     this.onChanged,
     this.onSubmitted,
+    this.latar = Colors.white,
+    this.namaRahasia = 'PIN',
+    this.jarakHuruf,
   });
 
   @override
@@ -217,7 +226,7 @@ class _KolomMasukState extends State<KolomMasuk> {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: widget.aktif ? Colors.white : WarnaTeras.latarAbu,
+        color: widget.aktif ? widget.latar : WarnaTeras.latarAbu,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: widget.galat ? WarnaTeras.merah : const Color(0xFFCFC8C1),
@@ -243,7 +252,7 @@ class _KolomMasukState extends State<KolomMasuk> {
               enableSuggestions: false,
               style: TextStyle(
                 fontSize: 18,
-                letterSpacing: widget.rahasia ? 4 : 0,
+                letterSpacing: widget.jarakHuruf ?? (widget.rahasia ? 4 : 0),
                 color: WarnaTeras.teks,
               ),
               decoration: InputDecoration(
@@ -263,7 +272,9 @@ class _KolomMasukState extends State<KolomMasuk> {
                     : Icons.visibility_off_rounded,
                 size: 24,
                 color: const Color(0xFF6B6058),
-                semanticLabel: _sembunyi ? 'Tampilkan PIN' : 'Sembunyikan PIN',
+                semanticLabel: _sembunyi
+                    ? 'Tampilkan ${widget.namaRahasia}'
+                    : 'Sembunyikan ${widget.namaRahasia}',
               ),
             ),
         ],

@@ -17,11 +17,33 @@ class AppToast {
     Duration duration = const Duration(milliseconds: 2200),
   }) {
     if (!context.mounted) return;
+    _tampilkan(Overlay.of(context), message, type, icon, duration);
+  }
 
+  /// Tampilkan di [overlay] yang diambil lebih dulu — untuk toast yang baru
+  /// muncul setelah halaman pemanggilnya berganti (mis. Daftarkan Perangkat →
+  /// Login). Lapisan navigator tetap hidup walau halamannya sudah tertutup.
+  static void successDi(OverlayState overlay, String message) {
+    if (!overlay.mounted) return;
+    _tampilkan(
+      overlay,
+      message,
+      ToastType.success,
+      null,
+      const Duration(milliseconds: 2200),
+    );
+  }
+
+  static void _tampilkan(
+    OverlayState overlay,
+    String message,
+    ToastType type,
+    IconData? icon,
+    Duration duration,
+  ) {
     _activeEntry?.remove();
     _activeEntry = null;
 
-    final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
     entry = OverlayEntry(

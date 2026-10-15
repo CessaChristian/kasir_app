@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/supabase_service.dart';
+import '../../../shared/ui/kerangka_masuk.dart';
+import '../../../shared/ui/warna_teras.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 /// Layar pertama di HP yang belum pernah didaftarkan.
 ///
@@ -30,10 +33,18 @@ class DaftarkanPerangkatPage extends StatefulWidget {
   /// memeriksa kunci adalah server, bukan halaman login.
   final bool lengkapiSaja;
 
+  /// Diisi test; aplikasi memakai layanan server sungguhan.
+  final Future<HasilDaftarPerangkat> Function()? buatIdentitas;
+  final Future<bool> Function(String kunci)? periksaKunci;
+  final Future<void> Function()? lepaskanIdentitas;
+
   const DaftarkanPerangkatPage({
     super.key,
     required this.sesudahBerhasil,
     this.lengkapiSaja = false,
+    this.buatIdentitas,
+    this.periksaKunci,
+    this.lepaskanIdentitas,
   });
 
   @override
@@ -42,10 +53,8 @@ class DaftarkanPerangkatPage extends StatefulWidget {
 
 class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
   final _kunciC = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
 
   bool _sedangMendaftar = false;
-  bool _kunciTerlihat = false;
   String? _galat;
 
   @override
@@ -55,7 +64,11 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
   }
 
   Future<void> _daftar() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_sedangMendaftar) return;
+    if (_kunciC.text.isEmpty) {
+      setState(() => _galat = 'Kunci pemasangan wajib diisi');
+      return;
+    }
     setState(() {
       _sedangMendaftar = true;
       _galat = null;
@@ -65,7 +78,8 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     // cukup dicatatkan — membuat identitas baru berarti meninggalkan yang lama
     // sebagai baris yatim di daftar pengguna server.
     if (!widget.lengkapiSaja) {
-      final hasil = await SupabaseService.instance.buatIdentitasBaru();
+      final hasil = await (widget.buatIdentitas ??
+          SupabaseService.instance.buatIdentitasBaru)();
       if (!mounted) return;
       if (hasil != HasilDaftarPerangkat.berhasil) {
         setState(() {
@@ -80,199 +94,169 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     }
 
     // Di sinilah kuncinya benar-benar diperiksa, oleh server.
-    final diterima = await PerangkatRepository.instance.daftarkanIdentitasIni(
-      _kunciC.text,
-    );
+    final diterima = await (widget.periksaKunci ??
+        PerangkatRepository.instance.daftarkanIdentitasIni)(_kunciC.text);
     if (!mounted) return;
 
     if (!diterima) {
       // Identitas yang tidak diakui siapa pun jangan ditinggalkan menggantung.
       if (!widget.lengkapiSaja) {
-        await SupabaseService.instance.lepaskanPerangkat();
+        await (widget.lepaskanIdentitas ??
+            SupabaseService.instance.lepaskanPerangkat)();
       }
       if (!mounted) return;
       setState(() {
         _sedangMendaftar = false;
-        _galat = 'Kunci pemasangan salah. Periksa lagi kuncinya.';
+        _galat = 'Kunci pemasangan tidak valid';
       });
       return;
     }
 
-    await _beriTahuBerhasil();
-    if (!mounted) return;
+    // Toast baru muncul setelah halaman berikutnya (Login) tampil — HP baru
+    // masih menarik data toko dulu, dan toast yang muncul lebih awal sudah
+    // hilang sebelum Login terlihat. Lapisannya diambil sekarang karena
+    // halaman ini sudah tertutup saat itu.
+    final lapisan = Overlay.of(context);
     await widget.sesudahBerhasil();
+    AppToast.successDi(lapisan, 'Perangkat berhasil didaftarkan');
   }
 
-  /// Beri tahu pemilik bahwa HP ini sudah tercatat, dan dengan nama apa.
-  ///
-  /// Ditampilkan sebagai dialog, bukan pesan sekilas: layar ini langsung
-  /// berpindah setelahnya, dan pesan sekilas akan ikut hilang sebelum sempat
-  /// terbaca. Namanya disebut supaya pemilik tahu baris mana yang barusan
-  /// muncul di daftar — dan bisa langsung menggantinya kalau perlu.
-  Future<void> _beriTahuBerhasil() async {
-    final nama = await PerangkatRepository.instance.tebakNama();
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        icon: Icon(
-          Icons.check_circle_rounded,
-          color: Colors.green.shade400,
-          size: 40,
-        ),
-        title: const Text('Perangkat Terdaftar'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Text(
-            'Nama perangkat: $nama\n\n'
-            'HP ini sudah boleh menyentuh data toko.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Lanjut'),
-          ),
-        ],
-      ),
-    );
+  void _hapusGalat(String _) {
+    if (_galat != null) setState(() => _galat = null);
   }
 
   @override
   Widget build(BuildContext context) {
-    final warna = Theme.of(context).colorScheme.primary;
-
     return Scaffold(
+      backgroundColor: WarnaTeras.latar,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 88,
-                      height: 88,
-                      decoration: BoxDecoration(
-                        color: warna.withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.key_rounded, size: 40, color: warna),
+            padding: const EdgeInsets.fromLTRB(26, 24, 26, 60),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFBE6D3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.key_rounded,
+                      size: 36,
+                      color: WarnaTeras.oranyeCerah,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    widget.lengkapiSaja
-                        ? 'Lengkapi Pendaftaran'
-                        : 'Daftarkan Perangkat',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  widget.lengkapiSaja
+                      ? 'Lengkapi Pendaftaran'
+                      : 'Daftarkan Perangkat',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2A1F17),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.lengkapiSaja
-                        ? 'Masukkan kunci pemasangan dari pemilik untuk '
-                              'menghubungkan HP ini ke data toko. Data di HP '
-                              'ini tidak berubah.'
-                        : 'HP ini belum terdaftar. Masukkan kunci pemasangan '
-                              'dari pemilik untuk menghubungkannya ke data toko.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  TextFormField(
-                    controller: _kunciC,
-                    enabled: !_sedangMendaftar,
-                    obscureText: !_kunciTerlihat,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    decoration: InputDecoration(
-                      labelText: 'Kunci pemasangan',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _kunciTerlihat
-                              ? Icons.visibility_off_rounded
-                              : Icons.visibility_rounded,
-                        ),
-                        onPressed: () =>
-                            setState(() => _kunciTerlihat = !_kunciTerlihat),
-                      ),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Kunci belum diisi' : null,
-                  ),
-                  if (_galat != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            size: 18,
-                            color: Colors.red.shade400,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _galat!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                height: 1.4,
-                                color: Colors.red.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _sedangMendaftar ? null : _daftar,
-                    icon: _sedangMendaftar
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.how_to_reg_rounded),
-                    label: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        _sedangMendaftar
-                            ? 'Mendaftarkan…'
-                            : 'Daftarkan Perangkat',
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 310),
+                    child: Text(
+                      widget.lengkapiSaja
+                          ? 'Masukkan kunci pemasangan dari pemilik untuk '
+                                'menghubungkan HP ini ke data toko. Data di HP '
+                                'ini tidak berubah.'
+                          : 'HP ini belum terdaftar. Masukkan kunci '
+                                'pemasangan dari pemilik untuk '
+                                'menghubungkannya ke data toko.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.55,
+                        color: Color(0xFF7A706A),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 24),
+                KolomMasuk(
+                  controller: _kunciC,
+                  ikon: Icons.lock_outline_rounded,
+                  petunjuk: 'Kunci pemasangan',
+                  rahasia: true,
+                  namaRahasia: 'kunci',
+                  // Jarak renggang ala PIN membuat petunjuknya terlalu lebar.
+                  jarakHuruf: 0,
+                  latar: WarnaTeras.latar,
+                  galat: _galat != null,
+                  aktif: !_sedangMendaftar,
+                  textInputAction: TextInputAction.done,
+                  onChanged: _hapusGalat,
+                  onSubmitted: (_) => _daftar(),
+                ),
+                const SizedBox(height: 8),
+                BarisGalatMasuk(galat: _galat),
+                const SizedBox(height: 10),
+                _TombolDaftar(
+                  sibuk: _sedangMendaftar,
+                  onPressed: _daftar,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol pil oranye berikon (desain). Saat [sibuk]: pudar, jam pasir,
+/// "Mendaftarkan...", dan tidak bisa ditekan.
+class _TombolDaftar extends StatelessWidget {
+  final bool sibuk;
+  final VoidCallback onPressed;
+
+  const _TombolDaftar({required this.sibuk, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: sibuk ? 0.6 : 1,
+      duration: const Duration(milliseconds: 200),
+      child: Material(
+        color: const Color(0xFFFF8A00),
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: sibuk ? null : onPressed,
+          child: SizedBox(
+            height: 52,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  sibuk
+                      ? Icons.hourglass_top_rounded
+                      : Icons.how_to_reg_rounded,
+                  size: 22,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  sibuk ? 'Mendaftarkan...' : 'Daftarkan Perangkat',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

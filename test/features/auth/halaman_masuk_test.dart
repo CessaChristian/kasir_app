@@ -133,6 +133,7 @@ void main() {
       await buka(t);
       TextField pinField() => t.widget<TextField>(kolom(1));
       expect(pinField().obscureText, isTrue);
+      expect(pinField().style!.letterSpacing, 4, reason: 'titik PIN renggang');
       await t.tap(find.bySemanticsLabel('Tampilkan PIN'));
       await t.pump();
       expect(pinField().obscureText, isFalse);
