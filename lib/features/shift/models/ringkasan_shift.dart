@@ -40,6 +40,19 @@ class RingkasanShift {
       .where((e) => e.deletedAt == null)
       .fold(0, (s, e) => s + e.amount);
 
+  /// Total belanja tunai — bukan uang diterima, karena kembalian sudah
+  /// keluar lagi dari laci.
+  int get penjualanTunai => _jumlahkan(_sah.where(_tunai));
+
+  /// Uang yang seharusnya ada di laci: kas awal + penjualan tunai −
+  /// pengeluaran shift (keputusan owner: pengeluaran saat shift selalu
+  /// diambil dari laci; pengeluaran owner tanpa shift tidak masuk sini).
+  /// Null untuk shift lama yang dibuka sebelum ada kas awal. Bisa minus.
+  int? get kasAkhir {
+    final awal = shift.kasAwal;
+    return awal == null ? null : awal + penjualanTunai - totalPengeluaran;
+  }
+
   /// Tabel rincian di Detail Shift (desain): tiap metode bayar dipecah per
   /// tipe pesanan, ditutup baris total metode itu.
   List<BarisRincian> get rincian => [

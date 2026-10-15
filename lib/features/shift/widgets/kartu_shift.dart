@@ -8,10 +8,10 @@ import '../../../utils/currency_formatter.dart';
 import '../models/ringkasan_shift.dart';
 
 /// Kartu satu shift di Riwayat Shift (desain): inisial · nama · jam · status,
-/// lalu Transaksi · Pendapatan · Pengeluaran. Shift aktif bertepi hijau.
-///
-/// Baris "Kas awal / Kas akhir" di desain menyusul bersama fitur kas awal di
-/// fase kasir (buka/tutup shift).
+/// lalu Transaksi · Pendapatan · Pengeluaran, dan baris kecil "Kas awal ·
+/// Kas akhir". Shift aktif bertepi hijau dan tanpa kas akhir (keputusan
+/// owner: tulisan "Shift masih berjalan" di desain dibuang, chip Aktif sudah
+/// cukup).
 class KartuShift extends StatelessWidget {
   final RingkasanShift ringkasan;
   final DateTime sekarang;
@@ -117,10 +117,47 @@ class KartuShift extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
+              _barisKas(r),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// "Kas awal Rp X" kiri, "Kas akhir Rp Y" kanan (shift selesai saja).
+  /// Shift lama tanpa kas awal: "–".
+  Widget _barisKas(RingkasanShift r) {
+    const gaya = TextStyle(
+      fontSize: TeksTeras.keterangan,
+      color: WarnaTeras.teksPudar,
+    );
+    final awal = r.shift.kasAwal;
+    final akhir = r.kasAkhir;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Kas awal ${awal == null ? '–' : formatRp(awal)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: gaya,
+          ),
+        ),
+        if (!r.aktif)
+          Flexible(
+            child: Text(
+              'Kas akhir ${akhir == null ? '–' : formatRp(akhir)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: (akhir ?? 0) < 0
+                  ? gaya.copyWith(color: WarnaTeras.merah)
+                  : gaya,
+            ),
+          ),
+      ],
     );
   }
 

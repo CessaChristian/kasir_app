@@ -11,6 +11,7 @@ import 'package:kasir_app/features/shift/pages/riwayat_shift_page.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
+import 'package:kasir_app/shared/ui/warna_teras.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Riwayat Shift dan Detail Shift (desain).
@@ -21,11 +22,12 @@ void main() {
   final hariIni = DateTime.now();
   final pagi = DateTime(hariIni.year, hariIni.month, hariIni.day, 8);
 
-  Shift shift(DateTime mulai, {DateTime? selesai}) => Shift(
+  Shift shift(DateTime mulai, {DateTime? selesai, int? kasAwal}) => Shift(
     id: 's',
     userId: 'budi',
     startAt: mulai,
     endAt: selesai,
+    kasAwal: kasAwal,
     updatedAt: mulai,
     syncStatus: 'synced',
   );
@@ -96,6 +98,30 @@ void main() {
       expect((r.jumlahDineIn, r.jumlahDelivery), (3, 1));
     });
 
+    test('kas akhir = kas awal + tunai sah − pengeluaran sah', () {
+      final berkas = RingkasanShift(
+        shift: shift(pagi, kasAwal: 200000),
+        namaKasir: 'budi',
+        transaksi: r.transaksi,
+        pengeluaran: r.pengeluaran,
+      );
+      // Tunai sah 10.000 + 15.000 + 5.000; QRIS 20.000 dan yang batal
+      // 99.000 tidak dihitung; pengeluaran batal 50.000 juga tidak.
+      expect(berkas.penjualanTunai, 30000);
+      expect(berkas.kasAkhir, 200000 + 30000 - 7000);
+    });
+
+    test('kas akhir: shift lama tanpa kas awal = null, bisa minus', () {
+      expect(r.kasAkhir, isNull, reason: 'shift sebelum ada kas awal');
+      final minus = RingkasanShift(
+        shift: shift(pagi, kasAwal: 0),
+        namaKasir: 'budi',
+        transaksi: const [],
+        pengeluaran: r.pengeluaran,
+      );
+      expect(minus.kasAkhir, -7000);
+    });
+
     test('rincian Cash/QRIS × Dine In/Delivery', () {
       expect(
         [for (final b in r.rincian) (b.label, b.jumlah, b.total, b.tebal)],
@@ -151,6 +177,7 @@ void main() {
       String user,
       DateTime mulai, {
       DateTime? selesai,
+      int? kasAwal,
     }) => db
         .into(db.shifts)
         .insert(
@@ -159,6 +186,7 @@ void main() {
             userId: user,
             startAt: Value(mulai),
             endAt: Value(selesai),
+            kasAwal: Value(kasAwal),
           ),
         );
 
@@ -207,8 +235,14 @@ void main() {
         'budi',
         pagi,
         selesai: pagi.add(const Duration(hours: 7)),
+        kasAwal: 200000,
       );
-      await bukaShift('s-sari', 'sari', pagi.add(const Duration(hours: 8)));
+      await bukaShift(
+        's-sari',
+        'sari',
+        pagi.add(const Duration(hours: 8)),
+        kasAwal: 50000,
+      );
       await bukaShift('s-lama', 'budi', pagi.subtract(const Duration(days: 3)));
       await jual('t1', 's-budi', 10000);
       await jual('t2', 's-budi', 20000, metode: 'qris');
@@ -298,11 +332,19 @@ void main() {
       expect(find.text('Aktif'), findsOneWidget, reason: 'shift sari');
       expect(find.text('Selesai'), findsOneWidget, reason: 'shift budi');
       expect(find.text('08:00 – 15:00 · 7j 0m'), findsOneWidget);
+      expect(find.text('Kas awal Rp 200.000'), findsOneWidget);
       expect(
-        find.textContaining('Kas awal'),
-        findsNothing,
-        reason: 'menyusul di fase kasir',
+        find.text('Kas akhir Rp 203.000'),
+        findsOneWidget,
+        reason: '200.000 + tunai 10.000 − pengeluaran 7.000',
       );
+      expect(find.text('Kas awal Rp 50.000'), findsOneWidget);
+      expect(
+        find.textContaining('Kas akhir'),
+        findsOneWidget,
+        reason: 'shift aktif tanpa kas akhir',
+      );
+      expect(find.textContaining('masih berjalan'), findsNothing);
       await lepas(t);
     });
 
@@ -340,7 +382,7 @@ void main() {
       expect(find.text('Detail Shift'), findsOneWidget);
       expect(find.text('08:00 – 15:00'), findsOneWidget);
       expect(find.text('7j 0m'), findsOneWidget);
-      expect(find.text('1 / 1 transaksi'), findsOneWidget, reason: 'Cash/QRIS');
+      expect(find.text('Cash / QRIS'), findsNothing, reason: 'keputusan owner');
       expect(
         find.text('2 / 0 transaksi'),
         findsOneWidget,
@@ -348,6 +390,11 @@ void main() {
       );
       expect(find.text('Cash Total'), findsOneWidget);
       expect(find.text('Kas bersih'), findsNothing, reason: 'dihapus desain');
+      expect(find.text('Uang kas'), findsOneWidget);
+      expect(find.text('Rp 200.000'), findsOneWidget, reason: 'kas awal');
+      expect(find.text('Kas akhir'), findsOneWidget);
+      expect(find.text('Kas di laci saat ini'), findsNothing);
+      expect(find.text('Rp 203.000'), findsOneWidget);
 
       expect(find.text('Transaksi (3)'), findsOneWidget);
       expect(
@@ -360,6 +407,44 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Es batu'), findsOneWidget);
       expect(find.text('Belanja owner'), findsNothing);
+      await lepas(t);
+    });
+
+    Future<void> bukaDetail(WidgetTester t, String id) async {
+      layarHp(t);
+      await t.runAsync(() async {
+        await t.pumpWidget(
+          MaterialApp(home: DetailShiftPage(shiftId: id, repo: repo)),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await t.pump();
+    }
+
+    testWidgets('Detail Shift berjalan: "Kas di laci saat ini"', (t) async {
+      await jual('t-sari', 's-sari', 25000);
+      await belanja('Gas', 's-sari', 5000);
+      await bukaDetail(t, 's-sari');
+      expect(find.text('Kas di laci saat ini'), findsOneWidget);
+      expect(find.text('Kas akhir'), findsNothing);
+      expect(find.text('Rp 50.000'), findsOneWidget, reason: 'kas awal');
+      expect(find.text('Rp 70.000'), findsOneWidget, reason: '50+25−5 rb');
+      await lepas(t);
+    });
+
+    testWidgets('Detail Shift lama tanpa kas awal: "–"', (t) async {
+      await bukaDetail(t, 's-lama');
+      expect(find.text('Uang kas'), findsOneWidget);
+      expect(find.text('–'), findsNWidgets(2));
+      await lepas(t);
+    });
+
+    testWidgets('Kas minus tampil merah', (t) async {
+      await bukaShift('s-minus', 'budi', pagi, kasAwal: 0);
+      await belanja('Galon', 's-minus', 30000);
+      await bukaDetail(t, 's-minus');
+      final teks = t.widget<Text>(find.text('-Rp 30.000'));
+      expect(teks.style!.color, WarnaTeras.merah);
       await lepas(t);
     });
   });

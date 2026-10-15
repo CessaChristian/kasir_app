@@ -20,9 +20,9 @@ import '../../../shared/ui/inisial_akun.dart';
 
 /// Detail Shift (desain): kartu ringkasan · tab Transaksi/Pengeluaran.
 ///
-/// Yang dibatalkan ikut tampil (pudar, dicoret) tapi tidak dihitung. Bagian
-/// "Uang kas" (kas awal, kas di laci/kas akhir) menyusul bersama fitur kas
-/// awal di fase kasir.
+/// Yang dibatalkan ikut tampil (pudar, dicoret) tapi tidak dihitung.
+/// Baris "Cash / QRIS" di desain sengaja tidak dipakai (keputusan owner):
+/// jumlahnya sudah terlihat di baris Cash Total dan QRIS Total.
 class DetailShiftPage extends StatefulWidget {
   final String shiftId;
 
@@ -154,7 +154,6 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             besar: true,
           ),
           _baris('Jumlah transaksi', '${r.jumlahTransaksi}'),
-          _baris('Cash / QRIS', '${r.jumlahTunai} / ${r.jumlahQris} transaksi'),
           _baris(
             'Dine In / Delivery',
             '${r.jumlahDineIn} / ${r.jumlahDelivery} transaksi',
@@ -165,8 +164,66 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             formatRp(r.totalPengeluaran),
             warna: WarnaTeras.merah,
           ),
+          const GarisTeras(),
+          _uangKas(r),
         ],
       ),
+    );
+  }
+
+  /// "Uang kas" (desain): kas awal, lalu kas di laci (shift berjalan) atau
+  /// kas akhir (selesai). Shift lama tanpa kas awal: "–".
+  Widget _uangKas(RingkasanShift r) {
+    final awal = r.shift.kasAwal;
+    final akhir = r.kasAkhir;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 4),
+          child: Text(
+            'Uang kas',
+            style: TextStyle(
+              fontSize: TeksTeras.kecil,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF5E5650),
+            ),
+          ),
+        ),
+        _baris(
+          'Kas awal',
+          awal == null ? '–' : formatRp(awal),
+          warna: WarnaTeras.hijau,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(
+                child: Text(
+                  r.aktif ? 'Kas di laci saat ini' : 'Kas akhir',
+                  style: const TextStyle(
+                    fontSize: TeksTeras.biasa,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF5E5650),
+                  ),
+                ),
+              ),
+              Text(
+                akhir == null ? '–' : formatRp(akhir),
+                style: TextStyle(
+                  fontSize: TeksTeras.angka,
+                  fontWeight: FontWeight.w700,
+                  // Minus = pengeluaran memakai uang di luar laci.
+                  color: (akhir ?? 0) < 0 ? WarnaTeras.merah : WarnaTeras.teks,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
