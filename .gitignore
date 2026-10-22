@@ -58,3 +58,6 @@ flutter_01.png
 flutter_*.png
 # Konfigurasi lokal Flutter DevTools — bukan bagian dari project
 devtools_options.yaml
+
+# Kunci tanda tangan rilis — JANGAN PERNAH masuk git (cadangan di iCloud owner)
+/teras-inn-kunci/

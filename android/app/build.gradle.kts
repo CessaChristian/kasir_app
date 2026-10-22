@@ -8,13 +8,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Kunci tanda tangan rilis. Berkasnya di luar repo (~/teras-inn-kunci/,
-// dicadangkan owner); android/key.properties menunjuk ke sana dan tidak
-// pernah masuk git. Update hanya bisa dipasang di atas aplikasi yang
-// ditandatangani kunci yang SAMA — kunci hilang = semua HP harus hapus &
-// pasang ulang.
+// Kunci tanda tangan rilis di folder teras-inn-kunci/ (akar project,
+// di-.gitignore, dicadangkan owner di iCloud). Update hanya bisa dipasang di
+// atas aplikasi yang ditandatangani kunci yang SAMA — kunci hilang = semua HP
+// harus hapus & pasang ulang. `storeFile` di key.properties relatif terhadap
+// folder itu, jadi foldernya bisa langsung dipulihkan dari cadangan.
+val folderKunci = rootProject.file("../teras-inn-kunci")
 val kunciRilis = Properties().apply {
-    val berkas = rootProject.file("key.properties")
+    val berkas = File(folderKunci, "key.properties")
     if (berkas.exists()) FileInputStream(berkas).use { load(it) }
 }
 
@@ -22,8 +23,8 @@ val kunciRilis = Properties().apply {
 gradle.taskGraph.whenReady {
     if (kunciRilis.isEmpty && allTasks.any { it.name.contains("Release") }) {
         throw GradleException(
-            "android/key.properties tidak ditemukan. Salin dari cadangan " +
-                "~/teras-inn-kunci/key.properties sebelum build rilis."
+            "teras-inn-kunci/key.properties tidak ditemukan. Pulihkan folder " +
+                "teras-inn-kunci dari cadangan iCloud ke akar project."
         )
     }
 }
@@ -58,7 +59,9 @@ android {
     signingConfigs {
         create("rilis") {
             if (!kunciRilis.isEmpty) {
-                storeFile = file(kunciRilis.getProperty("storeFile"))
+                // Cuma nama berkasnya yang dipakai: salinan lama berisi alamat
+                // lengkap (~/teras-inn-kunci/...) tetap jalan.
+                storeFile = File(folderKunci, File(kunciRilis.getProperty("storeFile")).name)
                 storePassword = kunciRilis.getProperty("storePassword")
                 keyAlias = kunciRilis.getProperty("keyAlias")
                 keyPassword = kunciRilis.getProperty("keyPassword")
