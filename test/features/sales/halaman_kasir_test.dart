@@ -13,6 +13,7 @@ import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
 import 'package:kasir_app/features/sales/sales_page.dart';
 import 'package:kasir_app/features/sales/sheets/lembar_keranjang.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
+import 'package:kasir_app/shared/ui/status_sinkron.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Halaman Kasir (desain): kategori 4 kolom, kisi produk, varian, keranjang,

@@ -18,6 +18,7 @@ import '../../shift/repositories/shift_repository.dart';
 import '../repositories/dasbor_owner_repository.dart';
 import '../widgets/kisi_produk_laris.dart';
 import '../../../shared/ui/teks_teras.dart';
+import '../../../shared/ui/status_sinkron.dart';
 
 /// Dashboard owner: satu kartu "Ringkasan hari ini".
 class DasborOwnerPage extends StatefulWidget {
@@ -83,6 +84,12 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             child: Center(child: CircularProgressIndicator()),
           )
         else ...[
+          // Owner membaca laporan dari data di HP ini: kalau sinkronnya macet,
+          // angka di bawah bisa kurang tanpa ada yang tahu.
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: StatusSinkron(hanyaPeringatan: true),
+          ),
           _kartuRingkasan(data),
           // Hanya dilihat: owner tidak menjual.
           StreamBuilder<List<ProdukLaris>>(

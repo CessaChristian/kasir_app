@@ -2,14 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../data/sync/sync_otomatis.dart';
-import '../../data/sync/sync_service.dart';
 import '../../shared/constants/category_icons.dart';
 import '../../shared/ui/kotak_cari.dart';
+import '../../shared/ui/status_sinkron.dart';
 import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/sync_refresh.dart';
 import '../../utils/currency_formatter.dart';
@@ -19,19 +18,6 @@ import 'models/keranjang.dart';
 import 'models/pilihan_produk.dart';
 import 'models/saring_kategori.dart';
 import 'sheets/pilihan_produk_sheet.dart';
-
-/// "Sinkron terakhir 14:32" di bawah kotak cari.
-String labelSinkronTerakhir(DateTime? waktu, DateTime sekarang) {
-  if (waktu == null) return 'Belum pernah sinkron';
-  final jam = DateFormat('HH:mm').format(waktu);
-  final hariIni =
-      waktu.year == sekarang.year &&
-      waktu.month == sekarang.month &&
-      waktu.day == sekarang.day;
-  return hariIni
-      ? 'Sinkron terakhir $jam'
-      : 'Sinkron terakhir ${DateFormat('d MMM', 'id_ID').format(waktu)} $jam';
-}
 
 /// Halaman KASIR (desain): cari produk · Cari Berdasarkan Kategori (kisi 4
 /// kolom) · kisi produk 2 kolom. Keranjang dibuka dari ikon di header
@@ -148,7 +134,7 @@ class _SalesPageState extends State<SalesPage> {
                 onBerubah: (v) => setState(() => _kata = v),
               ),
               const SizedBox(height: 10),
-              _sinkronTerakhir(),
+              const StatusSinkron(),
               const Padding(
                 padding: EdgeInsets.only(top: 18, bottom: 12),
                 child: Text(
@@ -188,26 +174,6 @@ class _SalesPageState extends State<SalesPage> {
           ),
         );
       },
-    );
-  }
-
-  Widget _sinkronTerakhir() {
-    return ValueListenableBuilder<DateTime?>(
-      valueListenable: SyncService.instance.terakhirBerhasil,
-      builder: (context, waktu, _) => Row(
-        children: [
-          const Icon(
-            Icons.update_rounded,
-            size: 15,
-            color: WarnaTeras.teksPudar,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            labelSinkronTerakhir(waktu, DateTime.now()),
-            style: const TextStyle(fontSize: 12, color: WarnaTeras.teksPudar),
-          ),
-        ],
-      ),
     );
   }
 
