@@ -198,13 +198,13 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
           onChanged: _hapusGalat,
           onSubmitted: (_) => _reset(),
         ),
-        const SizedBox(height: 14),
+        const JarakMasuk(14),
         BarisGalatMasuk(
           galat: _terkunci
               ? 'Terlalu banyak percobaan. Tunggu $_sisaKunci detik.'
               : _galat,
         ),
-        const SizedBox(height: 20),
+        const JarakMasuk(20),
         TombolMasuk(
           label: _terkunci
               ? 'Tunggu $_sisaKunci detik…'

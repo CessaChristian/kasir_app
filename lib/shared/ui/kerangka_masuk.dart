@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import 'tombol_lembar.dart';
@@ -10,6 +11,12 @@ import 'warna_teras.dart';
 ///
 /// [bungkus] membungkus area gulir — dipakai Login untuk tarik-segarkan.
 /// [onKembali] memunculkan tombol kembali bulat putih di kiri atas.
+///
+/// Area logo memakai sisa tinggi layar sesudah panel ([_tinggiLogoMin]–
+/// [_tinggiLogo]) — jadi Login (2 kolom) maupun Reset PIN (3 kolom) muat
+/// tanpa digulir. Di layar pendek jarak antarkolom ([LabelMasuk],
+/// [JarakMasuk]) juga dirapatkan. Saat keyboard muncul logo ikut menciut;
+/// kalau tetap tidak muat, halaman bisa digulir.
 class KerangkaMasuk extends StatelessWidget {
   final String judul;
   final List<Widget> isi;
@@ -26,6 +33,11 @@ class KerangkaMasuk extends StatelessWidget {
 
   static const _tinggiLogo = 320.0;
 
+  static const _tinggiLogoMin = 120.0;
+
+  /// Di bawah tinggi ini jarak antarkolom dirapatkan.
+  static const batasRapat = 760.0;
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -36,79 +48,88 @@ class KerangkaMasuk extends StatelessWidget {
           bottom: false,
           child: LayoutBuilder(
             builder: (context, ukuran) {
+              // Tinggi di atas keyboard (Scaffold sudah mengecilkan badan
+              // halaman): saat keyboard muncul area logo ikut menciut, jadi
+              // kolom dan tombol tetap terlihat di atasnya.
+              final tinggi = ukuran.maxHeight;
+              final rapat = tinggi < batasRapat;
               final gulir = SingleChildScrollView(
                 // WAJIB untuk tarik-segarkan: tanpa ini gerakan menarik
                 // tidak terbaca saat isinya sudah muat di layar.
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: ukuran.maxHeight),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: _tinggiLogo,
-                        child: Stack(
-                          children: [
-                            Center(
-                              child: Image.asset(
-                                'assets/images/logo_login.png',
-                                width: 260,
-                                height: 260,
-                                fit: BoxFit.contain,
-                                semanticLabel: 'Teras Inn',
-                              ),
-                            ),
-                            if (onKembali != null)
-                              Positioned(
-                                top: 10,
-                                left: 18,
-                                child: _TombolKembali(onTap: onKembali!),
-                              ),
-                          ],
-                        ),
-                      ),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: ukuran.maxHeight - _tinggiLogo,
-                        ),
-                        child: Container(
-                          // Keyboard sudah ditangani Scaffold (badan halaman
-                          // mengecil), jadi cukup jarak bawah biasa.
-                          padding: const EdgeInsets.fromLTRB(20, 32, 20, 28),
-                          decoration: BoxDecoration(
-                            color: WarnaTeras.latar,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.elliptical(ukuran.maxWidth / 2, 72),
+                  child: _TataMasuk(
+                    tinggi: tinggi,
+                    logoMin: _tinggiLogoMin,
+                    logoMaks: _tinggiLogo,
+                    logo: Stack(
+                      children: [
+                        Center(
+                          child: FractionallySizedBox(
+                            heightFactor: 0.8,
+                            child: Image.asset(
+                              'assets/images/logo_login.png',
+                              fit: BoxFit.contain,
+                              semanticLabel: 'Teras Inn',
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                judul,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                  color: WarnaTeras.teks,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Teras Inn',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                  color: WarnaTeras.oranyeCerah,
-                                ),
-                              ),
-                              ...isi,
-                            ],
+                        ),
+                        if (onKembali != null)
+                          Positioned(
+                            top: 10,
+                            left: 18,
+                            child: _TombolKembali(onTap: onKembali!),
                           ),
+                      ],
+                    ),
+                    panel: Container(
+                      // Keyboard sudah ditangani Scaffold (badan halaman
+                      // mengecil), jadi cukup jarak bawah biasa.
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        rapat ? 24 : 32,
+                        20,
+                        rapat ? 20 : 28,
+                      ),
+                      decoration: BoxDecoration(
+                        color: WarnaTeras.latar,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.elliptical(ukuran.maxWidth / 2, 72),
                         ),
                       ),
-                    ],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            judul,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: WarnaTeras.teks,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Teras Inn',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              color: WarnaTeras.oranyeCerah,
+                            ),
+                          ),
+                          _Rapat(
+                            rapat: rapat,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: isi,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -119,6 +140,84 @@ class KerangkaMasuk extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Area logo + panel: panel diukur dulu, area logo mendapat sisa [tinggi]
+/// (dibatasi [logoMin]–[logoMaks]), lalu panel direntang sampai bawah. Column tidak bisa begini — Flexible tidak
+/// bisa diberi batas atas sambil menyerahkan sisanya ke panel.
+class _TataMasuk extends MultiChildRenderObjectWidget {
+  final double tinggi;
+  final double logoMin;
+  final double logoMaks;
+
+  _TataMasuk({
+    required this.tinggi,
+    required this.logoMin,
+    required this.logoMaks,
+    required Widget logo,
+    required Widget panel,
+  }) : super(children: [logo, panel]);
+
+  @override
+  _RenderTataMasuk createRenderObject(BuildContext context) =>
+      _RenderTataMasuk()
+        ..tinggi = tinggi
+        ..logoMin = logoMin
+        ..logoMaks = logoMaks;
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderTataMasuk r) {
+    r
+      ..tinggi = tinggi
+      ..logoMin = logoMin
+      ..logoMaks = logoMaks
+      ..markNeedsLayout();
+  }
+}
+
+class _DataTata extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderTataMasuk extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _DataTata>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _DataTata> {
+  double tinggi = 0;
+  double logoMin = 0;
+  double logoMaks = 0;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _DataTata) child.parentData = _DataTata();
+  }
+
+  @override
+  void performLayout() {
+    final lebar = constraints.maxWidth;
+    final logo = firstChild!;
+    final panel = childAfter(logo)!;
+    panel.layout(BoxConstraints.tightFor(width: lebar), parentUsesSize: true);
+    final tinggiLogo = (tinggi - panel.size.height).clamp(logoMin, logoMaks);
+    panel.layout(
+      BoxConstraints(
+        minWidth: lebar,
+        maxWidth: lebar,
+        minHeight: (tinggi - tinggiLogo).clamp(0, double.infinity),
+      ),
+      parentUsesSize: true,
+    );
+    logo.layout(BoxConstraints.tightFor(width: lebar, height: tinggiLogo));
+    (logo.parentData! as _DataTata).offset = Offset.zero;
+    (panel.parentData! as _DataTata).offset = Offset(0, tinggiLogo);
+    size = constraints.constrain(Size(lebar, tinggiLogo + panel.size.height));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 class _TombolKembali extends StatelessWidget {
@@ -149,6 +248,33 @@ class _TombolKembali extends StatelessWidget {
   }
 }
 
+/// Penanda layar pendek untuk jarak di dalam [KerangkaMasuk].
+class _Rapat extends InheritedWidget {
+  final bool rapat;
+
+  const _Rapat({required this.rapat, required super.child});
+
+  /// Pengali jarak: 1 biasa, lebih kecil di layar pendek.
+  static double pengali(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_Rapat>()?.rapat == true
+      ? 0.6
+      : 1;
+
+  @override
+  bool updateShouldNotify(_Rapat lama) => lama.rapat != rapat;
+}
+
+/// Jarak tegak di halaman masuk; dirapatkan di layar pendek.
+class JarakMasuk extends StatelessWidget {
+  final double tinggi;
+
+  const JarakMasuk(this.tinggi, {super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(height: tinggi * _Rapat.pengali(context));
+}
+
 /// Label di atas kolom halaman masuk.
 class LabelMasuk extends StatelessWidget {
   final String teks;
@@ -159,7 +285,7 @@ class LabelMasuk extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: atas, bottom: 10),
+      padding: EdgeInsets.only(top: atas * _Rapat.pengali(context), bottom: 10),
       child: Text(
         teks,
         style: const TextStyle(fontSize: 16, color: WarnaTeras.teks),

@@ -8,6 +8,7 @@ import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
 import 'data/sync/sync_otomatis.dart';
 import 'data/sync/sync_service.dart';
+import 'shared/ui/skala_layar.dart';
 import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
@@ -82,6 +83,9 @@ class MyApp extends StatelessWidget {
           ],
           locale: const Locale('id', 'ID'),
           theme: buildAppTheme(kSeedDineIn),
+          // Layar sempit (mis. 360 dp) menampilkan tata letak yang sama
+          // dengan layar acuan — lihat SkalaLayar.
+          builder: (context, child) => SkalaLayar(child: child!),
           // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
           // dipasang di atas Navigator — bukan di satu halaman. Layar mana
           // pun yang sedang terbuka akan tergantikan.

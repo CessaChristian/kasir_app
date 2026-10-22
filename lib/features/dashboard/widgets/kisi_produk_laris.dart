@@ -49,11 +49,20 @@ class JudulDasbor extends StatelessWidget {
 ///
 /// [onPilih] null = hanya dilihat (owner); kasir mengetuk untuk menambah ke
 /// keranjang.
+///
+/// Tinggi foto mengikuti tinggi layar ([tinggiFoto]): di layar acuan 120,
+/// di layar pendek lebih rendah supaya keempat produk tetap terlihat.
 class KisiProdukLaris extends StatelessWidget {
   final List<ProdukLaris> daftar;
   final void Function(ProdukLaris p)? onPilih;
 
   const KisiProdukLaris({super.key, required this.daftar, this.onPilih});
+
+  /// Tinggi foto untuk layar setinggi [tinggiLayar] dp: 120 di layar acuan
+  /// (±914 dp), menyusut di layar pendek, paling rendah 80 (lebih rendah
+  /// lagi fotonya terlalu gepeng — lebih baik halaman digulir sedikit).
+  static double tinggiFoto(double tinggiLayar) =>
+      (tinggiLayar * 0.1315).clamp(80.0, 120.0);
 
   @override
   Widget build(BuildContext context) {
@@ -67,12 +76,13 @@ class KisiProdukLaris extends StatelessWidget {
           LayoutBuilder(
             builder: (context, ukuran) {
               final lebar = (ukuran.maxWidth - 10) / 2;
+              final foto = tinggiFoto(MediaQuery.sizeOf(context).height);
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
                   for (final p in daftar)
-                    SizedBox(width: lebar, child: _kartu(p)),
+                    SizedBox(width: lebar, child: _kartu(p, foto)),
                 ],
               );
             },
@@ -81,11 +91,16 @@ class KisiProdukLaris extends StatelessWidget {
     );
   }
 
-  Widget _kartu(ProdukLaris p) {
+  Widget _kartu(ProdukLaris p, double foto) {
     final isi = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FotoProduk(path: p.foto, ukuran: 120, lebar: double.infinity, sudut: 0),
+        FotoProduk(
+          path: p.foto,
+          ukuran: foto,
+          lebar: double.infinity,
+          sudut: 0,
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
           child: Column(

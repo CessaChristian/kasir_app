@@ -136,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
           onChanged: _hapusGalat,
           onSubmitted: (_) => _masuk(),
         ),
-        const SizedBox(height: 16),
+        const JarakMasuk(16),
         BarisGalatMasuk(
           galat: _galat,
           kanan: GestureDetector(
@@ -162,7 +162,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-        const SizedBox(height: 36),
+        const JarakMasuk(36),
         TombolMasuk(
           label: _memuat ? 'Memeriksa…' : 'Masuk',
           onPressed: _memuat ? null : _masuk,
