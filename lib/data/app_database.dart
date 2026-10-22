@@ -52,6 +52,31 @@ class SyncState extends Table {
   Set<Column> get primaryKey => {entity};
 }
 
+/// Baris dari server yang DITOLAK database HP ini saat ditarik (v40).
+/// Murni lokal, tidak ikut sinkron.
+///
+/// Dulu satu baris seperti itu menghentikan seluruh tarikan: penandanya tidak
+/// maju, tabel sesudahnya tidak pernah ditarik, dan setiap lima menit semua
+/// baris sejak penanda lama diunduh ulang — makin hari makin banyak, tanpa
+/// ada yang tahu. Pemicunya bisa sesederhana kategori pengeluaran baru yang
+/// belum dikenal HP yang belum diperbarui.
+///
+/// Sekarang barisnya disisihkan di sini, tarikan jalan terus, dan setiap
+/// sinkron mencobanya lagi. Jumlahnya ditampilkan sebagai peringatan.
+@DataClassName('BarisTertahanEntry')
+class BarisTertahan extends Table {
+  /// Nama tabel asal, mis. 'expenses'.
+  TextColumn get entity => text()();
+  TextColumn get rowId => text()();
+
+  /// Galat terakhir saat menyimpannya — untuk ditelusuri, bukan ditampilkan.
+  TextColumn get alasan => text()();
+  DateTimeColumn get sejak => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {entity, rowId};
+}
+
 /// =======================
 /// TABLE: CATEGORIES (modified in v10 — add business_id + sync fields)
 /// =======================
@@ -524,6 +549,7 @@ class OpenBills extends Table {
   Expenses,
   SyncState,          // v16 — penanda waktu sinkron, murni lokal
   OpenBills,          // v38
+  BarisTertahan,      // v40 — baris server yang ditolak di sini, murni lokal
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -531,7 +557,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 40;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1314,6 +1340,14 @@ class AppDatabase extends _$AppDatabase {
             ).get();
             if (adaKolom.isEmpty) await m.addColumn(users, users.nomorKasir);
           }
+          if (from < 40 && to >= 40) {
+            // v40 — baris tertahan saat menarik (lihat BarisTertahan).
+            final ada = await customSelect(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+              "AND name = 'baris_tertahan'",
+            ).get();
+            if (ada.isEmpty) await m.createTable(barisTertahan);
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1521,6 +1555,14 @@ class AppDatabase extends _$AppDatabase {
   }
 
   // ---- PRODUCTS ----
+
+  /// Jumlah baris server yang tertahan di HP ini (lihat [BarisTertahan]).
+  Future<int> jumlahTertahan() async {
+    final jumlah = barisTertahan.rowId.count();
+    final baris = await (selectOnly(barisTertahan)..addColumns([jumlah]))
+        .getSingle();
+    return baris.read(jumlah) ?? 0;
+  }
 
   Stream<List<Product>> watchProducts() {
     return (select(products)

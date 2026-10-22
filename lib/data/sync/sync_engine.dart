@@ -374,6 +374,12 @@ class SyncEngine {
   )? penarikUntukTest;
 
   Future<(int, int)> _tarik(_Entitas e, int urutan) async {
+    final hasil = await _tarikTabelIni(e, urutan);
+    final ulang = await _cobaLagiTertahan(e, urutan);
+    return (hasil.$1 + ulang.$1, hasil.$2 + ulang.$2);
+  }
+
+  Future<(int, int)> _tarikTabelIni(_Entitas e, int urutan) async {
     final sejak = await _kursorTarikTerakhir(e.nama);
 
     try {
@@ -430,9 +436,10 @@ class SyncEngine {
     bool pakaiUrut,
   ) async {
     final kolom = pakaiUrut ? kolomUrut : 'updated_at';
-    final semua = <Map<String, dynamic>>[];
     final terlihat = <String>{};
     PenandaHalaman? setelah;
+    var diterima = 0;
+    var berubah = 0;
 
     // Batas putaran sebagai jaring pengaman: kalaupun suatu hari ada keadaan
     // yang membuat penandanya tidak maju, sinkronnya berhenti alih-alih
@@ -441,11 +448,19 @@ class SyncEngine {
       final halaman = await _halaman(e.nama, sejak, setelah, pakaiUrut);
       if (halaman.isEmpty) break;
 
-      for (final r in halaman) {
-        // Baris yang PINDAH ke belakang selagi kita menarik (diubah di
-        // server) bisa terlihat dua kali. Cukup dibuang di sini.
-        if (terlihat.add(r['id'] as String)) semua.add(r);
-      }
+      // Ditulis per halaman, dan penandanya disimpan sesudah tiap halaman.
+      // Dulu semua halaman ditampung di memori lebih dulu: HP yang baru
+      // dipasang setelah setahun menampung ratusan ribu baris sekaligus,
+      // dan putus di tengah jalan berarti mulai lagi dari nol.
+      final baru = [
+        for (final r in halaman)
+          // Baris yang PINDAH ke belakang selagi kita menarik (diubah di
+          // server) bisa terlihat dua kali. Cukup dibuang di sini.
+          if (terlihat.add(r['id'] as String)) r,
+      ];
+      final h = await _gabungkan(e, baru, urutan);
+      diterima += h.$1;
+      berubah += h.$2;
 
       if (halaman.length < ukuranHalaman) break;
       final akhir = halaman.last;
@@ -454,7 +469,7 @@ class SyncEngine {
       setelah = (nilai: nilai, id: akhir['id'] as String);
     }
 
-    return _gabungkan(e, semua, urutan);
+    return (diterima, berubah);
   }
 
   /// Satu halaman baris dari server, terurut menurut kedatangannya.
@@ -495,6 +510,109 @@ class SyncEngine {
         .order(kolom, ascending: true)
         .order('id', ascending: true)
         .limit(ukuranHalaman);
+  }
+
+  /// Tulis satu baris server. Kalau database HP ini menolaknya — aturan
+  /// isian yang belum mengenal nilai baru, relasi yang induknya belum ada —
+  /// barisnya DISISIHKAN ke `baris_tertahan` dan tarikan jalan terus.
+  /// True kalau tertulis.
+  ///
+  /// Dulu galatnya menghentikan seluruh tarikan, dan penandanya tidak pernah
+  /// maju. Satu baris bermasalah membuat HP mengunduh ulang semua baris sejak
+  /// hari itu setiap lima menit, dan tabel sesudahnya tidak pernah ditarik.
+  Future<bool> _tulisAtauTahan(_Entitas e, Map<String, dynamic> r) async {
+    final id = r['id'] as String;
+    final tertahan = await _idTertahan(e.nama);
+    try {
+      await e.tulis(r);
+    } catch (err) {
+      debugPrint('[sync] ${e.nama}/$id ditahan: $err');
+      await _db.into(_db.barisTertahan).insertOnConflictUpdate(
+            BarisTertahanCompanion(
+              entity: Value(e.nama),
+              rowId: Value(id),
+              alasan: Value('$err'),
+            ),
+          );
+      tertahan.add(id);
+      return false;
+    }
+    if (tertahan.contains(id)) await _lepasTahanan(e.nama, id);
+    return true;
+  }
+
+  /// Id baris tertahan per tabel, dibaca sekali per putaran — supaya baris
+  /// yang lolos tidak perlu satu kueri tambahan masing-masing.
+  final _cacheTertahan = <String, Set<String>>{};
+
+  Future<Set<String>> _idTertahan(String tabel) async =>
+      _cacheTertahan[tabel] ??= {
+        for (final t in await (_db.select(_db.barisTertahan)
+              ..where((t) => t.entity.equals(tabel)))
+            .get())
+          t.rowId,
+      };
+
+  Future<void> _lepasTahanan(String tabel, String id) async {
+    _cacheTertahan[tabel]?.remove(id);
+    await (_db.delete(_db.barisTertahan)
+          ..where((t) => t.entity.equals(tabel) & t.rowId.equals(id)))
+        .go();
+  }
+
+  /// Ambil ulang baris tertahan tabel [e] dari server, lalu coba simpan
+  /// lagi — misalnya setelah aplikasinya diperbarui, atau induknya sudah
+  /// tiba. Baris yang sudah tidak ada di server dilepas dari daftar.
+  /// Mengembalikan (baris diterima, baris berubah).
+  Future<(int, int)> _cobaLagiTertahan(_Entitas e, int urutan) async {
+    // Disalin: daftarnya berubah selagi baris dicoba.
+    final tertahan = (await _idTertahan(e.nama)).toList();
+    if (tertahan.isEmpty) return (0, 0);
+
+    var diterima = 0;
+    var berubah = 0;
+    const potongan = 100;
+    for (var i = 0; i < tertahan.length; i += potongan) {
+      final ids = tertahan.skip(i).take(potongan).toList();
+      final baris = await _ambilMenurutId(e.nama, ids);
+      final ada = {for (final r in baris) r['id'] as String};
+      for (final id in ids) {
+        if (!ada.contains(id)) await _lepasTahanan(e.nama, id);
+      }
+      for (final r in baris) {
+        final id = r['id'] as String;
+        final lokal = await _keadaanLokal(e.nama, id);
+        if (lokal != null &&
+            !_serverMenang(lokal, _mikro(r['updated_at'] as String))) {
+          // Versi di HP sudah sama atau lebih baru: tidak ada yang tertahan.
+          await _lepasTahanan(e.nama, id);
+          continue;
+        }
+        diterima++;
+        if (await _tulisAtauTahan(e, r)) berubah++;
+      }
+    }
+    _lapor('menarik', e.nama, urutan, diterima, diterima, perubahan: berubah);
+    return (diterima, berubah);
+  }
+
+  /// Pengganti pengambilan baris menurut id untuk test.
+  @visibleForTesting
+  Future<List<Map<String, dynamic>>> Function(
+    String tabel,
+    List<String> ids,
+  )? pengambilIdUntukTest;
+
+  Future<List<Map<String, dynamic>>> _ambilMenurutId(
+    String tabel,
+    List<String> ids,
+  ) {
+    final pengganti = pengambilIdUntukTest;
+    if (pengganti != null) return pengganti(tabel, ids);
+    return (klienUntukTest ?? _supabase.client!)
+        .from(tabel)
+        .select()
+        .inFilter('id', ids);
   }
 
   /// Penanda dimundurkan sejauh [jedaAman]. Null tetap null — artinya belum
@@ -539,11 +657,12 @@ class SyncEngine {
         // tidak lagi menyimpan produk aktif yang menunjuk kategori terhapus
         // (`supabase/kategori_terhapus.sql`). Penandanya tetap maju di bawah.
       } else if (lokal == null || _serverMenang(lokal, mikroServer)) {
-        await e.tulis(r);
-        // Baris terhapus yang belum pernah ada di sini — transaksi dan
-        // pengeluaran yang DIBATALKAN — tetap ditulis karena itu catatan,
-        // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
-        if (lokal != null || !terhapusDiServer) berubah++;
+        if (await _tulisAtauTahan(e, r)) {
+          // Baris terhapus yang belum pernah ada di sini — transaksi dan
+          // pengeluaran yang DIBATALKAN — tetap ditulis karena itu catatan,
+          // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
+          if (lokal != null || !terhapusDiServer) berubah++;
+        }
       }
 
       sudah++;

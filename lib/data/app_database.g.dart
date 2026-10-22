@@ -7257,6 +7257,315 @@ class OpenBillsCompanion extends UpdateCompanion<OpenBill> {
   }
 }
 
+class $BarisTertahanTable extends BarisTertahan
+    with TableInfo<$BarisTertahanTable, BarisTertahanEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BarisTertahanTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _entityMeta = const VerificationMeta('entity');
+  @override
+  late final GeneratedColumn<String> entity = GeneratedColumn<String>(
+    'entity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rowIdMeta = const VerificationMeta('rowId');
+  @override
+  late final GeneratedColumn<String> rowId = GeneratedColumn<String>(
+    'row_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _alasanMeta = const VerificationMeta('alasan');
+  @override
+  late final GeneratedColumn<String> alasan = GeneratedColumn<String>(
+    'alasan',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sejakMeta = const VerificationMeta('sejak');
+  @override
+  late final GeneratedColumn<DateTime> sejak = GeneratedColumn<DateTime>(
+    'sejak',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [entity, rowId, alasan, sejak];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'baris_tertahan';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BarisTertahanEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('entity')) {
+      context.handle(
+        _entityMeta,
+        entity.isAcceptableOrUnknown(data['entity']!, _entityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityMeta);
+    }
+    if (data.containsKey('row_id')) {
+      context.handle(
+        _rowIdMeta,
+        rowId.isAcceptableOrUnknown(data['row_id']!, _rowIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rowIdMeta);
+    }
+    if (data.containsKey('alasan')) {
+      context.handle(
+        _alasanMeta,
+        alasan.isAcceptableOrUnknown(data['alasan']!, _alasanMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_alasanMeta);
+    }
+    if (data.containsKey('sejak')) {
+      context.handle(
+        _sejakMeta,
+        sejak.isAcceptableOrUnknown(data['sejak']!, _sejakMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {entity, rowId};
+  @override
+  BarisTertahanEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BarisTertahanEntry(
+      entity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity'],
+      )!,
+      rowId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}row_id'],
+      )!,
+      alasan: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}alasan'],
+      )!,
+      sejak: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}sejak'],
+      )!,
+    );
+  }
+
+  @override
+  $BarisTertahanTable createAlias(String alias) {
+    return $BarisTertahanTable(attachedDatabase, alias);
+  }
+}
+
+class BarisTertahanEntry extends DataClass
+    implements Insertable<BarisTertahanEntry> {
+  /// Nama tabel asal, mis. 'expenses'.
+  final String entity;
+  final String rowId;
+
+  /// Galat terakhir saat menyimpannya — untuk ditelusuri, bukan ditampilkan.
+  final String alasan;
+  final DateTime sejak;
+  const BarisTertahanEntry({
+    required this.entity,
+    required this.rowId,
+    required this.alasan,
+    required this.sejak,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['entity'] = Variable<String>(entity);
+    map['row_id'] = Variable<String>(rowId);
+    map['alasan'] = Variable<String>(alasan);
+    map['sejak'] = Variable<DateTime>(sejak);
+    return map;
+  }
+
+  BarisTertahanCompanion toCompanion(bool nullToAbsent) {
+    return BarisTertahanCompanion(
+      entity: Value(entity),
+      rowId: Value(rowId),
+      alasan: Value(alasan),
+      sejak: Value(sejak),
+    );
+  }
+
+  factory BarisTertahanEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BarisTertahanEntry(
+      entity: serializer.fromJson<String>(json['entity']),
+      rowId: serializer.fromJson<String>(json['rowId']),
+      alasan: serializer.fromJson<String>(json['alasan']),
+      sejak: serializer.fromJson<DateTime>(json['sejak']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'entity': serializer.toJson<String>(entity),
+      'rowId': serializer.toJson<String>(rowId),
+      'alasan': serializer.toJson<String>(alasan),
+      'sejak': serializer.toJson<DateTime>(sejak),
+    };
+  }
+
+  BarisTertahanEntry copyWith({
+    String? entity,
+    String? rowId,
+    String? alasan,
+    DateTime? sejak,
+  }) => BarisTertahanEntry(
+    entity: entity ?? this.entity,
+    rowId: rowId ?? this.rowId,
+    alasan: alasan ?? this.alasan,
+    sejak: sejak ?? this.sejak,
+  );
+  BarisTertahanEntry copyWithCompanion(BarisTertahanCompanion data) {
+    return BarisTertahanEntry(
+      entity: data.entity.present ? data.entity.value : this.entity,
+      rowId: data.rowId.present ? data.rowId.value : this.rowId,
+      alasan: data.alasan.present ? data.alasan.value : this.alasan,
+      sejak: data.sejak.present ? data.sejak.value : this.sejak,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BarisTertahanEntry(')
+          ..write('entity: $entity, ')
+          ..write('rowId: $rowId, ')
+          ..write('alasan: $alasan, ')
+          ..write('sejak: $sejak')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(entity, rowId, alasan, sejak);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BarisTertahanEntry &&
+          other.entity == this.entity &&
+          other.rowId == this.rowId &&
+          other.alasan == this.alasan &&
+          other.sejak == this.sejak);
+}
+
+class BarisTertahanCompanion extends UpdateCompanion<BarisTertahanEntry> {
+  final Value<String> entity;
+  final Value<String> rowId;
+  final Value<String> alasan;
+  final Value<DateTime> sejak;
+  final Value<int> rowid;
+  const BarisTertahanCompanion({
+    this.entity = const Value.absent(),
+    this.rowId = const Value.absent(),
+    this.alasan = const Value.absent(),
+    this.sejak = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BarisTertahanCompanion.insert({
+    required String entity,
+    required String rowId,
+    required String alasan,
+    this.sejak = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : entity = Value(entity),
+       rowId = Value(rowId),
+       alasan = Value(alasan);
+  static Insertable<BarisTertahanEntry> custom({
+    Expression<String>? entity,
+    Expression<String>? rowId,
+    Expression<String>? alasan,
+    Expression<DateTime>? sejak,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (entity != null) 'entity': entity,
+      if (rowId != null) 'row_id': rowId,
+      if (alasan != null) 'alasan': alasan,
+      if (sejak != null) 'sejak': sejak,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BarisTertahanCompanion copyWith({
+    Value<String>? entity,
+    Value<String>? rowId,
+    Value<String>? alasan,
+    Value<DateTime>? sejak,
+    Value<int>? rowid,
+  }) {
+    return BarisTertahanCompanion(
+      entity: entity ?? this.entity,
+      rowId: rowId ?? this.rowId,
+      alasan: alasan ?? this.alasan,
+      sejak: sejak ?? this.sejak,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (entity.present) {
+      map['entity'] = Variable<String>(entity.value);
+    }
+    if (rowId.present) {
+      map['row_id'] = Variable<String>(rowId.value);
+    }
+    if (alasan.present) {
+      map['alasan'] = Variable<String>(alasan.value);
+    }
+    if (sejak.present) {
+      map['sejak'] = Variable<DateTime>(sejak.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BarisTertahanCompanion(')
+          ..write('entity: $entity, ')
+          ..write('rowId: $rowId, ')
+          ..write('alasan: $alasan, ')
+          ..write('sejak: $sejak, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7275,6 +7584,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ExpensesTable expenses = $ExpensesTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
   late final $OpenBillsTable openBills = $OpenBillsTable(this);
+  late final $BarisTertahanTable barisTertahan = $BarisTertahanTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7291,6 +7601,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     expenses,
     syncState,
     openBills,
+    barisTertahan,
   ];
 }
 
@@ -12745,6 +13056,191 @@ typedef $$OpenBillsTableProcessedTableManager =
       OpenBill,
       PrefetchHooks Function({bool shiftId, bool userId, bool transactionId})
     >;
+typedef $$BarisTertahanTableCreateCompanionBuilder =
+    BarisTertahanCompanion Function({
+      required String entity,
+      required String rowId,
+      required String alasan,
+      Value<DateTime> sejak,
+      Value<int> rowid,
+    });
+typedef $$BarisTertahanTableUpdateCompanionBuilder =
+    BarisTertahanCompanion Function({
+      Value<String> entity,
+      Value<String> rowId,
+      Value<String> alasan,
+      Value<DateTime> sejak,
+      Value<int> rowid,
+    });
+
+class $$BarisTertahanTableFilterComposer
+    extends Composer<_$AppDatabase, $BarisTertahanTable> {
+  $$BarisTertahanTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get alasan => $composableBuilder(
+    column: $table.alasan,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get sejak => $composableBuilder(
+    column: $table.sejak,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BarisTertahanTableOrderingComposer
+    extends Composer<_$AppDatabase, $BarisTertahanTable> {
+  $$BarisTertahanTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get alasan => $composableBuilder(
+    column: $table.alasan,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get sejak => $composableBuilder(
+    column: $table.sejak,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BarisTertahanTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BarisTertahanTable> {
+  $$BarisTertahanTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get entity =>
+      $composableBuilder(column: $table.entity, builder: (column) => column);
+
+  GeneratedColumn<String> get rowId =>
+      $composableBuilder(column: $table.rowId, builder: (column) => column);
+
+  GeneratedColumn<String> get alasan =>
+      $composableBuilder(column: $table.alasan, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get sejak =>
+      $composableBuilder(column: $table.sejak, builder: (column) => column);
+}
+
+class $$BarisTertahanTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BarisTertahanTable,
+          BarisTertahanEntry,
+          $$BarisTertahanTableFilterComposer,
+          $$BarisTertahanTableOrderingComposer,
+          $$BarisTertahanTableAnnotationComposer,
+          $$BarisTertahanTableCreateCompanionBuilder,
+          $$BarisTertahanTableUpdateCompanionBuilder,
+          (
+            BarisTertahanEntry,
+            BaseReferences<
+              _$AppDatabase,
+              $BarisTertahanTable,
+              BarisTertahanEntry
+            >,
+          ),
+          BarisTertahanEntry,
+          PrefetchHooks Function()
+        > {
+  $$BarisTertahanTableTableManager(_$AppDatabase db, $BarisTertahanTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BarisTertahanTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BarisTertahanTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BarisTertahanTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> entity = const Value.absent(),
+                Value<String> rowId = const Value.absent(),
+                Value<String> alasan = const Value.absent(),
+                Value<DateTime> sejak = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BarisTertahanCompanion(
+                entity: entity,
+                rowId: rowId,
+                alasan: alasan,
+                sejak: sejak,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String entity,
+                required String rowId,
+                required String alasan,
+                Value<DateTime> sejak = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BarisTertahanCompanion.insert(
+                entity: entity,
+                rowId: rowId,
+                alasan: alasan,
+                sejak: sejak,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BarisTertahanTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BarisTertahanTable,
+      BarisTertahanEntry,
+      $$BarisTertahanTableFilterComposer,
+      $$BarisTertahanTableOrderingComposer,
+      $$BarisTertahanTableAnnotationComposer,
+      $$BarisTertahanTableCreateCompanionBuilder,
+      $$BarisTertahanTableUpdateCompanionBuilder,
+      (
+        BarisTertahanEntry,
+        BaseReferences<_$AppDatabase, $BarisTertahanTable, BarisTertahanEntry>,
+      ),
+      BarisTertahanEntry,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12771,4 +13267,6 @@ class $AppDatabaseManager {
       $$SyncStateTableTableManager(_db, _db.syncState);
   $$OpenBillsTableTableManager get openBills =>
       $$OpenBillsTableTableManager(_db, _db.openBills);
+  $$BarisTertahanTableTableManager get barisTertahan =>
+      $$BarisTertahanTableTableManager(_db, _db.barisTertahan);
 }

@@ -52,7 +52,8 @@ class SyncService {
   /// terlanjur dibayar dengan harga yang salah.
   final ValueNotifier<DateTime?> terakhirBerhasil = ValueNotifier(null);
 
-  /// Baca penanda waktu yang tersimpan. Panggil sekali di `main()`.
+  /// Baca penanda waktu yang tersimpan, dan hitung baris tertahan. Panggil
+  /// sekali di `main()`.
   ///
   /// Disimpan di preferensi, bukan di database, supaya tidak perlu migrasi
   /// skema hanya untuk satu penanda yang boleh hilang tanpa akibat.
@@ -60,6 +61,19 @@ class SyncService {
     final p = await SharedPreferences.getInstance();
     final teks = p.getString(_kunciTerakhir);
     if (teks != null) terakhirBerhasil.value = DateTime.tryParse(teks);
+    await _hitungTertahan();
+  }
+
+  /// Jumlah baris server yang tertahan di HP ini (`baris_tertahan`). Hanya
+  /// berubah saat menarik, jadi cukup dihitung ulang sesudah tiap putaran.
+  final ValueNotifier<int> jumlahTertahan = ValueNotifier(0);
+
+  Future<void> _hitungTertahan() async {
+    try {
+      jumlahTertahan.value = await db.jumlahTertahan();
+    } catch (e) {
+      debugPrint('[sync] hitung baris tertahan gagal: $e');
+    }
   }
 
   Future<void> _catatBerhasil() async {
@@ -209,6 +223,8 @@ class SyncService {
 
       final hasil =
           await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
+      // Hanya tarikan yang bisa menambah atau melepas baris tertahan.
+      await _hitungTertahan();
       return urutanSesudahMesin(
         hasil,
         hanyaKalauBerhasil: () => _rampungkan(hasil),
