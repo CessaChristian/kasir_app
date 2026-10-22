@@ -20,6 +20,7 @@ import 'features/onboarding/pages/onboarding_page.dart';
 import 'data/perangkat/perangkat_repository.dart';
 import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
 import 'shared/auth/session_manager.dart';
+import 'shared/widgets/pencatat_sentuhan.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,7 +90,8 @@ class MyApp extends StatelessWidget {
           theme: buildAppTheme(kSeedDineIn),
           // Layar sempit (mis. 360 dp) menampilkan tata letak yang sama
           // dengan layar acuan — lihat SkalaLayar.
-          builder: (context, child) => SkalaLayar(child: child!),
+          builder: (context, child) =>
+              PencatatSentuhan(child: SkalaLayar(child: child!)),
           // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
           // dipasang di atas Navigator — bukan di satu halaman. Layar mana
           // pun yang sedang terbuka akan tergantikan.

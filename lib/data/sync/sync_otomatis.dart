@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../shared/auth/session_manager.dart';
 import '../db.dart';
 import 'sync_service.dart';
+import '../perangkat/perangkat_repository.dart';
 
 /// Menjalankan sinkronisasi dengan sendirinya, tanpa pengguna perlu menarik
 /// layar.
@@ -192,10 +193,10 @@ class SyncOtomatis with WidgetsBindingObserver {
     _timer?.cancel();
     _timer = Timer.periodic(jarakBerkala, (_) => picu('berkala'));
     _timerDiam?.cancel();
-    _timerDiam = Timer.periodic(
-      jarakPeriksaDiam,
-      (_) => SessionManager.instance.akhiriKalauDiam(),
-    );
+    _timerDiam = Timer.periodic(jarakPeriksaDiam, (_) async {
+      if (await SessionManager.instance.akhiriKalauDiam()) return;
+      await laporAktifKalauPerlu();
+    });
   }
 
   void _matikanTimer() {
@@ -271,6 +272,43 @@ class SyncOtomatis with WidgetsBindingObserver {
     }
     _percobaanTerakhir = DateTime.now();
     await SyncService.instance.jalankan();
+  }
+
+  /// Lapor "HP ini masih dipakai" ke server selama sinkron ditahan.
+  ///
+  /// Server menghitung pemegang shift dari laporan hadir dalam 15 menit
+  /// terakhir, dan laporan itu biasanya ikut sinkron. Selama keranjang berisi
+  /// sinkron ditahan, jadi kasir yang sedang melayani dulu dianggap diam dan
+  /// HP lain boleh menutup shift-nya. Laporannya mengikuti SENTUHAN: HP yang
+  /// ditinggal tidak melapor, sama seperti aturan sesi diam di HP itu
+  /// sendiri. Paling sering sekali per [jarakBerkala] — sama dengan sinkron
+  /// berkala, jadi tidak menambah beban server.
+  Future<void> laporAktifKalauPerlu({DateTime? sekarang}) async {
+    final sm = SessionManager.instance;
+    if (!perluLaporAktif(
+      sinkronDitahan: _adaPekerjaanRawan,
+      sentuhan: sm.sentuhanTerakhir,
+      laporTerakhir: PerangkatRepository.instance.hadirTerakhir,
+      sekarang: sekarang ?? DateTime.now(),
+    )) {
+      return;
+    }
+    await PerangkatRepository.instance.hadir(sm.currentSession?.shiftId);
+  }
+
+  /// Keputusan [laporAktifKalauPerlu], dipisah supaya bisa diuji.
+  @visibleForTesting
+  static bool perluLaporAktif({
+    required bool sinkronDitahan,
+    required DateTime? sentuhan,
+    required DateTime? laporTerakhir,
+    required DateTime sekarang,
+  }) {
+    // Sinkron yang tidak ditahan sudah melapor sendiri.
+    if (!sinkronDitahan || sentuhan == null) return false;
+    if (laporTerakhir == null) return true;
+    return sentuhan.isAfter(laporTerakhir) &&
+        sekarang.difference(laporTerakhir) >= jarakBerkala;
   }
 
   @visibleForTesting

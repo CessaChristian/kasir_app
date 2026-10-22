@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -67,11 +68,12 @@ class SessionManager {
 
   /// Catat bahwa HP ini masih hidup dan dipakai.
   ///
-  /// Dipanggil setiap putaran sinkron selesai — BERHASIL ATAU TIDAK. Internet
-  /// mati sengaja tidak dihitung diam (keputusan owner): aplikasinya tetap
-  /// terbuka dan mencoba, kasir harus tetap bisa berjualan offline. Yang
-  /// dihitung diam hanya saat sinkron sama sekali tidak berjalan: aplikasi di
-  /// latar belakang, layar mati, atau keranjang dibiarkan berisi.
+  /// Dipanggil setiap putaran sinkron selesai — BERHASIL ATAU TIDAK — dan
+  /// saat layar disentuh ([catatSentuhan]). Internet mati sengaja tidak
+  /// dihitung diam (keputusan owner): aplikasinya tetap terbuka dan mencoba,
+  /// kasir harus tetap bisa berjualan offline. Yang dihitung diam hanya saat
+  /// sinkron tidak berjalan DAN layar tidak disentuh: aplikasi di latar
+  /// belakang, layar mati, atau keranjang berisi yang ditinggal.
   ///
   /// Disimpan juga ke storage supaya aplikasi yang digeser dari riwayat lalu
   /// dibuka lagi tahu sudah berapa lama ia diam.
@@ -80,6 +82,31 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kunciKabar, _kabarTerakhir!.toIso8601String());
   }
+
+  /// Terakhir kali layar disentuh, atau null kalau belum sejak aplikasi
+  /// dibuka. Hanya di memori.
+  DateTime? get sentuhanTerakhir => _sentuhanTerakhir;
+  DateTime? _sentuhanTerakhir;
+
+  /// Sentuhan di layar dihitung kabar juga (keputusan owner 2026-10-23).
+  ///
+  /// Dulu kabar hanya dicatat sinkron, padahal sinkron ditahan selama
+  /// keranjang berisi: kasir yang sedang melayani pesanan dikeluarkan paksa
+  /// setelah 15 menit dan pesanannya hilang — terbukti di HP. HP yang
+  /// benar-benar ditinggal tetap dikeluarkan.
+  ///
+  /// Dipanggil di setiap sentuhan, jadi harus murah: jamnya dicatat di
+  /// memori, dan baru ditulis ke penyimpanan kalau kabar terakhir sudah
+  /// lewat [jedaSimpanSentuhan].
+  void catatSentuhan([DateTime? waktu]) {
+    final kini = waktu ?? DateTime.now();
+    _sentuhanTerakhir = kini;
+    final kabar = _kabarTerakhir;
+    if (kabar != null && kini.difference(kabar) < jedaSimpanSentuhan) return;
+    unawaited(catatKabar(kini));
+  }
+
+  static const jedaSimpanSentuhan = Duration(minutes: 1);
 
   /// Akhiri sesi kalau kasir yang memegang shift sudah [batasDiam] tidak
   /// memberi kabar. True kalau sesinya diakhiri; [sesiDicabut] membawa

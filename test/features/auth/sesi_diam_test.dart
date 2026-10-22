@@ -221,4 +221,111 @@ void main() {
     ], reason: 'sinkron yang selesai belakangan membawa shift dari sesi — '
         'sesinya harus sudah kosong, dan laporan "tanpa shift" yang terakhir');
   });
+
+  group('sentuhan dihitung aktif (A9)', () {
+    // Terbukti di HP: keranjang berisi, kasir masih melayani, 12 menit
+    // kemudian dikeluarkan paksa dan pesanannya hilang — karena kabar hanya
+    // dicatat sinkron, dan sinkron ditahan selama keranjang berisi.
+
+    test('kasir yang terus menyentuh layar tidak dikeluarkan', () async {
+      await sm.setSession(sesi());
+      final sinkronTerakhir = DateTime(2026, 10, 23, 10);
+      await sm.catatKabar(sinkronTerakhir);
+      sm.catatSentuhan(sinkronTerakhir.add(menit(14)));
+      await pumpEventQueue();
+
+      expect(await sm.akhiriKalauDiam(
+              sekarang: sinkronTerakhir.add(menit(20))),
+          isFalse);
+      expect(sm.isLoggedIn, isTrue);
+    });
+
+    test('HP yang ditinggal tetap dikeluarkan 15 menit sesudah sentuhan '
+        'terakhir', () async {
+      await sm.setSession(sesi());
+      final sentuh = DateTime(2026, 10, 23, 10);
+      await sm.catatKabar(sentuh.subtract(menit(30)));
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15))),
+          isTrue);
+      expect(sm.sesiDicabut.value, SessionManager.pesanDiam);
+    });
+
+    test('sentuhan beruntun tidak menulis penyimpanan tiap kali', () async {
+      await sm.setSession(sesi());
+      final awal = DateTime(2026, 10, 23, 10);
+      await sm.catatKabar(awal);
+      Future<String?> tersimpan() async =>
+          (await SharedPreferences.getInstance()).getString('kabar_terakhir');
+
+      sm.catatSentuhan(awal.add(const Duration(seconds: 30)));
+      await pumpEventQueue();
+      expect(await tersimpan(), awal.toIso8601String(),
+          reason: 'belum semenit: cukup di memori');
+      expect(sm.sentuhanTerakhir, awal.add(const Duration(seconds: 30)));
+
+      final semenit = awal.add(const Duration(minutes: 1, seconds: 1));
+      sm.catatSentuhan(semenit);
+      await pumpEventQueue();
+      expect(await tersimpan(), semenit.toIso8601String());
+    });
+  });
+
+  group('lapor aktif ke server selama sinkron ditahan (A9)', () {
+    final jam10 = DateTime(2026, 10, 23, 10);
+    bool perlu({
+      bool ditahan = true,
+      DateTime? sentuhan,
+      DateTime? lapor,
+      required DateTime sekarang,
+    }) =>
+        SyncOtomatis.perluLaporAktif(
+          sinkronDitahan: ditahan,
+          sentuhan: sentuhan,
+          laporTerakhir: lapor,
+          sekarang: sekarang,
+        );
+
+    test('keranjang berisi + disentuh + laporan terakhir ≥ 5 menit: lapor', () {
+      expect(
+        perlu(sentuhan: jam10.add(menit(4)), lapor: jam10,
+            sekarang: jam10.add(menit(5))),
+        isTrue,
+      );
+    });
+
+    test('belum 5 menit: tidak lapor (paling sering sekali per 5 menit)', () {
+      expect(
+        perlu(sentuhan: jam10.add(menit(3)), lapor: jam10,
+            sekarang: jam10.add(menit(4))),
+        isFalse,
+      );
+      expect(SyncOtomatis.jarakBerkala, menit(5));
+    });
+
+    test('tidak disentuh sejak laporan terakhir: tidak lapor — HP yang '
+        'ditinggal harus terlihat diam di server', () {
+      expect(
+        perlu(sentuhan: jam10.subtract(menit(1)), lapor: jam10,
+            sekarang: jam10.add(menit(20))),
+        isFalse,
+      );
+      expect(perlu(sentuhan: null, lapor: jam10, sekarang: jam10.add(menit(9))),
+          isFalse);
+    });
+
+    test('sinkron tidak ditahan: sinkron berkala sudah melapor sendiri', () {
+      expect(
+        perlu(ditahan: false, sentuhan: jam10.add(menit(9)), lapor: jam10,
+            sekarang: jam10.add(menit(10))),
+        isFalse,
+      );
+    });
+
+    test('belum pernah lapor sejak aplikasi dibuka: lapor', () {
+      expect(perlu(sentuhan: jam10, lapor: null, sekarang: jam10), isTrue);
+    });
+  });
 }

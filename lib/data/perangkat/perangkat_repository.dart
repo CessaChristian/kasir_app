@@ -231,9 +231,13 @@ class PerangkatRepository {
       if (!belumDisiapkan(e)) debugPrint('[perangkat] hadir gagal: $e');
       return;
     }
+    hadirTerakhir = DateTime.now();
     await _catatModel(k);
     if (!_kodeTerambil) await _ambilKodeNota(k);
   }
+
+  /// Kapan [hadir] terakhir sampai ke server, atau null.
+  DateTime? hadirTerakhir;
 
   /// Sudah mengambil huruf nota sejak aplikasi dibuka?
   bool _kodeTerambil = false;
