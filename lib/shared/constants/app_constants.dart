@@ -8,6 +8,8 @@ class AppConstants {
   static const String storePhone = '08782418921';
 
   /// Versi yang tampil di Profil. WAJIB sama dengan `version` di
-  /// pubspec.yaml (dijaga test) — 1.0.0 sampai rilis pertama.
-  static const String versiAplikasi = '1.0.0';
+  /// pubspec.yaml (dijaga test). Setiap APK baru untuk HP kasir menaikkan
+  /// versi ini DAN nomor build (+N) di pubspec — HP menolak update yang
+  /// nomor build-nya tidak lebih besar.
+  static const String versiAplikasi = '1.0.1';
 }
