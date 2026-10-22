@@ -723,14 +723,14 @@ class SyncEngine {
     // melewati batas ukuran badan permintaan, dan kalau gagal seluruhnya
     // harus diulang dari nol.
     const ukuranPotongan = 100;
-    var terkirim = 0;
+    final sampai = <Map<String, dynamic>>[];
     Object? galatTerakhir;
 
     for (var i = 0; i < tertunda.length; i += ukuranPotongan) {
       final potongan = tertunda.skip(i).take(ukuranPotongan).toList();
       try {
         await _kirim(e, potongan);
-        terkirim += potongan.length;
+        sampai.addAll(potongan);
       } catch (_) {
         // Potongan ditolak. Bisa jadi SELURUH isinya bermasalah, tapi jauh
         // lebih sering cuma SATU baris — dan 99 baris sehat lainnya ikut
@@ -744,12 +744,15 @@ class SyncEngine {
         // Maka potongan yang gagal dipecah dan dicoba satu per satu. Hanya
         // berjalan saat gagal, jadi jalur normal tidak ikut melambat.
         final h = await _kirimSatuSatu(e, potongan);
-        terkirim += h.$1;
+        sampai.addAll(h.$1);
         galatTerakhir ??= h.$2;
       }
       _lapor('mengirim', e.nama, urutan,
           (i + potongan.length).clamp(0, tertunda.length), tertunda.length);
     }
+
+    await _tandaiYangTidakBerubah(e, sampai);
+    final terkirim = sampai.length;
 
     // Baris yang tetap ditolak SENGAJA dibiarkan `pending`, jadi ia dicoba
     // lagi di sinkronisasi berikutnya. Menyerah diam-diam pada data transaksi
@@ -779,20 +782,53 @@ class SyncEngine {
     } else {
       await _supabase.client!.from(e.nama).upsert(baris);
     }
-    await e.tandaiTerkirim([for (final r in baris) r['id'] as String]);
   }
 
-  /// Mengembalikan (berapa yang lolos, galat pertama yang ditemui).
-  Future<(int, Object?)> _kirimSatuSatu(
+  /// Cap "terkirim" HANYA untuk baris yang isinya di HP masih sama persis
+  /// dengan yang tadi dikirim ([sampai]).
+  ///
+  /// Pengiriman makan waktu, dan kasir tetap bekerja selama itu. Contoh:
+  /// transaksi Es Teh sedang dikirim, lalu kasir membatalkannya. Yang sampai
+  /// di server versi SAH. Dulu barisnya tetap dicap terkirim berdasarkan
+  /// id-nya saja — pembatalannya tidak pernah dikirim, dan HP lain serta
+  /// laporan owner menghitung Es Teh itu selamanya. Baris yang berubah tetap
+  /// `pending` dan ikut putaran berikutnya.
+  ///
+  /// Dibaca ulang dan dicap di dalam SATU transaksi database, jadi tidak ada
+  /// tulisan yang bisa menyelip di antara mencocokkan dan mengecap.
+  /// `updated_at` saja tidak cukup sebagai pembanding: nilainya per detik,
+  /// dan sebagian kolom (mis. penghitung salah PIN) berubah tanpa
+  /// menyentuhnya.
+  Future<void> _tandaiYangTidakBerubah(
+    _Entitas e,
+    List<Map<String, dynamic>> sampai,
+  ) async {
+    if (sampai.isEmpty) return;
+    await _db.transaction(() async {
+      final kini = {
+        for (final r in await e.ambilTertunda()) r['id'] as String: r,
+      };
+      await e.tandaiTerkirim([
+        for (final r in sampai)
+          if (_samaPersis(kini[r['id']], r)) r['id'] as String,
+      ]);
+    });
+  }
+
+  static bool _samaPersis(Map<String, dynamic>? a, Map<String, dynamic> b) =>
+      a != null && jsonEncode(a) == jsonEncode(b);
+
+  /// Mengembalikan (baris yang lolos, galat pertama yang ditemui).
+  Future<(List<Map<String, dynamic>>, Object?)> _kirimSatuSatu(
     _Entitas e,
     List<Map<String, dynamic>> potongan,
   ) async {
-    var lolos = 0;
+    final lolos = <Map<String, dynamic>>[];
     Object? galat;
     for (final baris in potongan) {
       try {
         await _kirim(e, [baris]);
-        lolos++;
+        lolos.add(baris);
       } catch (err) {
         galat ??= err;
       }

@@ -120,6 +120,75 @@ void main() {
         reason: 'menandai terkirim padahal ditolak = data hilang diam-diam');
   });
 
+  group('perubahan yang terjadi SELAGI dikirim', () {
+    // Pengiriman makan waktu 1–3 detik. Baris yang diubah kasir di sela itu
+    // dulu tetap dicap "terkirim" — padahal yang sampai ke server versi
+    // lamanya — lalu tidak pernah dikirim lagi.
+
+    test('transaksi dibatalkan di tengah pengiriman: pembatalannya tetap '
+        'terkirim', () async {
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: const Value('tx-es-teh'),
+            total: 5000,
+            paymentMethod: 'cash',
+            syncStatus: const Value('pending'),
+          ));
+      final kiriman = <Map<String, dynamic>>[];
+      final mesin = SyncEngine(db)
+        ..pengirimUntukTest = (tabel, baris) async {
+          if (tabel != 'transactions') return;
+          kiriman.addAll(baris);
+          // Kasir membatalkan Es Teh tepat saat kurir di jalan.
+          if (kiriman.length == 1) {
+            await (db.update(db.transactions)
+                  ..where((t) => t.id.equals('tx-es-teh')))
+                .write(TransactionsCompanion(
+              deletedAt: Value(DateTime.now()),
+              cancelReason: const Value('Salah input'),
+              syncStatus: const Value('pending'),
+            ));
+          }
+        };
+
+      await mesin.dorongSemua();
+      final tx = await (db.select(db.transactions)
+            ..where((t) => t.id.equals('tx-es-teh')))
+          .getSingle();
+      expect(tx.syncStatus, 'pending',
+          reason: 'server baru menerima versi SAH; pembatalan belum sampai');
+      expect(kiriman.single['deleted_at'], isNull);
+
+      // Putaran berikutnya membawa pembatalannya, lalu baru dicap terkirim.
+      await mesin.dorongSemua();
+      expect(kiriman, hasLength(2));
+      expect(kiriman.last['deleted_at'], isNotNull);
+      expect(kiriman.last['cancel_reason'], 'Salah input');
+      final akhir = await (db.select(db.transactions)
+            ..where((t) => t.id.equals('tx-es-teh')))
+          .getSingle();
+      expect(akhir.syncStatus, 'synced');
+    });
+
+    test('baris lain di potongan yang sama tetap dicap terkirim', () async {
+      final kopi = await pasangProduk('Kopi');
+      final teh = await pasangProduk('Teh');
+      final mesin = SyncEngine(db)
+        ..pengirimUntukTest = (tabel, baris) async {
+          if (tabel != 'products') return;
+          await (db.update(db.products)..where((p) => p.id.equals(teh)))
+              .write(const ProductsCompanion(
+            price: Value(7000),
+            syncStatus: Value('pending'),
+          ));
+        };
+      final (terkirim, gagal) = await mesin.dorongSemua();
+      expect(await status(kopi), 'synced');
+      expect(await status(teh), 'pending', reason: 'harga 7000 belum terkirim');
+      expect(terkirim, 2, reason: 'keduanya memang sampai ke server');
+      expect(gagal, isEmpty);
+    });
+  });
+
   test('HasilSync membedakan gagal total dari berhasil sebagian', () {
     const total = HasilSync(error: 'putus');
     const sebagian = HasilSync(didorong: 5, error: 'satu tabel gagal');
