@@ -13,6 +13,7 @@ import '../../products/pages/products_page.dart';
 import '../../report/pages/laporan_page.dart';
 import '../../shift/aksi_shift.dart';
 import '../../shift/models/ringkasan_shift.dart';
+import '../../shift/pengelola_shift.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
 import '../../shift/repositories/shift_repository.dart';
 import '../widgets/komponen_profil.dart';
@@ -27,6 +28,7 @@ class ProfilKasirPage extends StatefulWidget {
   /// Diisi test; aplikasi memakai basis data utama.
   final ShiftRepository? repo;
   final OpenBillRepository? repoBill;
+  final PengelolaShift? pengelola;
 
   /// "Lihat Open Bill" di dialog "Shift belum bisa ditutup".
   final VoidCallback? onLihatOpenBill;
@@ -35,6 +37,7 @@ class ProfilKasirPage extends StatefulWidget {
     super.key,
     this.repo,
     this.repoBill,
+    this.pengelola,
     this.onLihatOpenBill,
   });
 
@@ -196,6 +199,7 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
                       context,
                       repo: _repo,
                       repoBill: widget.repoBill,
+                      pengelola: widget.pengelola,
                       onLihatOpenBill: widget.onLihatOpenBill,
                     )
                   : bukaShiftLewatDialog(context),

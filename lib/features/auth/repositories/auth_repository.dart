@@ -8,6 +8,7 @@ import '../recovery/models/recovery_result.dart';
 import '../models/auth_session.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../data/sync/sync_engine.dart';
+import '../../../data/sync/sync_service.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 
@@ -15,7 +16,17 @@ import '../../../data/perangkat/perangkat_repository.dart';
 class AuthRepository {
   final AppDatabase _db;
 
-  AuthRepository(this._db);
+  /// Diisi test untuk [logout]. Bawaan: [SyncService.tungguSelesai] dan
+  /// [PerangkatRepository.hadir].
+  final Future<void> Function()? _tungguSinkron;
+  final Future<void> Function(String? shiftId)? _lapor;
+
+  AuthRepository(
+    this._db, {
+    Future<void> Function()? tungguSinkron,
+    Future<void> Function(String? shiftId)? lapor,
+  }) : _tungguSinkron = tungguSinkron,
+       _lapor = lapor;
 
   /// Check if an owner account exists
   Future<bool> hasOwner() async {
@@ -167,13 +178,40 @@ class AuthRepository {
     // Lepaskan tanda "perangkat ini memegang shift X" di server.
     //
     // Tanpa ini, perangkat yang sudah keluar tetap tercatat memegang shiftnya,
-    // dan perangkat lain akan ditolak selamanya saat hendak menutup shift
-    // itu — ditahan oleh HP yang bahkan tidak ada yang memegangnya.
+    // dan perangkat lain akan ditolak saat hendak menutup shift itu — ditahan
+    // oleh HP yang bahkan tidak ada yang memegangnya.
+    //
+    // ── URUTANNYA PENTING ──
+    //
+    // Sinkron juga melapor ke server di akhir putarannya, membawa shift dari
+    // sesi. Dulu tanda dilepas DULU baru sesi dihapus, sehingga sinkron yang
+    // sedang berjalan bisa melapor sesudahnya dan memasang shiftnya lagi —
+    // dugaan kuat kenapa emulator yang sudah keluar tetap tercatat memegang
+    // shift (2026-10-17). Sekarang: sesi dihapus (laporan berikutnya membawa
+    // "tanpa shift"), putaran yang sedang jalan ditunggu, baru tanda dilepas
+    // — laporan terakhir yang sampai pasti "tanpa shift".
     //
     // Best-effort: `hadir` menelan galatnya sendiri. Kalau sedang offline,
     // tandanya baru terlepas saat perangkat ini online lagi. Keluar dari akun
     // tidak boleh gagal hanya karena jaringannya mati.
-    await PerangkatRepository.instance.hadir(null);
+    await SessionManager.instance.clearSession();
+    await laporShift(null);
+  }
+
+  /// Beri tahu server shift yang dipegang perangkat ini SEKARANG — sesudah
+  /// login melanjutkan shift, membuka shift, atau keluar (null).
+  ///
+  /// Tanpa ini server baru tahu pada sinkron berikutnya (sampai 5 menit),
+  /// dan selama itu perangkat lain bisa menutup shift yang baru saja
+  /// dimasuki di sini.
+  ///
+  /// Sinkron yang sedang berjalan ditunggu DULU: ia ikut melapor di akhir
+  /// putarannya, membawa shift yang dibacanya dari sesi sebelum berubah.
+  /// Kalau laporannya tiba belakangan, shift yang lama terpasang lagi.
+  /// Panggil SESUDAH sesinya diubah.
+  Future<void> laporShift(String? shiftId) async {
+    await (_tungguSinkron ?? SyncService.instance.tungguSelesai)();
+    await (_lapor ?? PerangkatRepository.instance.hadir)(shiftId);
   }
 
   Future<User?> getUserById(String userId) {

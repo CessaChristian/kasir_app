@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/db.dart';
 import '../../shared/auth/session_manager.dart';
+import '../../shared/ui/dialog_memuat.dart';
 import '../../shared/ui/dialog_tengah.dart';
 import '../../shared/ui/warna_teras.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -50,8 +51,17 @@ Future<void> bukaShiftLewatDialog(
 /// "Tutup shift sekarang?" (desain): ringkasan shift, lalu tutup kalau tidak
 /// ada yang menghalangi. Kasir tetap masuk dan bisa membuka shift baru.
 ///
+/// Semua yang perlu ditanyakan ke server — open bill dari HP lain dan
+/// perangkat lain yang masih memegang shift — diperiksa SEKALIGUS di balik
+/// kartu "Memeriksa shift…" sebelum dialog apa pun muncul. Dulu dialognya
+/// baru muncul sesudah tarikan open bill selesai tanpa tanda apa pun, jadi
+/// kasir mengetuk berulang dan dialognya muncul bertumpuk. Kartunya
+/// dipasang pada ketukan itu juga, jadi ketukan berikutnya tertahan.
+///
 /// Masih ada open bill → "Shift belum bisa ditutup" (desain); tombol Lihat
-/// Open Bill menjalankan [onLihatOpenBill].
+/// Open Bill menjalankan [onLihatOpenBill]. Masih dipegang perangkat lain →
+/// dialog yang sama dengan nama perangkatnya (dulu toast 2 detik yang tidak
+/// sempat terbaca).
 Future<void> tutupShiftLewatDialog(
   BuildContext context, {
   PengelolaShift? pengelola,
@@ -61,12 +71,20 @@ Future<void> tutupShiftLewatDialog(
 }) async {
   final shiftId = SessionManager.instance.currentSession?.shiftId;
   if (shiftId == null) return;
-
+  final p = pengelola ?? PengelolaShift(db);
   final rb = repoBill ?? OpenBillRepository(db);
-  // Bill dari HP lain di shift yang sama ikut terhitung.
-  await rb.segarkanDariServer();
-  final jumlahBill = await rb.jumlahTerbuka(shiftId);
+  final (jumlahBill, halangan, ringkasan) = await jalankanDenganMemuat(
+    context,
+    () => (
+      // Bill dari HP lain di shift yang sama ikut terhitung.
+      rb.segarkanDariServer().then((_) => rb.jumlahTerbuka(shiftId)),
+      p.halanganMenutup(shiftId),
+      (repo ?? ShiftRepository(db)).watchShift(shiftId).first,
+    ).wait,
+    pesan: 'Memeriksa shift…',
+  );
   if (!context.mounted) return;
+
   if (jumlahBill > 0) {
     final lihat = await tampilkanDialogTengah(
       context,
@@ -83,10 +101,10 @@ Future<void> tutupShiftLewatDialog(
     if (lihat) onLihatOpenBill?.call();
     return;
   }
-  final ringkasan = await (repo ?? ShiftRepository(db))
-      .watchShift(shiftId)
-      .first;
-  if (!context.mounted) return;
+  if (halangan != null) {
+    await _tampilkanHalangan(context, halangan);
+    return;
+  }
 
   final mulai = ringkasan == null
       ? ''
@@ -107,17 +125,39 @@ Future<void> tutupShiftLewatDialog(
   );
   if (!ya || !context.mounted) return;
 
-  final p = pengelola ?? PengelolaShift(db);
-  final halangan = await p.halanganMenutup(shiftId);
-  if (!context.mounted) return;
-  if (halangan != null) {
-    AppToast.error(context, halangan);
-    return;
-  }
+  // Diperiksa ULANG: selama dialog terbuka, perangkat lain bisa saja baru
+  // masuk ke shift ini.
+  final Object? gagal;
   try {
-    await p.tutup();
-    if (context.mounted) AppToast.success(context, 'Shift ditutup');
+    gagal = await jalankanDenganMemuat(context, () async {
+      final h = await p.halanganMenutup(shiftId);
+      if (h != null) return h;
+      await p.tutup();
+      return null;
+    }, pesan: 'Menutup shift…');
   } catch (e) {
     if (context.mounted) AppToast.error(context, _pesanGalat(e));
+    return;
   }
+  if (!context.mounted) return;
+  if (gagal is String) {
+    await _tampilkanHalangan(context, gagal);
+    return;
+  }
+  AppToast.success(context, 'Shift ditutup');
 }
+
+/// Alasan shift belum boleh ditutup — dialog, bukan toast: pesannya bisa
+/// tiga kalimat (nama perangkat, sisa menit), terlalu panjang untuk dibaca
+/// dalam dua detik.
+Future<void> _tampilkanHalangan(BuildContext context, String alasan) =>
+    tampilkanDialogTengah(
+      context,
+      ikon: Icons.devices_rounded,
+      judul: 'Shift belum bisa ditutup',
+      catatan: alasan,
+      labelBatal: null,
+      labelAksi: 'Mengerti',
+      warnaAksi: WarnaTeras.oranye,
+      latarIkon: WarnaTeras.oranyeMuda,
+    );

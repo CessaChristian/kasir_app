@@ -18,20 +18,20 @@ class PengelolaShift {
   final ShiftRepository _repo;
   final AuthRepository _auth;
 
-  /// Diisi test: jawaban server "masih dipegang HP lain?". Bawaan: tanya
-  /// server lewat [PerangkatRepository].
-  final Future<bool> Function(String shiftId)? _dipegangLain;
+  /// Diisi test: jawaban server "siapa lagi yang memegang shift ini?".
+  /// Bawaan: tanya server lewat [PerangkatRepository].
+  final Future<List<PemegangShift>> Function(String shiftId)? _pemegangLain;
 
   /// Diisi test. Bawaan: [SupabaseService.online].
   final bool Function()? _online;
 
   PengelolaShift(
     AppDatabase db, {
-    Future<bool> Function(String shiftId)? dipegangPerangkatLain,
+    Future<List<PemegangShift>> Function(String shiftId)? pemegangLain,
     bool Function()? online,
   }) : _repo = ShiftRepository(db),
        _auth = AuthRepository(db),
-       _dipegangLain = dipegangPerangkatLain,
+       _pemegangLain = pemegangLain,
        _online = online;
 
   /// Buka shift dengan [kasAwal]. True kalau yang dipakai ternyata shift
@@ -46,6 +46,7 @@ class PengelolaShift {
     final id =
         lama ?? await _repo.bukaShift(userId: sesi.userId, kasAwal: kasAwal);
     await SessionManager.instance.aturShift(id);
+    unawaited(_auth.laporShift(id));
 
     // Awal kerja: pastikan kasir memulai dari daftar produk dan harga yang
     // terbaru, dan shift barunya segera sampai ke HP lain. Sengaja tidak
@@ -66,16 +67,40 @@ class PengelolaShift {
           'mungkin masih memakai shift ini tidak ikut terputus.';
     }
     try {
-      final dipegang =
-          await (_dipegangLain ??
-              PerangkatRepository.instance.shiftDipegangPerangkatLain)(shiftId);
-      if (!dipegang) return null;
-      return 'Shift ini masih dipakai perangkat lain. Tutup shiftnya dari '
-          'perangkat itu.';
+      final pemegang =
+          await (_pemegangLain ??
+              PerangkatRepository.instance.pemegangShiftLain)(shiftId);
+      if (pemegang.isEmpty) return null;
+      return pesanDipegang(pemegang);
     } catch (_) {
       return 'Tidak bisa memastikan ke server apakah perangkat lain masih '
           'memakai shift ini. Coba lagi sebentar.';
     }
+  }
+
+  /// Pesan penolakan yang menyebut perangkat pemegangnya — tanpa nama, kasir
+  /// tidak tahu harus mencari HP yang mana.
+  ///
+  /// Perangkat yang sudah [SessionManager.batasDiam] tidak memberi kabar
+  /// tidak dihitung server lagi, jadi pesannya juga menyebut kapan shift
+  /// bisa ditutup kalau perangkat itu ternyata sudah mati.
+  static String pesanDipegang(List<PemegangShift> pemegang) {
+    String aktif(Duration d) => d.inMinutes < 1
+        ? 'aktif baru saja'
+        : 'aktif ${d.inMinutes} menit lalu';
+    final nama = [for (final p in pemegang) '${p.nama} (${aktif(p.diam)})'];
+    final daftar = nama.length == 1
+        ? nama.single
+        : '${nama.sublist(0, nama.length - 1).join(', ')} dan ${nama.last}';
+    final tersegar = pemegang
+        .map((p) => p.diam)
+        .reduce((a, b) => a < b ? a : b);
+    final sisa = SessionManager.batasDiam - tersegar;
+    final menit = (sisa.inSeconds / 60).ceil().clamp(1, 1 << 20);
+    final itu = pemegang.length == 1 ? 'perangkat itu' : 'perangkat-perangkat itu';
+    return 'Shift ini masih dipakai di $daftar. Tutup shift dari $itu. '
+        'Kalau $itu sudah tidak dipakai, shift bisa ditutup sekitar '
+        '$menit menit lagi.';
   }
 
   /// Tutup shift berjalan. Kasir tetap masuk dan bisa membuka shift baru.

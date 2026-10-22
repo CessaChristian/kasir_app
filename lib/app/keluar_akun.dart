@@ -29,12 +29,9 @@ Future<void> keluarDariAkun(BuildContext context) async {
   if (!confirmed) return;
 
   try {
-    // Sengaja TIDAK menutup shift — lihat AuthRepository.logout.
-    if (SessionManager.instance.currentSession != null) {
-      await AuthRepository(db).logout();
-    }
-
-    await SessionManager.instance.clearSession();
+    // Sengaja TIDAK menutup shift — lihat AuthRepository.logout, yang juga
+    // menghapus sesinya.
+    await AuthRepository(db).logout();
 
     if (!context.mounted) return;
 

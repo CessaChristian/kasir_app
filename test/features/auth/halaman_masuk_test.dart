@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/pages/login_page.dart';
 import 'package:kasir_app/features/auth/recovery/pages/owner_recovery_page.dart';
@@ -13,6 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Halaman Login dan Reset PIN (desain): galat sebaris, bukan toast.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Masuk yang berhasil membuka halaman kasir, yang memformat tanggal.
+  setUpAll(() => initializeDateFormatting('id_ID'));
 
   late AppDatabase db;
   late AuthRepository repo;
@@ -127,6 +130,44 @@ void main() {
         findsOneWidget,
       );
       await lepas(t);
+    });
+
+    testWidgets('masuk melanjutkan shift: server langsung diberi tahu, '
+        'tanpa menunggu sinkron 5 menit', (t) async {
+      final dilapor = <String?>[];
+      await t.runAsync(() async {
+        final salt = CryptoUtils.generateSalt();
+        await db.into(db.users).insert(UsersCompanion.insert(
+              id: const Value('k-1'),
+              username: 'budi',
+              pinHash: CryptoUtils.hashPin(pin, salt),
+              salt: salt,
+              role: 'cashier',
+            ));
+        await db.into(db.shifts).insert(ShiftsCompanion.insert(
+              id: const Value('s-1'),
+              userId: 'k-1',
+            ));
+      });
+      layarHp(t);
+      await t.pumpWidget(MaterialApp(
+        home: LoginPage(
+          repo: AuthRepository(
+            db,
+            tungguSinkron: () async {},
+            lapor: (shiftId) async => dilapor.add(shiftId),
+          ),
+        ),
+      ));
+      await t.pump();
+      await t.enterText(kolom(0), 'budi');
+      await t.enterText(kolom(1), pin);
+      await tekan(t, 'Masuk');
+      await tunggu(t, 400);
+      expect(SessionManager.instance.currentSession?.shiftId, 's-1');
+      expect(dilapor, ['s-1']);
+      await lepas(t);
+      await SessionManager.instance.clearSession();
     });
 
     testWidgets('tombol mata menampilkan PIN', (t) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -7,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/models/sale_line.dart';
+import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/dashboard/pages/dasbor_kasir_page.dart';
@@ -19,6 +21,7 @@ import 'package:kasir_app/features/shift/pengelola_shift.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/features/shift/widgets/dialog_buka_shift.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
+import 'package:kasir_app/shared/ui/tombol_lembar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -209,17 +212,51 @@ void main() {
         await PengelolaShift(
           db,
           online: () => true,
-          dipegangPerangkatLain: (_) async => true,
+          pemegangLain: (_) async => [
+            (nama: 'Emulator 2', diam: const Duration(minutes: 3)),
+          ],
         ).halanganMenutup('s-1'),
-        contains('masih dipakai perangkat lain'),
+        'Shift ini masih dipakai di Emulator 2 (aktif 3 menit lalu). Tutup '
+        'shift dari perangkat itu. Kalau perangkat itu sudah tidak dipakai, '
+        'shift bisa ditutup sekitar 12 menit lagi.',
       );
       expect(
         await PengelolaShift(
           db,
           online: () => true,
-          dipegangPerangkatLain: (_) async => false,
+          pemegangLain: (_) async => const [],
         ).halanganMenutup('s-1'),
         isNull,
+      );
+      expect(
+        await PengelolaShift(
+          db,
+          online: () => true,
+          pemegangLain: (_) async => throw Exception('putus'),
+        ).halanganMenutup('s-1'),
+        contains('Tidak bisa memastikan'),
+        reason: '"tidak tahu" tidak boleh dianggap "tidak ada yang memegang"',
+      );
+    });
+
+    test('pesan pemegang: beberapa perangkat, baru saja aktif', () {
+      expect(
+        PengelolaShift.pesanDipegang([
+          (nama: 'HP A', diam: const Duration(seconds: 20)),
+          (nama: 'HP B', diam: const Duration(minutes: 7, seconds: 30)),
+          (nama: 'HP C', diam: const Duration(minutes: 14, seconds: 50)),
+        ]),
+        'Shift ini masih dipakai di HP A (aktif baru saja), HP B (aktif 7 '
+        'menit lalu) dan HP C (aktif 14 menit lalu). Tutup shift dari '
+        'perangkat-perangkat itu. Kalau perangkat-perangkat itu sudah tidak '
+        'dipakai, shift bisa ditutup sekitar 15 menit lagi.',
+        reason: 'sisa waktu mengikuti perangkat yang PALING BARU aktif',
+      );
+      expect(
+        PengelolaShift.pesanDipegang([
+          (nama: 'HP A', diam: const Duration(minutes: 14, seconds: 50)),
+        ]),
+        endsWith('sekitar 1 menit lagi.'),
       );
     });
 
@@ -553,6 +590,11 @@ void main() {
             body: ProfilKasirPage(
               repo: repo,
               repoBill: OpenBillRepository(db),
+              pengelola: PengelolaShift(
+                db,
+                online: () => true,
+                pemegangLain: (_) async => const [],
+              ),
             ),
           ),
         ),
@@ -565,6 +607,7 @@ void main() {
       expect(find.text('Laporan'), findsNothing);
 
       await t.tap(find.text('Tutup shift'));
+      await tunggu(t);
       await t.pumpAndSettle();
       expect(find.text('Tutup shift sekarang?'), findsOneWidget);
       expect(find.textContaining('1 transaksi · Rp 20.000.'), findsOneWidget);
@@ -572,6 +615,142 @@ void main() {
       await t.pumpAndSettle();
       expect(SessionManager.instance.currentSession!.shiftId, 's-1');
       await lepas(t);
+    });
+
+    group('tombol Tutup shift', () {
+      /// Profil kasir; setiap pertanyaan "siapa lagi yang memegang shift"
+      /// menunggu sampai test menjawabnya lewat Completer yang dikembalikan.
+      Future<List<Completer<List<PemegangShift>>>> bukaProfil(
+        WidgetTester t,
+      ) async {
+        layarHp(t);
+        await siapkanShift(t);
+        final pertanyaan = <Completer<List<PemegangShift>>>[];
+        await t.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ProfilKasirPage(
+                repo: repo,
+                repoBill: OpenBillRepository(db),
+                pengelola: PengelolaShift(
+                  db,
+                  online: () => true,
+                  pemegangLain: (_) {
+                    final c = Completer<List<PemegangShift>>();
+                    pertanyaan.add(c);
+                    return c.future;
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tunggu(t);
+        return pertanyaan;
+      }
+
+      testWidgets('kartu memuat langsung muncul, ketukan beruntun diabaikan', (
+        t,
+      ) async {
+        final pertanyaan = await bukaProfil(t);
+        for (var i = 0; i < 3; i++) {
+          await t.tap(find.text('Tutup shift'), warnIfMissed: false);
+        }
+        await t.pump();
+        expect(find.text('Memeriksa shift…'), findsOneWidget,
+            reason: 'tanda muncul SEBELUM server menjawab');
+        expect(find.text('Tutup shift sekarang?'), findsNothing);
+        expect(pertanyaan, hasLength(1), reason: 'satu proses saja');
+
+        pertanyaan.single.complete(const []);
+        await tunggu(t);
+        await t.pumpAndSettle();
+        expect(find.text('Memeriksa shift…'), findsNothing);
+        expect(find.text('Tutup shift sekarang?'), findsOneWidget);
+        await t.tap(find.text('Batal'));
+        await t.pumpAndSettle();
+
+        // Sesudah selesai, tombolnya bisa dipakai lagi.
+        await t.tap(find.text('Tutup shift'));
+        await t.pump();
+        expect(pertanyaan, hasLength(2));
+        pertanyaan.last.complete(const []);
+        await tunggu(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Batal'));
+        await t.pumpAndSettle();
+        await lepas(t);
+      });
+
+      testWidgets('masih dipegang perangkat lain: dialog satu tombol, bukan '
+          'toast', (t) async {
+        final pertanyaan = await bukaProfil(t);
+        await t.tap(find.text('Tutup shift'));
+        await t.pump();
+        pertanyaan.single.complete([
+          (nama: 'Emulator 2', diam: const Duration(minutes: 3)),
+        ]);
+        await tunggu(t);
+        await t.pumpAndSettle();
+        expect(find.text('Shift belum bisa ditutup'), findsOneWidget);
+        expect(find.textContaining('masih dipakai di Emulator 2'),
+            findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(Dialog),
+            matching: find.byType(TombolLembar),
+          ),
+          findsOneWidget,
+          reason: 'pemberitahuan, bukan pertanyaan — cukup satu tombol',
+        );
+        expect(find.text('Tutup shift sekarang?'), findsNothing);
+        await t.tap(find.text('Mengerti'));
+        await t.pumpAndSettle();
+        expect(find.text('Shift belum bisa ditutup'), findsNothing);
+        expect(SessionManager.instance.currentSession!.shiftId, 's-1');
+        await lepas(t);
+      });
+
+      testWidgets('diperiksa ulang sesudah dikonfirmasi; tanpa halangan '
+          'shiftnya ditutup', (t) async {
+        final pertanyaan = await bukaProfil(t);
+        await t.tap(find.text('Tutup shift'));
+        await t.pump();
+        pertanyaan.single.complete(const []);
+        await tunggu(t);
+        await t.pumpAndSettle();
+
+        // Perangkat lain masuk ke shift ini selagi dialognya terbuka.
+        await t.tap(find.text('Tutup Shift'));
+        await t.pump();
+        expect(find.text('Menutup shift…'), findsOneWidget);
+        expect(pertanyaan, hasLength(2));
+        pertanyaan.last.complete([
+          (nama: 'HP Kasir', diam: Duration.zero),
+        ]);
+        await tunggu(t);
+        await t.pumpAndSettle();
+        expect(find.textContaining('masih dipakai di HP Kasir'),
+            findsOneWidget);
+        expect(SessionManager.instance.currentSession!.shiftId, 's-1');
+        await t.tap(find.text('Mengerti'));
+        await t.pumpAndSettle();
+
+        // Coba lagi, kali ini tidak ada yang memegang.
+        await t.tap(find.text('Tutup shift'));
+        await t.pump();
+        pertanyaan.last.complete(const []);
+        await tunggu(t);
+        await t.pumpAndSettle();
+        await t.tap(find.text('Tutup Shift'));
+        await t.pump();
+        pertanyaan.last.complete(const []);
+        await tunggu(t);
+        await t.pump();
+        expect(SessionManager.instance.currentSession!.shiftId, isNull);
+        expect(find.text('Shift ditutup'), findsOneWidget);
+        await lepas(t);
+      });
     });
 
     testWidgets('Profil kasir dengan izin: Produk & Laporan muncul', (t) async {

@@ -6,6 +6,7 @@ import 'warna_teras.dart';
 
 /// Dialog konfirmasi di tengah layar (desain "Tutup shift sekarang?"):
 /// ikon · judul · catatan · [Batal] [aksi]. True kalau aksi ditekan.
+/// [labelBatal] null = hanya tombol aksi (pemberitahuan, bukan pertanyaan).
 Future<bool> tampilkanDialogTengah(
   BuildContext context, {
   required IconData ikon,
@@ -15,7 +16,7 @@ Future<bool> tampilkanDialogTengah(
   Color warnaAksi = WarnaTeras.merah,
   Color latarIkon = WarnaTeras.merahMuda,
   Color? warnaIkon,
-  String labelBatal = 'Batal',
+  String? labelBatal = 'Batal',
 }) async {
   final hasil = await showDialog<bool>(
     context: context,
@@ -60,15 +61,17 @@ Future<bool> tampilkanDialogTengah(
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(
-                  child: TombolLembar(
-                    label: labelBatal,
-                    latar: WarnaTeras.latarAbu,
-                    warna: WarnaTeras.teks,
-                    onPressed: () => Navigator.pop(context, false),
+                if (labelBatal != null) ...[
+                  Expanded(
+                    child: TombolLembar(
+                      label: labelBatal,
+                      latar: WarnaTeras.latarAbu,
+                      warna: WarnaTeras.teks,
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: TombolLembar(
                     label: labelAksi,

@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show TableUpdateQuery;
 
 import 'package:flutter/widgets.dart';
 
+import '../../shared/auth/session_manager.dart';
 import '../db.dart';
 import 'sync_service.dart';
 
@@ -62,6 +63,14 @@ class SyncOtomatis with WidgetsBindingObserver {
   static const jedaGabung = Duration(seconds: 3);
 
   Timer? _timer;
+
+  /// Pemeriksa sesi diam (SessionManager.akhiriKalauDiam) selagi aplikasi
+  /// di depan. Tiap menit, bukan ikut [jarakBerkala], supaya keranjang yang
+  /// dibiarkan berisi berakhir tepat di menit ke-15, bukan sampai menit
+  /// ke-20. Murah: tidak menyentuh jaringan maupun database.
+  Timer? _timerDiam;
+  static const jarakPeriksaDiam = Duration(minutes: 1);
+
   DateTime? _percobaanTerakhir;
   bool _tertunda = false;
 
@@ -172,8 +181,7 @@ class SyncOtomatis with WidgetsBindingObserver {
   @visibleForTesting
   void berhenti() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
-    _timer = null;
+    _matikanTimer();
     _penggabung?.cancel();
     _penggabung = null;
     _pendengarTulisan?.cancel();
@@ -183,22 +191,43 @@ class SyncOtomatis with WidgetsBindingObserver {
   void _nyalakanTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(jarakBerkala, (_) => picu('berkala'));
+    _timerDiam?.cancel();
+    _timerDiam = Timer.periodic(
+      jarakPeriksaDiam,
+      (_) => SessionManager.instance.akhiriKalauDiam(),
+    );
+  }
+
+  void _matikanTimer() {
+    _timer?.cancel();
+    _timer = null;
+    _timerDiam?.cancel();
+    _timerDiam = null;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _nyalakanTimer();
-      // Sengaja mengabaikan jeda minimum: jendela basi setelah HP tidur bisa
-      // berjam-jam, dan inilah satu-satunya kesempatan menutupnya sebelum
-      // kasir melayani pelanggan berikutnya.
-      picu('kembali aktif', abaikanJeda: true);
+      unawaited(kembaliAktif());
     } else {
       // Timer yang tetap hidup di latar belakang hanya menghabiskan baterai;
       // Android pun akan menahannya.
-      _timer?.cancel();
-      _timer = null;
+      _matikanTimer();
     }
+  }
+
+  /// Aplikasi kembali ke depan.
+  @visibleForTesting
+  Future<void> kembaliAktif() async {
+    _nyalakanTimer();
+    // Diperiksa SEBELUM sinkron: putaran sinkron mencatat kabar baru, dan
+    // sesudahnya HP yang diam sejam pun akan terlihat baru saja aktif.
+    await SessionManager.instance.akhiriKalauDiam();
+    // Sengaja mengabaikan jeda minimum: jendela basi setelah HP tidur bisa
+    // berjam-jam, dan inilah satu-satunya kesempatan menutupnya sebelum
+    // kasir melayani pelanggan berikutnya.
+    await (penggantiPicuUntukTest ??
+        (a) => picu(a, abaikanJeda: true))('kembali aktif');
   }
 
   /// Panggil saat pekerjaan yang menahan sinkron selesai — keranjang
@@ -246,8 +275,7 @@ class SyncOtomatis with WidgetsBindingObserver {
 
   @visibleForTesting
   void resetUntukTest() {
-    _timer?.cancel();
-    _timer = null;
+    _matikanTimer();
     _percobaanTerakhir = null;
     _tertunda = false;
     sedangMenyusunPesanan = false;

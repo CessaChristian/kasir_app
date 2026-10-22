@@ -72,6 +72,21 @@ class SyncService {
   /// Jalankan satu putaran, atau ikut menunggu yang sedang berjalan.
   Future<HasilSync> jalankan() => _berjalan ??= _mulai();
 
+  /// Tunggu putaran yang sedang berjalan selesai, kalau ada. Hasilnya tidak
+  /// dipedulikan, dan paling lama [_batasTunggu] — keluar dari akun tidak
+  /// boleh menggantung karena jaringannya tersendat.
+  Future<void> tungguSelesai() async {
+    final b = _berjalan;
+    if (b == null) return;
+    try {
+      await b.timeout(_batasTunggu);
+    } catch (_) {
+      // Gagal atau kelamaan: yang ditunggu cuma selesainya.
+    }
+  }
+
+  static const _batasTunggu = Duration(seconds: 15);
+
   Future<HasilSync> _mulai() async {
     try {
       // Pastikan sesinya hidup DULU. Perangkat yang dipasang saat jaringan
@@ -161,6 +176,13 @@ class SyncService {
     } finally {
       _berjalan = null;
       kemajuan.value = null;
+      // Berhasil atau tidak, HP ini terbukti masih hidup — internet mati
+      // tidak dihitung diam (lihat SessionManager.catatKabar).
+      try {
+        await SessionManager.instance.catatKabar();
+      } catch (e) {
+        debugPrint('[sync] catat kabar gagal: $e');
+      }
     }
   }
 }

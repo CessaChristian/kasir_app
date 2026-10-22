@@ -43,10 +43,14 @@ void main() async {
   // sempat berkedip "belum pernah disinkronkan" padahal sudah pernah.
   await SyncService.instance.muatTerakhirBerhasil();
 
-  unawaited(_sinkronAwal());
-
-  // Try to restore session from SharedPreferences
+  // Try to restore session from SharedPreferences.
+  //
+  // SEBELUM sinkron pertama: sinkron mencatat kabar baru, dan kasir yang
+  // aplikasinya digeser dari riwayat sejam lalu harus tetap ketahuan sudah
+  // diam lebih dari 15 menit (SessionManager.akhiriKalauDiam).
   await SessionManager.instance.restoreSession();
+
+  unawaited(_sinkronAwal());
 
   // Menyinkronkan sendiri setiap beberapa menit dan setiap kali aplikasi
   // kembali aktif. Tanpa ini, perubahan harga dari HP pemilik baru sampai ke

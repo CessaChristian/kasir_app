@@ -7,6 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase/supabase_service.dart';
 import 'kode_nota.dart';
 
+/// Perangkat lain yang masih memegang sebuah shift, dan sudah berapa lama
+/// ia tidak memberi kabar ke server.
+typedef PemegangShift = ({String nama, Duration diam});
+
 /// Satu perangkat yang terdaftar boleh menyentuh data toko.
 class Perangkat {
   final String id;
@@ -298,20 +302,28 @@ class PerangkatRepository {
     return (model, tablet);
   }
 
-  /// Apakah shift ini masih dipegang perangkat AKTIF selain perangkat ini.
+  /// Perangkat AKTIF selain perangkat ini yang masih memegang shift ini —
+  /// kosong kalau tidak ada. Perangkat yang 15 menit tidak memberi kabar
+  /// tidak dihitung (supabase/shift_pemegang_basi.sql).
   ///
   /// Dijawab server, bukan dihitung di sini, supaya jawabannya sama untuk
   /// siapa pun yang bertanya. MELEMPAR kalau tidak bisa bertanya — pemanggil
   /// yang memutuskan apa artinya, karena "tidak tahu" dan "tidak ada" adalah
   /// dua hal yang sangat berbeda saat hendak menutup shift.
-  Future<bool> shiftDipegangPerangkatLain(String shiftId) async {
+  Future<List<PemegangShift>> pemegangShiftLain(String shiftId) async {
     final k = _klien;
     if (k == null) throw StateError('server tidak tersedia');
     final hasil = await k.rpc(
-      'shift_dipegang_perangkat_lain',
+      'pemegang_shift_lain',
       params: {'p_shift_id': shiftId},
     );
-    return hasil == true;
+    return [
+      for (final b in hasil as List)
+        (
+          nama: (b['nama'] as String?) ?? 'Perangkat',
+          diam: Duration(seconds: (b['diam_detik'] as num).toInt()),
+        ),
+    ];
   }
 
   /// Keadaan perangkat ini menurut server.

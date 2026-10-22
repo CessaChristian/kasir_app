@@ -13,7 +13,8 @@ import '../../features/auth/models/auth_session.dart';
 /// SessionManager re-validate ke DB saat `restoreSession()` untuk
 /// mencegah privilege escalation via tamper SharedPreferences (S6).
 ///
-/// Session expire setelah 12 jam (S7).
+/// Session expire setelah 12 jam (S7), atau lebih cepat untuk kasir yang
+/// memegang shift tapi [batasDiam] tidak memberi kabar ke server.
 class SessionManager {
   static final SessionManager instance = SessionManager._();
   SessionManager._();
@@ -27,10 +28,77 @@ class SessionManager {
   AuthSession? _currentSession;
 
   /// Set the current session dan persist ke storage.
+  ///
+  /// Ikut dihitung sebagai kabar ([catatKabar]): sesi hanya diubah saat
+  /// orangnya memakai HP ini (login, buka/tutup shift) atau saat sinkron.
+  /// Tanpa ini, kasir yang membuka shift sesudah lama diam di halaman tanpa
+  /// shift langsung dikeluarkan pada pemeriksaan berikutnya.
   Future<void> setSession(AuthSession session) async {
     _currentSession = session;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_sessionKey, json.encode(session.toJson()));
+    await catatKabar();
+  }
+
+  /// Kasir yang memegang shift dan selama ini tidak memberi kabar ke server
+  /// harus login ulang (keputusan owner 2026-10-20).
+  ///
+  /// ── KENAPA ──
+  ///
+  /// Server menolak "Tutup shift" selama ada perangkat lain yang memegang
+  /// shift itu, dan perangkat yang mati atau aplikasinya digeser dari
+  /// riwayat tidak sempat melepasnya. Maka server berhenti menghitung
+  /// perangkat yang [batasDiam] tidak memberi kabar
+  /// (supabase/shift_pemegang_basi.sql — angkanya HARUS sama). HP itu
+  /// sendiri juga harus menganggap sesinya berakhir; kalau tidak, ia terus
+  /// berjualan di shift yang menurut server sudah tidak dipegangnya.
+  ///
+  /// Shift-nya TIDAK ditutup — login lagi melanjutkannya. Owner tidak
+  /// terkena: ia tidak memegang shift.
+  static const batasDiam = Duration(minutes: 15);
+
+  static const pesanDiam =
+      'Sesi berakhir karena 15 menit tidak aktif. Silakan masuk lagi.';
+
+  static const String _kunciKabar = 'kabar_terakhir';
+
+  /// Terakhir kali HP ini memberi kabar — lihat [catatKabar].
+  DateTime? _kabarTerakhir;
+
+  /// Catat bahwa HP ini masih hidup dan dipakai.
+  ///
+  /// Dipanggil setiap putaran sinkron selesai — BERHASIL ATAU TIDAK. Internet
+  /// mati sengaja tidak dihitung diam (keputusan owner): aplikasinya tetap
+  /// terbuka dan mencoba, kasir harus tetap bisa berjualan offline. Yang
+  /// dihitung diam hanya saat sinkron sama sekali tidak berjalan: aplikasi di
+  /// latar belakang, layar mati, atau keranjang dibiarkan berisi.
+  ///
+  /// Disimpan juga ke storage supaya aplikasi yang digeser dari riwayat lalu
+  /// dibuka lagi tahu sudah berapa lama ia diam.
+  Future<void> catatKabar([DateTime? waktu]) async {
+    _kabarTerakhir = waktu ?? DateTime.now();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kunciKabar, _kabarTerakhir!.toIso8601String());
+  }
+
+  /// Akhiri sesi kalau kasir yang memegang shift sudah [batasDiam] tidak
+  /// memberi kabar. True kalau sesinya diakhiri; [sesiDicabut] membawa
+  /// [pesanDiam] ke layar.
+  ///
+  /// Dipanggil saat aplikasi dibuka, saat kembali dari latar belakang
+  /// (SEBELUM sinkron, yang akan mencatat kabar baru), dan tiap menit selama
+  /// aplikasi di depan — untuk keranjang yang dibiarkan berisi.
+  Future<bool> akhiriKalauDiam({DateTime? sekarang}) async {
+    final sesi = _currentSession;
+    final kabar = _kabarTerakhir;
+    if (sesi == null || !sesi.isCashier || sesi.shiftId == null) return false;
+    if (kabar == null) return false;
+    if ((sekarang ?? DateTime.now()).difference(kabar) < batasDiam) {
+      return false;
+    }
+    await clearSession();
+    sesiDicabut.value = pesanDiam;
+    return true;
   }
 
   /// Clear current session.
@@ -50,6 +118,8 @@ class SessionManager {
   Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     final sessionJson = prefs.getString(_sessionKey);
+    final kabar = prefs.getString(_kunciKabar);
+    _kabarTerakhir = kabar == null ? null : DateTime.tryParse(kabar);
 
     if (sessionJson == null) return;
 
@@ -94,6 +164,11 @@ class SessionManager {
 
       // Sinkronkan storage agar konsisten dengan DB
       await prefs.setString(_sessionKey, json.encode(_currentSession!.toJson()));
+
+      // Belum pernah tercatat = baru dipasang APK yang mengenal aturan ini;
+      // hitungannya dimulai sekarang, bukan langsung mengeluarkan kasirnya.
+      if (_kabarTerakhir == null) await catatKabar();
+      await akhiriKalauDiam();
     } catch (_) {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();

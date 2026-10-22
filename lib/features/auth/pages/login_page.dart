@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +8,7 @@ import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/kerangka_masuk.dart';
 import '../../../shared/ui/warna_teras.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/sync_refresh.dart';
 import '../../../utils/crypto_utils.dart';
 import '../recovery/pages/owner_recovery_page.dart';
@@ -30,6 +33,19 @@ class _LoginPageState extends State<LoginPage> {
 
   var _memuat = false;
   String? _galat;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sesi yang berakhir saat aplikasi dibuka (mis. 15 menit diam) belum
+    // punya layar yang mengumumkannya — AppShell belum pernah tampil.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final alasan = SessionManager.instance.sesiDicabut.value;
+      if (alasan == null || !mounted) return;
+      SessionManager.instance.tandaiPencabutanSudahDitangani();
+      AppToast.warning(context, alasan);
+    });
+  }
 
   @override
   void dispose() {
@@ -77,6 +93,10 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       await SessionManager.instance.setSession(sesi);
+      // Login yang melanjutkan shift: server langsung tahu perangkat ini ikut
+      // memegangnya. Sengaja tidak ditunggu — login tidak boleh menunggu
+      // jaringan.
+      if (sesi.shiftId != null) unawaited(_repo.laporShift(sesi.shiftId));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => AppShell(key: AppShell.globalKey)),
