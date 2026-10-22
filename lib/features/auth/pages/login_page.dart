@@ -68,6 +68,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _masuk() async {
+    // Tombol Masuk mati selama memeriksa, tapi Enter di keyboard tidak.
+    if (_memuat) return;
     final galat = _periksa();
     if (galat != null) {
       setState(() => _galat = galat);

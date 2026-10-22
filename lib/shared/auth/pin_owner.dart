@@ -37,8 +37,8 @@ class PemeriksaPinOwner {
           ..orderBy([(u) => OrderingTerm.asc(u.createdAt)])
           ..limit(1))
         .getSingleOrNull();
-    final cocok =
-        owner != null && CryptoUtils.verifyPin(pin, owner.salt, owner.pinHash);
+    final cocok = owner != null &&
+        await CryptoUtils.verifyPinDiLatar(pin, owner.salt, owner.pinHash);
 
     if (cocok) {
       await prefs.remove(_kunciGagal);

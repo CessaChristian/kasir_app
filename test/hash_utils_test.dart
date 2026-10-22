@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,30 @@ void main() {
 
       // 4. Verify dengan hash baru
       expect(HashUtils.verifyWithSalt(code, salt, newHash), isTrue);
+    });
+  });
+  group('di latar (isolate lain)', () {
+    test('hasilnya sama dan layar tetap hidup', () async {
+      final salt = HashUtils.generateSalt();
+      var detak = 0;
+      final jam = Timer.periodic(
+        const Duration(milliseconds: 10),
+        (_) => detak++,
+      );
+      final hash = await HashUtils.hashWithSaltDiLatar('ABCD2345', salt);
+      final saatBuat = detak;
+      detak = 0;
+      final cocok =
+          await HashUtils.verifyWithSaltDiLatar('ABCD2345', salt, hash);
+      jam.cancel();
+      expect(hash, HashUtils.hashWithSalt('ABCD2345', salt));
+      expect(cocok, isTrue);
+      expect(
+        await HashUtils.verifyWithSaltDiLatar('ABCD2346', salt, hash),
+        isFalse,
+      );
+      expect(saatBuat, greaterThanOrEqualTo(5));
+      expect(detak, greaterThanOrEqualTo(5));
     });
   });
 }

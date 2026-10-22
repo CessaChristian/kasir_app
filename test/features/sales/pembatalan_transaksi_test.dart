@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
+import 'package:kasir_app/shared/auth/pin_owner.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/utils/crypto_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -157,6 +160,18 @@ void main() {
     expect(repo.bolehDibatalkan(batal), isFalse);
     await expectLater(repo.batalkanTransaksi(batal, alasan: 'Lagi'),
         throwsA(isA<StateError>()));
+  });
+
+  test('memeriksa PIN owner tidak menahan layar', () async {
+    var detak = 0;
+    final jam = Timer.periodic(
+      const Duration(milliseconds: 10),
+      (_) => detak++,
+    );
+    await PemeriksaPinOwner(db).periksa(pinOwner);
+    jam.cancel();
+    expect(detak, greaterThanOrEqualTo(5),
+        reason: 'dialog PIN owner harus tetap hidup selama PIN diperiksa');
   });
 
   test('5 kali PIN salah mengunci pembatalan di HP ini, bukan login owner',

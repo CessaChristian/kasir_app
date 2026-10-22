@@ -16,6 +16,21 @@ import 'package:kasir_app/utils/crypto_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Profil owner (desain) beserta alur Kode Recovery.
+/// Tunggu sampai "Memproses…" hilang. PIN diperiksa di isolate lain, lalu
+/// kode baru di-hash di isolate lain lagi — tiap langkah butuh waktu nyata,
+/// jadi ditunggu sedikit-sedikit.
+Future<void> tungguDiproses(WidgetTester t) async {
+  await t.pump();
+  final memproses = find.text('Memproses…');
+  for (var i = 0; i < 300 && memproses.evaluate().isNotEmpty; i++) {
+    await t.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 30)),
+    );
+    await t.pump();
+  }
+  await t.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -137,8 +152,7 @@ void main() {
       final isian = find.byKey(const Key('isian-pin-recovery'));
       await t.enterText(isian, '111111');
       await t.tap(find.text('Buat Kode Baru'));
-      await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 2)));
-      await t.pumpAndSettle();
+      await tungguDiproses(t);
       expect(
         find.text('Perbarui Kode Recovery'),
         findsOneWidget,
@@ -148,8 +162,7 @@ void main() {
 
       await t.enterText(isian, pin);
       await t.tap(find.text('Buat Kode Baru'));
-      await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 2)));
-      await t.pumpAndSettle();
+      await tungguDiproses(t);
       expect(hasil, isNotNull);
       expect(hasil!.replaceAll('-', ''), hasLength(16));
     });

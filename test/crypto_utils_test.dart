@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,6 +103,37 @@ void main() {
       // Yang penting: verify return bool, tidak ada short-circuit visible.
       expect(CryptoUtils.verifyPin('123456', salt, hash), isTrue);
       expect(CryptoUtils.verifyPin('999999', salt, hash), isFalse);
+    });
+  });
+  group('di latar (isolate lain)', () {
+    test('hasilnya sama persis dengan versi biasa', () async {
+      final salt = CryptoUtils.generateSalt();
+      final hash = await CryptoUtils.hashPinDiLatar('123456', salt);
+      expect(hash, CryptoUtils.hashPin('123456', salt),
+          reason: 'PIN lama harus tetap bisa dipakai masuk');
+      expect(await CryptoUtils.verifyPinDiLatar('123456', salt, hash), isTrue);
+      expect(await CryptoUtils.verifyPinDiLatar('999999', salt, hash), isFalse);
+      final lama = _legacyHash('123456', salt);
+      expect(await CryptoUtils.verifyPinDiLatar('123456', salt, lama), isTrue);
+    });
+
+    test('layar tetap hidup selama PIN diperiksa dan dibuat', () async {
+      final salt = CryptoUtils.generateSalt();
+      final hash = CryptoUtils.hashPin('123456', salt);
+      var detak = 0;
+      final jam = Timer.periodic(
+        const Duration(milliseconds: 10),
+        (_) => detak++,
+      );
+      await CryptoUtils.verifyPinDiLatar('123456', salt, hash);
+      final saatPeriksa = detak;
+      detak = 0;
+      await CryptoUtils.hashPinDiLatar('123456', salt);
+      jam.cancel();
+      expect(saatPeriksa, greaterThanOrEqualTo(5),
+          reason: 'PBKDF2 di isolate utama menahan semua kerja lain — '
+              'termasuk menggambar tombol "Memeriksa…"');
+      expect(detak, greaterThanOrEqualTo(5));
     });
   });
 }

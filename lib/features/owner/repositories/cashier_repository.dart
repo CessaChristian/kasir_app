@@ -107,7 +107,7 @@ class CashierRepository {
 
     // 3. Generate salt and hash PIN
     final salt = CryptoUtils.generateSalt();
-    final pinHash = CryptoUtils.hashPin(pin, salt);
+    final pinHash = await CryptoUtils.hashPinDiLatar(pin, salt);
 
     // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
     final userId = newUuid();
@@ -312,7 +312,7 @@ class CashierRepository {
 
     // 2. Generate new salt and hash
     final salt = CryptoUtils.generateSalt();
-    final pinHash = CryptoUtils.hashPin(newPin, salt);
+    final pinHash = await CryptoUtils.hashPinDiLatar(newPin, salt);
 
     // 3. Update user
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(

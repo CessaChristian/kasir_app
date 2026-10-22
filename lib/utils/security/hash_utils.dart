@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
@@ -52,6 +53,19 @@ class HashUtils {
     // recovery code mereka. auth_repository akan re-hash setelah berhasil.
     return _verifyLegacySha256(value, salt, storedHash);
   }
+
+  /// [hashWithSalt] di isolate lain, supaya layar tidak macet — lihat
+  /// `CryptoUtils.hashPinDiLatar`.
+  static Future<String> hashWithSaltDiLatar(String value, String salt) =>
+      Isolate.run(() => hashWithSalt(value, salt));
+
+  /// [verifyWithSalt] di isolate lain.
+  static Future<bool> verifyWithSaltDiLatar(
+    String value,
+    String salt,
+    String storedHash,
+  ) =>
+      Isolate.run(() => verifyWithSalt(value, salt, storedHash));
 
   /// True jika hash pakai format lama dan perlu di-rehash.
   static bool needsRehash(String storedHash) {

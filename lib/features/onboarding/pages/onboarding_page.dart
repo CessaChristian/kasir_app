@@ -34,7 +34,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       // Menggunakan CryptoUtils (PBKDF2-HMAC-SHA256, 120.000 iterasi)
       // — sama dengan pattern di auth_repository.dart + cashier_repository.dart.
       final salt = CryptoUtils.generateSalt();
-      final pinHash = CryptoUtils.hashPin(pin, salt);
+      final pinHash = await CryptoUtils.hashPinDiLatar(pin, salt);
 
       final userId = await _repo.setupFirstOwner(
         username: username,

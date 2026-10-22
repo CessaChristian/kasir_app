@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
@@ -56,6 +57,20 @@ class CryptoUtils {
     // lalu auth_repository akan re-hash ke PBKDF2 setelah berhasil.
     return _verifyLegacySha256(pin, salt, storedHash);
   }
+
+  /// [hashPin] di isolate lain. PBKDF2 120.000 putaran makan ratusan
+  /// milidetik; di isolate utama ia menahan gambar layar — tombol "Memeriksa…"
+  /// baru tampil setelah semuanya selesai, dan HP terlihat macet.
+  static Future<String> hashPinDiLatar(String pin, String salt) =>
+      Isolate.run(() => hashPin(pin, salt));
+
+  /// [verifyPin] di isolate lain — lihat [hashPinDiLatar].
+  static Future<bool> verifyPinDiLatar(
+    String pin,
+    String salt,
+    String storedHash,
+  ) =>
+      Isolate.run(() => verifyPin(pin, salt, storedHash));
 
   /// True jika hash pakai format lama dan perlu di-rehash.
   ///

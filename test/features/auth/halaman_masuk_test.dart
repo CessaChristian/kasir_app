@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/app_database.dart';
+import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/auth/pages/login_page.dart';
 import 'package:kasir_app/features/auth/recovery/pages/owner_recovery_page.dart';
 import 'package:kasir_app/features/auth/repositories/auth_repository.dart';
@@ -56,6 +59,21 @@ void main() {
     await t.pump();
   }
 
+  /// Tunggu sampai tombol tidak lagi "Memeriksa…". PIN diperiksa di isolate
+  /// lain, kadang beberapa kali berturut-turut (cek PIN lalu buat hash baru)
+  /// — tiap langkah butuh waktu nyata, jadi ditunggu sedikit-sedikit.
+  Future<void> tungguSelesai(WidgetTester t) async {
+    await t.pump();
+    final memeriksa = find.text('Memeriksa…');
+    for (var i = 0; i < 300 && memeriksa.evaluate().isNotEmpty; i++) {
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await t.pump();
+    }
+    await tunggu(t, 30);
+  }
+
   Future<void> lepas(WidgetTester t) async {
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 3));
@@ -69,6 +87,20 @@ void main() {
     await t.pump();
     await t.tap(find.text(teks));
   }
+
+  test('login tidak menahan layar selama PIN diperiksa', () async {
+    var detak = 0;
+    final jam = Timer.periodic(
+      const Duration(milliseconds: 10),
+      (_) => detak++,
+    );
+    final sesi = await repo.login(username: 'owner', pin: pin);
+    jam.cancel();
+    expect(sesi, isNotNull);
+    expect(detak, greaterThanOrEqualTo(5),
+        reason: 'PIN diperiksa di isolate utama = tombol "Memeriksa…" baru '
+            'tergambar setelah akun diterima');
+  });
 
   group('login', () {
     Future<void> buka(WidgetTester t) async {
@@ -109,7 +141,7 @@ void main() {
       await t.enterText(kolom(0), 'owner');
       await t.enterText(kolom(1), '999999');
       await tekan(t, 'Masuk');
-      await tunggu(t, 300);
+      await tungguSelesai(t);
       expect(find.text('Username atau PIN salah'), findsOneWidget);
       await lepas(t);
     });
@@ -163,11 +195,39 @@ void main() {
       await t.enterText(kolom(0), 'budi');
       await t.enterText(kolom(1), pin);
       await tekan(t, 'Masuk');
-      await tunggu(t, 400);
+      await tungguSelesai(t);
       expect(SessionManager.instance.currentSession?.shiftId, 's-1');
       expect(dilapor, ['s-1']);
       await lepas(t);
       await SessionManager.instance.clearSession();
+    });
+
+    testWidgets('Masuk: tombol langsung "Memeriksa…" sampai PIN selesai '
+        'diperiksa; Enter berkali-kali tetap sekali', (t) async {
+      final tahan = _RepoTahan(db);
+      layarHp(t);
+      await t.pumpWidget(MaterialApp(home: LoginPage(repo: tahan)));
+      await t.pump();
+      await t.enterText(kolom(0), 'owner');
+      await t.enterText(kolom(1), '999999');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pump();
+      expect(find.text('Memeriksa…'), findsOneWidget);
+
+      // Keyboard menutup sesudah Enter; kasir mengetuk kolom PIN lagi dan
+      // menekan Enter selagi masih memeriksa.
+      for (var i = 0; i < 2; i++) {
+        await t.showKeyboard(kolom(1));
+        await t.testTextInput.receiveAction(TextInputAction.done);
+        await t.pump();
+      }
+      expect(tahan.dipanggil, 1);
+
+      tahan.hasil.complete(null);
+      await t.pump();
+      expect(find.text('Masuk'), findsOneWidget);
+      expect(find.text('Username atau PIN salah'), findsOneWidget);
+      await lepas(t);
     });
 
     testWidgets('tombol mata menampilkan PIN', (t) async {
@@ -233,7 +293,7 @@ void main() {
       await t.enterText(kolom(1), '445566');
       await t.enterText(kolom(2), '445566');
       await tekan(t, 'Reset PIN');
-      await tunggu(t, 300);
+      await tungguSelesai(t);
       expect(find.text('Kode recovery tidak valid'), findsOneWidget);
       expect(find.textContaining('Invalid'), findsNothing);
       await lepas(t);
@@ -246,7 +306,7 @@ void main() {
       await t.enterText(kolom(2), '445566');
       for (var i = 0; i < 5; i++) {
         await tekan(t, 'Reset PIN');
-        await tunggu(t, 300);
+        await tungguSelesai(t);
       }
       expect(
         find.textContaining('Terlalu banyak percobaan. Tunggu'),
@@ -264,7 +324,7 @@ void main() {
       await t.enterText(kolom(1), '445566');
       await t.enterText(kolom(2), '445566');
       await tekan(t, 'Reset PIN');
-      await tunggu(t, 600);
+      await tungguSelesai(t);
       await t.pump(const Duration(milliseconds: 500));
       expect(find.text('Kode Recovery Owner'), findsOneWidget);
       final sesi = await t.runAsync(
@@ -274,4 +334,21 @@ void main() {
       await lepas(t);
     });
   });
+}
+
+/// Login yang menunggu sampai test memutuskan hasilnya.
+class _RepoTahan extends AuthRepository {
+  _RepoTahan(super.db);
+
+  var dipanggil = 0;
+  final hasil = Completer<AuthSession?>();
+
+  @override
+  Future<AuthSession?> login({
+    required String username,
+    required String pin,
+  }) {
+    dipanggil++;
+    return hasil.future;
+  }
 }

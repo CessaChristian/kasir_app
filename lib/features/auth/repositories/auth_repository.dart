@@ -57,7 +57,7 @@ class AuthRepository {
 
     // 3. Generate salt and hash PIN
     final salt = CryptoUtils.generateSalt();
-    final pinHash = CryptoUtils.hashPin(pin, salt);
+    final pinHash = await CryptoUtils.hashPinDiLatar(pin, salt);
 
     // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
     final userId = newUuid();
@@ -117,8 +117,10 @@ class AuthRepository {
           'Akun terkunci. Coba lagi dalam ${_formatLockDuration(remaining)}.');
     }
 
-    // 3. Verify PIN
-    final isValid = CryptoUtils.verifyPin(pin, user.salt, user.pinHash);
+    // 3. Verify PIN — di isolate lain supaya tombol "Memeriksa…" langsung
+    // tampil dan layar tidak macet selama PBKDF2 berjalan.
+    final isValid =
+        await CryptoUtils.verifyPinDiLatar(pin, user.salt, user.pinHash);
     if (!isValid) {
       // S5: Increment login attempts + lockout dengan exponential backoff.
       await _incrementLoginAttempts(user.id);
@@ -141,7 +143,7 @@ class AuthRepository {
     // 3b. Migrasi transparan: kalau hash masih format lama (SHA-256),
     // re-hash dengan PBKDF2 dan update DB.
     if (CryptoUtils.needsRehash(user.pinHash)) {
-      final newHash = CryptoUtils.hashPin(pin, user.salt);
+      final newHash = await CryptoUtils.hashPinDiLatar(pin, user.salt);
       await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
           .write(UsersCompanion(
         pinHash: Value(newHash),
@@ -355,7 +357,7 @@ class AuthRepository {
 
     // Generate salt and hash
     final salt = _generateRecoverySalt();
-    final hash = _hashRecoveryCode(normalizedCode, salt);
+    final hash = await _hashRecoveryCode(normalizedCode, salt);
 
     // Update owner with recovery data
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
@@ -439,7 +441,7 @@ class AuthRepository {
 
       // Verifikasi recovery code (PBKDF2 + constant-time)
       final normalized = _normalizeRecoveryCode(recoveryCode);
-      final isValid = _verifyRecoveryCode(
+      final isValid = await _verifyRecoveryCode(
         normalized,
         owner.recoverySalt!,
         owner.recoveryHash!,
@@ -454,11 +456,11 @@ class AuthRepository {
       // Kalau write gagal (storage penuh, dll), seluruh transaksi rollback —
       // owner tetap bisa pakai recovery code yang sama.
       final newSalt = CryptoUtils.generateSalt();
-      final newPinHash = CryptoUtils.hashPin(newPin, newSalt);
+      final newPinHash = await CryptoUtils.hashPinDiLatar(newPin, newSalt);
       final newRecoveryCode = _generateRecoveryCode();
       final newRecoverySalt = _generateRecoverySalt();
       final newRecoveryHash =
-          _hashRecoveryCode(newRecoveryCode, newRecoverySalt);
+          await _hashRecoveryCode(newRecoveryCode, newRecoverySalt);
 
       await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
         UsersCompanion(
@@ -492,7 +494,11 @@ class AuthRepository {
     }
 
     // Verify current PIN
-    final isValid = CryptoUtils.verifyPin(currentPin, owner.salt, owner.pinHash);
+    final isValid = await CryptoUtils.verifyPinDiLatar(
+      currentPin,
+      owner.salt,
+      owner.pinHash,
+    );
     if (!isValid) {
       return RecoveryResult.pinMismatch();
     }
@@ -536,13 +542,13 @@ class AuthRepository {
   }
 
   /// Hash recovery code with salt
-  String _hashRecoveryCode(String code, String salt) {
-    return HashUtils.hashWithSalt(code, salt);
+  Future<String> _hashRecoveryCode(String code, String salt) {
+    return HashUtils.hashWithSaltDiLatar(code, salt);
   }
 
   /// Verify recovery code
-  bool _verifyRecoveryCode(String code, String salt, String hash) {
-    return HashUtils.verifyWithSalt(code, salt, hash);
+  Future<bool> _verifyRecoveryCode(String code, String salt, String hash) {
+    return HashUtils.verifyWithSaltDiLatar(code, salt, hash);
   }
 
   /// S5: Increment login attempts dan lock dengan exponential backoff yang sama
