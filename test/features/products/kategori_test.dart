@@ -12,6 +12,7 @@ import 'package:kasir_app/features/products/pages/kategori_page.dart';
 import 'package:kasir_app/features/products/repositories/product_repository.dart';
 import 'package:kasir_app/features/sales/models/saring_kategori.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
+import 'package:kasir_app/shared/constants/category_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -147,6 +148,63 @@ void main() {
       final daftar = await db.watchCategories().first;
       expect(daftar.map((c) => c.name), ['Mocktails', 'Snack', 'Teh']);
       expect(daftar.first.iconCodepoint, Icons.local_bar_rounded.codePoint);
+    });
+
+    test('ubah nama & ikon: kategori dikirim, produknya tidak', () async {
+      await kategori('k-kopi', 'Kopi');
+      await produk('p-1', 'k-kopi');
+      await db.simpanKategori(
+        ubah: {
+          'k-kopi': (nama: 'Kopi Susu', ikon: Icons.coffee_rounded.codePoint),
+        },
+      );
+      final k = await ambil('k-kopi');
+      expect(
+        (k.name, k.iconCodepoint, k.syncStatus),
+        ('Kopi Susu', Icons.coffee_rounded.codePoint, 'pending'),
+      );
+      final p = await db.select(db.products).getSingle();
+      expect((p.categoryId, p.syncStatus), ('k-kopi', 'synced'));
+    });
+
+    test('tukar nama dua kategori sah', () async {
+      await kategori('k-a', 'Kopi');
+      await kategori('k-b', 'Teh');
+      await db.simpanKategori(
+        ubah: {
+          'k-a': (nama: 'Teh', ikon: null),
+          'k-b': (nama: 'Kopi', ikon: null),
+        },
+      );
+      expect((await ambil('k-a')).name, 'Teh');
+      expect((await ambil('k-b')).name, 'Kopi');
+    });
+
+    test(
+      'ubah ke nama kategori lain ditolak, tidak tersimpan sebagian',
+      () async {
+        await kategori('k-kopi', 'Kopi');
+        await kategori('k-teh', 'Teh');
+        await expectLater(
+          db.simpanKategori(
+            ubah: {'k-teh': (nama: 'KOPI', ikon: null)},
+            tampil: {'k-kopi': false},
+          ),
+          throwsStateError,
+        );
+        expect((await ambil('k-teh')).name, 'Teh');
+        expect((await ambil('k-kopi')).tampilDiKasir, isTrue);
+      },
+    );
+
+    test('kembaran lama tidak menghalangi ubah kategori lain', () async {
+      await kategori('k-m1', 'Makanan');
+      await kategori('k-m2', 'Makanan');
+      await kategori('k-kopi', 'Kopi');
+      await db.simpanKategori(
+        ubah: {'k-kopi': (nama: 'Kopi Susu', ikon: null)},
+      );
+      expect((await ambil('k-kopi')).name, 'Kopi Susu');
     });
 
     test('nama kembar (beda huruf besar-kecil) ditolak, TIDAK ada yang '
@@ -307,6 +365,32 @@ void main() {
     });
   });
 
+  group('daftar ikon', () {
+    test('26 pilihan, tidak ada yang kembar', () {
+      expect(kIkonPilihanKategori, hasLength(26));
+      expect(
+        kIkonPilihanKategori.map((i) => i.codePoint).toSet(),
+        hasLength(kIkonPilihanKategori.length),
+      );
+    });
+
+    test('tiap pilihan tampil lagi sebagai ikon yang sama', () {
+      for (final ikon in kIkonPilihanKategori) {
+        expect(categoryIconFromCodepoint(ikon.codePoint), ikon);
+      }
+    });
+
+    test('ikon lama yang tidak bisa dipilih lagi tetap dikenali', () {
+      for (final ikon in [
+        Icons.dinner_dining,
+        Icons.tapas,
+        Icons.sell_rounded,
+      ]) {
+        expect(categoryIconFromCodepoint(ikon.codePoint), ikon);
+      }
+    });
+  });
+
   group('halaman', () {
     void layarHp(WidgetTester t) {
       t.view.physicalSize = const Size(1080, 2400);
@@ -398,6 +482,166 @@ void main() {
       expect(find.text('Simpan Perubahan'), findsOneWidget);
       final diDb = await t.runAsync(() => db.watchCategories().first);
       expect(diDb, hasLength(2), reason: 'belum disimpan');
+      await lepas(t);
+    });
+
+    testWidgets('pilihan ikon: sendok garpu & cookie bisa dipilih', (t) async {
+      await buka(t);
+      expect(find.byIcon(Icons.cookie), findsOneWidget);
+      await t.tap(find.byIcon(Icons.restaurant_rounded));
+      await t.pump();
+      await t.enterText(find.byType(TextField), 'Lauk');
+      await t.tap(find.bySemanticsLabel('Tambah kategori'));
+      await t.pump();
+      await t.tap(find.text('Simpan Perubahan'));
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await t.pump();
+      final diDb = await t.runAsync(() => db.watchCategories().first);
+      expect(
+        diDb!.firstWhere((k) => k.name == 'Lauk').iconCodepoint,
+        Icons.restaurant_rounded.codePoint,
+      );
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('pilihan ikon: Add on memakai ikon plus sendiri', (t) async {
+      await buka(t);
+      await t.ensureVisible(find.byIcon(Icons.add_circle_rounded));
+      await t.tap(find.byIcon(Icons.add_circle_rounded));
+      await t.pump();
+      await t.enterText(find.byType(TextField), 'Add on');
+      await t.tap(find.bySemanticsLabel('Tambah kategori'));
+      await t.pump();
+      await t.tap(find.text('Simpan Perubahan'));
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await t.pump();
+      final diDb = await t.runAsync(() => db.watchCategories().first);
+      expect(
+        diDb!.firstWhere((k) => k.name == 'Add on').iconCodepoint,
+        Icons.add_circle_rounded.codePoint,
+      );
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    Future<void> bukaEdit(WidgetTester t, String nama) async {
+      await t.tap(find.byTooltip('Edit $nama'));
+      await t.pumpAndSettle();
+      expect(find.text('Edit Kategori'), findsOneWidget);
+    }
+
+    Future<void> simpanEdit(WidgetTester t) async {
+      await t.tap(find.text('Simpan'));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('edit nama & ikon: masuk draf "Diubah", berlaku saat Simpan', (
+      t,
+    ) async {
+      await buka(t);
+      await bukaEdit(t, 'Kopi');
+      expect(
+        t.widget<TextField>(find.byType(TextField).last).controller!.text,
+        'Kopi',
+      );
+      await t.tap(find.byIcon(Icons.coffee_rounded).last);
+      await t.enterText(find.byType(TextField).last, '  Kopi   Susu ');
+      await simpanEdit(t);
+      expect(find.text('Edit Kategori'), findsNothing);
+      expect(find.text('Kopi Susu'), findsOneWidget);
+      expect(find.text('Diubah'), findsOneWidget);
+      expect(find.text('Simpan Perubahan'), findsOneWidget);
+      expect((await t.runAsync(() => ambil('k-kopi')))!.name, 'Kopi');
+
+      await t.tap(find.text('Simpan Perubahan'));
+      await tunggu(t);
+      final k = (await t.runAsync(() => ambil('k-kopi')))!;
+      expect(
+        (k.name, k.iconCodepoint),
+        ('Kopi Susu', Icons.coffee_rounded.codePoint),
+      );
+      expect(find.text('Diubah'), findsNothing);
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('edit: nama kosong/kembar ditolak, lembar tetap terbuka', (
+      t,
+    ) async {
+      await buka(t);
+      await bukaEdit(t, 'Kopi');
+      for (final (nama, galat) in [
+        ('', 'Nama kategori wajib diisi'),
+        ('snack', 'Kategori sudah ada'),
+        ('tanpa kategori', 'Kategori sudah ada'),
+      ]) {
+        await t.enterText(find.byType(TextField).last, nama);
+        await simpanEdit(t);
+        expect(find.text(galat), findsOneWidget, reason: nama);
+        expect(find.text('Edit Kategori'), findsOneWidget);
+      }
+      // Nama sendiri boleh (mis. hanya ganti ikon).
+      await t.enterText(find.byType(TextField).last, 'KOPI');
+      await simpanEdit(t);
+      expect(find.text('Edit Kategori'), findsNothing, reason: 'tertutup');
+      expect(find.text('Diubah'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('edit lalu Batal: tidak ada perubahan', (t) async {
+      await buka(t);
+      await bukaEdit(t, 'Kopi');
+      await t.enterText(find.byType(TextField).last, 'Teh');
+      await t.tap(find.text('Batal'));
+      await t.pumpAndSettle();
+      expect(find.text('Kopi'), findsOneWidget);
+      expect(find.text('Tidak ada perubahan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('kembali ke nama & ikon asal: lencana "Diubah" hilang', (
+      t,
+    ) async {
+      await buka(t);
+      await bukaEdit(t, 'Kopi');
+      await t.enterText(find.byType(TextField).last, 'Teh');
+      await simpanEdit(t);
+      await bukaEdit(t, 'Teh');
+      await t.enterText(find.byType(TextField).last, 'Kopi');
+      await simpanEdit(t);
+      expect(find.text('Diubah'), findsNothing);
+      expect(find.text('Tidak ada perubahan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('Tanpa Kategori tidak bisa diedit', (t) async {
+      await buka(t);
+      expect(find.byTooltip('Edit Tanpa Kategori'), findsNothing);
+      expect(find.byTooltip('Edit Kopi'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('kategori baru yang belum disimpan bisa diedit', (t) async {
+      await buka(t);
+      await t.enterText(find.byType(TextField), 'Mocktails');
+      await t.tap(find.bySemanticsLabel('Tambah kategori'));
+      await t.pump();
+      await bukaEdit(t, 'Mocktails');
+      await t.enterText(find.byType(TextField).last, 'Mojito');
+      await simpanEdit(t);
+      expect(find.text('Mojito'), findsOneWidget);
+      expect(find.text('Baru'), findsOneWidget);
+      expect(find.text('Diubah'), findsNothing);
+      await t.tap(find.text('Simpan Perubahan'));
+      await tunggu(t);
+      final semua = await t.runAsync(() => db.watchCategories().first);
+      expect(semua!.map((k) => k.name), contains('Mojito'));
+      await t.pump(const Duration(seconds: 3));
       await lepas(t);
     });
 

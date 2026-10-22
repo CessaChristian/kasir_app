@@ -35,9 +35,14 @@ class ProductRepository {
   Future<void> simpanKategori({
     List<({String nama, int? ikon})> tambah = const [],
     Map<String, bool> tampil = const {},
+    Map<String, ({String nama, int? ikon})> ubah = const {},
     List<String> hapus = const [],
-  }) =>
-      _db.simpanKategori(tambah: tambah, tampil: tampil, hapus: hapus);
+  }) => _db.simpanKategori(
+    tambah: tambah,
+    tampil: tampil,
+    ubah: ubah,
+    hapus: hapus,
+  );
 
   // ---- PRODUK ----
 

@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 
 /// Ikon kategori yang bisa DIPILIH di halaman Kategori — 12 ikon desain,
-/// urut desain. `glass_cup` di desain tidak ada di Flutter, jadi diganti
-/// gelas yang paling mirip (`local_drink`).
+/// urut desain, ditambah sendok garpu & cookie (keputusan owner 2026-10-17:
+/// dipakai Makanan & Snack). `glass_cup` di desain tidak ada di Flutter,
+/// jadi diganti gelas yang paling mirip (`local_drink`).
+///
+/// 12 ikon terakhir tambahan owner 2026-10-22 untuk kategori yang belum
+/// punya ikon pas (mis. Add on yang terpaksa memakai sendok garpu). Ikon
+/// yang dulu sudah dikenal dipakai apa adanya — varian lain (mis.
+/// `fastfood_rounded`) punya codepoint berbeda, dan kategori lama yang
+/// memakainya akan berganti ikon.
 const kIkonPilihanKategori = <IconData>[
   Icons.rice_bowl,
   Icons.ramen_dining,
@@ -16,9 +23,23 @@ const kIkonPilihanKategori = <IconData>[
   Icons.icecream,
   Icons.cake_rounded,
   Icons.local_pizza,
+  Icons.restaurant_rounded,
+  Icons.cookie,
+  Icons.add_circle_rounded, // Add on / topping
+  Icons.egg_alt, // telur / lauk tambahan
+  Icons.fastfood, // paket
+  Icons.breakfast_dining, // roti
+  Icons.kebab_dining, // sate
+  Icons.soup_kitchen, // sup / kuah
+  Icons.set_meal, // ikan / seafood
+  Icons.blender, // jus
+  Icons.takeout_dining, // bungkus
+  Icons.local_fire_department_rounded, // pedas
+  Icons.star_rounded, // rekomendasi
+  Icons.local_offer_rounded, // promo
 ];
 
-/// Semua ikon yang bisa TAMPIL: pilihan desain + ikon pemilih lama, supaya
+/// Semua ikon yang bisa TAMPIL: pilihan di atas + ikon pemilih lama, supaya
 /// kategori yang dibuat dengan versi aplikasi sebelumnya tetap berikon sama.
 ///
 /// PENTING (jangan diubah jadi non-const): Flutter melakukan "tree shaking"
@@ -29,23 +50,13 @@ const kIkonPilihanKategori = <IconData>[
 /// daftar const di bawah lewat [categoryIconFromCodepoint].
 const _ikonDikenal = <IconData>[
   ...kIkonPilihanKategori,
-  Icons.restaurant_rounded,
-  Icons.fastfood,
   Icons.dinner_dining,
-  Icons.breakfast_dining,
-  Icons.kebab_dining,
-  Icons.set_meal,
-  Icons.soup_kitchen,
   Icons.tapas,
   Icons.sports_bar_rounded,
   Icons.water_drop_rounded,
-  Icons.blender,
-  Icons.cookie,
   Icons.storefront_rounded,
   Icons.sell_rounded,
   Icons.label_rounded,
-  Icons.star_rounded,
-  Icons.local_offer_rounded,
   Icons.category_rounded,
 ];
 

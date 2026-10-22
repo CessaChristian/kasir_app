@@ -10,11 +10,14 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/simpan_lalu_kirim.dart';
 import '../repositories/product_repository.dart';
+import '../sheets/lembar_edit_kategori.dart';
+import '../widgets/pilihan_ikon_kategori.dart';
 
 /// Panjang maksimal nama kategori (desain).
 const panjangNamaKategori = 20;
 
-/// Halaman Kategori (desain): tambah kategori, sembunyikan dari Kasir, hapus.
+/// Halaman Kategori (desain): tambah kategori, edit nama & ikon,
+/// sembunyikan dari Kasir, hapus.
 ///
 /// Semua aksi masuk DRAF dulu dan baru berlaku saat "Simpan Perubahan"
 /// (keputusan owner 2026-10-13). Kembali dengan draf yang belum disimpan
@@ -35,19 +38,22 @@ class KategoriPage extends StatefulWidget {
 /// Satu kategori di draf. [id] null = kategori baru yang belum disimpan.
 class _Draf {
   final String? id;
-  final String nama;
-  final int? ikon;
+  String nama;
+  int? ikon;
   bool tampil;
 
   _Draf({this.id, required this.nama, this.ikon, this.tampil = true});
 }
 
+/// Keadaan tersimpan satu kategori — pembanding draf.
+typedef _Tersimpan = ({String nama, int? ikon, bool tampil});
+
 class _KategoriPageState extends State<KategoriPage> {
   late final _repo = widget.repo ?? ProductRepository(db);
   final _nama = TextEditingController();
 
-  /// Keadaan tersimpan: id -> tampil di Kasir. Null selama memuat.
-  Map<String, bool>? _awal;
+  /// Keadaan tersimpan per id. Null selama memuat.
+  Map<String, _Tersimpan>? _awal;
   List<_Draf> _draf = [];
 
   /// Jumlah produk per id kategori.
@@ -91,7 +97,10 @@ class _KategoriPageState extends State<KategoriPage> {
       }
     }
     setState(() {
-      _awal = {for (final c in kategori) c.id: c.tampilDiKasir};
+      _awal = {
+        for (final c in kategori)
+          c.id: (nama: c.name, ikon: c.iconCodepoint, tampil: c.tampilDiKasir),
+      };
       _draf = [
         for (final c in kategori)
           _Draf(
@@ -111,9 +120,18 @@ class _KategoriPageState extends State<KategoriPage> {
     return _awal!.keys.where((id) => !masih.contains(id));
   }
 
+  /// Nama atau ikon kategori lama diubah di draf (lencana "Diubah").
+  bool _diubah(_Draf d) {
+    final a = d.id == null ? null : _awal![d.id];
+    return a != null && (a.nama != d.nama || a.ikon != d.ikon);
+  }
+
   bool get _berubah =>
       _awal != null &&
-      (_draf.any((d) => d.id == null || _awal![d.id] != d.tampil) ||
+      (_draf.any(
+            (d) =>
+                d.id == null || _awal![d.id]!.tampil != d.tampil || _diubah(d),
+          ) ||
           _dihapus.isNotEmpty);
 
   int _jumlahProduk(_Draf d) => d.id == null ? 0 : _produkPer[d.id] ?? 0;
@@ -123,23 +141,50 @@ class _KategoriPageState extends State<KategoriPage> {
   int get _jumlahTanpa =>
       _produkTanpa + _dihapus.fold(0, (n, id) => n + (_produkPer[id] ?? 0));
 
-  void _tambah() {
-    final nama = _nama.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (nama.isEmpty) {
-      setState(() => _galat = 'Nama kategori wajib diisi');
-      return;
-    }
+  /// Galat nama kategori [nama] (sudah dirapikan), atau null. Kategori
+  /// [kecuali] (yang sedang diedit) tidak dihitung kembar dengan dirinya.
+  String? _periksaNama(String nama, {_Draf? kecuali}) {
+    if (nama.isEmpty) return 'Nama kategori wajib diisi';
     final kecil = nama.toLowerCase();
     if (kecil == namaTanpaKategori.toLowerCase() ||
-        _draf.any((d) => d.nama.toLowerCase() == kecil)) {
-      setState(() => _galat = 'Kategori sudah ada');
+        _draf.any((d) => d != kecuali && d.nama.toLowerCase() == kecil)) {
+      return 'Kategori sudah ada';
+    }
+    return null;
+  }
+
+  void _urutkan() => _draf.sort(
+    (a, b) => a.nama.toLowerCase().compareTo(b.nama.toLowerCase()),
+  );
+
+  void _tambah() {
+    final nama = _nama.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final galat = _periksaNama(nama);
+    if (galat != null) {
+      setState(() => _galat = galat);
       return;
     }
     setState(() {
-      _draf = [..._draf, _Draf(nama: nama, ikon: _ikon.codePoint)]
-        ..sort((a, b) => a.nama.toLowerCase().compareTo(b.nama.toLowerCase()));
+      _draf = [..._draf, _Draf(nama: nama, ikon: _ikon.codePoint)];
+      _urutkan();
       _nama.clear();
       _galat = '';
+    });
+  }
+
+  Future<void> _edit(_Draf d) async {
+    final hasil = await tampilkanEditKategori(
+      context,
+      nama: d.nama,
+      ikon: d.ikon,
+      periksa: (nama) => _periksaNama(nama, kecuali: d),
+    );
+    if (hasil == null || !mounted) return;
+    setState(() {
+      d
+        ..nama = hasil.nama
+        ..ikon = hasil.ikon;
+      _urutkan();
     });
   }
 
@@ -169,7 +214,11 @@ class _KategoriPageState extends State<KategoriPage> {
         ],
         tampil: {
           for (final d in _draf)
-            if (d.id != null && awal[d.id] != d.tampil) d.id!: d.tampil,
+            if (d.id != null && awal[d.id]!.tampil != d.tampil) d.id!: d.tampil,
+        },
+        ubah: {
+          for (final d in _draf)
+            if (_diubah(d)) d.id!: (nama: d.nama, ikon: d.ikon),
         },
         hapus: _dihapus.toList(),
       ),
@@ -183,8 +232,8 @@ class _KategoriPageState extends State<KategoriPage> {
       },
     );
     if (!mounted) return;
-    // Dimuat ulang dari database: lencana "Baru" hilang dan draf kembali
-    // sama dengan yang tersimpan.
+    // Dimuat ulang dari database: lencana "Baru"/"Diubah" hilang dan draf
+    // kembali sama dengan yang tersimpan.
     if (tersimpan) await _muat();
     if (mounted) setState(() => _menyimpan = false);
   }
@@ -259,12 +308,9 @@ class _KategoriPageState extends State<KategoriPage> {
             ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final ikon in kIkonPilihanKategori) _pilihanIkon(ikon),
-            ],
+          PilihanIkonKategori(
+            terpilih: _ikon,
+            onPilih: (ikon) => setState(() => _ikon = ikon),
           ),
           const SizedBox(height: 12),
           Row(
@@ -345,27 +391,6 @@ class _KategoriPageState extends State<KategoriPage> {
     );
   }
 
-  Widget _pilihanIkon(IconData ikon) {
-    final dipilih = ikon == _ikon;
-    return Material(
-      color: dipilih ? WarnaTeras.oranye : WarnaTeras.latarAbu,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => setState(() => _ikon = ikon),
-        child: SizedBox(
-          width: 30,
-          height: 30,
-          child: Icon(
-            ikon,
-            size: 19,
-            color: dipilih ? Colors.white : WarnaTeras.teksPudar,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _judulDaftar() {
     final tampil = _draf.where((d) => d.tampil).length;
     return Padding(
@@ -416,10 +441,22 @@ class _KategoriPageState extends State<KategoriPage> {
       ikon: categoryIconFromCodepoint(d.ikon),
       nama: d.nama,
       redup: !d.tampil,
-      baru: d.id == null,
+      lencana: d.id == null
+          ? _Lencana.baru
+          : _diubah(d)
+          ? _Lencana.diubah
+          : null,
       keterangan: '$n produk${d.tampil ? '' : ' · disembunyikan di Kasir'}',
       warnaKeterangan: d.tampil ? WarnaTeras.teksPudar : WarnaTeras.merah,
       ujung: [
+        _TombolKecil(
+          ikon: Icons.edit_rounded,
+          tooltip: 'Edit ${d.nama}',
+          latar: WarnaTeras.latarAbu,
+          warna: WarnaTeras.teksPudar,
+          onTap: () => _edit(d),
+        ),
+        const SizedBox(width: 10),
         _TombolKecil(
           ikon: d.tampil
               ? Icons.visibility_rounded
@@ -469,13 +506,25 @@ class _KategoriPageState extends State<KategoriPage> {
   }
 }
 
+/// Lencana di samping nama kategori: belum tersimpan.
+enum _Lencana {
+  baru('Baru', WarnaTeras.hijau, WarnaTeras.hijauMuda),
+  diubah('Diubah', WarnaTeras.oranye, WarnaTeras.oranyeMuda);
+
+  final String label;
+  final Color warna;
+  final Color latar;
+
+  const _Lencana(this.label, this.warna, this.latar);
+}
+
 class _BarisKategori extends StatelessWidget {
   final IconData ikon;
   final String nama;
 
   /// Ikon abu-abu (disembunyikan, atau baris bawaan Tanpa Kategori).
   final bool redup;
-  final bool baru;
+  final _Lencana? lencana;
   final String keterangan;
   final Color warnaKeterangan;
   final List<Widget> ujung;
@@ -484,7 +533,7 @@ class _BarisKategori extends StatelessWidget {
     required this.ikon,
     required this.nama,
     required this.redup,
-    this.baru = false,
+    this.lencana,
     required this.keterangan,
     required this.warnaKeterangan,
     required this.ujung,
@@ -528,20 +577,20 @@ class _BarisKategori extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (baru) ...[
+                    if (lencana case final l?) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
                         decoration: BoxDecoration(
-                          color: WarnaTeras.hijauMuda,
+                          color: l.latar,
                           borderRadius: BorderRadius.circular(99),
                         ),
-                        child: const Text(
-                          'Baru',
+                        child: Text(
+                          l.label,
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: WarnaTeras.hijau,
+                            color: l.warna,
                           ),
                         ),
                       ),

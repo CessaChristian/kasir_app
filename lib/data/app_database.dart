@@ -1423,6 +1423,7 @@ class AppDatabase extends _$AppDatabase {
   ///
   /// - [tambah]: kategori baru (nama sudah dirapikan pemanggil).
   /// - [tampil]: id kategori -> tampil di Kasir atau tidak.
+  /// - [ubah]: id kategori -> nama (sudah dirapikan) & ikon barunya.
   /// - [hapus]: id kategori yang dihapus. Produknya dilepas jadi Tanpa
   ///   Kategori, BUKAN ikut terhapus.
   ///
@@ -1432,6 +1433,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> simpanKategori({
     List<({String nama, int? ikon})> tambah = const [],
     Map<String, bool> tampil = const {},
+    Map<String, ({String nama, int? ikon})> ubah = const {},
     List<String> hapus = const [],
   }) async {
     SessionManager.instance.requirePermission('manage_categories');
@@ -1461,13 +1463,33 @@ class AppDatabase extends _$AppDatabase {
           syncStatus: const Value('pending'),
         ));
       }
-      if (tambah.isNotEmpty) {
-        final ada = {
-          for (final c in await (select(categories)
-                ..where((t) => t.deletedAt.isNull()))
-              .get())
-            c.name.toLowerCase(),
-        };
+      for (final MapEntry(key: id, value: k) in ubah.entries) {
+        if (hapus.contains(id)) continue;
+        await (update(categories)..where((t) => t.id.equals(id)))
+            .write(CategoriesCompanion(
+          name: Value(k.nama),
+          iconCodepoint: Value(k.ikon),
+          updatedAt: Value(now),
+          syncStatus: const Value('pending'),
+        ));
+      }
+      if (tambah.isNotEmpty || ubah.isNotEmpty) {
+        // Diperiksa SESUDAH nama diubah, jadi tukar nama dua kategori sah.
+        // Hanya nama yang diubah yang diperiksa: kembaran lama (data dari
+        // versi sebelumnya) tidak menghalangi simpan.
+        final jumlah = <String, int>{};
+        for (final c in await (select(categories)
+              ..where((t) => t.deletedAt.isNull()))
+            .get()) {
+          final n = c.name.toLowerCase();
+          jumlah[n] = (jumlah[n] ?? 0) + 1;
+        }
+        for (final k in ubah.values) {
+          if ((jumlah[k.nama.toLowerCase()] ?? 0) > 1) {
+            throw StateError('Kategori "${k.nama}" sudah ada');
+          }
+        }
+        final ada = jumlah.keys.toSet();
         for (final k in tambah) {
           if (!ada.add(k.nama.toLowerCase())) {
             throw StateError('Kategori "${k.nama}" sudah ada');
