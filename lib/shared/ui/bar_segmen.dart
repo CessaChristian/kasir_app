@@ -26,11 +26,16 @@ class BarSegmen extends StatelessWidget {
     ];
     return ClipRRect(
       borderRadius: BorderRadius.circular(tinggi / 2),
+      // Lebar penuh & potongan direntang setinggi bar: ColoredBox tanpa
+      // anak di dalam Row mengecil jadi tinggi 0 — barnya tak terlihat,
+      // tinggal celah kosong di kartu.
       child: SizedBox(
         height: tinggi,
+        width: double.infinity,
         child: ada.isEmpty
             ? const ColoredBox(color: WarnaTeras.latarAbu)
             : Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < ada.length; i++) ...[
                     if (i > 0) SizedBox(width: celah),
