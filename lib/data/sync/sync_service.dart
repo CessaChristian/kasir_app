@@ -87,6 +87,99 @@ class SyncService {
 
   static const _batasTunggu = Duration(seconds: 15);
 
+  /// Urutan kerja sesudah mesin sinkron selesai.
+  ///
+  /// [selamaTersambung] — kabar "HP ini masih aktif" dan pemeriksaan akun,
+  /// izin, serta shift — dijalankan WALAU putarannya gagal. Dulu semuanya
+  /// ikut berhenti begitu ada satu baris yang ditolak server: setelah 15
+  /// menit server menganggap HP ini diam sehingga HP lain boleh menutup
+  /// shift yang masih dipakai di sini, dan kasir yang sudah dinonaktifkan
+  /// tetap bisa berjualan. Satu baris bermasalah bisa bertahan berhari-hari.
+  ///
+  /// [hanyaKalauBerhasil] (foto, buang sampah, catatan "terakhir berhasil")
+  /// tetap menunggu putaran yang bersih.
+  ///
+  /// Saat putarannya gagal, galat pemeriksaan tidak menimpa galat aslinya.
+  @visibleForTesting
+  static Future<HasilSync> urutanSesudahMesin(
+    HasilSync hasil, {
+    required Future<HasilSync> Function() hanyaKalauBerhasil,
+    required Future<void> Function() selamaTersambung,
+  }) async {
+    if (!hasil.berhasil) {
+      try {
+        await selamaTersambung();
+      } catch (e) {
+        debugPrint('[sync] pemeriksaan sesudah sinkron gagal: $e');
+      }
+      return hasil;
+    }
+    final lengkap = await hanyaKalauBerhasil();
+    await selamaTersambung();
+    return lengkap;
+  }
+
+  Future<HasilSync> _rampungkan(HasilSync hasil) async {
+    // Berkas gambar menyusul SETELAH barisnya selesai, dan kegagalannya
+    // tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
+    // bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
+    // belum sampai cuma berarti produknya tampil tanpa foto sementara.
+    final klien = SupabaseService.instance.client;
+    var lengkap = hasil;
+    if (klien != null) {
+      final g = await SyncGambar(db, klien,
+              onKemajuan: (k) => kemajuan.value = k)
+          .jalankan();
+      lengkap = hasil.denganGambar(
+        naik: g.diunggah,
+        turun: g.diunduh,
+        hapus: g.dihapus,
+        hapusLokal: g.dihapusLokal,
+        error: g.error,
+      );
+    }
+
+    // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
+    // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
+    // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
+    // tempat, dan putaran berikutnya mencoba lagi.
+    try {
+      await db.buangSampahLokal();
+    } catch (e) {
+      debugPrint('[sync] buang sampah lokal gagal: $e');
+    }
+
+    await _catatBerhasil();
+    return lengkap;
+  }
+
+  Future<void> _periksaSesudahSinkron() async {
+    // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
+    // menyimpan daftarnya sejak login. Tanpa dibaca ulang di sini, izin yang
+    // baru diberikan pemilik tidak terlihat sampai kasir keluar-masuk lagi —
+    // dan tidak ada yang memberi tahu bahwa itu syaratnya.
+    await SessionManager.instance.muatUlangIzin();
+
+    // Penonaktifan kasir hanya berlaku kalau ada yang memeriksanya ulang.
+    // `is_active` diperiksa saat login dan di restoreSession — keduanya
+    // tidak pernah terjadi lagi selama sesi berjalan, jadi tanpa baris ini
+    // kasir yang aksesnya sudah dicabut tetap bisa berjualan sampai
+    // aplikasinya benar-benar ditutup.
+    await SessionManager.instance.periksaAkunMasihBerlaku();
+
+    // Shift yang sudah diakhiri dari perangkat lain harus ketahuan di
+    // sini, bukan dibiarkan sampai kasir menjual ke shift yang tutup.
+    await SessionManager.instance.periksaShiftMasihBerjalan();
+
+    // Tandai perangkat ini masih dipakai, supaya pemilik bisa melihat mana
+    // yang aktif dan mana yang sudah lama diam di halaman Perangkat — dan
+    // supaya server tidak menganggap shift di HP ini ditinggalkan.
+    // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
+    // adalah catatan administratif, bukan data dagangan.
+    await PerangkatRepository.instance
+        .hadir(SessionManager.instance.currentSession?.shiftId);
+  }
+
   Future<HasilSync> _mulai() async {
     try {
       // Pastikan sesinya hidup DULU. Perangkat yang dipasang saat jaringan
@@ -116,63 +209,11 @@ class SyncService {
 
       final hasil =
           await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
-      if (!hasil.berhasil) return hasil;
-
-      // Berkas gambar menyusul SETELAH barisnya selesai, dan kegagalannya
-      // tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
-      // bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
-      // belum sampai cuma berarti produknya tampil tanpa foto sementara.
-      final klien = supabase.client;
-      var lengkap = hasil;
-      if (klien != null) {
-        final g = await SyncGambar(db, klien,
-                onKemajuan: (k) => kemajuan.value = k)
-            .jalankan();
-        lengkap = hasil.denganGambar(
-          naik: g.diunggah,
-          turun: g.diunduh,
-          hapus: g.dihapus,
-          hapusLokal: g.dihapusLokal,
-          error: g.error,
-        );
-      }
-
-      // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
-      // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
-      // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
-      // tempat, dan putaran berikutnya mencoba lagi.
-      try {
-        await db.buangSampahLokal();
-      } catch (e) {
-        debugPrint('[sync] buang sampah lokal gagal: $e');
-      }
-
-      // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
-      // menyimpan daftarnya sejak login. Tanpa dibaca ulang di sini, izin yang
-      // baru diberikan pemilik tidak terlihat sampai kasir keluar-masuk lagi —
-      // dan tidak ada yang memberi tahu bahwa itu syaratnya.
-      await SessionManager.instance.muatUlangIzin();
-
-      // Penonaktifan kasir hanya berlaku kalau ada yang memeriksanya ulang.
-      // `is_active` diperiksa saat login dan di restoreSession — keduanya
-      // tidak pernah terjadi lagi selama sesi berjalan, jadi tanpa baris ini
-      // kasir yang aksesnya sudah dicabut tetap bisa berjualan sampai
-      // aplikasinya benar-benar ditutup.
-      await SessionManager.instance.periksaAkunMasihBerlaku();
-
-      // Tandai perangkat ini masih dipakai, supaya pemilik bisa melihat mana
-      // yang aktif dan mana yang sudah lama diam di halaman Perangkat.
-      // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
-      // adalah catatan administratif, bukan data dagangan.
-      // Shift yang sudah diakhiri dari perangkat lain harus ketahuan di
-      // sini, bukan dibiarkan sampai kasir menjual ke shift yang tutup.
-      await SessionManager.instance.periksaShiftMasihBerjalan();
-
-      await PerangkatRepository.instance
-          .hadir(SessionManager.instance.currentSession?.shiftId);
-
-      await _catatBerhasil();
-      return lengkap;
+      return urutanSesudahMesin(
+        hasil,
+        hanyaKalauBerhasil: () => _rampungkan(hasil),
+        selamaTersambung: _periksaSesudahSinkron,
+      );
     } finally {
       _berjalan = null;
       kemajuan.value = null;
