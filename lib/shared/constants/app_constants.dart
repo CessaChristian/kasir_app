@@ -11,5 +11,5 @@ class AppConstants {
   /// pubspec.yaml (dijaga test). Setiap APK baru untuk HP kasir menaikkan
   /// versi ini DAN nomor build (+N) di pubspec — HP menolak update yang
   /// nomor build-nya tidak lebih besar.
-  static const String versiAplikasi = '1.0.1';
+  static const String versiAplikasi = '1.0.2';
 }
