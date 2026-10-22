@@ -17,6 +17,10 @@ typedef PemeriksaNamaServer =
 /// Menjawab: apakah server bisa dihubungi sekarang?
 typedef PemeriksaKoneksi = Future<bool> Function();
 
+/// Nomor kasir terbesar di server; null kalau tidak bisa dibaca (mis.
+/// `supabase/nomor_nota.sql` belum dijalankan).
+typedef PemeriksaNomorServer = Future<int?> Function();
+
 /// Pesan saat Kelola Kasir dipakai tanpa internet.
 const pesanButuhInternet = 'Butuh internet — coba lagi setelah tersambung.';
 
@@ -30,13 +34,16 @@ class CashierRepository {
   final AppDatabase _db;
   final PemeriksaNamaServer _namaDipakaiDiServer;
   final PemeriksaKoneksi _terhubung;
+  final PemeriksaNomorServer _nomorTerbesarDiServer;
 
   CashierRepository(
     this._db, {
     PemeriksaNamaServer? namaDipakaiDiServer,
     PemeriksaKoneksi? terhubung,
+    PemeriksaNomorServer? nomorTerbesarDiServer,
   }) : _namaDipakaiDiServer = namaDipakaiDiServer ?? _periksaKeSupabase,
-       _terhubung = terhubung ?? serverTerjangkau;
+       _terhubung = terhubung ?? serverTerjangkau,
+       _nomorTerbesarDiServer = nomorTerbesarDiServer ?? _nomorDiSupabase;
 
   /// Server bisa dihubungi sekarang? Dipakai halaman sebelum membuka lembar.
   Future<bool> terhubung() => _terhubung();
@@ -105,6 +112,12 @@ class CashierRepository {
     // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
     final userId = newUuid();
 
+    // 5. Nomor kasir (nomor nota): terbesar di HP ini MAUPUN di server, + 1
+    // — HP owner lain bisa saja baru membuat kasir yang belum tertarik ke
+    // sini. Server tak terbaca: dibiarkan kosong, server yang mengisinya
+    // saat akun ini terkirim (trg_users_nomor_kasir).
+    final nomor = await _nomorBerikutnya();
+
     // I1: Bungkus insert user + set permissions dalam satu transaksi.
     // Kalau permissions gagal di-set, user juga di-rollback agar tidak
     // ada akun "zombie" tanpa permission.
@@ -119,6 +132,7 @@ class CashierRepository {
               salt: salt,
               role: 'cashier',
               isActive: const Value(true),
+              nomorKasir: Value(nomor),
             ),
           );
 
@@ -352,6 +366,35 @@ class CashierRepository {
         syncStatus: const Value('pending'),
       ),
     );
+  }
+
+  Future<int?> _nomorBerikutnya() async {
+    final diServer = await _nomorTerbesarDiServer();
+    if (diServer == null) return null;
+    final terbesar = _db.users.nomorKasir.max();
+    final diHp =
+        (await (_db.selectOnly(_db.users)..addColumns([terbesar]))
+            .getSingle())
+            .read(terbesar) ??
+        0;
+    return (diServer > diHp ? diServer : diHp) + 1;
+  }
+
+  static Future<int?> _nomorDiSupabase() async {
+    final supabase = SupabaseService.instance;
+    if (!supabase.online) return null;
+    try {
+      final baris = await supabase.client!
+          .from('users')
+          .select('nomor_kasir')
+          .not('nomor_kasir', 'is', null)
+          .order('nomor_kasir', ascending: false)
+          .limit(1);
+      if (baris.isEmpty) return 0;
+      return (baris.first['nomor_kasir'] as num).toInt();
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<bool> _periksaKeSupabase(String nama, String? kecualiId) async {

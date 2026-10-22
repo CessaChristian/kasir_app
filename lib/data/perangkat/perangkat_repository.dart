@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
+import 'kode_nota.dart';
 
 /// Satu perangkat yang terdaftar boleh menyentuh data toko.
 class Perangkat {
@@ -187,6 +188,7 @@ class PerangkatRepository {
     try {
       await k.rpc('daftarkan_perangkat',
           params: {'p_kunci': kunci, 'p_nama': await tebakNama()});
+      await _ambilKodeNota(k);
       return true;
     } catch (e) {
       if (belumDisiapkan(e)) {
@@ -225,6 +227,31 @@ class PerangkatRepository {
       return;
     }
     await _catatModel(k);
+    if (!_kodeTerambil) await _ambilKodeNota(k);
+  }
+
+  /// Sudah mengambil huruf nota sejak aplikasi dibuka?
+  bool _kodeTerambil = false;
+
+  /// Ambil huruf perangkat ini untuk nomor nota (`perangkat.kode`). Gagal
+  /// atau kolomnya belum ada (nomor_nota.sql belum dijalankan) = dicoba lagi
+  /// di sinkron berikutnya; nota tetap terbit memakai kode lama.
+  Future<void> _ambilKodeNota(SupabaseClient k) async {
+    final id = k.auth.currentUser?.id;
+    if (id == null) return;
+    try {
+      final baris = await k
+          .from('perangkat')
+          .select('kode')
+          .eq('id', id)
+          .maybeSingle();
+      final kode = baris?['kode'] as String?;
+      if (kode == null) return;
+      await KodeNota.simpanDariServer(kode);
+      _kodeTerambil = true;
+    } catch (e) {
+      debugPrint('[perangkat] kode nota gagal diambil: $e');
+    }
   }
 
   /// Sudah mengirim model sejak aplikasi dibuka?

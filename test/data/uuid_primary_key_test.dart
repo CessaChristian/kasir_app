@@ -130,8 +130,8 @@ void main() {
       final tx = await db.select(db.transactions).getSingle();
       expect(tx.id, matches(uuidV4),
           reason: 'primary key harus UUID — dipakai untuk sync');
-      expect(tx.invoiceNo, matches(RegExp(r'^TRX/\d{2}/\d{2}/\d{2}/[A-Z0-9]{4}-\d{4,}$')),
-          reason: 'nomor nota berformat TRX/dd/MM/yy/KODE-NNNN untuk struk');
+      expect(tx.invoiceNo, matches(RegExp(r'^CS/(\d{2}|XX)/\d{6}/[A-Z0-9]+-\d{4,}$')),
+          reason: 'nomor nota berformat CS/kasir/ddMMyy/KODE-NNNN untuk struk');
       expect(tx.invoiceNo, isNot(tx.id),
           reason: 'keduanya peran berbeda, tidak boleh dicampur lagi');
     });

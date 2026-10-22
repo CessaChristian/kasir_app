@@ -1432,6 +1432,17 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _nomorKasirMeta = const VerificationMeta(
+    'nomorKasir',
+  );
+  @override
+  late final GeneratedColumn<int> nomorKasir = GeneratedColumn<int>(
+    'nomor_kasir',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1474,6 +1485,7 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
     loginAttempts,
     loginLockedUntil,
     deletedAt,
+    nomorKasir,
     updatedAt,
     syncStatus,
   ];
@@ -1614,6 +1626,12 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
+    if (data.containsKey('nomor_kasir')) {
+      context.handle(
+        _nomorKasirMeta,
+        nomorKasir.isAcceptableOrUnknown(data['nomor_kasir']!, _nomorKasirMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1699,6 +1717,10 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
       ),
+      nomorKasir: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}nomor_kasir'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1738,6 +1760,11 @@ class User extends DataClass implements Insertable<User> {
   /// lewat id. Beda dengan [isActive] = false (nonaktif, bisa diaktifkan
   /// lagi). Keputusan owner 2026-10-07.
   final DateTime? deletedAt;
+
+  /// Nomor pendek di nomor nota (v39): owner 0, kasir 1, 2, ... urut dibuat,
+  /// tidak dipakai ulang. Null = belum ditarik dari server
+  /// (`supabase/nomor_nota.sql`).
+  final int? nomorKasir;
   final DateTime updatedAt;
   final String syncStatus;
   const User({
@@ -1757,6 +1784,7 @@ class User extends DataClass implements Insertable<User> {
     required this.loginAttempts,
     this.loginLockedUntil,
     this.deletedAt,
+    this.nomorKasir,
     required this.updatedAt,
     required this.syncStatus,
   });
@@ -1792,6 +1820,9 @@ class User extends DataClass implements Insertable<User> {
     }
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    if (!nullToAbsent || nomorKasir != null) {
+      map['nomor_kasir'] = Variable<int>(nomorKasir);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['sync_status'] = Variable<String>(syncStatus);
@@ -1830,6 +1861,9 @@ class User extends DataClass implements Insertable<User> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      nomorKasir: nomorKasir == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nomorKasir),
       updatedAt: Value(updatedAt),
       syncStatus: Value(syncStatus),
     );
@@ -1863,6 +1897,7 @@ class User extends DataClass implements Insertable<User> {
         json['loginLockedUntil'],
       ),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      nomorKasir: serializer.fromJson<int?>(json['nomorKasir']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
     );
@@ -1887,6 +1922,7 @@ class User extends DataClass implements Insertable<User> {
       'loginAttempts': serializer.toJson<int>(loginAttempts),
       'loginLockedUntil': serializer.toJson<DateTime?>(loginLockedUntil),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'nomorKasir': serializer.toJson<int?>(nomorKasir),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'syncStatus': serializer.toJson<String>(syncStatus),
     };
@@ -1909,6 +1945,7 @@ class User extends DataClass implements Insertable<User> {
     int? loginAttempts,
     Value<DateTime?> loginLockedUntil = const Value.absent(),
     Value<DateTime?> deletedAt = const Value.absent(),
+    Value<int?> nomorKasir = const Value.absent(),
     DateTime? updatedAt,
     String? syncStatus,
   }) => User(
@@ -1936,6 +1973,7 @@ class User extends DataClass implements Insertable<User> {
         ? loginLockedUntil.value
         : this.loginLockedUntil,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    nomorKasir: nomorKasir.present ? nomorKasir.value : this.nomorKasir,
     updatedAt: updatedAt ?? this.updatedAt,
     syncStatus: syncStatus ?? this.syncStatus,
   );
@@ -1973,6 +2011,9 @@ class User extends DataClass implements Insertable<User> {
           ? data.loginLockedUntil.value
           : this.loginLockedUntil,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      nomorKasir: data.nomorKasir.present
+          ? data.nomorKasir.value
+          : this.nomorKasir,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       syncStatus: data.syncStatus.present
           ? data.syncStatus.value
@@ -1999,6 +2040,7 @@ class User extends DataClass implements Insertable<User> {
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('nomorKasir: $nomorKasir, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus')
           ..write(')'))
@@ -2023,6 +2065,7 @@ class User extends DataClass implements Insertable<User> {
     loginAttempts,
     loginLockedUntil,
     deletedAt,
+    nomorKasir,
     updatedAt,
     syncStatus,
   );
@@ -2046,6 +2089,7 @@ class User extends DataClass implements Insertable<User> {
           other.loginAttempts == this.loginAttempts &&
           other.loginLockedUntil == this.loginLockedUntil &&
           other.deletedAt == this.deletedAt &&
+          other.nomorKasir == this.nomorKasir &&
           other.updatedAt == this.updatedAt &&
           other.syncStatus == this.syncStatus);
 }
@@ -2067,6 +2111,7 @@ class UsersCompanion extends UpdateCompanion<User> {
   final Value<int> loginAttempts;
   final Value<DateTime?> loginLockedUntil;
   final Value<DateTime?> deletedAt;
+  final Value<int?> nomorKasir;
   final Value<DateTime> updatedAt;
   final Value<String> syncStatus;
   final Value<int> rowid;
@@ -2087,6 +2132,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.nomorKasir = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2108,6 +2154,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     this.loginAttempts = const Value.absent(),
     this.loginLockedUntil = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.nomorKasir = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.syncStatus = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2132,6 +2179,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     Expression<int>? loginAttempts,
     Expression<DateTime>? loginLockedUntil,
     Expression<DateTime>? deletedAt,
+    Expression<int>? nomorKasir,
     Expression<DateTime>? updatedAt,
     Expression<String>? syncStatus,
     Expression<int>? rowid,
@@ -2154,6 +2202,7 @@ class UsersCompanion extends UpdateCompanion<User> {
       if (loginAttempts != null) 'login_attempts': loginAttempts,
       if (loginLockedUntil != null) 'login_locked_until': loginLockedUntil,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (nomorKasir != null) 'nomor_kasir': nomorKasir,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (syncStatus != null) 'sync_status': syncStatus,
       if (rowid != null) 'rowid': rowid,
@@ -2177,6 +2226,7 @@ class UsersCompanion extends UpdateCompanion<User> {
     Value<int>? loginAttempts,
     Value<DateTime?>? loginLockedUntil,
     Value<DateTime?>? deletedAt,
+    Value<int?>? nomorKasir,
     Value<DateTime>? updatedAt,
     Value<String>? syncStatus,
     Value<int>? rowid,
@@ -2198,6 +2248,7 @@ class UsersCompanion extends UpdateCompanion<User> {
       loginAttempts: loginAttempts ?? this.loginAttempts,
       loginLockedUntil: loginLockedUntil ?? this.loginLockedUntil,
       deletedAt: deletedAt ?? this.deletedAt,
+      nomorKasir: nomorKasir ?? this.nomorKasir,
       updatedAt: updatedAt ?? this.updatedAt,
       syncStatus: syncStatus ?? this.syncStatus,
       rowid: rowid ?? this.rowid,
@@ -2257,6 +2308,9 @@ class UsersCompanion extends UpdateCompanion<User> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
+    if (nomorKasir.present) {
+      map['nomor_kasir'] = Variable<int>(nomorKasir.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2288,6 +2342,7 @@ class UsersCompanion extends UpdateCompanion<User> {
           ..write('loginAttempts: $loginAttempts, ')
           ..write('loginLockedUntil: $loginLockedUntil, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('nomorKasir: $nomorKasir, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('syncStatus: $syncStatus, ')
           ..write('rowid: $rowid')
@@ -3328,7 +3383,8 @@ class $TransactionsTable extends Transactions
 class Transaction extends DataClass implements Insertable<Transaction> {
   final String id;
 
-  /// Nomor nota yang TAMPIL di struk, mis. `TRX/18/07/26/081398`.
+  /// Nomor nota yang TAMPIL di struk, mis. `CS/01/171026/A-0001` (sejak
+  /// 2026-10-17; nota lama tetap `TRX/...`).
   ///
   /// Dipisah dari [id] (NEW in v11) karena keduanya punya kebutuhan yang
   /// bertabrakan: [id] harus unik lintas device untuk sync sehingga wajib
@@ -8081,6 +8137,7 @@ typedef $$UsersTableCreateCompanionBuilder =
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
       Value<DateTime?> deletedAt,
+      Value<int?> nomorKasir,
       Value<DateTime> updatedAt,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -8103,6 +8160,7 @@ typedef $$UsersTableUpdateCompanionBuilder =
       Value<int> loginAttempts,
       Value<DateTime?> loginLockedUntil,
       Value<DateTime?> deletedAt,
+      Value<int?> nomorKasir,
       Value<DateTime> updatedAt,
       Value<String> syncStatus,
       Value<int> rowid,
@@ -8278,6 +8336,11 @@ class $$UsersTableFilterComposer extends Composer<_$AppDatabase, $UsersTable> {
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nomorKasir => $composableBuilder(
+    column: $table.nomorKasir,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8481,6 +8544,11 @@ class $$UsersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get nomorKasir => $composableBuilder(
+    column: $table.nomorKasir,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8564,6 +8632,11 @@ class $$UsersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get nomorKasir => $composableBuilder(
+    column: $table.nomorKasir,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -8723,6 +8796,7 @@ class $$UsersTableTableManager
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int?> nomorKasir = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8743,6 +8817,7 @@ class $$UsersTableTableManager
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
                 deletedAt: deletedAt,
+                nomorKasir: nomorKasir,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,
@@ -8765,6 +8840,7 @@ class $$UsersTableTableManager
                 Value<int> loginAttempts = const Value.absent(),
                 Value<DateTime?> loginLockedUntil = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int?> nomorKasir = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> syncStatus = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8785,6 +8861,7 @@ class $$UsersTableTableManager
                 loginAttempts: loginAttempts,
                 loginLockedUntil: loginLockedUntil,
                 deletedAt: deletedAt,
+                nomorKasir: nomorKasir,
                 updatedAt: updatedAt,
                 syncStatus: syncStatus,
                 rowid: rowid,

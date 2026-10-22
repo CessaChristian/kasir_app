@@ -42,7 +42,7 @@ class SalesRepository {
     // Penanda perangkat diambil di sini, bukan di halaman: halaman tidak
     // perlu tahu nomor nota dibentuk dari apa, dan database tetap menerima
     // nilai jadi sehingga bisa diuji tanpa brankas.
-    final kode = await KodeNota.ambil();
+    final kode = await KodeNota.untukNota();
     return _db.createSale(
       transactionId: transactionId,
       lines: lines,

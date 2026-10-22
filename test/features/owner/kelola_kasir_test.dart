@@ -197,6 +197,29 @@ void main() {
       await repo.createCashier(username: 'tari', pin: '727272');
     });
 
+    test('kasir baru: nomor terbesar di HP maupun server, + 1', () async {
+      await (db.update(db.users)..where((u) => u.id.equals('k-3')))
+          .write(const UsersCompanion(nomorKasir: Value(3)));
+      Future<int?> buat(String nama, int? diServer) async {
+        final r = CashierRepository(
+          db,
+          namaDipakaiDiServer: (_, _) async => false,
+          terhubung: () async => true,
+          nomorTerbesarDiServer: () async => diServer,
+        );
+        return (await r.createCashier(username: nama, pin: '727272'))
+            .nomorKasir;
+      }
+
+      expect(await buat('rina', 1), 4, reason: 'HP lebih besar');
+      expect(await buat('tari', 9), 10, reason: 'server lebih besar');
+      expect(
+        await buat('joko', null),
+        isNull,
+        reason: 'server tak terbaca: diisi server saat terkirim',
+      );
+    });
+
     test('menonaktifkan ikut mengakhiri shift yang berjalan', () async {
       await db
           .into(db.shifts)

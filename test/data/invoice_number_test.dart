@@ -59,6 +59,7 @@ void main() {
     final nota = await db.createSale(
       transactionId: id,
       shiftId: 'shift-1',
+      cashierUserId: 'owner-1',
       paymentMethod: 'qris',
       orderType: 'dine_in',
       lines: [
@@ -74,7 +75,7 @@ void main() {
     return (id: id, nota: nota);
   }
 
-  /// Bagian urut saja, dari `TRX/dd/MM/yy/KODE-NNNN`.
+  /// Bagian urut saja, dari `CS/kasir/ddMMyy/KODE-NNNN`.
   String urutan(String nota) => nota.split('/').last.split('-').last;
 
   /// Penanda perangkat saja.
@@ -86,13 +87,84 @@ void main() {
     expect(urutan((await jual()).nota), '0003');
   });
 
-  test('nomor nota memuat tanggal hari ini', () async {
-    final now = DateTime.now();
-    final dd = now.day.toString().padLeft(2, '0');
-    final mm = now.month.toString().padLeft(2, '0');
-    final yy = (now.year % 100).toString().padLeft(2, '0');
+  /// Tanggal buka shift-1 sebagai ddMMyy.
+  Future<String> tanggalShift() async {
+    final s = await (db.select(db.shifts)..where((t) => t.id.equals('shift-1')))
+        .getSingle();
+    final b = s.startAt.toLocal();
+    String dua(int n) => (n % 100).toString().padLeft(2, '0');
+    return '${dua(b.day)}${dua(b.month)}${dua(b.year)}';
+  }
 
-    expect((await jual()).nota, 'TRX/$dd/$mm/$yy/TEST-0001');
+  Future<void> nomorKasir(int? n) =>
+      (db.update(db.users)..where((u) => u.id.equals('owner-1')))
+          .write(UsersCompanion(nomorKasir: Value(n)));
+
+  test('format CS/<kasir>/<tanggal buka shift>/<kode>-<urut>', () async {
+    await nomorKasir(1);
+    expect((await jual()).nota, 'CS/01/${await tanggalShift()}/TEST-0001');
+  });
+
+  test('owner bernomor 00; nomor belum ditarik = XX', () async {
+    await nomorKasir(0);
+    expect((await jual()).nota, startsWith('CS/00/'));
+    await nomorKasir(null);
+    expect((await jual()).nota, startsWith('CS/XX/'));
+  });
+
+  test('tanggal ikut shift DIBUKA: lewat tengah malam tetap lanjut', () async {
+    // Shift dibuka 5 Jan 2025 23.00; penjualan terjadi "sekarang" — tanggal
+    // lain (sengaja bukan hari ini, supaya tidak lolos kebetulan).
+    await (db.update(db.shifts)..where((t) => t.id.equals('shift-1'))).write(
+      ShiftsCompanion(startAt: Value(DateTime(2025, 1, 5, 23))),
+    );
+    expect((await jual()).nota, 'CS/XX/050125/TEST-0001');
+    expect((await jual()).nota, 'CS/XX/050125/TEST-0002');
+  });
+
+  test('shift baru di tanggal lain: mulai lagi dari 0001', () async {
+    await (db.update(db.shifts)..where((t) => t.id.equals('shift-1'))).write(
+      ShiftsCompanion(startAt: Value(DateTime(2026, 10, 17, 16))),
+    );
+    await jual();
+    await jual();
+    await db.into(db.shifts).insert(ShiftsCompanion.insert(
+          id: const Value('shift-2'),
+          userId: 'owner-1',
+          startAt: Value(DateTime(2026, 10, 18, 16)),
+        ));
+    final nota = await db.createSale(
+      transactionId: newUuid(),
+      shiftId: 'shift-2',
+      paymentMethod: 'qris',
+      orderType: 'dine_in',
+      lines: [
+        SaleLine(
+          productId: 'prod-1',
+          productName: 'Es Teh',
+          qty: 1,
+          priceAtSale: 5000,
+        ),
+      ],
+      kodePerangkat: 'TEST',
+    );
+    expect(nota, 'CS/XX/181026/TEST-0001');
+  });
+
+  test('nota HP lain dan nota format lama tidak ikut dihitung', () async {
+    final tgl = await tanggalShift();
+    for (final (id, nota) in [
+      ('t-b', 'CS/02/$tgl/B-0007'),
+      ('t-lama', 'TRX/17/10/26/TEST-0009'),
+    ]) {
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: Value(id),
+            invoiceNo: Value(nota),
+            total: 1000,
+            paymentMethod: 'cash',
+          ));
+    }
+    expect(urutan((await jual()).nota), '0001');
   });
 
   test('nomor TIDAK dipakai ulang setelah transaksi dihapus', () async {

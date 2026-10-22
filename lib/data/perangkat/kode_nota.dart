@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Penanda pendek milik perangkat ini, disisipkan ke setiap nomor nota.
@@ -25,10 +27,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 ///
 /// Maka penanda ini punya kuncinya sendiri, dibuat sekali seumur pemasangan,
 /// dan tidak peduli pada pendaftaran.
+///
+/// ── KODE DARI SERVER (2026-10-17) ──
+///
+/// Sekarang penandanya huruf pendek pembagian server — A, B, C, ... urut
+/// perangkat didaftarkan (`perangkat.kode`, supabase/nomor_nota.sql) —
+/// disimpan di brankas lewat [simpanDariServer]. Kode acak 4 huruf di atas
+/// tetap dipakai SELAMA huruf itu belum diketahui (HP belum sempat online
+/// sejak diperbarui), supaya penjualan tidak pernah tertahan.
 class KodeNota {
   KodeNota._();
 
   static const _kunci = 'kode_nota_perangkat';
+  static const _kunciServer = 'kode_perangkat_server';
   static const _panjang = 4;
 
   /// Huruf dan angka yang tidak mudah tertukar saat dibaca manusia dari
@@ -37,8 +48,39 @@ class KodeNota {
 
   static const _brankas = FlutterSecureStorage();
   static String? _tersimpan;
+  static String? _dariServer;
 
-  /// Penanda perangkat ini, dibuat saat pertama kali dibutuhkan.
+  /// Simpan huruf pembagian server untuk perangkat ini. Selalu menimpa:
+  /// perangkat yang didaftarkan ulang dengan identitas baru mendapat huruf
+  /// baru.
+  static Future<void> simpanDariServer(String kode) async {
+    if (kode.isEmpty || kode == _dariServer) return;
+    _dariServer = kode;
+    try {
+      await _brankas.write(key: _kunciServer, value: kode);
+    } catch (_) {
+      // Tetap terpakai dari memori sampai aplikasi ditutup; sinkron
+      // berikutnya mencoba menyimpannya lagi.
+    }
+  }
+
+  /// Penanda untuk nomor nota: huruf dari server kalau sudah ada, kalau
+  /// belum kode acak lama ([ambil]).
+  static Future<String> untukNota() async {
+    final diMemori = _dariServer;
+    if (diMemori != null) return diMemori;
+    try {
+      final tersimpan = await _brankas.read(key: _kunciServer);
+      if (tersimpan != null && tersimpan.isNotEmpty) {
+        return _dariServer = tersimpan;
+      }
+    } catch (_) {
+      // Jatuh ke kode lama di bawah.
+    }
+    return ambil();
+  }
+
+  /// Penanda acak perangkat ini, dibuat saat pertama kali dibutuhkan.
   ///
   /// Kalau brankas tidak bisa dibaca — bukan hal yang mustahil di Android —
   /// penanda sementara tetap dikembalikan supaya penjualan TIDAK IKUT GAGAL.
@@ -61,6 +103,13 @@ class KodeNota {
     } catch (_) {
       return _tersimpan ??= _buat();
     }
+  }
+
+  /// Lupakan isi memori — meniru aplikasi yang dibuka ulang.
+  @visibleForTesting
+  static void resetUntukTest() {
+    _tersimpan = null;
+    _dariServer = null;
   }
 
   static String _buat() {

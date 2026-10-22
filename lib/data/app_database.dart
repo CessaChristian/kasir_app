@@ -119,7 +119,8 @@ class Products extends Table {
 class Transactions extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
 
-  /// Nomor nota yang TAMPIL di struk, mis. `TRX/18/07/26/081398`.
+  /// Nomor nota yang TAMPIL di struk, mis. `CS/01/171026/A-0001` (sejak
+  /// 2026-10-17; nota lama tetap `TRX/...`).
   ///
   /// Dipisah dari [id] (NEW in v11) karena keduanya punya kebutuhan yang
   /// bertabrakan: [id] harus unik lintas device untuk sync sehingga wajib
@@ -273,6 +274,11 @@ class Users extends Table {
   /// lewat id. Beda dengan [isActive] = false (nonaktif, bisa diaktifkan
   /// lagi). Keputusan owner 2026-10-07.
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Nomor pendek di nomor nota (v39): owner 0, kasir 1, 2, ... urut dibuat,
+  /// tidak dipakai ulang. Null = belum ditarik dari server
+  /// (`supabase/nomor_nota.sql`).
+  IntColumn get nomorKasir => integer().nullable()();
 
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -525,7 +531,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1299,6 +1305,15 @@ class AppDatabase extends _$AppDatabase {
               }
             }
           }
+          if (from < 39 && to >= 39) {
+            // v39 — nomor kasir di nomor nota. Isinya ditarik dari server
+            // (supabase/nomor_nota.sql), jadi kolomnya dibiarkan kosong.
+            final adaKolom = await customSelect(
+              "SELECT 1 FROM pragma_table_info('users') "
+              "WHERE name = 'nomor_kasir'",
+            ).get();
+            if (adaKolom.isEmpty) await m.addColumn(users, users.nomorKasir);
+          }
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1658,7 +1673,11 @@ class AppDatabase extends _$AppDatabase {
           'Kosongkan keranjang lalu muat ulang dari Open Bill.',
         );
       }
-      invoiceNo = await _nextInvoiceNo(DateTime.now(), kodePerangkat);
+      invoiceNo = await _nextInvoiceNo(
+        kodePerangkat: kodePerangkat,
+        cashierUserId: cashierUserId,
+        shiftId: shiftId,
+      );
 
       await into(transactions).insert(
         TransactionsCompanion(
@@ -1697,37 +1716,52 @@ class AppDatabase extends _$AppDatabase {
             b.id.equals(id) & b.transactionId.isNull() & b.deletedAt.isNull()))
       .getSingleOrNull();
 
-  /// Nomor nota berikutnya untuk hari ini: `TRX/dd/MM/yy/KODE-NNNN`.
+  /// Nomor nota berikutnya: `CS/<kasir>/<ddMMyy>/<KODE>-<NNNN>`, mis.
+  /// `CS/01/171026/A-0001` (keputusan owner 2026-10-17).
   ///
-  /// Menghitung SELURUH transaksi hari ini termasuk yang sudah ditandai
-  /// terhapus. Itu disengaja: kalau yang terhapus tidak ikut dihitung, nomor
-  /// bekasnya akan dipakai ulang dan dua struk berbeda punya nomor yang sama —
-  /// persis masalah yang mau dihilangkan. Ini bisa dilakukan karena penghapusan
-  /// transaksi memakai soft delete, jadi barisnya tetap ada.
+  /// - **kasir**: `users.nomor_kasir` dua digit (owner 00). `XX` kalau
+  ///   nomornya belum ditarik dari server — penjualan tidak boleh tertahan.
+  /// - **tanggal**: tanggal SHIFT DIBUKA, bukan tanggal transaksi. Shift
+  ///   yang lewat tengah malam tetap memakai tanggal bukanya, dan nomornya
+  ///   lanjut; shift baru di tanggal lain mulai dari 0001.
+  /// - **KODE**: penanda HP ini ([kodePerangkat], `KodeNota.untukNota`).
+  ///   Tanpa itu, dua HP yang menghitung sendiri-sendiri bisa menerbitkan
+  ///   nomor yang sama — server tidak menolaknya karena `invoice_no` tidak
+  ///   unik. Urutannya dihitung lokal supaya nota tetap terbit tanpa
+  ///   internet.
+  /// - **NNNN**: nota HP ini bertanggal sama, ditambah satu. Nota HP lain
+  ///   yang sudah tertarik tidak dihitung (kodenya lain), jadi nomor tidak
+  ///   melompat. Yang DIBATALKAN tetap dihitung: kalau tidak, nomor bekasnya
+  ///   terpakai ulang dan dua struk berbeda punya nomor sama.
   ///
   /// Dipanggil dari DALAM transaction milik [createSale] supaya menghitung dan
   /// menyimpan tidak bisa disela.
-  /// [kodePerangkat] adalah penanda pendek milik HP ini. Tanpa itu, dua HP
-  /// yang sama-sama sudah mencatat 10 transaksi hari ini akan sama-sama
-  /// menerbitkan nomor ke-11 — dua struk berbeda dengan nomor sama, dan
-  /// server tidak menolaknya karena `invoice_no` tidak unik. Urutannya tetap
-  /// dihitung lokal supaya nomor nota tidak butuh internet.
-  Future<String> _nextInvoiceNo(DateTime now, String kodePerangkat) async {
-    final awalHari = DateTime(now.year, now.month, now.day);
-    final akhirHari = awalHari.add(const Duration(days: 1));
+  Future<String> _nextInvoiceNo({
+    required String kodePerangkat,
+    required String? cashierUserId,
+    required String shiftId,
+  }) async {
+    final akun = cashierUserId == null
+        ? null
+        : await (select(users)..where((u) => u.id.equals(cashierUserId)))
+            .getSingleOrNull();
+    final nomor = akun?.nomorKasir;
+    final kasir = nomor == null ? 'XX' : nomor.toString().padLeft(2, '0');
+
+    final shift = await (select(shifts)..where((t) => t.id.equals(shiftId)))
+        .getSingleOrNull();
+    final buka = (shift?.startAt ?? DateTime.now()).toLocal();
+    String dua(int n) => (n % 100).toString().padLeft(2, '0');
+    final tanggal = '${dua(buka.day)}${dua(buka.month)}${dua(buka.year)}';
 
     final hitung = transactions.id.count();
     final baris = await (selectOnly(transactions)
           ..addColumns([hitung])
-          ..where(transactions.createdAt.isBiggerOrEqualValue(awalHari) &
-              transactions.createdAt.isSmallerThanValue(akhirHari)))
+          ..where(transactions.invoiceNo
+              .like('CS/%/$tanggal/$kodePerangkat-%')))
         .getSingle();
     final urut = (baris.read(hitung)! + 1).toString().padLeft(4, '0');
-
-    final dd = now.day.toString().padLeft(2, '0');
-    final mm = now.month.toString().padLeft(2, '0');
-    final yy = (now.year % 100).toString().padLeft(2, '0');
-    return 'TRX/$dd/$mm/$yy/$kodePerangkat-$urut';
+    return 'CS/$kasir/$tanggal/$kodePerangkat-$urut';
   }
 
   /// Pastikan setiap produk di keranjang masih ada.

@@ -849,6 +849,10 @@ class SyncEngine {
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
                 'deleted_at': _iso(u.deletedAt),
+                // Hanya kalau sudah ada: mengirim null akan MENIMPA nomor
+                // yang sudah dibagikan server (upsert memperbarui semua
+                // kolom yang dikirim).
+                if (u.nomorKasir != null) 'nomor_kasir': u.nomorKasir,
               }
           ];
         },
@@ -873,6 +877,10 @@ class SyncEngine {
                 // Server sebelum salinan_nama_akun.sql tidak punya kolom ini.
                 deletedAt: r.containsKey('deleted_at')
                     ? Value(_dt(r['deleted_at']))
+                    : const Value.absent(),
+                // Server sebelum nomor_nota.sql tidak punya kolom ini.
+                nomorKasir: r.containsKey('nomor_kasir')
+                    ? Value((r['nomor_kasir'] as num?)?.toInt())
                     : const Value.absent(),
                 syncStatus: const Value('synced'),
               ));

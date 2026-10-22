@@ -39,6 +39,8 @@ create table public.users (
   recovery_locked_until timestamptz,
   login_attempts        integer     not null default 0,
   login_locked_until    timestamptz,
+  -- Nomor pendek di nomor nota: owner 0, kasir 1, 2, ... (nomor_nota.sql).
+  nomor_kasir           integer     unique,
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
   -- Sengaja tanpa deleted_at: akun tidak pernah dihapus, hanya dinonaktifkan.
