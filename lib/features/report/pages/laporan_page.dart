@@ -652,7 +652,7 @@ class _LaporanPageState extends State<LaporanPage> {
             Row(
               children: [
                 Icon(
-                  r.perKategori[i].ikon == null
+                  r.perKategori[i].tanpaKategori
                       ? kIkonTanpaKategori
                       : categoryIconFromCodepoint(r.perKategori[i].ikon),
                   size: 18,

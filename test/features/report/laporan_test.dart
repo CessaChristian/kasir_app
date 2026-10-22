@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kasir_app/shared/constants/category_icons.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/report/models/ringkasan_laporan.dart';
@@ -174,6 +175,43 @@ void main() {
         [('Makanan', 40000), ('Tanpa Kategori', 20000)],
       );
     });
+
+    test('kategori tanpa ikon BUKAN "Tanpa Kategori"', () {
+      final makanan = r.perKategori.firstWhere((k) => k.nama == 'Makanan');
+      final tanpa = r.perKategori.firstWhere((k) => k.nama == 'Tanpa Kategori');
+      expect((makanan.ikon, makanan.tanpaKategori), (null, false));
+      expect(tanpa.tanpaKategori, isTrue);
+    });
+  });
+
+  test('kategori bernama sama: ikon yang terisi yang dipakai', () {
+    Category k(String id, int? ikon) => Category(
+      id: id,
+      name: 'Makanan',
+      iconCodepoint: ikon,
+      tampilDiKasir: true,
+      createdAt: hari,
+      updatedAt: hari,
+      syncStatus: 'synced',
+    );
+    for (final urutan in [
+      [k('k1', 983304), k('k2', null)],
+      [k('k2', null), k('k1', 983304)],
+    ]) {
+      final r = ringkasLaporan(
+        periode: Periode.hari(hari),
+        transaksi: [trx('a', jam(9), 10000)],
+        item: {
+          'a': [item('a', 'p1', 1, 10000)],
+        },
+        pengeluaran: const [],
+        shift: const [],
+        produk: [produk('p1', 'k1')],
+        kategori: urutan,
+        sekarang: jam(23),
+      );
+      expect(r.perKategori.single.ikon, 983304);
+    }
   });
 
   group('grafik', () {
@@ -477,6 +515,47 @@ void main() {
         find.text('Tidak ada transaksi yang dibatalkan pada periode ini.'),
         findsOneWidget,
       );
+      await lepas(t);
+    });
+
+    testWidgets('ikon per kategori: tersimpan, umum, atau ⊘ tanpa kategori', (
+      t,
+    ) async {
+      await t.runAsync(() async {
+        await db
+            .into(db.categories)
+            .insert(
+              CategoriesCompanion.insert(
+                id: const Value('k-kopi'),
+                name: 'Kopi',
+                iconCodepoint: Value(Icons.coffee_rounded.codePoint),
+              ),
+            );
+        await db
+            .into(db.categories)
+            .insert(
+              CategoriesCompanion.insert(
+                id: const Value('k-snack'),
+                name: 'Snack',
+              ),
+            );
+        await (db.update(db.products)..where((p) => p.id.equals('p5'))).write(
+          const ProductsCompanion(categoryId: Value('k-kopi')),
+        );
+        await (db.update(db.products)..where((p) => p.id.equals('p6'))).write(
+          const ProductsCompanion(categoryId: Value('k-snack')),
+        );
+      });
+      await buka(t, owner: true);
+      Finder ikonDi(String nama) => find.descendant(
+        of: find
+            .ancestor(of: find.text(nama), matching: find.byType(Row))
+            .first,
+        matching: find.byType(Icon),
+      );
+      expect(t.widget<Icon>(ikonDi('Kopi')).icon, Icons.coffee_rounded);
+      expect(t.widget<Icon>(ikonDi('Snack')).icon, kDefaultCategoryIcon);
+      expect(t.widget<Icon>(ikonDi('Tanpa Kategori')).icon, kIkonTanpaKategori);
       await lepas(t);
     });
 

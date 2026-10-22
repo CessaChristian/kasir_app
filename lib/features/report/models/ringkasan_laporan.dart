@@ -56,11 +56,19 @@ class Porsi {
 class PendapatanKategori {
   final String nama;
 
-  /// Null = "Tanpa Kategori".
+  /// Codepoint ikon kategori; null = kategori belum punya ikon.
   final int? ikon;
   final int nilai;
 
-  const PendapatanKategori(this.nama, this.ikon, this.nilai);
+  /// Baris produk tanpa kategori (bukan kategori sungguhan).
+  final bool tanpaKategori;
+
+  const PendapatanKategori(
+    this.nama,
+    this.ikon,
+    this.nilai, {
+    this.tanpaKategori = false,
+  });
 }
 
 class PenjualanProduk {
@@ -441,7 +449,13 @@ List<PendapatanKategori> _perKategori(
   List<PenjualanProduk> perProduk,
   List<Category> kategori,
 ) {
-  final ikon = {for (final k in kategori) k.name: k.iconCodepoint};
+  // Per nama, karena pendapatan digabung per nama. Kalau ada beberapa
+  // kategori bernama sama, ikon yang terisi yang dipakai — bukan yang
+  // terakhir dibaca.
+  final ikon = <String, int?>{};
+  for (final k in kategori) {
+    ikon[k.name] ??= k.iconCodepoint;
+  }
   final nilai = <String, int>{};
   for (final p in perProduk) {
     nilai[p.kategori] = (nilai[p.kategori] ?? 0) + p.nilai;
@@ -452,6 +466,7 @@ List<PendapatanKategori> _perKategori(
         e.key,
         e.key == _tanpaKategori ? null : ikon[e.key],
         e.value,
+        tanpaKategori: e.key == _tanpaKategori,
       ),
   ]..sort((a, b) => b.nilai.compareTo(a.nilai));
 }
