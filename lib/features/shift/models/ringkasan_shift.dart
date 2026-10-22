@@ -48,6 +48,14 @@ class RingkasanShift {
   /// pengeluaran shift (keputusan owner: pengeluaran saat shift selalu
   /// diambil dari laci; pengeluaran owner tanpa shift tidak masuk sini).
   /// Null untuk shift lama yang dibuka sebelum ada kas awal. Bisa minus.
+  /// Dicatat SESUDAH shift ini ditutup — biasanya oleh HP yang sedang
+  /// offline saat HP lain menutup shift. Ikut terhitung di kas akhir, jadi
+  /// owner perlu tahu.
+  bool masukSetelahTutup(DateTime dibuat) {
+    final tutup = shift.endAt;
+    return tutup != null && dibuat.isAfter(tutup);
+  }
+
   int? get kasAkhir {
     final awal = shift.kasAwal;
     return awal == null ? null : awal + penjualanTunai - totalPengeluaran;

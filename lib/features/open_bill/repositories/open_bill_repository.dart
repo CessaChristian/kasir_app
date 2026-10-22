@@ -176,6 +176,28 @@ class OpenBillRepository {
     }
   }
 
+  /// Isi keranjang [milikku] — bill yang dimuat dengan isi [isiAwal] lalu
+  /// mungkin diubah kasir — digabungkan ke [isiServer], isi bill yang sudah
+  /// diubah HP lain (lihat [gabungIsiBill]). Hasilnya siap menggantikan isi
+  /// keranjang, dengan nama dan harga produk terbaru.
+  Future<BillTermuat> gabungDenganServer({
+    required String isiAwal,
+    required List<SaleLine> milikku,
+    required String isiServer,
+  }) async {
+    final produk = await (_db.select(
+      _db.products,
+    )..where((p) => p.deletedAt.isNull())).get();
+    final isi = kodekanBarisBill(
+      gabungIsiBill(
+        awal: bacaIsiBill(isiAwal),
+        milikku: bacaIsiBill(kodekanIsiBill(milikku)),
+        terkini: bacaIsiBill(isiServer),
+      ),
+    );
+    return muatIsiBill(isi, produk);
+  }
+
   Future<KeputusanServer> _tanyaServer(
     String fungsi,
     Map<String, dynamic> param,

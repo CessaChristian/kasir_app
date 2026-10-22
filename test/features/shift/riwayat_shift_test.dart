@@ -439,6 +439,47 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('transaksi & pengeluaran yang masuk setelah shift ditutup '
+        'diberi keterangan', (t) async {
+      // Shift budi ditutup 15:00; HP yang offline baru menyetor 15:30.
+      final telat = pagi.add(const Duration(hours: 7, minutes: 30));
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: const Value('t-telat'),
+            shiftId: const Value('s-budi'),
+            total: 50000,
+            paymentMethod: 'cash',
+            createdAt: Value(telat),
+          ));
+      await db.into(db.expenses).insert(ExpensesCompanion.insert(
+            id: const Value('e-telat'),
+            shiftId: const Value('s-budi'),
+            userId: 'budi',
+            description: 'Es telat',
+            amount: 4000,
+            createdAt: Value(telat),
+          ));
+      await bukaDetail(t, 's-budi');
+      expect(find.text('Masuk setelah shift ditutup'), findsOneWidget,
+          reason: 'hanya transaksi 15:30, bukan yang pagi');
+      await t.tap(find.text('Pengeluaran (2)'));
+      await t.pumpAndSettle();
+      expect(find.text('Masuk setelah shift ditutup'), findsOneWidget,
+          reason: 'hanya Es telat');
+      await lepas(t);
+    });
+
+    test('masukSetelahTutup: shift berjalan tidak pernah', () async {
+      final berjalan = (await repo.watchShift('s-sari').first)!;
+      expect(berjalan.masukSetelahTutup(DateTime(2099)), isFalse);
+      final tutup = (await repo.watchShift('s-budi').first)!;
+      final jamTutup = tutup.shift.endAt!;
+      expect(tutup.masukSetelahTutup(jamTutup), isFalse);
+      expect(
+        tutup.masukSetelahTutup(jamTutup.add(const Duration(seconds: 1))),
+        isTrue,
+      );
+    });
+
     testWidgets('Kas minus tampil merah', (t) async {
       await bukaShift('s-minus', 'budi', pagi, kasAwal: 0);
       await belanja('Galon', 's-minus', 30000);

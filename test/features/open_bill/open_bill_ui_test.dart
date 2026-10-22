@@ -428,7 +428,7 @@ void main() {
       final server = _ServerTiruan(db, klaim: keputusan);
       final k = await bayarBill(t, server);
 
-      expect(server.catatan, ['klaim', 'segarkan']);
+      expect(server.catatan, ['cek', 'klaim', 'segarkan']);
       cekDitolak(k, kata);
       final bill = (await semuaBill(t)).singleWhere((b) => b.id == id);
       expect(bill.deletedAt, isNotNull, reason: 'langsung tertutup di HP');
@@ -443,7 +443,7 @@ void main() {
     final server = _ServerTiruan(db, klaim: KeputusanServer.takTerjawab);
     await bayarBill(t, server);
     await t.pumpAndSettle();
-    expect(server.catatan, ['klaim']);
+    expect(server.catatan, ['cek', 'klaim']);
     expect((await semuaTx(t)).single.billName, 'Meja 4');
     await lepas(t);
   });
@@ -460,7 +460,7 @@ void main() {
             OpenBillsCompanion(deletedAt: Value(DateTime.now())),
           );
     final k = await bayarBill(t, server);
-    expect(server.catatan, ['klaim', 'lepas']);
+    expect(server.catatan, ['cek', 'klaim', 'lepas']);
     cekDitolak(k, 'dibayar atau dihapus');
     expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
@@ -476,7 +476,7 @@ void main() {
             ProductsCompanion(deletedAt: Value(DateTime.now())),
           );
     final k = await bayarBill(t, server);
-    expect(server.catatan, ['klaim', 'lepas']);
+    expect(server.catatan, ['cek', 'klaim', 'lepas']);
     expect(k.isEmpty, isFalse);
     expect(k.bill?.nama, 'Meja 4');
     expect(find.text('Sudah Bayar'), findsOneWidget);
@@ -504,6 +504,197 @@ void main() {
     await t.pumpAndSettle();
     expect(server.catatan, isEmpty);
     expect(await semuaTx(t), hasLength(1));
+    await lepas(t);
+  });
+
+  testWidgets('bayar bill yang sudah ditambah HP lain: keranjang diperbarui, '
+      'tidak ada pesanan yang lolos tertagih', (t) async {
+    final id = await simpanMeja4(t);
+    // HP lain menambah Teh ke Meja 4 sesudah HP ini memuatnya (Latte×1).
+    final isiBaru = kodekanBarisBill([
+      (idProduk: 'latte', jumlah: 1, catatan: null),
+      (idProduk: 'teh', jumlah: 1, catatan: null),
+    ]);
+    final server = _ServerTiruan(db)..isiServer = isiBaru;
+    final k = await bayarBill(t, server);
+    await t.pumpAndSettle();
+
+    expect(server.catatan, ['cek'], reason: 'belum diklaim');
+    expect(await semuaTx(t), isEmpty, reason: 'Rp18.000 tidak boleh tercatat');
+    expect(
+      find.text(
+        'Bill Meja 4 sudah diubah di perangkat lain. '
+        'Keranjang diperbarui — periksa totalnya lalu bayar lagi.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sudah Bayar'), findsNothing, reason: 'lembar bayar');
+    expect(find.text('Keranjang'), findsOneWidget, reason: 'tetap terbuka');
+    expect(k.baris.map((b) => (b.productId, b.qty)), [('latte', 1), ('teh', 1)]);
+    expect(k.bill, (id: id, nama: 'Meja 4', isiAwal: isiBaru));
+
+    // Dibayar lagi dengan isi yang sudah sama dengan server: lunas penuh.
+    await t.tap(find.text('Bayar Rp 26.000'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Sudah Bayar'));
+    await tunggu(t, 300);
+    await t.pumpAndSettle();
+    expect(server.catatan, ['cek', 'cek', 'klaim']);
+    final tx = await semuaTx(t);
+    expect((tx.single.total, tx.single.billName), (26000, 'Meja 4'));
+    await t.tap(find.text('Selesai'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('tambahan kasir di HP ini ikut digabung dengan tambahan HP lain', (
+    t,
+  ) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db)
+      ..isiServer = kodekanBarisBill([
+        (idProduk: 'latte', jumlah: 1, catatan: null),
+        (idProduk: 'teh', jumlah: 1, catatan: null),
+      ]);
+    final k = Keranjang();
+    await pasang(t, k);
+    await bukaDaftar(t);
+    await t.tap(find.text('Meja 4'));
+    await t.pumpAndSettle();
+    k.tambah(idProduk: 'roti', nama: 'Roti', harga: 12000);
+    Navigator.of(t.element(find.text('Keranjang'))).pop();
+    await t.pumpAndSettle();
+    // ignore: unawaited_futures
+    bukaKeranjang(
+      t.element(find.text('keranjang')),
+      k,
+      repo: SalesRepository(db),
+      repoBill: server,
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('QRIS'));
+    await t.pump();
+    await t.tap(find.text('Bayar Rp 30.000'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Sudah Bayar'));
+    await tunggu(t, 300);
+    await t.pumpAndSettle();
+
+    expect(k.baris.map((b) => (b.productId, b.qty)), [
+      ('latte', 1),
+      ('teh', 1),
+      ('roti', 1),
+    ]);
+    expect(find.text('Bayar Rp 38.000'), findsOneWidget);
+    expect(await semuaTx(t), isEmpty);
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('pengecekan isi bilang bill sudah dibayar: ditolak tanpa klaim', (
+    t,
+  ) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db, cek: KeputusanServer.sudahDibayar);
+    final k = await bayarBill(t, server);
+    expect(server.catatan, ['cek', 'segarkan']);
+    cekDitolak(k, 'dibayar');
+    expect(await semuaTx(t), isEmpty);
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  /// Buka keranjang [k] dengan repositori [jual] & [server], lalu bayar QRIS.
+  Future<void> bayarDengan(
+    WidgetTester t,
+    Keranjang k,
+    SalesRepository jual,
+    _ServerTiruan server,
+    String tombol,
+  ) async {
+    // ignore: unawaited_futures
+    bukaKeranjang(
+      t.element(find.text('keranjang')),
+      k,
+      repo: jual,
+      repoBill: server,
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('QRIS'));
+    await t.pump();
+    await t.tap(find.text(tombol));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Sudah Bayar'));
+    await tunggu(t, 300);
+    await t.pumpAndSettle();
+  }
+
+  void cekShiftDitolak(Keranjang k) {
+    expect(
+      find.text(
+        'Shift ini sudah ditutup di perangkat lain. Pesanan tetap di '
+        'keranjang — buka shift baru lalu bayar lagi.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sudah Bayar'), findsNothing, reason: 'lembar bayar');
+    expect(find.text('Keranjang'), findsOneWidget, reason: 'tetap terbuka');
+    expect(k.isEmpty, isFalse, reason: 'pesanan tidak hilang');
+    expect(SessionManager.instance.currentSession?.shiftId, isNull,
+        reason: 'sesi dilepas dari shift yang sudah ditutup');
+  }
+
+  testWidgets('shift sudah ditutup HP lain (kata server): tidak tersimpan, '
+      'pesanan tetap di keranjang', (t) async {
+    final server = _ServerTiruan(db);
+    final jual = _PenjualanTiruan(db, ditutup: true);
+    final k = Keranjang()
+      ..tambah(idProduk: 'latte', nama: 'Latte', harga: 18000);
+    await pasang(t, k);
+    await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
+    expect(jual.ditanya, 1);
+    cekShiftDitolak(k);
+    expect(await semuaTx(t), isEmpty);
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('shift sudah ditutup: bill tidak diklaim', (t) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db);
+    final k = Keranjang();
+    await pasang(t, k);
+    await bukaDaftar(t);
+    await t.tap(find.text('Meja 4'));
+    await t.pumpAndSettle();
+    Navigator.of(t.element(find.text('Keranjang'))).pop();
+    await t.pumpAndSettle();
+    await bayarDengan(
+        t, k, _PenjualanTiruan(db, ditutup: true), server, 'Bayar Rp 18.000');
+    expect(server.catatan, isEmpty, reason: 'bill tidak dikunci');
+    cekShiftDitolak(k);
+    expect(k.bill?.nama, 'Meja 4');
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('shift ditutup tepat sesudah diperiksa: database menolak, '
+      'ditangani sama', (t) async {
+    final server = _ServerTiruan(db);
+    // Server bilang masih berjalan, tapi saat disimpan HP ini sudah tahu
+    // shift-nya tertutup.
+    final jual = _PenjualanTiruan(db, ditutup: false)
+      ..sesudahDitanya = () =>
+          (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
+              .write(ShiftsCompanion(endAt: Value(DateTime.now())));
+    final k = Keranjang()
+      ..tambah(idProduk: 'latte', nama: 'Latte', harga: 18000);
+    await pasang(t, k);
+    await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
+    cekShiftDitolak(k);
+    expect(await semuaTx(t), isEmpty);
+    await t.pump(const Duration(seconds: 3));
     await lepas(t);
   });
 
@@ -875,5 +1066,21 @@ class _ServerTiruan extends OpenBillRepository {
   Future<void> segarkanDariServer() async {
     catatan.add('segarkan');
     await _tarikan.future;
+  }
+}
+
+/// Penjualan dengan jawaban "shift sudah ditutup?" yang diatur test.
+class _PenjualanTiruan extends SalesRepository {
+  final bool ditutup;
+  var ditanya = 0;
+  Future<void> Function()? sesudahDitanya;
+
+  _PenjualanTiruan(super.db, {required this.ditutup});
+
+  @override
+  Future<bool> shiftSudahDitutup(String shiftId) async {
+    ditanya++;
+    await sesudahDitanya?.call();
+    return ditutup;
   }
 }

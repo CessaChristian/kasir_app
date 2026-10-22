@@ -344,6 +344,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
           child: BarisTransaksiShift(
             transaksi: t,
             namaPembatal: t.namaPembatal(_nama),
+            setelahTutup: r.masukSetelahTutup(t.createdAt),
             onTap: () => bukaDetailTransaksi(context, _sales, t),
           ),
         ),
@@ -366,6 +367,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             pengeluaran: e,
             namaPembatal: e.namaPembatal(_nama),
             ruangTombol: false,
+            setelahTutup: r.masukSetelahTutup(e.createdAt),
           ),
         ),
     ];

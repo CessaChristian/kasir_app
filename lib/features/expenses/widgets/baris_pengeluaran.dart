@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/app_database.dart';
 import '../../../shared/ui/keterangan_batal.dart';
+import '../../../shared/ui/keterangan_setelah_tutup.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/kategori_biaya.dart';
@@ -24,6 +25,9 @@ class BarisPengeluaran extends StatelessWidget {
   /// punya tombol, jadi tanpa ruang.
   final bool ruangTombol;
 
+  /// Lihat [KeteranganSetelahTutup].
+  final bool setelahTutup;
+
   const BarisPengeluaran({
     super.key,
     required this.pengeluaran,
@@ -31,6 +35,7 @@ class BarisPengeluaran extends StatelessWidget {
     this.namaPembatal,
     this.onBatalkan,
     this.ruangTombol = true,
+    this.setelahTutup = false,
   });
 
   @override
@@ -86,6 +91,7 @@ class BarisPengeluaran extends StatelessWidget {
                     color: WarnaTeras.teksPudar,
                   ),
                 ),
+                if (setelahTutup) const KeteranganSetelahTutup(),
                 if (batal)
                   KeteranganBatal(
                     waktu: e.deletedAt!,

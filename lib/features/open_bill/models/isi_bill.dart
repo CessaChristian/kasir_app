@@ -94,11 +94,15 @@ class BillTermuat {
 
 /// Muat [bill] memakai daftar [produk] yang masih dijual. Produk yang sudah
 /// tidak ada dibuang dan dihitung di [BillTermuat.produkHilang].
-BillTermuat muatBill(OpenBill bill, Iterable<Product> produk) {
+BillTermuat muatBill(OpenBill bill, Iterable<Product> produk) =>
+    muatIsiBill(bill.items, produk);
+
+/// Seperti [muatBill], untuk isi bill [isi] (JSON `open_bills.items`).
+BillTermuat muatIsiBill(String isi, Iterable<Product> produk) {
   final perId = {for (final p in produk) p.id: p};
   final baris = <SaleLine>[];
   var hilang = 0;
-  for (final b in bacaIsiBill(bill.items)) {
+  for (final b in bacaIsiBill(isi)) {
     final p = perId[b.idProduk];
     if (p == null) {
       hilang++;

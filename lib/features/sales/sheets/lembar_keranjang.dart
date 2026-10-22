@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../data/app_database.dart' show BillTidakTerbuka;
+import '../../../data/app_database.dart'
+    show BillTidakTerbuka, ShiftSudahDitutup;
 import '../../../data/db.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/uuid_helper.dart';
@@ -201,18 +202,66 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
       throw const PembayaranDitolak();
     }
 
+    // Shift sudah ditutup HP lain: pesanannya tetap di keranjang, lembar
+    // pembayaran ditutup, dan sesi dilepas dari shift itu supaya kasir
+    // membuka shift baru lalu membayar lagi.
+    Future<Never> tolakShift() async {
+      await SessionManager.instance.aturShift(null);
+      if (mounted) {
+        AppToast.warning(
+          context,
+          'Shift ini sudah ditutup di perangkat lain. Pesanan tetap di '
+          'keranjang — buka shift baru lalu bayar lagi.',
+        );
+      }
+      throw const PembayaranDitolak();
+    }
+
     final dibayar = await tampilkanPembayaran(
       context,
       total: total,
       metode: _metode,
       bayar: (uang) async {
+        if (await widget.repo.shiftSudahDitutup(sesi!.shiftId!)) {
+          await tolakShift();
+        }
         final bill = _k.bill;
         // Klaim di server dulu. Selama keranjang berisi, sinkron otomatis
         // ditahan, jadi HP ini tidak tahu kalau bill-nya sudah dibayar atau
         // dihapus HP lain — dan dua HP yang membayar bersamaan baru bisa
         // dipisahkan oleh server. Tak terjawab (offline/lambat): tetap jalan.
         if (bill != null) {
-          final keputusan = await widget.repoBill.klaimDiServer(bill.id, id);
+          // Klaim hanya memeriksa status bill, bukan isinya. Pesanan yang
+          // ditambahkan HP lain sesudah bill dimuat ke sini tidak akan ikut
+          // tertagih — jadi isinya dicocokkan dulu.
+          final cek = await widget.repoBill.cekDiServer(bill.id);
+          final isiServer = cek.isi;
+          if (cek.keputusan == KeputusanServer.boleh &&
+              isiServer != null &&
+              !isiBillSama(isiServer, bill.isiAwal)) {
+            final gabungan = await widget.repoBill.gabungDenganServer(
+              isiAwal: bill.isiAwal,
+              milikku: baris,
+              isiServer: isiServer,
+            );
+            _k.muatBill(
+              (id: bill.id, nama: bill.nama, isiAwal: isiServer),
+              gabungan.baris,
+            );
+            if (mounted) {
+              AppToast.warning(
+                context,
+                'Bill ${bill.nama} sudah diubah di perangkat lain. '
+                'Keranjang diperbarui — periksa totalnya lalu bayar lagi.',
+              );
+            }
+            throw const PembayaranDitolak();
+          }
+          // Sudah pasti tertutup menurut pengecekan tadi: tidak perlu klaim.
+          final keputusan = cek.keputusan == KeputusanServer.sudahDibayar ||
+                  cek.keputusan == KeputusanServer.sudahDihapus
+              ? cek.keputusan
+              : await widget.repoBill.klaimDiServer(bill.id, id);
           if (keputusan == KeputusanServer.sudahDibayar ||
               keputusan == KeputusanServer.sudahDihapus) {
             // Jawaban server sudah pasti: sembunyikan sekarang, rapikan
@@ -232,7 +281,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
             paymentMethod: _metode.kode,
             orderType: _tipe.kode,
             cashReceived: _metode == MetodeBayar.tunai ? uang : null,
-            cashierUserId: sesi!.userId,
+            cashierUserId: sesi.userId,
             shiftId: sesi.shiftId,
             billId: bill?.id,
           );
@@ -244,6 +293,9 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           if (bill != null && e is BillTidakTerbuka) {
             tolakBill(bill.nama, 'dibayar atau dihapus');
           }
+          // Shift ditutup tepat sesudah pemeriksaan di atas, atau server
+          // tak terjawab tapi HP ini sudah menarik kabarnya.
+          if (e is ShiftSudahDitutup) await tolakShift();
           rethrow;
         }
         _k.kosongkan();

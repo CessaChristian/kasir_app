@@ -456,7 +456,6 @@ void main() {
                       const Duration(hours: 2, minutes: 15),
                     ),
                   ),
-                  endAt: Value(selesai ? DateTime.now() : null),
                   kasAwal: const Value(150000),
                 ),
               );
@@ -468,6 +467,12 @@ void main() {
             description: 'Es batu',
             amount: 5000,
           );
+          // Ditutup SESUDAH dicatat: shift yang sudah tutup menolak
+          // pengeluaran baru.
+          if (selesai) {
+            await (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
+                .write(ShiftsCompanion(endAt: Value(DateTime.now())));
+          }
           await masuk(shiftId: selesai ? null : 's-1');
         });
 

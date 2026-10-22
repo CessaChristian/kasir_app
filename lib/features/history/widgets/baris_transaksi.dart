@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../data/app_database.dart';
 import '../../../shared/constants/app_constants.dart';
 import '../../../shared/ui/keterangan_batal.dart';
+import '../../../shared/ui/keterangan_setelah_tutup.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
@@ -128,11 +129,15 @@ class BarisTransaksiShift extends StatelessWidget {
   final String? namaPembatal;
   final VoidCallback onTap;
 
+  /// Lihat [KeteranganSetelahTutup].
+  final bool setelahTutup;
+
   const BarisTransaksiShift({
     super.key,
     required this.transaksi,
     required this.onTap,
     this.namaPembatal,
+    this.setelahTutup = false,
   });
 
   @override
@@ -194,6 +199,7 @@ class BarisTransaksiShift extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (setelahTutup) const KeteranganSetelahTutup(),
                     if (batal)
                       KeteranganBatal(
                         waktu: t.deletedAt!,

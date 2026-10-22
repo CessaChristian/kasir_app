@@ -1,6 +1,8 @@
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/perangkat/kode_nota.dart';
+import '../../../data/supabase/supabase_service.dart';
+import '../../../data/sync/sync_engine.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/auth/pin_owner.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -54,6 +56,32 @@ class SalesRepository {
       kodePerangkat: kode,
       billId: billId,
     );
+  }
+
+  /// Lama menunggu server saat memeriksa shift sebelum bayar.
+  static const batasTungguShift = Duration(seconds: 3);
+
+  /// Apakah shift [shiftId] sudah ditutup — menurut server kalau bisa
+  /// ditanya, kalau tidak menurut HP ini.
+  ///
+  /// Dipanggil tepat sebelum transaksi disimpan. Selama keranjang berisi,
+  /// sinkron otomatis ditahan, jadi HP ini bisa belum tahu shift-nya sudah
+  /// ditutup HP lain yang memegang shift yang sama. Offline, galat, atau
+  /// lebih dari [batasTungguShift]: dipakai keadaan di HP ini saja —
+  /// kasir tidak boleh macet menunggu sinyal.
+  Future<bool> shiftSudahDitutup(String shiftId) async {
+    try {
+      if (SupabaseService.instance.online) {
+        await SyncEngine(_db).tarikTabel('shifts').timeout(batasTungguShift);
+      }
+    } catch (_) {
+      // Sengaja dibisukan — lihat catatan di atas.
+    }
+    final shift = await (_db.select(_db.shifts)
+          ..where((s) => s.id.equals(shiftId))
+          ..limit(1))
+        .getSingleOrNull();
+    return shift != null && (shift.endAt != null || shift.deletedAt != null);
   }
 
   // ---- PEMBATALAN ----

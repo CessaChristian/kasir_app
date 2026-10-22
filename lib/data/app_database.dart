@@ -1665,6 +1665,7 @@ class AppDatabase extends _$AppDatabase {
 
     late String invoiceNo;
     await transaction(() async {
+      await _wajibShiftBerjalan(shiftId);
       await _validasiProdukMasihAda(lines);
       final bill = billId == null ? null : await _billTerbuka(billId);
       if (billId != null && bill == null) {
@@ -1911,6 +1912,22 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  /// Tolak penjualan/pengeluaran ke shift yang sudah ditutup. Tanpa ini HP
+  /// yang belum tahu shift-nya ditutup HP lain tetap menjual ke situ, dan
+  /// kas akhir shift yang sudah diserahkan ikut berubah.
+  ///
+  /// Shift yang barisnya belum ada di HP ini dibiarkan: belum tentu ditutup,
+  /// barisnya saja yang belum sampai.
+  Future<void> _wajibShiftBerjalan(String shiftId) async {
+    final shift = await (select(shifts)
+          ..where((s) => s.id.equals(shiftId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (shift != null && (shift.endAt != null || shift.deletedAt != null)) {
+      throw ShiftSudahDitutup();
+    }
+  }
+
   Future<void> addExpense({
     required String? shiftId,
     required String userId,
@@ -1919,6 +1936,7 @@ class AppDatabase extends _$AppDatabase {
     String category = 'bahan_baku',
     int qty = 1,
   }) async {
+    if (shiftId != null) await _wajibShiftBerjalan(shiftId);
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(newUuid()),
@@ -2087,6 +2105,14 @@ class AppDatabase extends _$AppDatabase {
 /// galat lain supaya keranjang bisa langsung dikosongkan.
 class BillTidakTerbuka extends StateError {
   BillTidakTerbuka(super.message);
+}
+
+/// Shift tujuan penjualan/pengeluaran sudah ditutup — biasanya dari HP lain
+/// yang memegang shift yang sama, sebelum kabarnya sampai ke HP ini.
+class ShiftSudahDitutup extends StateError {
+  ShiftSudahDitutup()
+      : super('Shift ini sudah ditutup di perangkat lain. '
+            'Buka shift baru untuk melanjutkan.');
 }
 
 LazyDatabase _openConnection() {
