@@ -8,6 +8,13 @@ import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/pesanan.dart';
 
+/// Dilempar [tampilkanPembayaran]'s `bayar` untuk menutup lembar TANPA
+/// pesan galat: pemanggil sudah menjelaskan sendiri apa yang terjadi (mis.
+/// bill sudah dibayar HP lain dan keranjang dikosongkan).
+class PembayaranDitolak implements Exception {
+  const PembayaranDitolak();
+}
+
 /// Batas digit uang diterima: sampai Rp9.999.999.999.
 const digitMaksUangDiterima = 10;
 
@@ -77,6 +84,8 @@ class _LembarPembayaranState extends State<_LembarPembayaran> {
     try {
       await widget.bayar(_tunai ? _diterima! : widget.total);
       if (mounted) Navigator.pop(context, true);
+    } on PembayaranDitolak {
+      if (mounted) Navigator.pop(context, false);
     } catch (e) {
       if (!mounted) return;
       setState(() => _memproses = false);

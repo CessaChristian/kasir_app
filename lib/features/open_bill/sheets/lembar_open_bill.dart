@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -74,6 +76,10 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
 
   Keranjang get _k => widget.keranjang;
 
+  /// Bill yang sedang menunggu jawaban server untuk dihapus — tombol
+  /// hapusnya dimatikan supaya tidak terketuk dua kali.
+  String? _sedangDihapus;
+
   void _buka(OpenBill b, BillTermuat isi) {
     final aktif = _k.bill;
     if (aktif?.id == b.id) {
@@ -94,7 +100,7 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       );
       return;
     }
-    _k.muatBill((id: b.id, nama: b.name), isi.baris);
+    _k.muatBill((id: b.id, nama: b.name, isiAwal: b.items), isi.baris);
     if (isi.produkHilang > 0) {
       AppToast.warning(
         context,
@@ -119,12 +125,37 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       labelAksi: 'Hapus',
     );
     if (!ya || !mounted) return;
+    setState(() => _sedangDihapus = b.id);
     try {
+      // Server dulu: bill yang sudah dibayar (atau sedang dibayar) HP lain
+      // tidak boleh terhapus. Tak terjawab (offline/lambat): hapus di HP
+      // saja seperti biasa.
+      final keputusan = await widget.repo.hapusDiServer(b.id);
+      if (keputusan == KeputusanServer.sudahDibayar) {
+        // Jawaban server sudah pasti: sembunyikan sekarang (sebelum toast),
+        // rapikan datanya di belakang layar.
+        await widget.repo.tandaiTertutup(b.id);
+        unawaited(widget.repo.segarkanDariServer());
+        // Pesanan itu sudah tidak bisa dibayar lagi — jangan dibiarkan
+        // tertinggal di keranjang.
+        final diKeranjang = _k.bill?.id == b.id;
+        if (diKeranjang) _k.kosongkan();
+        if (mounted) {
+          AppToast.error(
+            context,
+            'Bill ${b.name} sudah dibayar di perangkat lain'
+            '${diKeranjang ? '. Keranjang dikosongkan.' : ''}',
+          );
+        }
+        return;
+      }
       await widget.repo.hapus(b.id);
       if (_k.bill?.id == b.id) _k.kosongkan();
       if (mounted) AppToast.success(context, 'Bill ${b.name} dihapus');
     } catch (e) {
       if (mounted) AppToast.error(context, 'Gagal: $e');
+    } finally {
+      if (mounted) setState(() => _sedangDihapus = null);
     }
   }
 
@@ -317,7 +348,9 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        onPressed: () => _hapus(b),
+                        onPressed: _sedangDihapus == b.id
+                            ? null
+                            : () => _hapus(b),
                         tooltip: 'Hapus bill',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(

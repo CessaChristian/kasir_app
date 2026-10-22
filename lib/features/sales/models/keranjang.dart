@@ -109,5 +109,7 @@ class Keranjang extends ChangeNotifier {
   bool _sah(int indeks) => indeks >= 0 && indeks < _baris.length;
 }
 
-/// Open bill yang sedang ada di keranjang.
-typedef BillAktif = ({String id, String nama});
+/// Open bill yang sedang ada di keranjang. [isiAwal] = isi bill (JSON
+/// `open_bills.items`) saat dimuat — patokan untuk menghitung apa yang
+/// diubah di HP ini waktu bill diperbarui (`gabungIsiBill`).
+typedef BillAktif = ({String id, String nama, String isiAwal});

@@ -595,6 +595,20 @@ class SyncEngine {
     return jumlah;
   }
 
+  /// Menarik SEMUA tabel, induk sebelum anak, TANPA mengirim apa pun.
+  ///
+  /// Untuk pemeriksaan cepat yang hanya butuh kabar terbaru (Open Bill:
+  /// sebelum tutup shift, sesudah bayar/hapus ditolak). Menarik `open_bills`
+  /// SAJA tidak cukup: bill yang dilunasi HP lain menunjuk transaksi yang
+  /// belum ada di HP ini, foreign key lokal menolaknya, dan bill itu tetap
+  /// terlihat terbuka. Tarikan bertahap hanya membawa baris yang berubah,
+  /// jadi biasanya tetap ringan. Galat pertama menghentikan tarikan.
+  Future<void> tarikSemua() async {
+    for (var i = 0; i < _entitas.length; i++) {
+      await _tarik(_entitas[i], i + 1);
+    }
+  }
+
   /// Pintu masuk untuk test: menggabungkan baris server ke tabel bernama
   /// [namaTabel]. Diperlukan karena `_Entitas` sengaja privat.
   @visibleForTesting

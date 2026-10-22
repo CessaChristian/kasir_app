@@ -198,6 +198,49 @@ void main() {
       );
     });
 
+    test('perbarui menggabungkan ke isi terbaru, bukan menimpa', () async {
+      final id = await repo.simpan(nama: 'Meja 4', baris: [baris('latte', 1)]);
+      final awal = (await ambil(id)).items;
+      // HP lain sudah menambah Teh (isi server); HP ini menambah Latte.
+      final server = kodekanBarisBill([
+        (idProduk: 'latte', jumlah: 1, catatan: null),
+        (idProduk: 'teh', jumlah: 1, catatan: null),
+      ]);
+      await repo.simpan(
+        id: id,
+        nama: 'Meja 4',
+        baris: [baris('latte', 2)],
+        isiAwal: awal,
+        isiServer: server,
+      );
+      expect(bacaIsiBill((await ambil(id)).items), [
+        (idProduk: 'latte', jumlah: 2, catatan: null),
+        (idProduk: 'teh', jumlah: 1, catatan: null),
+      ]);
+    });
+
+    test('server tak terbaca: digabung ke isi bill di HP ini', () async {
+      final id = await repo.simpan(nama: 'Meja 4', baris: [baris('latte', 1)]);
+      final awal = (await ambil(id)).items;
+      // Tarikan sebelumnya sudah membawa tambahan Teh dari HP lain.
+      await (db.update(db.openBills)..where((b) => b.id.equals(id))).write(
+        OpenBillsCompanion(
+          items: Value(kodekanIsiBill([baris('latte', 1), baris('teh', 1)])),
+        ),
+      );
+      await repo.simpan(
+        id: id,
+        nama: 'Meja 4',
+        baris: [baris('latte', 1), baris('kopi', 1)],
+        isiAwal: awal,
+      );
+      expect(bacaIsiBill((await ambil(id)).items).map((b) => b.idProduk), [
+        'latte',
+        'teh',
+        'kopi',
+      ]);
+    });
+
     test('tanpa shift tidak bisa menyimpan', () async {
       await masuk(shiftId: null);
       expect(
@@ -255,7 +298,7 @@ void main() {
     test('memuat bill, lepas saat kosong atau dikosongkan', () {
       final k = Keranjang()..tambah(idProduk: 'x', nama: 'X', harga: 1);
       k.muatBill(
-        (id: 'b-1', nama: 'Meja 1'),
+        (id: 'b-1', nama: 'Meja 1', isiAwal: '[]'),
         [baris('latte', 2), baris('teh', 1)],
       );
       expect(k.bill?.nama, 'Meja 1');
@@ -266,7 +309,10 @@ void main() {
       k.kurangiSatu(0);
       expect(k.bill, isNull, reason: 'keranjang kosong tidak memegang bill');
 
-      k.muatBill((id: 'b-1', nama: 'Meja 1'), [baris('latte', 1)]);
+      k.muatBill(
+        (id: 'b-1', nama: 'Meja 1', isiAwal: '[]'),
+        [baris('latte', 1)],
+      );
       k.kosongkan();
       expect((k.isEmpty, k.bill), (true, null));
     });
@@ -406,5 +452,110 @@ void main() {
     await baru.close();
     // tearDown menutup `db` lagi — buka yang baru supaya tetap sah.
     db = AppDatabase.forTesting(NativeDatabase.memory());
+  });
+
+  test('jawaban server klaim/hapus → keputusan', () {
+    expect(keputusanDariJawaban('ok'), KeputusanServer.boleh);
+    expect(
+      keputusanDariJawaban('belum_ada'),
+      KeputusanServer.boleh,
+      reason: 'bill belum pernah terkirim: HP lain belum tahu',
+    );
+    expect(keputusanDariJawaban('dibayar'), KeputusanServer.sudahDibayar);
+    expect(keputusanDariJawaban('dihapus'), KeputusanServer.sudahDihapus);
+    expect(keputusanDariJawaban(null), KeputusanServer.takTerjawab);
+    expect(keputusanDariJawaban('aneh'), KeputusanServer.takTerjawab);
+  });
+
+  group('gabungIsiBill', () {
+    BarisBill b(String id, int n, [String? c]) =>
+        (idProduk: id, jumlah: n, catatan: c);
+    List<BarisBill> gabung(
+      List<BarisBill> awal,
+      List<BarisBill> milikku,
+      List<BarisBill> terkini,
+    ) => gabungIsiBill(awal: awal, milikku: milikku, terkini: terkini);
+
+    test('dua HP menambah produk berbeda: dua-duanya masuk', () {
+      expect(
+        gabung([b('latte', 1)], [b('latte', 1), b('teh', 1)], [b('latte', 2)]),
+        [b('latte', 2), b('teh', 1)],
+      );
+    });
+
+    test('dua HP menambah produk yang sama: semua tambahan dihitung', () {
+      expect(gabung([b('latte', 1)], [b('latte', 3)], [b('latte', 2)]), [
+        b('latte', 4),
+      ]);
+    });
+
+    test('hapusan HP lain tetap berlaku', () {
+      expect(gabung([b('latte', 1)], [b('latte', 1), b('teh', 1)], const []), [
+        b('teh', 1),
+      ]);
+    });
+
+    test('HP lain menghapus, HP ini menambah satu: sisa satu', () {
+      expect(gabung([b('latte', 1)], [b('latte', 2)], const []), [
+        b('latte', 1),
+      ]);
+    });
+
+    test('mengurangi di bawah nol: barisnya dibuang, tidak minus', () {
+      expect(gabung([b('latte', 2)], const [], [b('latte', 1)]), isEmpty);
+    });
+
+    test('catatan berbeda = baris berbeda', () {
+      expect(
+        gabung(
+          [b('latte', 1, 'Es')],
+          [b('latte', 1, 'Es'), b('latte', 1, 'Panas')],
+          [b('latte', 2, 'Es')],
+        ),
+        [b('latte', 2, 'Es'), b('latte', 1, 'Panas')],
+      );
+    });
+
+    test('tidak ada yang diubah HP lain: hasil = milikku', () {
+      expect(gabung([b('latte', 1)], [b('teh', 2)], [b('latte', 1)]), [
+        b('teh', 2),
+      ]);
+    });
+
+    test('isiBillSama tidak peduli urutan', () {
+      final x = kodekanBarisBill([b('latte', 1), b('teh', 1)]);
+      final y = kodekanBarisBill([b('teh', 1), b('latte', 1)]);
+      expect(isiBillSama(x, y), isTrue);
+      expect(isiBillSama(x, kodekanBarisBill([b('latte', 1)])), isFalse);
+      expect(isiBillSama(kodekanBarisBill([b('latte', 1)]), x), isFalse);
+      expect(
+        isiBillSama(x, kodekanBarisBill([b('latte', 2), b('teh', 1)])),
+        isFalse,
+      );
+    });
+  });
+
+  test('baris server sebelum perbarui → keputusan', () {
+    Map<String, dynamic> baris({Object? tx, Object? hapus, Object? klaim}) => {
+      'transaction_id': tx,
+      'deleted_at': hapus,
+      'klaim_tx': klaim,
+    };
+    expect(
+      keputusanDariBaris(null),
+      KeputusanServer.boleh,
+      reason: 'bill belum pernah terkirim',
+    );
+    expect(keputusanDariBaris(baris()), KeputusanServer.boleh);
+    expect(keputusanDariBaris(baris(tx: 't')), KeputusanServer.sudahDibayar);
+    expect(
+      keputusanDariBaris(baris(klaim: 't')),
+      KeputusanServer.sudahDibayar,
+      reason: 'sedang dibayar HP lain',
+    );
+    expect(
+      keputusanDariBaris(baris(hapus: '2026-10-16')),
+      KeputusanServer.sudahDihapus,
+    );
   });
 }

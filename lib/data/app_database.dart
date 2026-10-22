@@ -1653,7 +1653,7 @@ class AppDatabase extends _$AppDatabase {
       await _validasiProdukMasihAda(lines);
       final bill = billId == null ? null : await _billTerbuka(billId);
       if (billId != null && bill == null) {
-        throw StateError(
+        throw BillTidakTerbuka(
           'Bill ini sudah dibayar atau dihapus di perangkat lain. '
           'Kosongkan keranjang lalu muat ulang dari Open Bill.',
         );
@@ -2048,6 +2048,12 @@ class AppDatabase extends _$AppDatabase {
 }
 
 // ---- DB CONNECTION ----
+
+/// `createSale` menolak bill yang sudah dibayar atau dihapus — dibedakan dari
+/// galat lain supaya keranjang bisa langsung dikosongkan.
+class BillTidakTerbuka extends StateError {
+  BillTidakTerbuka(super.message);
+}
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {

@@ -187,7 +187,10 @@ create table public.open_bills (
   transaction_id uuid        references public.transactions(id),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
-  deleted_at     timestamptz
+  deleted_at     timestamptz,
+  -- Transaksi yang sedang membayar bill ini; tanpa FK. Fungsi klaim_bill,
+  -- hapus_bill, dan penjaga status akhir: open_bill_kunci.sql.
+  klaim_tx       uuid
 );
 
 -- =====================================================================

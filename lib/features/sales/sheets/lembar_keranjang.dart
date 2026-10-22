@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../../data/app_database.dart' show BillTidakTerbuka;
 import '../../../data/db.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/uuid_helper.dart';
@@ -10,6 +13,7 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
+import '../../open_bill/models/isi_bill.dart';
 import '../../open_bill/repositories/open_bill_repository.dart';
 import '../../open_bill/widgets/dialog_simpan_bill.dart';
 import '../models/keranjang.dart';
@@ -107,6 +111,12 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
     if (_k.isEmpty || !_adaShift()) return;
     final aktif = _k.bill;
     final baris = List<SaleLine>.of(_k.baris);
+    // Diisi kalau bill yang diperbarui ternyata sudah dibayar/dihapus HP
+    // lain: dialog ditutup lalu keranjang dikosongkan, seperti saat Bayar.
+    String? ditolak;
+    // True kalau isi bill di server sudah diubah HP lain sejak dimuat —
+    // perubahan HP ini digabungkan ke situ, dan kasir perlu tahu.
+    var digabung = false;
     final nama = await tanyaSimpanBill(
       context,
       perbarui: aktif != null,
@@ -114,8 +124,36 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
       total: _k.total,
       namaAwal: aktif?.nama ?? '',
       simpan: (nama) async {
+        String? isiServer;
+        if (aktif != null) {
+          // Sinkron otomatis ditahan selama keranjang berisi — HP ini belum
+          // tentu tahu kabar terbaru bill-nya. Tak terjawab: tetap jalan.
+          final cek = await widget.repoBill.cekDiServer(aktif.id);
+          final keputusan = cek.keputusan;
+          if (keputusan == KeputusanServer.sudahDibayar ||
+              keputusan == KeputusanServer.sudahDihapus) {
+            await widget.repoBill.tandaiTertutup(aktif.id);
+            unawaited(widget.repoBill.segarkanDariServer());
+            ditolak = keputusan == KeputusanServer.sudahDibayar
+                ? 'dibayar'
+                : 'dihapus';
+            return null;
+          }
+          isiServer = cek.isi;
+        }
         try {
-          await widget.repoBill.simpan(id: aktif?.id, nama: nama, baris: baris);
+          await widget.repoBill.simpan(
+            id: aktif?.id,
+            nama: nama,
+            baris: baris,
+            isiAwal: aktif?.isiAwal,
+            isiServer: isiServer,
+          );
+          digabung =
+              isiServer != null && !isiBillSama(isiServer, aktif!.isiAwal);
+          return null;
+        } on BillTidakTerbuka {
+          ditolak = 'dibayar atau dihapus';
           return null;
         } catch (e) {
           return e is StateError ? e.message : 'Gagal: $e';
@@ -124,10 +162,19 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
     );
     if (nama == null || !mounted) return;
     _k.kosongkan();
-    AppToast.success(
-      context,
-      '${aktif != null ? 'Bill diperbarui' : 'Bill disimpan'} · $nama',
-    );
+    if (ditolak != null) {
+      AppToast.error(
+        context,
+        'Bill ${aktif!.nama} sudah $ditolak di perangkat lain. '
+        'Keranjang dikosongkan.',
+      );
+    } else {
+      AppToast.success(
+        context,
+        '${aktif != null ? 'Bill diperbarui' : 'Bill disimpan'} · $nama'
+        '${digabung ? ' (digabung dengan perubahan perangkat lain)' : ''}',
+      );
+    }
     Navigator.pop(context);
   }
 
@@ -139,25 +186,75 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
     final total = _k.total;
     final baris = List<SaleLine>.of(_k.baris);
     final id = newUuid();
+    var billDitolak = false;
+
+    // Bill sudah dibayar/dihapus HP lain: keranjang langsung dikosongkan
+    // dan kedua lembar ditutup — tidak ada yang bisa dilakukan kasir
+    // dengan pesanan itu selain memulai lagi.
+    Never tolakBill(String nama, String apa) {
+      billDitolak = true;
+      _k.kosongkan();
+      AppToast.error(
+        context,
+        'Bill $nama sudah $apa di perangkat lain. Keranjang dikosongkan.',
+      );
+      throw const PembayaranDitolak();
+    }
+
     final dibayar = await tampilkanPembayaran(
       context,
       total: total,
       metode: _metode,
       bayar: (uang) async {
-        await widget.repo.createSale(
-          transactionId: id,
-          lines: baris,
-          paymentMethod: _metode.kode,
-          orderType: _tipe.kode,
-          cashReceived: _metode == MetodeBayar.tunai ? uang : null,
-          cashierUserId: sesi!.userId,
-          shiftId: sesi.shiftId,
-          billId: _k.bill?.id,
-        );
+        final bill = _k.bill;
+        // Klaim di server dulu. Selama keranjang berisi, sinkron otomatis
+        // ditahan, jadi HP ini tidak tahu kalau bill-nya sudah dibayar atau
+        // dihapus HP lain — dan dua HP yang membayar bersamaan baru bisa
+        // dipisahkan oleh server. Tak terjawab (offline/lambat): tetap jalan.
+        if (bill != null) {
+          final keputusan = await widget.repoBill.klaimDiServer(bill.id, id);
+          if (keputusan == KeputusanServer.sudahDibayar ||
+              keputusan == KeputusanServer.sudahDihapus) {
+            // Jawaban server sudah pasti: sembunyikan sekarang, rapikan
+            // datanya (transaksi pelunas) di belakang layar.
+            await widget.repoBill.tandaiTertutup(bill.id);
+            unawaited(widget.repoBill.segarkanDariServer());
+            tolakBill(
+              bill.nama,
+              keputusan == KeputusanServer.sudahDibayar ? 'dibayar' : 'dihapus',
+            );
+          }
+        }
+        try {
+          await widget.repo.createSale(
+            transactionId: id,
+            lines: baris,
+            paymentMethod: _metode.kode,
+            orderType: _tipe.kode,
+            cashReceived: _metode == MetodeBayar.tunai ? uang : null,
+            cashierUserId: sesi!.userId,
+            shiftId: sesi.shiftId,
+            billId: bill?.id,
+          );
+        } catch (e) {
+          // Klaimnya dilepas supaya bill tidak terkunci tanpa transaksi.
+          if (bill != null) unawaited(widget.repoBill.lepasKlaim(bill.id, id));
+          // HP ini sendiri sudah tahu bill-nya tidak terbuka (mis. offline,
+          // tapi sudah menarik kabarnya lebih dulu).
+          if (bill != null && e is BillTidakTerbuka) {
+            tolakBill(bill.nama, 'dibayar atau dihapus');
+          }
+          rethrow;
+        }
         _k.kosongkan();
       },
     );
-    if (dibayar && mounted) Navigator.pop(context, id);
+    if (!mounted) return;
+    if (dibayar) {
+      Navigator.pop(context, id);
+    } else if (billDitolak) {
+      Navigator.pop(context);
+    }
   }
 
   @override
