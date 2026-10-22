@@ -104,24 +104,35 @@ class _LembarPembayaranState extends State<_LembarPembayaran> {
       // Jangan sampai lembar tertutup di tengah penyimpanan: galatnya tidak
       // akan terlihat, dan kasir mengira transaksinya aman.
       canPop: !_memproses,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const PegangLembar(),
-                const SizedBox(height: 18),
-                _kepala(),
-                if (_tunai) ..._isiTunai() else ..._isiQris(),
-              ],
-            ),
+      // PopScope hanya menahan Back dan ketuk di luar. Geser ke bawah
+      // menutup lembar langsung tanpa bertanya, jadi geserannya ditelan di
+      // sini — kalau lolos, keranjang tampil lagi masih berisi dan kasir
+      // menagih ulang.
+      child: GestureDetector(
+        onVerticalDragStart: _memproses ? (_) {} : null,
+        child: _isi(),
+      ),
+    );
+  }
+
+  Widget _isi() {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const PegangLembar(),
+              const SizedBox(height: 18),
+              _kepala(),
+              if (_tunai) ..._isiTunai() else ..._isiQris(),
+            ],
           ),
         ),
       ),
