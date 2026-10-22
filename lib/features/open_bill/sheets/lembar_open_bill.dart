@@ -17,6 +17,7 @@ import '../../sales/repositories/sales_repository.dart';
 import '../../sales/sheets/lembar_keranjang.dart';
 import '../models/isi_bill.dart';
 import '../repositories/open_bill_repository.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Lembar "Tagihan Nota" (desain): daftar open bill di shift berjalan.
 /// Bill yang diketuk dimuat ke [keranjang] lalu Keranjang dibuka; ikon
@@ -153,7 +154,9 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       if (_k.bill?.id == b.id) _k.kosongkan();
       if (mounted) AppToast.success(context, 'Bill ${b.name} dihapus');
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal: $e');
+      if (mounted) {
+        AppToast.error(context, pesanGalat(e, awalan: 'Gagal menghapus bill'));
+      }
     } finally {
       if (mounted) setState(() => _sedangDihapus = null);
     }

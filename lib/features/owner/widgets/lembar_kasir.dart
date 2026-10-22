@@ -11,6 +11,7 @@ import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../data/nama_tercatat.dart';
 import '../repositories/cashier_repository.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Isian PIN: hanya angka, sepanjang [CryptoUtils.pinLength].
 final _formatPin = [
@@ -39,12 +40,6 @@ final _formatUsername = [
 
 /// Galat username (desain Tambah Akun / Ubah Username); null = sah.
 String? periksaUsername(String nama) => CashierRepository.periksaUsername(nama);
-
-String _pesanGalat(Object e) => switch (e) {
-  StateError(:final message) => message,
-  ArgumentError(:final message) => '$message',
-  _ => 'Gagal menyimpan: $e',
-};
 
 Widget _tombolMata(bool tampil, VoidCallback onTap) => IconButton(
   onPressed: onTap,
@@ -144,7 +139,7 @@ class _TambahKasirState extends State<_TambahKasir> {
       if (mounted) {
         setState(() {
           _menyimpan = false;
-          _galat = _pesanGalat(e);
+          _galat = pesanGalat(e, awalan: 'Gagal menyimpan');
         });
       }
     }
@@ -416,7 +411,7 @@ class _UbahUsernameState extends State<_UbahUsername> {
       if (mounted) {
         setState(() {
           _menyimpan = false;
-          _galatSimpan = _pesanGalat(e);
+          _galatSimpan = pesanGalat(e, awalan: 'Gagal menyimpan');
         });
       }
     }
@@ -524,7 +519,7 @@ class _ResetPinState extends State<_ResetPin> {
       if (mounted) {
         setState(() {
           _menyimpan = false;
-          _galatSimpan = _pesanGalat(e);
+          _galatSimpan = pesanGalat(e, awalan: 'Gagal menyimpan');
         });
       }
     }

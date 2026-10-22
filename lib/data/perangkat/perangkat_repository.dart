@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
 import 'kode_nota.dart';
+import '../../utils/pesan_galat.dart';
 
 /// Perangkat lain yang masih memegang sebuah shift, dan sudah berapa lama
 /// ia tidak memberi kabar ke server.
@@ -312,7 +313,7 @@ class PerangkatRepository {
   /// dua hal yang sangat berbeda saat hendak menutup shift.
   Future<List<PemegangShift>> pemegangShiftLain(String shiftId) async {
     final k = _klien;
-    if (k == null) throw StateError('server tidak tersedia');
+    if (k == null) throw StateError(pesanTakTersambung);
     final hasil = await k.rpc(
       'pemegang_shift_lain',
       params: {'p_shift_id': shiftId},

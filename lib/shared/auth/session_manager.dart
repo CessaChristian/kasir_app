@@ -407,18 +407,24 @@ class SessionManager {
   }
 
   void requireLoggedIn() {
-    if (!isLoggedIn) throw StateError('User must be logged in');
+    if (!isLoggedIn) {
+      throw StateError('Sesi sudah berakhir. Silakan masuk lagi.');
+    }
   }
 
   void requireOwner() {
     requireLoggedIn();
-    if (!isOwner) throw StateError('Owner access required');
+    if (!isOwner) throw IzinDitolak('Hanya owner yang boleh melakukan ini.');
   }
 
   void requirePermission(String permissionCode) {
     requireLoggedIn();
     if (!hasPermission(permissionCode)) {
-      throw StateError('Permission required: $permissionCode');
+      throw IzinDitolak(
+        'Akun ini tidak punya izin untuk melakukan ini. '
+        'Minta owner mengaktifkannya.',
+        kode: permissionCode,
+      );
     }
   }
 
@@ -446,4 +452,12 @@ class SessionManager {
   /// Dibiarkan sebagai penerus panggilan, bukan dihapus, supaya pemanggil yang
   /// ada tidak perlu diubah sekaligus. Untuk kode baru pakai [hasPermission].
   bool hasCurrentPermission(String permission) => hasPermission(permission);
+}
+
+/// Akun yang sedang masuk tidak berhak melakukan sesuatu. Pesannya siap
+/// ditampilkan; [kode] = izin yang kurang (null untuk aksi khusus owner),
+/// supaya halaman bisa menyebut nama izinnya.
+class IzinDitolak extends StateError {
+  final String? kode;
+  IzinDitolak(super.message, {this.kode});
 }

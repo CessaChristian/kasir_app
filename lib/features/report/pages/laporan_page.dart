@@ -28,6 +28,7 @@ import '../services/pdf_laporan.dart';
 import '../widgets/lembar_unduh_laporan.dart';
 import '../widgets/grafik_batang.dart';
 import '../widgets/kartu_dibatalkan.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Laporan (desain): periode · unduh · pendapatan · yang dibatalkan · tren ·
 /// metode bayar · tipe pesanan · per kategori · per produk.
@@ -159,7 +160,12 @@ class _LaporanPageState extends State<LaporanPage> {
     } on BerkasTidakTersimpan catch (e) {
       if (mounted) AppToast.error(context, e.pesan);
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal membagikan laporan: $e');
+      if (mounted) {
+        AppToast.error(
+          context,
+          pesanGalat(e, awalan: 'Gagal membagikan laporan'),
+        );
+      }
     }
   }
 

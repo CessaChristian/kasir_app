@@ -19,6 +19,7 @@ import '../models/ringkasan_pengeluaran.dart';
 import '../repositories/expense_repository.dart';
 import '../widgets/dialog_pengeluaran.dart';
 import '../widgets/kelompok_hari_pengeluaran.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Pengeluaran untuk owner: per periode, ringkasan per kategori, rincian per
 /// hari. Owner juga bisa mencatat pengeluaran sendiri — tanpa shift, jadi
@@ -82,7 +83,9 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
       );
       if (mounted) AppToast.success(context, 'Pengeluaran dicatat');
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal mencatat: $e');
+      if (mounted) {
+        AppToast.error(context, pesanGalat(e, awalan: 'Gagal mencatat'));
+      }
     }
   }
 

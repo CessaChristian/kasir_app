@@ -17,6 +17,7 @@ import '../repositories/cashier_repository.dart';
 import '../widgets/kartu_kasir.dart';
 import '../widgets/lembar_kasir.dart';
 import 'hak_akses_page.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Kelola Kasir (desain): kartu per kasir dengan sakelar aktif, ⋮, Hak Akses,
 /// dan Reset PIN; tombol + untuk akun baru.
@@ -117,7 +118,7 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
       pesanTertunda: aktif
           ? 'Tersimpan — berlaku di HP kasir setelah online'
           : 'Tersimpan — akses baru tercabut di HP kasir setelah online',
-      pesanGagal: (e) => 'Gagal: $e',
+      pesanGagal: pesanGalat,
     );
   }
 
@@ -159,7 +160,7 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
       simpan: () => _repo.hapusKasir(akun.id),
       pesanTerkirim: 'Akun ${akun.username} dihapus',
       pesanTertunda: 'Tersimpan — akun baru terhapus di HP lain setelah online',
-      pesanGagal: (e) => 'Gagal: $e',
+      pesanGagal: pesanGalat,
     );
   }
 

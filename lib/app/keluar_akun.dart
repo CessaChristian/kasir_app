@@ -6,6 +6,7 @@ import '../features/auth/repositories/auth_repository.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/ui/lembar_konfirmasi.dart';
 import '../shared/widgets/app_toast.dart';
+import '../utils/pesan_galat.dart';
 
 /// Tanya dulu, lalu keluar dari akun dan kembali ke layar login.
 ///
@@ -41,6 +42,6 @@ Future<void> keluarDariAkun(BuildContext context) async {
     );
   } catch (e) {
     if (!context.mounted) return;
-    AppToast.error(context, 'Gagal keluar: $e');
+    AppToast.error(context, pesanGalat(e, awalan: 'Gagal keluar'));
   }
 }

@@ -22,6 +22,7 @@ import '../models/pesanan.dart';
 import '../repositories/sales_repository.dart';
 import '../widgets/dialog_struk.dart';
 import 'lembar_pembayaran.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Buka Keranjang (desain). Sesudah dibayar, struknya ditampilkan.
 /// "Simpan Bill" menyimpan isinya sebagai open bill lalu menutup keranjang.
@@ -157,7 +158,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           ditolak = 'dibayar atau dihapus';
           return null;
         } catch (e) {
-          return e is StateError ? e.message : 'Gagal: $e';
+          return pesanGalat(e, awalan: 'Gagal menyimpan bill');
         }
       },
     );

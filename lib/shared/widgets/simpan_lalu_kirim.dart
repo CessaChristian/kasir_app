@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/sync/sinkron_berbatas.dart';
 import 'alasan_terputus.dart';
 import 'app_toast.dart';
+import '../../utils/pesan_galat.dart';
 
 /// Menyimpan perubahan lalu MENGIRIMNYA, dan melaporkan keadaan yang
 /// sebenarnya terjadi.
@@ -52,7 +53,7 @@ Future<bool> simpanLaluKirim(
     if (context.mounted) {
       AppToast.error(
         context,
-        pesanGagal?.call(e) ?? 'Gagal menyimpan: $e',
+        pesanGagal?.call(e) ?? pesanGalat(e, awalan: 'Gagal menyimpan'),
       );
     }
     return false;

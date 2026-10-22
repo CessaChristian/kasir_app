@@ -16,6 +16,7 @@ import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../utils/pesan_galat.dart';
 import '../../owner/repositories/cashier_repository.dart'
     show pesanButuhInternet;
 
@@ -178,7 +179,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         context,
         PerangkatRepository.belumDisiapkan(e)
             ? 'Perlu menjalankan ulang supabase/perangkat.sql di Supabase'
-            : 'Gagal: $e',
+            : pesanGalat(e),
       );
     }
   }

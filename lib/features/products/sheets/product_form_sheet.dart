@@ -22,6 +22,7 @@ import '../../../shared/ui/sakelar_pilihan.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../sales/models/pilihan_produk.dart';
+import '../../../utils/pesan_galat.dart';
 
 class FormResult {
   final String name;
@@ -239,7 +240,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
       _gambarBaru.add(relatif);
       if (mounted) setState(() => _imagePath = relatif);
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal menyimpan gambar: $e');
+      if (mounted) {
+        AppToast.error(context, pesanGalat(e, awalan: 'Gagal menyimpan gambar'));
+      }
     }
   }
 

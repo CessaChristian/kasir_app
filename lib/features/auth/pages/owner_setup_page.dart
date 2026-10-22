@@ -8,6 +8,7 @@ import '../../../shared/auth/session_manager.dart';
 import '../recovery/pages/save_recovery_code_page.dart';
 import '../../../app/app_shell.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../utils/pesan_galat.dart';
 
 class OwnerSetupPage extends StatefulWidget {
   const OwnerSetupPage({super.key});
@@ -77,7 +78,7 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, 'Terjadi kesalahan: $e');
+      AppToast.error(context, pesanGalat(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

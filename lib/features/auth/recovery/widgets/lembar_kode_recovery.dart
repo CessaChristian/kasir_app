@@ -7,6 +7,7 @@ import '../../../../shared/ui/warna_teras.dart';
 import '../../../../utils/crypto_utils.dart';
 import '../../repositories/auth_repository.dart';
 import '../pages/save_recovery_code_page.dart';
+import '../../../../utils/pesan_galat.dart';
 
 /// Alur "Kode Recovery" di Profil (desain): lembar "Perbarui Kode Recovery"
 /// meminta PIN saat ini, lalu halaman kode baru yang hanya tampil sekali.
@@ -82,7 +83,7 @@ class _LembarPerbaruiRecoveryState extends State<LembarPerbaruiRecovery> {
       if (mounted) {
         setState(() {
           _memproses = false;
-          _galat = 'Gagal membuat kode: $e';
+          _galat = pesanGalat(e, awalan: 'Gagal membuat kode');
         });
       }
     }

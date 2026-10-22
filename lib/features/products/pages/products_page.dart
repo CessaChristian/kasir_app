@@ -16,6 +16,7 @@ import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/error_state_widget.dart';
 import '../widgets/baris_produk.dart';
 import '../sheets/product_form_sheet.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Daftar Produk (desain): cari · deretan kategori · baris produk ·
 /// tombol tambah. Ketuk baris untuk mengedit.
@@ -97,7 +98,7 @@ class _ProductsPageState extends State<ProductsPage> {
           editing == null ? '${result.name} ditambahkan' : 'Perubahan disimpan');
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, 'Gagal: $e');
+      AppToast.error(context, pesanGalat(e, awalan: 'Gagal menyimpan produk'));
     }
   }
 
@@ -117,7 +118,7 @@ class _ProductsPageState extends State<ProductsPage> {
       AppToast.success(context, '${p.name} dihapus');
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, 'Gagal menghapus: $e');
+      AppToast.error(context, pesanGalat(e, awalan: 'Gagal menghapus'));
     }
   }
 

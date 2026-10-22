@@ -24,6 +24,7 @@ import 'widgets/baris_pengeluaran.dart';
 import 'widgets/batalkan_pengeluaran.dart';
 import 'widgets/dialog_pengeluaran.dart';
 import 'widgets/kelompok_hari_pengeluaran.dart';
+import '../../utils/pesan_galat.dart';
 
 /// Shift mana yang layak muncul di "Riwayat Pengeluaran".
 ///
@@ -165,7 +166,12 @@ class _ExpensesPageState extends State<ExpensesPage> {
       );
       if (mounted) AppToast.success(context, 'Pengeluaran dicatat');
     } catch (e) {
-      if (mounted) AppToast.error(context, 'Gagal mencatat: $e');
+      // Shift ditutup HP lain sebelum kabarnya sampai: lepaskan dari sesi
+      // supaya kasir membuka shift baru, seperti saat bayar.
+      if (e is ShiftSudahDitutup) await SessionManager.instance.aturShift(null);
+      if (mounted) {
+        AppToast.error(context, pesanGalat(e, awalan: 'Gagal mencatat'));
+      }
     }
   }
 

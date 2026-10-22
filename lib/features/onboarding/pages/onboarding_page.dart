@@ -5,6 +5,7 @@ import '../../../utils/crypto_utils.dart';
 import '../../../data/db.dart';
 import '../../auth/repositories/auth_repository.dart';
 import '../../auth/recovery/pages/save_recovery_code_page.dart';
+import '../../../utils/pesan_galat.dart';
 
 class OnboardingPage extends StatefulWidget {
   /// Callback dipanggil setelah onboarding sukses.
@@ -61,7 +62,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal setup: $e')),
+        SnackBar(
+          content: Text(pesanGalat(e, awalan: 'Gagal menyiapkan aplikasi')),
+        ),
       );
       setState(() => _isSubmitting = false);
     }

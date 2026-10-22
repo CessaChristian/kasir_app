@@ -11,6 +11,7 @@ import '../../../../utils/formatters/recovery_code_formatter.dart';
 import '../../repositories/auth_repository.dart';
 import '../models/recovery_result.dart';
 import 'save_recovery_code_page.dart';
+import '../../../../utils/pesan_galat.dart';
 
 /// Reset PIN Owner dengan kode recovery (desain): kode, PIN baru,
 /// konfirmasi, galat sebaris di atas tombol "Reset PIN".
@@ -138,7 +139,7 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
         await _periksaKunci();
       }
     } catch (e) {
-      if (mounted) setState(() => _galat = 'Terjadi kesalahan: $e');
+      if (mounted) setState(() => _galat = pesanGalat(e));
     } finally {
       if (mounted) setState(() => _memuat = false);
     }

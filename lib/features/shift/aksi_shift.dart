@@ -12,13 +12,11 @@ import '../open_bill/repositories/open_bill_repository.dart';
 import 'pengelola_shift.dart';
 import 'repositories/shift_repository.dart';
 import 'widgets/dialog_buka_shift.dart';
+import '../../utils/pesan_galat.dart';
 
-String _pesanGalat(Object e) {
-  final pesan = e is StateError ? e.message : '$e';
-  return pesan.startsWith('Permission required')
-      ? 'Akun ini tidak punya izin Buka & Tutup Shift'
-      : 'Gagal: $pesan';
-}
+String _pesanGalat(Object e) => e is IzinDitolak
+    ? 'Akun ini tidak punya izin Buka & Tutup Shift'
+    : pesanGalat(e);
 
 /// "Buka shift": tanya kas awal, lalu buka. Dipakai Dashboard, Profil, dan
 /// layar "Buka shift dulu".

@@ -7,6 +7,7 @@ import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/pesanan.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Dilempar [tampilkanPembayaran]'s `bayar` untuk menutup lembar TANPA
 /// pesan galat: pemanggil sudah menjelaskan sendiri apa yang terjadi (mis.
@@ -89,12 +90,10 @@ class _LembarPembayaranState extends State<_LembarPembayaran> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _memproses = false);
-      final pesan = e is StateError
-          ? e.message
-          : e is ArgumentError
-          ? '${e.message}'
-          : '$e';
-      AppToast.error(context, 'Gagal: $pesan');
+      AppToast.error(
+        context,
+        pesanGalat(e, awalan: 'Gagal menyimpan transaksi'),
+      );
     }
   }
 

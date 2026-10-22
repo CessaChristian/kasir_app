@@ -12,6 +12,8 @@ import '../../../shared/widgets/simpan_lalu_kirim.dart';
 import '../repositories/product_repository.dart';
 import '../sheets/lembar_edit_kategori.dart';
 import '../widgets/pilihan_ikon_kategori.dart';
+import '../../../utils/pesan_galat.dart';
+import '../../../shared/auth/session_manager.dart';
 
 /// Panjang maksimal nama kategori (desain).
 const panjangNamaKategori = 20;
@@ -225,10 +227,9 @@ class _KategoriPageState extends State<KategoriPage> {
       pesanTerkirim: 'Kategori disimpan · langsung berlaku di Kasir',
       pesanTertunda: 'Kategori disimpan · berlaku di HP lain setelah online',
       pesanGagal: (e) {
-        final pesan = e is StateError ? e.message : '$e';
-        return pesan.startsWith('Permission required')
+        return e is IzinDitolak
             ? 'Akun ini tidak punya izin Kelola Kategori'
-            : 'Gagal menyimpan: $pesan';
+            : pesanGalat(e, awalan: 'Gagal menyimpan');
       },
     );
     if (!mounted) return;

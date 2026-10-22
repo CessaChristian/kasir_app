@@ -480,7 +480,14 @@ void main() {
     expect(k.isEmpty, isFalse);
     expect(k.bill?.nama, 'Meja 4');
     expect(find.text('Sudah Bayar'), findsOneWidget);
-    expect(find.textContaining('Gagal: '), findsOneWidget);
+    // Pesannya sendiri, tanpa "Gagal: Bad state:" di depannya.
+    expect(
+      find.text(
+        '"Latte" sudah tidak tersedia. '
+        'Hapus produk ini dari keranjang sebelum melanjutkan.',
+      ),
+      findsOneWidget,
+    );
     expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
     await lepas(t);

@@ -13,6 +13,7 @@ import '../../../shared/widgets/sync_refresh.dart';
 import '../../../utils/crypto_utils.dart';
 import '../recovery/pages/owner_recovery_page.dart';
 import '../repositories/auth_repository.dart';
+import '../../../utils/pesan_galat.dart';
 
 /// Halaman Login (desain): username + PIN, galat sebaris di bawah PIN
 /// berdampingan dengan "Lupa PIN Owner?".
@@ -114,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       setState(() {
         _memuat = false;
-        _galat = 'Terjadi kesalahan: $e';
+        _galat = pesanGalat(e);
       });
     }
   }
