@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'klien_berbatas_waktu.dart';
 
 import 'supabase_config.dart';
+import 'penyimpanan_sesi_aman.dart';
 
 /// Kenapa perangkat ini tidak tersambung ke server.
 ///
@@ -162,8 +163,13 @@ class SupabaseService {
         // Setiap permintaan menyerah setelah 15 detik — lihat
         // KlienBerbatasWaktu. Tanpa ini sinkron bisa menggantung lama.
         httpClient: KlienBerbatasWaktu(http.Client()),
-        authOptions: const FlutterAuthClientOptions(
+        authOptions: FlutterAuthClientOptions(
           autoRefreshToken: true,
+          // Tiket masuk HP ini di penyimpanan terenkripsi — lihat
+          // PenyimpananSesiAman (termasuk pindahan dari versi lama).
+          localStorage: PenyimpananSesiAman(
+            kunci: PenyimpananSesiAman.kunciUntuk(SupabaseConfig.url),
+          ),
         ),
       );
       _siap = true;
