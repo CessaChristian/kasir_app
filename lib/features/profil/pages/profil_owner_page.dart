@@ -31,6 +31,9 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
   /// terjangkau (offline).
   int? _perangkatAktif;
 
+  /// Berapa yang perlu dicek owner (diam seminggu atau datanya bermasalah).
+  int _perangkatPerluDicek = 0;
+
   static const _biru = Color(0xFFE8F0FB);
 
   @override
@@ -43,7 +46,12 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
     try {
       final daftar = await PerangkatRepository.instance.semua();
       if (!mounted || daftar.isEmpty) return;
-      setState(() => _perangkatAktif = daftar.where((p) => p.aktif).length);
+      final idSaya = PerangkatRepository.instance.idSaya;
+      setState(() {
+        _perangkatAktif = daftar.where((p) => p.aktif).length;
+        _perangkatPerluDicek =
+            daftar.where((p) => p.perluPerhatian(idSaya: idSaya)).length;
+      });
     } catch (_) {
       // Offline: keterangan umum tetap tampil.
     }
@@ -113,7 +121,8 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             judul: 'Perangkat Terdaftar',
             keterangan: _perangkatAktif == null
                 ? 'HP yang terhubung ke toko'
-                : '$_perangkatAktif perangkat aktif',
+                : '$_perangkatAktif perangkat aktif'
+                      '${_perangkatPerluDicek > 0 ? ' · $_perangkatPerluDicek perlu dicek' : ''}',
             warnaIkon: WarnaTeras.biru,
             latarIkon: _biru,
             onTap: () async {

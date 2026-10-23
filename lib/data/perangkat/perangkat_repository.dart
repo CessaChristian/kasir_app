@@ -26,6 +26,17 @@ class Perangkat {
   final String? model;
   final bool tablet;
 
+  /// Kapan HP ini terakhir selesai menarik data dengan bersih — tanpa galat
+  /// dan tanpa baris tertahan. Null kalau belum pernah: APK lama, atau
+  /// supabase/perangkat_tarik.sql belum dijalankan.
+  ///
+  /// Berbeda dari [terakhirAktif] ("HP masih dipakai"): HP yang tarikannya
+  /// bermasalah tetap memberi kabar, tapi kolom ini tidak maju.
+  final DateTime? terakhirTarik;
+
+  /// Baris server yang ditolak database HP ini (lihat `BarisTertahan`).
+  final int jumlahTertahan;
+
   const Perangkat({
     required this.id,
     required this.nama,
@@ -34,6 +45,8 @@ class Perangkat {
     required this.didaftarkan,
     this.model,
     this.tablet = false,
+    this.terakhirTarik,
+    this.jumlahTertahan = 0,
   });
 
   factory Perangkat.dariBaris(Map<String, dynamic> b) {
@@ -47,8 +60,59 @@ class Perangkat {
       didaftarkan: dibuat == null ? terakhir : DateTime.parse(dibuat).toLocal(),
       model: b['model'] as String?,
       tablet: b['tablet'] == true,
+      terakhirTarik: switch (b['terakhir_tarik']) {
+        final String t => DateTime.parse(t).toLocal(),
+        _ => null,
+      },
+      jumlahTertahan: (b['jumlah_tertahan'] as num?)?.toInt() ?? 0,
     );
   }
+
+  /// HP yang dipakai tapi lebih dari ini tidak menerima data ditandai.
+  ///
+  /// Sehari: kasir yang aktif berjualan seharian tanpa menerima satu pun
+  /// perubahan dari server (harga, produk dihapus, open bill HP lain) sudah
+  /// patut dicek. Jauh lebih pendek dari [batasDiam] — HP ini jelas masih
+  /// dipakai, masalahnya ada di tarikannya.
+  static const batasTidakMenarik = Duration(days: 1);
+
+  /// Masalah data HP ini untuk ditampilkan ke owner, atau null.
+  ///
+  /// Hanya untuk HP aktif yang TIDAK sedang ditandai [perluDicek]: HP yang
+  /// diam seminggu sudah mendapat peringatannya sendiri.
+  ({String judul, String catatan})? masalahData({
+    DateTime? sekarang,
+    String? idSaya,
+  }) {
+    if (!aktif || perluDicek(sekarang: sekarang, idSaya: idSaya)) return null;
+    if (jumlahTertahan > 0) {
+      return (
+        judul: '$jumlahTertahan data tertahan di HP ini',
+        catatan: 'Data dari server belum bisa disimpan. Perbarui aplikasi '
+            'di HP ini ke versi terbaru.',
+      );
+    }
+    final tarik = terakhirTarik;
+    if (tarik == null) {
+      return (
+        judul: 'Belum pernah menerima data',
+        catatan: 'Perbarui aplikasi di HP ini, lalu buka dan tarik layar '
+            'untuk menyegarkan.',
+      );
+    }
+    final lama = (sekarang ?? DateTime.now()).difference(tarik);
+    if (lama <= batasTidakMenarik) return null;
+    return (
+      judul: 'Tidak menerima data ${lama.inDays} hari',
+      catatan: 'HP ini dipakai, tapi datanya tidak terbarui. Buka aplikasinya '
+          'di HP itu dan tarik layar untuk menyegarkan.',
+    );
+  }
+
+  /// Perlu perhatian owner: diam seminggu, atau datanya bermasalah.
+  bool perluPerhatian({DateTime? sekarang, String? idSaya}) =>
+      perluDicek(sekarang: sekarang, idSaya: idSaya) ||
+      masalahData(sekarang: sekarang, idSaya: idSaya) != null;
 
   /// Berapa lama HP aktif boleh diam sebelum ditandai perlu dicek.
   ///
@@ -222,11 +286,32 @@ class PerangkatRepository {
   /// kalau tidak sedang memegang apa pun — owner, atau kasir yang sudah
   /// keluar. Server memakainya untuk menolak pengakhiran shift yang masih
   /// dipakai perangkat lain.
-  Future<void> hadir([String? shiftId]) async {
+  ///
+  /// [tarikBersih]: tarikan putaran ini selesai tanpa galat DAN tanpa baris
+  /// tertahan — hanya itu yang memajukan `terakhir_tarik`, patokan buang
+  /// sampah dan "Data terakhir diterima" di halaman Perangkat. Kabar dari
+  /// sentuhan layar tidak mengirimnya. [tertahan] null = tidak dilaporkan.
+  Future<void> hadir(
+    String? shiftId, {
+    bool tarikBersih = false,
+    int? tertahan,
+  }) async {
     final k = _klien;
     if (k == null) return;
     try {
-      await k.rpc('perangkat_hadir', params: {'p_shift_id': shiftId});
+      try {
+        await k.rpc('perangkat_hadir', params: {
+          'p_shift_id': shiftId,
+          if (tarikBersih) 'p_tarik_bersih': true,
+          'p_tertahan': ?tertahan,
+        });
+      } catch (e) {
+        // supabase/perangkat_tarik.sql belum dijalankan: fungsinya belum
+        // menerima parameter baru. Kabar "masih dipakai" tetap harus sampai
+        // — pemegang shift dan sesi diam bergantung padanya.
+        if (!belumDisiapkan(e) || (!tarikBersih && tertahan == null)) rethrow;
+        await k.rpc('perangkat_hadir', params: {'p_shift_id': shiftId});
+      }
     } catch (e) {
       if (!belumDisiapkan(e)) debugPrint('[perangkat] hadir gagal: $e');
       return;

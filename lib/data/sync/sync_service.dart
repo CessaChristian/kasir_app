@@ -167,7 +167,7 @@ class SyncService {
     return lengkap;
   }
 
-  Future<void> _periksaSesudahSinkron() async {
+  Future<void> _periksaSesudahSinkron(HasilSync hasil) async {
     // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
     // menyimpan daftarnya sejak login. Tanpa dibaca ulang di sini, izin yang
     // baru diberikan pemilik tidak terlihat sampai kasir keluar-masuk lagi —
@@ -190,9 +190,21 @@ class SyncService {
     // supaya server tidak menganggap shift di HP ini ditinggalkan.
     // Kegagalannya sengaja tidak mengubah hasil sinkron: daftar perangkat
     // adalah catatan administratif, bukan data dagangan.
-    await PerangkatRepository.instance
-        .hadir(SessionManager.instance.currentSession?.shiftId);
+    //
+    // "Tarikan bersih" hanya kalau semua tabel tertarik DAN tidak ada baris
+    // tertahan: HP yang belum menerima semua kabar hapus tidak boleh ikut
+    // dianggap "centang biru" oleh buang sampah.
+    await PerangkatRepository.instance.hadir(
+      SessionManager.instance.currentSession?.shiftId,
+      tarikBersih: tarikBersih(hasil, jumlahTertahan.value),
+      tertahan: jumlahTertahan.value,
+    );
   }
+
+  /// Boleh dilaporkan ke server sebagai tarikan bersih?
+  @visibleForTesting
+  static bool tarikBersih(HasilSync hasil, int tertahan) =>
+      hasil.tarikSelesai && tertahan == 0;
 
   Future<HasilSync> _mulai() async {
     try {
@@ -228,7 +240,7 @@ class SyncService {
       return urutanSesudahMesin(
         hasil,
         hanyaKalauBerhasil: () => _rampungkan(hasil),
-        selamaTersambung: _periksaSesudahSinkron,
+        selamaTersambung: () => _periksaSesudahSinkron(hasil),
       );
     } finally {
       _berjalan = null;

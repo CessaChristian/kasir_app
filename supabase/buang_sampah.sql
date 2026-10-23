@@ -3,6 +3,12 @@
 --
 --  Jalankan lewat SQL Editor di dashboard Supabase. Aman diulang.
 --
+--  ⚠ Fungsi `buang_sampah` di berkas ini DIGANTIKAN
+--  supabase/buang_sampah_tarik.sql (patokan terakhir_tarik). Sesudah berkas
+--  itu dijalankan, JANGAN jalankan ulang berkas ini — fungsinya akan kembali
+--  ke patokan lama yang keliru. Jalankan buang_sampah_tarik.sql lagi kalau
+--  terlanjur.
+--
 --  ── APA ITU "DATA SAMPAH" ──
 --
 --  Menghapus di aplikasi tidak benar-benar membuang barisnya: kolom

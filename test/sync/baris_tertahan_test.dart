@@ -28,6 +28,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    SyncEngine.lupakanCobaLagi();
     db = AppDatabase.forTesting(NativeDatabase.memory());
     server = {};
     diminta = [];
@@ -138,6 +139,7 @@ void main() {
     await mesin.tarikSemua();
     expect(await tertahan(), hasLength(1));
 
+    SyncEngine.lupakanCobaLagi(); // sejam kemudian
     var diambilUlang = <String>[];
     mesin.pengambilIdUntukTest = (tabel, ids) async {
       diambilUlang = ids;
@@ -160,7 +162,67 @@ void main() {
     expect(await tertahan(), hasLength(1));
 
     server['expenses'] = [];
+    SyncEngine.lupakanCobaLagi(); // sejam kemudian
     await mesin.tarikSemua();
+    expect(await tertahan(), isEmpty);
+  });
+
+  test('dicoba ulang paling sering sekali per jam', () async {
+    server['expenses'] = [pengeluaran('gaji-sari', 2, kategori: 'gaji')];
+    var ditanya = 0;
+    final asli = mesin.pengambilIdUntukTest!;
+    mesin.pengambilIdUntukTest = (tabel, ids) async {
+      ditanya++;
+      return asli(tabel, ids);
+    };
+    await mesin.tarikSemua(); // baris baru tertahan
+    await mesin.tarikSemua(); // coba ulang pertama
+    await mesin.tarikSemua(); // masih dalam sejam: tidak ditanya
+    await mesin.tarikSemua();
+    expect(ditanya, 1);
+    expect(SyncEngine.jedaCobaLagi, const Duration(hours: 1));
+
+    SyncEngine.lupakanCobaLagi(); // aplikasi dibuka ulang / sejam kemudian
+    await mesin.tarikSemua();
+    expect(ditanya, 2);
+  });
+
+  test('salinan lama di HP ditandai terhapus kalau barisnya sudah dibuang '
+      'server', () async {
+    // HP punya produk versi lama. Versi barunya di server menunjuk kategori
+    // yang belum ada di sini, jadi tertahan.
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          id: const Value('kopi'),
+          name: 'Kopi',
+          price: 10000,
+          updatedAt: Value(DateTime.utc(2026, 1, 1)),
+          syncStatus: const Value('synced'),
+        ));
+    server['products'] = [
+      {
+        'id': 'kopi',
+        'name': 'Kopi',
+        'price': 12000,
+        'category_id': 'kategori-yang-belum-ada',
+        'created_at': iso(1),
+        'updated_at': iso(1),
+        'deleted_at': null,
+        'server_urut': iso(1),
+      },
+    ];
+    await mesin.tarikSemua();
+    expect((await tertahan()).single.rowId, 'kopi');
+
+    // Produknya lalu dihapus dan sudah dibuang server.
+    server['products'] = [];
+    SyncEngine.lupakanCobaLagi();
+    await mesin.tarikSemua();
+
+    final kopi = await (db.select(db.products)
+          ..where((p) => p.id.equals('kopi')))
+        .getSingle();
+    expect(kopi.deletedAt, isNotNull, reason: 'tidak tampil lagi di Kasir');
+    expect(kopi.syncStatus, 'synced', reason: 'tidak dikirim balik ke server');
     expect(await tertahan(), isEmpty);
   });
 

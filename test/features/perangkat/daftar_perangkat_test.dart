@@ -56,6 +56,8 @@ Perangkat _salin(Perangkat p, {String? nama, bool? aktif}) => Perangkat(
   didaftarkan: p.didaftarkan,
   model: p.model,
   tablet: p.tablet,
+  terakhirTarik: p.terakhirTarik,
+  jumlahTertahan: p.jumlahTertahan,
 );
 
 void main() {
@@ -70,6 +72,9 @@ void main() {
     Duration diam = const Duration(minutes: 3),
     String? model,
     bool tablet = false,
+    Duration? tidakMenarik,
+    bool belumPernahMenarik = false,
+    int tertahan = 0,
   }) => Perangkat(
     id: id,
     nama: nama,
@@ -78,7 +83,74 @@ void main() {
     didaftarkan: DateTime(2026, 6, 12),
     model: model,
     tablet: tablet,
+    terakhirTarik: belumPernahMenarik
+        ? null
+        : sekarang.subtract(tidakMenarik ?? diam),
+    jumlahTertahan: tertahan,
   );
+
+  group('masalah data (terakhir_tarik & jumlah_tertahan)', () {
+    test('sehat: tidak ada peringatan', () {
+      expect(hp('a', 'A').masalahData(sekarang: sekarang), isNull);
+      expect(
+        hp('a', 'A', tidakMenarik: const Duration(hours: 23))
+            .masalahData(sekarang: sekarang),
+        isNull,
+        reason: 'belum lewat sehari',
+      );
+    });
+
+    test('ada data tertahan: minta perbarui aplikasi', () {
+      final m = hp('a', 'A', tertahan: 12).masalahData(sekarang: sekarang)!;
+      expect(m.judul, '12 data tertahan di HP ini');
+      expect(m.catatan, contains('Perbarui aplikasi'));
+    });
+
+    test('dipakai tapi lebih dari sehari tidak menerima data', () {
+      final m = hp('a', 'A', tidakMenarik: const Duration(days: 3, hours: 2))
+          .masalahData(sekarang: sekarang)!;
+      expect(m.judul, 'Tidak menerima data 3 hari');
+      expect(m.catatan, contains('HP ini dipakai'));
+    });
+
+    test('belum pernah menerima data (APK lama)', () {
+      expect(
+        hp('a', 'A', belumPernahMenarik: true)
+            .masalahData(sekarang: sekarang)!
+            .judul,
+        'Belum pernah menerima data',
+      );
+    });
+
+    test('HP dicabut, atau sudah ditandai diam seminggu: tidak dobel', () {
+      expect(
+        hp('a', 'A', aktif: false, tertahan: 5).masalahData(sekarang: sekarang),
+        isNull,
+      );
+      final diam = hp('a', 'A', diam: const Duration(days: 9), tertahan: 5);
+      expect(diam.masalahData(sekarang: sekarang, idSaya: 'x'), isNull);
+      expect(diam.perluPerhatian(sekarang: sekarang, idSaya: 'x'), isTrue);
+    });
+
+    test('baris dari server lama tanpa kolom baru terbaca kosong', () {
+      final p = Perangkat.dariBaris({
+        'id': 'a',
+        'nama': 'A',
+        'status': 'aktif',
+        'terakhir_aktif': '2026-10-23T01:00:00Z',
+      });
+      expect((p.terakhirTarik, p.jumlahTertahan), (null, 0));
+      final baru = Perangkat.dariBaris({
+        'id': 'a',
+        'status': 'aktif',
+        'terakhir_aktif': '2026-10-23T01:00:00Z',
+        'terakhir_tarik': '2026-10-22T01:00:00Z',
+        'jumlah_tertahan': 4,
+      });
+      expect(baru.terakhirTarik, DateTime.utc(2026, 10, 22, 1).toLocal());
+      expect(baru.jumlahTertahan, 4);
+    });
+  });
 
   group('label dan urutan', () {
     final kini = DateTime(2026, 10, 13, 16);
@@ -179,7 +251,7 @@ void main() {
     tearDown(() => SessionManager.instance.clearSession());
 
     void layarHp(WidgetTester t) {
-      t.view.physicalSize = const Size(1080, 4000);
+      t.view.physicalSize = const Size(1080, 6000);
       t.view.devicePixelRatio = 3;
       addTearDown(t.view.reset);
     }
@@ -225,6 +297,22 @@ void main() {
       expect(find.text('Ganti Nama'), findsNWidgets(4));
       expect(find.text('Pulihkan'), findsOneWidget);
       expect(find.text('Lupakan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('kartu: data terakhir diterima & peringatan data', (t) async {
+      repo.daftar = [
+        hp('hp-owner', 'HP Owner'),
+        hp('kasir-1', 'HP Kasir 1', tertahan: 3),
+        hp('kasir-2', 'HP Kasir 2', tidakMenarik: const Duration(days: 2)),
+        hp('kasir-3', 'HP Kasir 3', belumPernahMenarik: true),
+      ];
+      await buka(t);
+      expect(find.text('Data terakhir diterima'), findsNWidgets(4));
+      expect(find.text('3 data tertahan di HP ini'), findsOneWidget);
+      expect(find.text('Tidak menerima data 2 hari'), findsOneWidget);
+      expect(find.text('Belum pernah menerima data'), findsOneWidget);
+      expect(find.text('Belum ada'), findsOneWidget);
       await lepas(t);
     });
 

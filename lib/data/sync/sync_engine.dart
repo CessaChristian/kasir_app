@@ -51,6 +51,14 @@ class HasilSync {
   /// begitu kalimat galatnya diubah.
   final SebabTerputus? sebabTerputus;
 
+  /// Semua tabel selesai DITARIK tanpa galat. Baris yang tertahan tidak
+  /// menggagalkan tarikan, jadi dihitung terpisah sebelum dilaporkan ke
+  /// server sebagai "tarikan bersih" (supabase/perangkat_tarik.sql).
+  ///
+  /// Dipisah dari [berhasil]: kiriman yang gagal tidak menghalangi HP ini
+  /// menerima kabar dari server.
+  final bool tarikSelesai;
+
   const HasilSync({
     this.diperiksa = 0,
     this.berubah = 0,
@@ -62,6 +70,7 @@ class HasilSync {
     this.error,
     this.errorGambar,
     this.sebabTerputus,
+    this.tarikSelesai = false,
   });
 
   bool get berhasil => error == null;
@@ -85,6 +94,7 @@ class HasilSync {
         error: this.error,
         errorGambar: error,
         sebabTerputus: sebabTerputus,
+        tarikSelesai: tarikSelesai,
       );
 
   /// Ada yang berhasil walau ada juga yang gagal.
@@ -240,12 +250,14 @@ class SyncEngine {
     //
     // Tarik dulu semuanya, baru dorong. Mendorong lebih dulu bisa menimpa
     // perubahan server yang belum sempat dilihat perangkat ini.
+    var tarikSelesai = false;
     try {
       for (var i = 0; i < _entitas.length; i++) {
         final h = await _tarik(_entitas[i], i + 1);
         diperiksa += h.$1;
         berubah += h.$2;
       }
+      tarikSelesai = true;
     } catch (e) {
       gagal.add('tarik: $e');
     }
@@ -271,6 +283,7 @@ class SyncEngine {
       berubah: berubah,
       didorong: didorong,
       error: gagal.isEmpty ? null : gagal.join(' | '),
+      tarikSelesai: tarikSelesai,
     );
   }
 
@@ -569,6 +582,16 @@ class SyncEngine {
     final tertahan = (await _idTertahan(e.nama)).toList();
     if (tertahan.isEmpty) return (0, 0);
 
+    // Baris yang tertahan hampir selalu menunggu aplikasinya diperbarui,
+    // jadi tidak perlu ditanyakan tiap lima menit. Penandanya di memori:
+    // membuka aplikasi — termasuk sesudah diperbarui — selalu mencoba.
+    final kini = DateTime.now();
+    final terakhir = _cobaLagiTerakhir[e.nama];
+    if (terakhir != null && kini.difference(terakhir) < jedaCobaLagi) {
+      return (0, 0);
+    }
+    _cobaLagiTerakhir[e.nama] = kini;
+
     var diterima = 0;
     var berubah = 0;
     const potongan = 100;
@@ -577,7 +600,22 @@ class SyncEngine {
       final baris = await _ambilMenurutId(e.nama, ids);
       final ada = {for (final r in baris) r['id'] as String};
       for (final id in ids) {
-        if (!ada.contains(id)) await _lepasTahanan(e.nama, id);
+        if (ada.contains(id)) continue;
+        await _lepasTahanan(e.nama, id);
+        // Sudah tidak ada di server = sudah DIBUANG buang sampah, dan yang
+        // dibuang hanya produk/kategori yang terhapus. Salinan lama di HP
+        // ini tidak boleh terus tampil (mungkin dengan harga lama).
+        // Ditandai 'synced' supaya tidak dikirim balik dan hidup lagi.
+        if (_sampahTakPerluDisimpan(e.nama)) {
+          await _db.customUpdate(
+            'UPDATE ${e.nama} SET deleted_at = ?, sync_status = \'synced\' '
+            'WHERE id = ? AND deleted_at IS NULL',
+            variables: [
+              Variable.withDateTime(kini),
+              Variable.withString(id),
+            ],
+          );
+        }
       }
       for (final r in baris) {
         final id = r['id'] as String;
@@ -595,6 +633,16 @@ class SyncEngine {
     _lapor('menarik', e.nama, urutan, diterima, diterima, perubahan: berubah);
     return (diterima, berubah);
   }
+
+  /// Seberapa sering baris tertahan ditanyakan ulang ke server.
+  static const jedaCobaLagi = Duration(hours: 1);
+
+  /// Kapan baris tertahan tiap tabel terakhir dicoba. Sengaja statis dan
+  /// hanya di memori: satu mesin dibuat per putaran sinkron.
+  static final _cobaLagiTerakhir = <String, DateTime>{};
+
+  @visibleForTesting
+  static void lupakanCobaLagi() => _cobaLagiTerakhir.clear();
 
   /// Pengganti pengambilan baris menurut id untuk test.
   @visibleForTesting

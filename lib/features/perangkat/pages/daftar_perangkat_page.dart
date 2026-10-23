@@ -32,7 +32,17 @@ String labelTerakhirAktif(
   required DateTime sekarang,
 }) {
   if (iniSaya) return 'Sedang aktif';
-  final t = p.terakhirAktif;
+  return _labelWaktu(p.terakhirAktif, sekarang);
+}
+
+/// "Data terakhir diterima" di kartu: kapan HP itu terakhir selesai menarik
+/// data dengan bersih (`terakhir_tarik`).
+String labelTerakhirTarik(Perangkat p, {required DateTime sekarang}) {
+  final t = p.terakhirTarik;
+  return t == null ? 'Belum ada' : _labelWaktu(t, sekarang);
+}
+
+String _labelWaktu(DateTime t, DateTime sekarang) {
   final hariIni =
       t.year == sekarang.year &&
       t.month == sekarang.month &&
@@ -269,6 +279,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         iniSaya: p.id == idSaya,
         sekarang: sekarang,
         perluDicek: p.perluDicek(sekarang: sekarang, idSaya: idSaya),
+        masalahData: p.masalahData(sekarang: sekarang, idSaya: idSaya),
         onGantiNama: () => _gantiNama(p),
         onCabut: () => _cabut(p),
         onPulihkan: () => _pulihkan(p),
@@ -326,6 +337,7 @@ class _KartuPerangkat extends StatelessWidget {
   final Perangkat perangkat;
   final bool iniSaya;
   final bool perluDicek;
+  final ({String judul, String catatan})? masalahData;
   final DateTime sekarang;
   final VoidCallback onGantiNama;
   final VoidCallback onCabut;
@@ -336,6 +348,7 @@ class _KartuPerangkat extends StatelessWidget {
     required this.perangkat,
     required this.iniSaya,
     required this.perluDicek,
+    required this.masalahData,
     required this.sekarang,
     required this.onGantiNama,
     required this.onCabut,
@@ -389,7 +402,13 @@ class _KartuPerangkat extends StatelessWidget {
                     ),
             ],
           ),
-          if (perluDicek) _peringatan(),
+          if (perluDicek)
+            _peringatan(
+              'Tidak sinkron ${p.hariDiam(sekarang: sekarang)} hari',
+              'Lakukan sinkron atau cabut dan lupakan device!',
+            )
+          else if (masalahData case final m?)
+            _peringatan(m.judul, m.catatan),
           const SizedBox(height: 12),
           const Divider(height: 1, thickness: 1, color: WarnaTeras.garis),
           const SizedBox(height: 12),
@@ -397,6 +416,13 @@ class _KartuPerangkat extends StatelessWidget {
             'Terakhir aktif',
             labelTerakhirAktif(p, iniSaya: iniSaya, sekarang: sekarang),
           ),
+          if (p.aktif) ...[
+            const SizedBox(height: 4),
+            _barisInfo(
+              'Data terakhir diterima',
+              labelTerakhirTarik(p, sekarang: sekarang),
+            ),
+          ],
           const SizedBox(height: 4),
           _barisInfo(
             'Didaftarkan',
@@ -468,7 +494,7 @@ class _KartuPerangkat extends StatelessWidget {
     );
   }
 
-  Widget _peringatan() {
+  Widget _peringatan(String judul, String catatan) {
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -491,7 +517,7 @@ class _KartuPerangkat extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Tidak sinkron ${perangkat.hariDiam(sekarang: sekarang)} hari',
+                  judul,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -499,9 +525,9 @@ class _KartuPerangkat extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Lakukan sinkron atau cabut dan lupakan device!',
-                  style: TextStyle(
+                Text(
+                  catatan,
+                  style: const TextStyle(
                     fontSize: 11,
                     height: 1.4,
                     color: Color(0xFF7A6550),

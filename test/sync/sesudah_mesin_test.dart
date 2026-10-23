@@ -45,4 +45,45 @@ void main() {
     final h = await jalankan(gagal, galatPemeriksaan: StateError('kueri'));
     expect(h.error, 'baris ditolak');
   });
+
+  group('tarikan bersih (patokan buang sampah)', () {
+    test('semua tabel tertarik, tidak ada yang tertahan: bersih', () {
+      expect(
+        SyncService.tarikBersih(const HasilSync(tarikSelesai: true), 0),
+        isTrue,
+      );
+    });
+
+    test('ada baris tertahan: TIDAK bersih walau tarikannya selesai', () {
+      expect(
+        SyncService.tarikBersih(const HasilSync(tarikSelesai: true), 3),
+        isFalse,
+      );
+    });
+
+    test('tarikan putus di tengah: tidak bersih', () {
+      expect(
+        SyncService.tarikBersih(
+          const HasilSync(error: 'tarik: putus', tarikSelesai: false),
+          0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('hanya kiriman yang gagal: tetap bersih — HP sudah menerima semua', () {
+      expect(
+        SyncService.tarikBersih(
+          const HasilSync(error: 'products: ditolak', tarikSelesai: true),
+          0,
+        ),
+        isTrue,
+      );
+    });
+
+    test('tanda tarikan ikut terbawa saat hasil foto digabungkan', () {
+      const h = HasilSync(tarikSelesai: true);
+      expect(h.denganGambar(naik: 1).tarikSelesai, isTrue);
+    });
+  });
 }
