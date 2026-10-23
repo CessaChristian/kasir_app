@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
@@ -139,6 +140,27 @@ class Perangkat {
       (sekarang ?? DateTime.now()).difference(terakhirAktif).inDays;
 }
 
+/// Jawaban pendaftaran perangkat dengan kunci pemasangan
+/// (`daftarkan_perangkat`, supabase/perangkat_aman.sql).
+enum HasilKunci {
+  diterima,
+  salah,
+
+  /// Lebih dari 20 kunci salah dalam sejam untuk seluruh toko.
+  terlaluBanyak,
+
+  /// HP ini dicabut pemilik: harus dipulihkan dari halaman Perangkat, bukan
+  /// dengan kunci.
+  dicabut,
+
+  /// Identitas HP ini sudah dihapus server (HP dilupakan pemilik). Perlu
+  /// identitas baru sebelum mendaftar.
+  identitasHilang,
+
+  /// Server tidak terjangkau atau galat lain.
+  gagal,
+}
+
 /// Keadaan perangkat INI menurut server.
 enum StatusPerangkatIni {
   aktif,
@@ -194,17 +216,88 @@ class PerangkatRepository {
   /// ulang — dan aplikasinya yang menawarkan, bukan pemilik yang harus ingat.
   final ValueNotifier<bool> belumTerdaftar = ValueNotifier(false);
 
+  /// True kalau identitas HP ini sudah DIHAPUS server — HP dilupakan
+  /// pemilik. HP ini kembali seperti HP baru: perlu identitas baru dan kunci
+  /// pemasangan.
+  final ValueNotifier<bool> identitasHilang = ValueNotifier(false);
+
+  static const _brankas = FlutterSecureStorage();
+  static const _kunciDicabut = 'perangkat_dicabut';
+
+  /// Baca tanda "dicabut" yang tersimpan. Panggil sekali saat aplikasi
+  /// dibuka, SEBELUM layar pertama.
+  ///
+  /// Dulu tanda ini hanya diingat selama aplikasinya terbuka. HP yang dicabut
+  /// cukup dimatikan internetnya lalu dibuka ulang — server tidak bisa
+  /// ditanya, tandanya hilang, dan HP itu bisa dipakai login dan berjualan
+  /// lagi.
+  Future<void> muatTandaDicabut() async {
+    try {
+      dicabut.value = await _brankas.read(key: _kunciDicabut) == '1';
+    } catch (e) {
+      debugPrint('[perangkat] tanda dicabut tak terbaca: $e');
+    }
+  }
+
+  Future<void> _aturDicabut(bool nilai) async {
+    dicabut.value = nilai;
+    try {
+      if (nilai) {
+        await _brankas.write(key: _kunciDicabut, value: '1');
+      } else {
+        await _brankas.delete(key: _kunciDicabut);
+      }
+    } catch (e) {
+      debugPrint('[perangkat] tanda dicabut tak tersimpan: $e');
+    }
+  }
+
   /// Periksa keadaan perangkat ini dan siarkan kalau dicabut.
   ///
-  /// SENGAJA hanya menyalakan penanda saat server berkata "dicabut" dengan
-  /// jelas. "Tidak ada barisnya" TIDAK dianggap dicabut — itu keadaan normal
-  /// setiap perangkat sebelum daftarnya dibuat di server, dan
-  /// memperlakukannya sebagai pencabutan akan mengunci seluruh HP begitu
-  /// aplikasinya diperbarui.
+  /// Penanda hanya diubah oleh jawaban yang JELAS. "Tidak tahu" (offline)
+  /// membiarkan penanda apa adanya — dulu justru menghapus tanda dicabut,
+  /// sehingga HP yang dicabut bisa dipakai lagi cukup dengan mematikan
+  /// internet. "Tidak ada barisnya" TIDAK dianggap dicabut: itu keadaan
+  /// normal HP yang belum terdaftar.
   Future<void> periksaStatusSaya() async {
-    final status = await statusSaya();
-    dicabut.value = status == StatusPerangkatIni.dicabut;
-    belumTerdaftar.value = status == StatusPerangkatIni.takTerdaftar;
+    switch (await statusSaya()) {
+      case StatusPerangkatIni.dicabut:
+        await _aturDicabut(true);
+      case StatusPerangkatIni.aktif:
+        await _aturDicabut(false);
+        belumTerdaftar.value = false;
+        identitasHilang.value = false;
+      case StatusPerangkatIni.takTerdaftar:
+        await _aturDicabut(false);
+        belumTerdaftar.value = true;
+      case StatusPerangkatIni.takDiketahui:
+        break;
+    }
+  }
+
+  /// Tanya server keadaan HP ini sekarang (tombol "Periksa lagi").
+  ///
+  /// False kalau server tidak terjangkau. Identitas yang ditolak server
+  /// berarti HP ini dilupakan pemilik.
+  Future<bool> periksaKeServer() async {
+    final layanan = SupabaseService.instance;
+    if (!await layanan.pastikanTerhubung()) {
+      if (layanan.sebabTerputus == SebabTerputus.ditolak) {
+        await tandaiIdentitasHilang();
+        return true;
+      }
+      return false;
+    }
+    await periksaStatusSaya();
+    return true;
+  }
+
+  /// Server menolak identitas HP ini — ia sudah dihapus (HP dilupakan
+  /// pemilik). Tanda dicabut dilepas, karena HP yang dilupakan kembali
+  /// seperti HP baru dan boleh mendaftar ulang dengan kunci.
+  Future<void> tandaiIdentitasHilang() async {
+    await _aturDicabut(false);
+    identitasHilang.value = true;
   }
 
   /// Galat yang berarti "daftarnya belum dibuat di server".
@@ -248,37 +341,55 @@ class PerangkatRepository {
 
   /// Daftarkan perangkat ini memakai kunci pemasangan.
   ///
-  /// Mengembalikan false HANYA kalau server menolak kuncinya. "Belum
-  /// disiapkan" dianggap berhasil: identitas perangkatnya sudah ada, dan
-  /// barisnya menyusul begitu SQL-nya dijalankan.
-  Future<bool> daftarkan(String kunci) async {
+  /// "Belum disiapkan" (SQL-nya belum dijalankan) dianggap diterima:
+  /// identitasnya sudah ada, dan barisnya menyusul.
+  Future<HasilKunci> daftarkan(String kunci) async {
     final k = _klien;
-    if (k == null) return true;
+    if (k == null) return HasilKunci.diterima;
     try {
-      await k.rpc('daftarkan_perangkat',
+      final jawaban = await k.rpc('daftarkan_perangkat',
           params: {'p_kunci': kunci, 'p_nama': await tebakNama()});
-      await _ambilKodeNota(k);
-      return true;
+      final hasil = hasilKunciDari(jawaban);
+      if (hasil == HasilKunci.diterima) await _ambilKodeNota(k);
+      return hasil;
     } catch (e) {
       if (belumDisiapkan(e)) {
         debugPrint('[perangkat] daftar dilewati: daftarnya belum dibuat');
-        return true;
+        return HasilKunci.diterima;
       }
-      if (e is PostgrestException && e.code == '28000') return false;
+      if (e is PostgrestException) {
+        // Server lama (sebelum perangkat_aman.sql) melempar kunci salah.
+        if (e.code == '28000') return HasilKunci.salah;
+        // Identitasnya sudah dihapus: baris perangkat tidak bisa merujuknya.
+        if (e.code == '23503') return HasilKunci.identitasHilang;
+      }
       debugPrint('[perangkat] daftar gagal: $e');
-      return true;
+      return HasilKunci.gagal;
     }
   }
+
+  /// Jawaban `daftarkan_perangkat` → [HasilKunci]. Server lama tidak
+  /// menjawab apa pun kalau berhasil.
+  @visibleForTesting
+  static HasilKunci hasilKunciDari(Object? jawaban) => switch (jawaban) {
+    null || 'ok' => HasilKunci.diterima,
+    'kunci_salah' => HasilKunci.salah,
+    'terlalu_banyak' => HasilKunci.terlaluBanyak,
+    'dicabut' => HasilKunci.dicabut,
+    _ => HasilKunci.gagal,
+  };
 
   /// Daftarkan identitas yang SUDAH dimiliki perangkat ini.
   ///
   /// Sengaja TIDAK membuat identitas baru: setiap identitas yang ditinggalkan
   /// menjadi baris yatim di daftar pengguna server, dan HP yang mendaftar
   /// ulang berkali-kali akan meninggalkan tumpukan.
-  Future<bool> daftarkanIdentitasIni(String kunci) async {
-    final berhasil = await daftarkan(kunci);
-    if (berhasil) await periksaStatusSaya();
-    return berhasil;
+  Future<HasilKunci> daftarkanIdentitasIni(String kunci) async {
+    final hasil = await daftarkan(kunci);
+    if (hasil == HasilKunci.diterima || hasil == HasilKunci.dicabut) {
+      await periksaStatusSaya();
+    }
+    return hasil;
   }
 
   /// Tandai perangkat ini masih dipakai. Dipanggil sesudah tiap sinkron.

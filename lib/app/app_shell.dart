@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../data/perangkat/perangkat_repository.dart';
 import '../features/auth/pages/login_page.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/app_toast.dart';
 import 'kerangka_kasir.dart';
 import 'kerangka_owner.dart';
+import 'penjaga_perangkat.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -23,6 +27,36 @@ class AppShellState extends State<AppShell> {
     // ulang tanpa harus keluar dan masuk lagi.
     SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
     SessionManager.instance.sesiDicabut.addListener(_sesiDicabut);
+    for (final n in _penandaPerangkat) {
+      n.addListener(_perangkatBerubah);
+    }
+  }
+
+  List<ValueNotifier<bool>> get _penandaPerangkat {
+    final p = PerangkatRepository.instance;
+    return [p.dicabut, p.identitasHilang, p.belumTerdaftar];
+  }
+
+  var _sudahDialihkan = false;
+
+  /// HP ini dicabut atau dilupakan pemilik selagi ada yang login.
+  ///
+  /// Dulu tidak ada yang menanggapinya: penjaga perangkat hanya hidup di
+  /// halaman awal, dan halaman login menggantinya begitu masuk. HP yang
+  /// dicabut tetap bisa dipakai berjualan sampai aplikasinya dibuka ulang —
+  /// terbukti di emulator 2026-10-24. Sekarang sesinya diakhiri dan layar
+  /// diserahkan ke [PenjagaPerangkat].
+  void _perangkatBerubah() {
+    if (!mounted || _sudahDialihkan) return;
+    if (!_penandaPerangkat.any((n) => n.value)) return;
+    _sudahDialihkan = true;
+    unawaited(SessionManager.instance.clearSession());
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const PenjagaPerangkat(child: LoginPage()),
+      ),
+      (route) => false,
+    );
   }
 
   /// Sesi dicabut dari jarak jauh — pemilik menonaktifkan atau menghapus akun
@@ -56,6 +90,9 @@ class AppShellState extends State<AppShell> {
   void dispose() {
     SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     SessionManager.instance.sesiDicabut.removeListener(_sesiDicabut);
+    for (final n in _penandaPerangkat) {
+      n.removeListener(_perangkatBerubah);
+    }
     super.dispose();
   }
 

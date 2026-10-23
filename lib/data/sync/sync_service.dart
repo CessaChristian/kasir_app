@@ -219,6 +219,12 @@ class SyncService {
       final supabase = SupabaseService.instance;
       if (!await supabase.pastikanTerhubung()) {
         final sebab = supabase.sebabTerputus ?? SebabTerputus.jaringan;
+        // Identitas HP ini ditolak server: ia dilupakan pemilik. Layar
+        // pendaftaran (identitas baru + kunci) menggantikan apa pun yang
+        // sedang terbuka — lihat PenjagaPerangkat.
+        if (sebab == SebabTerputus.ditolak) {
+          await PerangkatRepository.instance.tandaiIdentitasHilang();
+        }
         return HasilSync(
           error: 'tidak tersambung: ${sebab.name}',
           sebabTerputus: sebab,

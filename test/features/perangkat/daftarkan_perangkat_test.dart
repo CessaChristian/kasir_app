@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/supabase/supabase_service.dart';
+import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
 import 'package:kasir_app/features/perangkat/pages/daftarkan_perangkat_page.dart';
 
 /// Daftarkan Perangkat (desain): galat satu baris merah, tombol pil yang
@@ -11,7 +12,7 @@ import 'package:kasir_app/features/perangkat/pages/daftarkan_perangkat_page.dart
 /// Server diganti tiruan.
 void main() {
   late List<String> catatan;
-  late Completer<bool> jawabanKunci;
+  late Completer<HasilKunci> jawabanKunci;
   late bool lanjut;
 
   setUp(() {
@@ -26,7 +27,7 @@ void main() {
     Future<void> Function()? sesudahBerhasil,
   }) async {
     // Dibuat di dalam test supaya jawabannya berjalan di jam tiruan test.
-    jawabanKunci = Completer<bool>();
+    jawabanKunci = Completer<HasilKunci>();
     await t.pumpWidget(
       MaterialApp(
         home: DaftarkanPerangkatPage(
@@ -87,7 +88,7 @@ void main() {
     await pasang(t);
     await isi(t, 'salah');
     await tekan(t);
-    jawabanKunci.complete(false);
+    jawabanKunci.complete(HasilKunci.salah);
     await t.pumpAndSettle();
     expect(find.text('Kunci pemasangan tidak valid'), findsOneWidget);
     expect(catatan, ['buat', 'periksa:salah', 'lepas']);
@@ -143,7 +144,7 @@ void main() {
     // halaman ini DIGANTI halaman Login.
     final keLogin = ValueNotifier(false);
     final tarikData = Completer<void>();
-    jawabanKunci = Completer<bool>();
+    jawabanKunci = Completer<HasilKunci>();
     await t.pumpWidget(
       MaterialApp(
         home: ValueListenableBuilder<bool>(
@@ -167,7 +168,7 @@ void main() {
     );
     await isi(t, 'benar');
     await tekan(t);
-    jawabanKunci.complete(true);
+    jawabanKunci.complete(HasilKunci.diterima);
     await t.pump();
     await t.pump(const Duration(milliseconds: 500));
     expect(
@@ -190,9 +191,69 @@ void main() {
     expect(find.text('Lengkapi Pendaftaran'), findsOneWidget);
     await isi(t, 'salah');
     await tekan(t);
-    jawabanKunci.complete(false);
+    jawabanKunci.complete(HasilKunci.salah);
     await t.pumpAndSettle();
     expect(catatan, ['periksa:salah'], reason: 'tanpa buat & tanpa lepas');
     expect(find.text('Kunci pemasangan tidak valid'), findsOneWidget);
+  });
+
+  testWidgets('20 kunci salah sejam: pesan "terlalu banyak", identitas dilepas',
+      (t) async {
+    await pasang(t);
+    await isi(t, 'apa-saja');
+    await tekan(t);
+    jawabanKunci.complete(HasilKunci.terlaluBanyak);
+    await t.pumpAndSettle();
+    expect(find.textContaining('Terlalu banyak percobaan'), findsOneWidget);
+    expect(catatan, ['buat', 'periksa:apa-saja', 'lepas']);
+  });
+
+  testWidgets('HP yang dicabut tidak bisa aktif lagi lewat kunci', (t) async {
+    await pasang(t, lengkapiSaja: true);
+    await isi(t, 'benar');
+    await tekan(t);
+    jawabanKunci.complete(HasilKunci.dicabut);
+    await t.pumpAndSettle();
+    expect(find.textContaining('dicabut pemilik'), findsOneWidget);
+    expect(lanjut, isFalse);
+  });
+
+  testWidgets('HP yang dilupakan: identitas baru dibuat, kunci diperiksa ulang',
+      (t) async {
+    final jawaban = [HasilKunci.identitasHilang, HasilKunci.diterima];
+    await t.pumpWidget(
+      MaterialApp(
+        home: DaftarkanPerangkatPage(
+          lengkapiSaja: true,
+          sesudahBerhasil: () async => lanjut = true,
+          buatIdentitas: () async {
+            catatan.add('buat');
+            return HasilDaftarPerangkat.berhasil;
+          },
+          periksaKunci: (k) async {
+            catatan.add('periksa:$k');
+            return jawaban.removeAt(0);
+          },
+          lepaskanIdentitas: () async => catatan.add('lepas'),
+        ),
+      ),
+    );
+    await isi(t, 'kunci-baru');
+    await tekan(t);
+    await t.pumpAndSettle();
+    expect(catatan, ['periksa:kunci-baru', 'buat', 'periksa:kunci-baru']);
+    expect(lanjut, isTrue);
+    await t.pump(const Duration(seconds: 3));
+  });
+
+  test('jawaban server → HasilKunci (termasuk server lama)', () {
+    expect(PerangkatRepository.hasilKunciDari('ok'), HasilKunci.diterima);
+    expect(PerangkatRepository.hasilKunciDari(null), HasilKunci.diterima,
+        reason: 'server sebelum perangkat_aman.sql tidak menjawab apa pun');
+    expect(PerangkatRepository.hasilKunciDari('kunci_salah'), HasilKunci.salah);
+    expect(PerangkatRepository.hasilKunciDari('terlalu_banyak'),
+        HasilKunci.terlaluBanyak);
+    expect(PerangkatRepository.hasilKunciDari('dicabut'), HasilKunci.dicabut);
+    expect(PerangkatRepository.hasilKunciDari('aneh'), HasilKunci.gagal);
   });
 }

@@ -6,6 +6,17 @@ import '../../../shared/ui/kerangka_masuk.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 
+/// Pesan untuk jawaban pendaftaran selain "diterima".
+String pesanHasilKunci(HasilKunci hasil) => switch (hasil) {
+  HasilKunci.salah => 'Kunci pemasangan tidak valid',
+  HasilKunci.terlaluBanyak =>
+    'Terlalu banyak percobaan kunci yang salah. Coba lagi 1 jam lagi.',
+  HasilKunci.dicabut =>
+    'HP ini dicabut pemilik. Minta pemilik memulihkannya dari halaman '
+        'Perangkat.',
+  _ => 'Pendaftaran gagal. Periksa koneksi lalu coba lagi.',
+};
+
 /// Layar pertama di HP yang belum pernah didaftarkan.
 ///
 /// ── KENAPA ADA ──
@@ -35,7 +46,7 @@ class DaftarkanPerangkatPage extends StatefulWidget {
 
   /// Diisi test; aplikasi memakai layanan server sungguhan.
   final Future<HasilDaftarPerangkat> Function()? buatIdentitas;
-  final Future<bool> Function(String kunci)? periksaKunci;
+  final Future<HasilKunci> Function(String kunci)? periksaKunci;
   final Future<void> Function()? lepaskanIdentitas;
 
   const DaftarkanPerangkatPage({
@@ -77,37 +88,34 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     // Identitas dibuat hanya kalau HP ini memang belum punya. Yang sudah punya
     // cukup dicatatkan — membuat identitas baru berarti meninggalkan yang lama
     // sebagai baris yatim di daftar pengguna server.
-    if (!widget.lengkapiSaja) {
-      final hasil = await (widget.buatIdentitas ??
-          SupabaseService.instance.buatIdentitasBaru)();
-      if (!mounted) return;
-      if (hasil != HasilDaftarPerangkat.berhasil) {
-        setState(() {
-          _sedangMendaftar = false;
-          _galat = hasil == HasilDaftarPerangkat.jaringan
-              ? 'Tidak bisa menghubungi server. Pendaftaran perangkat butuh '
-                    'internet — periksa koneksi lalu coba lagi.'
-              : 'Pendaftaran gagal. Coba lagi sebentar lagi.';
-        });
-        return;
-      }
-    }
+    var identitasBaru = !widget.lengkapiSaja;
+    if (identitasBaru && !await _buatIdentitas()) return;
 
     // Di sinilah kuncinya benar-benar diperiksa, oleh server.
-    final diterima = await (widget.periksaKunci ??
-        PerangkatRepository.instance.daftarkanIdentitasIni)(_kunciC.text);
+    final periksa =
+        widget.periksaKunci ?? PerangkatRepository.instance.daftarkanIdentitasIni;
+    var hasil = await periksa(_kunciC.text);
     if (!mounted) return;
 
-    if (!diterima) {
+    // Identitas lama sudah dihapus server (HP ini dilupakan pemilik): HP ini
+    // kembali seperti HP baru. Sekali saja, dengan identitas baru.
+    if (hasil == HasilKunci.identitasHilang && !identitasBaru) {
+      identitasBaru = true;
+      if (!await _buatIdentitas()) return;
+      hasil = await periksa(_kunciC.text);
+      if (!mounted) return;
+    }
+
+    if (hasil != HasilKunci.diterima) {
       // Identitas yang tidak diakui siapa pun jangan ditinggalkan menggantung.
-      if (!widget.lengkapiSaja) {
+      if (identitasBaru) {
         await (widget.lepaskanIdentitas ??
             SupabaseService.instance.lepaskanPerangkat)();
       }
       if (!mounted) return;
       setState(() {
         _sedangMendaftar = false;
-        _galat = 'Kunci pemasangan tidak valid';
+        _galat = pesanHasilKunci(hasil);
       });
       return;
     }
@@ -119,6 +127,22 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     final lapisan = Overlay.of(context);
     await widget.sesudahBerhasil();
     AppToast.successDi(lapisan, 'Perangkat berhasil didaftarkan');
+  }
+
+  /// Minta identitas baru. False (dengan pesan) kalau gagal.
+  Future<bool> _buatIdentitas() async {
+    final hasil = await (widget.buatIdentitas ??
+        SupabaseService.instance.buatIdentitasBaru)();
+    if (!mounted) return false;
+    if (hasil == HasilDaftarPerangkat.berhasil) return true;
+    setState(() {
+      _sedangMendaftar = false;
+      _galat = hasil == HasilDaftarPerangkat.jaringan
+          ? 'Tidak bisa menghubungi server. Pendaftaran perangkat butuh '
+                'internet — periksa koneksi lalu coba lagi.'
+          : 'Pendaftaran gagal. Coba lagi sebentar lagi.';
+    });
+    return false;
   }
 
   void _hapusGalat(String _) {

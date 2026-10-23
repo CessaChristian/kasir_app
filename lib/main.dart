@@ -21,6 +21,7 @@ import 'data/perangkat/perangkat_repository.dart';
 import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
 import 'shared/auth/session_manager.dart';
 import 'shared/widgets/pencatat_sentuhan.dart';
+import 'app/penjaga_perangkat.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +51,10 @@ void main() async {
   // aplikasinya digeser dari riwayat sejam lalu harus tetap ketahuan sudah
   // diam lebih dari 15 menit (SessionManager.akhiriKalauDiam).
   await SessionManager.instance.restoreSession();
+
+  // Tanda "dicabut" yang tersimpan dibaca SEBELUM layar pertama: HP yang
+  // dicabut tetap terkunci walau dibuka ulang tanpa internet.
+  await PerangkatRepository.instance.muatTandaDicabut();
 
   unawaited(_sinkronAwal());
 
@@ -95,49 +100,8 @@ class MyApp extends StatelessWidget {
           // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
           // dipasang di atas Navigator — bukan di satu halaman. Layar mana
           // pun yang sedang terbuka akan tergantikan.
-          home: const _PenjagaPerangkat(),
+          home: const PenjagaPerangkat(child: AuthFlowHandler()),
         );
-  }
-}
-
-/// Menentukan layar mana yang berlaku menurut keadaan PERANGKAT ini.
-///
-/// Dipasang di atas Navigator, bukan di satu halaman, karena keadaan di bawah
-/// membatalkan apa pun yang sedang terbuka — layar mana pun.
-///
-/// "Dicabut" dan "belum terdaftar" sengaja berakhir di layar yang SAMA, dan
-/// layar itu tidak menyebut sebabnya. Alasannya: bagi yang memegang HP, dua
-/// keadaan itu sama saja — yang dibutuhkan cuma kunci dari pemilik. Menjelaskan
-/// "kamu dicabut" tidak menolongnya berbuat apa-apa, dan pencabutan bukan
-/// urusan yang perlu dia tahu.
-class _PenjagaPerangkat extends StatelessWidget {
-  const _PenjagaPerangkat();
-
-  @override
-  Widget build(BuildContext context) {
-    final perangkat = PerangkatRepository.instance;
-
-    return ValueListenableBuilder<bool>(
-      valueListenable: perangkat.dicabut,
-      builder: (context, dicabut, child) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: perangkat.belumTerdaftar,
-          builder: (context, belumTerdaftar, child) {
-            if (!dicabut && !belumTerdaftar) return const AuthFlowHandler();
-
-            // Identitasnya sudah ada; yang kurang cuma barisnya di daftar —
-            // entah belum pernah dicatat, atau dimatikan pemilik. Kunci yang
-            // benar mengembalikan keduanya, dan penanda di atas ikut berubah
-            // sendiri, jadi pohon widget ini langsung kembali ke alur biasa
-            // tanpa perlu pindah halaman.
-            return DaftarkanPerangkatPage(
-              lengkapiSaja: true,
-              sesudahBerhasil: () async {},
-            );
-          },
-        );
-      },
-    );
   }
 }
 

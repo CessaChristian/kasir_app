@@ -8,6 +8,7 @@ import '../../shared/auth/session_manager.dart';
 import '../db.dart';
 import 'sync_service.dart';
 import '../perangkat/perangkat_repository.dart';
+import '../supabase/supabase_service.dart';
 
 /// Menjalankan sinkronisasi dengan sendirinya, tanpa pengguna perlu menarik
 /// layar.
@@ -196,6 +197,7 @@ class SyncOtomatis with WidgetsBindingObserver {
     _timerDiam = Timer.periodic(jarakPeriksaDiam, (_) async {
       if (await SessionManager.instance.akhiriKalauDiam()) return;
       await laporAktifKalauPerlu();
+      await periksaPerangkatIni();
     });
   }
 
@@ -294,6 +296,18 @@ class SyncOtomatis with WidgetsBindingObserver {
       return;
     }
     await PerangkatRepository.instance.hadir(sm.currentSession?.shiftId);
+  }
+
+  /// Apakah HP ini masih aktif menurut server — tiap menit, bukan tiap
+  /// sinkron (5 menit). Pencabutan dari pemilik terasa di HP itu dalam
+  /// semenit. Satu kueri kecil; offline dilewati.
+  Future<void> periksaPerangkatIni() async {
+    if (!SupabaseService.instance.online) return;
+    try {
+      await PerangkatRepository.instance.periksaStatusSaya();
+    } catch (e) {
+      debugPrint('[perangkat] periksa status gagal: $e');
+    }
   }
 
   /// Keputusan [laporAktifKalauPerlu], dipisah supaya bisa diuji.
