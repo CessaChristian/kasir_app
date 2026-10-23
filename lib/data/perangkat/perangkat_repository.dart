@@ -259,8 +259,9 @@ class PerangkatRepository {
   /// sehingga HP yang dicabut bisa dipakai lagi cukup dengan mematikan
   /// internet. "Tidak ada barisnya" TIDAK dianggap dicabut: itu keadaan
   /// normal HP yang belum terdaftar.
-  Future<void> periksaStatusSaya() async {
-    switch (await statusSaya()) {
+  Future<StatusPerangkatIni> periksaStatusSaya() async {
+    final status = await statusSaya();
+    switch (status) {
       case StatusPerangkatIni.dicabut:
         await _aturDicabut(true);
       case StatusPerangkatIni.aktif:
@@ -273,6 +274,7 @@ class PerangkatRepository {
       case StatusPerangkatIni.takDiketahui:
         break;
     }
+    return status;
   }
 
   /// Tanya server keadaan HP ini sekarang (tombol "Periksa lagi").
@@ -288,8 +290,8 @@ class PerangkatRepository {
       }
       return false;
     }
-    await periksaStatusSaya();
-    return true;
+    // Tiket yang masih berlaku belum berarti server menjawab.
+    return await periksaStatusSaya() != StatusPerangkatIni.takDiketahui;
   }
 
   /// Server menolak identitas HP ini — ia sudah dihapus (HP dilupakan
