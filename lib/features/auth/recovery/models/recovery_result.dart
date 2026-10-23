@@ -1,3 +1,5 @@
+import '../../repositories/auth_repository.dart';
+
 /// Result types for recovery operations
 enum RecoveryResultType {
   success,
@@ -37,7 +39,7 @@ class RecoveryResult {
   factory RecoveryResult.invalidCode({String? message}) {
     return RecoveryResult(
       type: RecoveryResultType.invalidCode,
-      message: message ?? 'Invalid recovery code',
+      message: message ?? 'Kode recovery tidak valid',
     );
   }
 
@@ -46,7 +48,7 @@ class RecoveryResult {
     return RecoveryResult(
       type: RecoveryResultType.locked,
       lockSeconds: seconds,
-      message: 'Too many attempts. Locked for $seconds seconds.',
+      message: 'Terlalu banyak percobaan. Coba lagi dalam $seconds detik.',
     );
   }
 
@@ -54,7 +56,16 @@ class RecoveryResult {
   factory RecoveryResult.ownerNotFound() {
     return const RecoveryResult(
       type: RecoveryResultType.ownerNotFound,
-      message: 'Owner account not found',
+      message: 'Akun owner tidak ditemukan di HP ini',
+    );
+  }
+
+  /// PIN owner sudah salah [AuthRepository.batasSalahPin] kali: tidak
+  /// diperiksa lagi sampai dipulihkan lewat kode recovery.
+  factory RecoveryResult.pinTerkunci() {
+    return const RecoveryResult(
+      type: RecoveryResultType.locked,
+      message: AuthRepository.pesanOwnerTerkunci,
     );
   }
 
@@ -62,7 +73,7 @@ class RecoveryResult {
   factory RecoveryResult.pinMismatch() {
     return const RecoveryResult(
       type: RecoveryResultType.pinMismatch,
-      message: 'Incorrect PIN',
+      message: 'PIN salah',
     );
   }
 }

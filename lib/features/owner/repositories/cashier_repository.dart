@@ -319,6 +319,9 @@ class CashierRepository {
       UsersCompanion(
         salt: Value(salt),
         pinHash: Value(pinHash),
+        // PIN baru = kunci salah PIN dilepas (AuthRepository.batasSalahPin).
+        loginAttempts: const Value(0),
+        loginLockedUntil: const Value(null),
         updatedAt: Value(DateTime.now()),
         syncStatus: const Value('pending'),
       ),

@@ -85,6 +85,22 @@ class AuthRepository {
     return created;
   }
 
+  /// Salah PIN berturut-turut sebanyak ini mengunci akun sampai PIN-nya
+  /// dibuat ulang. Lihat [login].
+  static const batasSalahPin = 10;
+
+  static const pesanKasirTerkunci =
+      'Akun terkunci karena $batasSalahPin kali PIN salah. Minta owner '
+      'mereset PIN di Kelola Kasir.';
+  static const pesanOwnerTerkunci =
+      'Akun owner terkunci karena $batasSalahPin kali PIN salah. Gunakan '
+      '"Lupa PIN Owner?" dengan kode recovery.';
+
+  /// Pembanding untuk username yang tidak ada (lihat [login]).
+  static final _saltPalsu = CryptoUtils.generateSalt();
+  static final Future<String> _hashPalsu =
+      CryptoUtils.hashPinDiLatar('000000', _saltPalsu);
+
   /// Login with username and PIN
   /// 
   /// Returns AuthSession if successful, null if credentials invalid
@@ -98,15 +114,22 @@ class AuthRepository {
           ..limit(1))
         .getSingleOrNull();
 
-    if (user == null) return null;
-
-    // 2. Akun dihapus (username-nya sudah diganti, jadi praktis tak
-    // tertemukan — ini jaring kedua) atau dinonaktifkan.
-    if (user.deletedAt != null) {
-      throw StateError('Akun Anda sudah dihapus oleh pemilik.');
+    if (user == null) {
+      // Disamakan dengan PIN salah — termasuk LAMANYA. Tanpa PIN palsu ini,
+      // username yang tidak ada dijawab seketika dan yang ada butuh ~200 ms,
+      // jadi orang bisa menebak username mana yang benar-benar ada.
+      await CryptoUtils.verifyPinDiLatar(pin, _saltPalsu, await _hashPalsu);
+      return null;
     }
-    if (!user.isActive) {
-      throw StateError('Akun Anda dinonaktifkan oleh pemilik.');
+
+    // 2. Sudah salah [batasSalahPin] kali: tidak diperiksa lagi sama sekali.
+    // Tidak bergantung jam HP — kunci waktu di bawah bisa dilewati dengan
+    // memajukan jam, hitungan ini tidak. Hanya kembali ke nol kalau PIN-nya
+    // dibuat ulang (Reset PIN kasir / kode recovery owner).
+    if (user.loginAttempts >= batasSalahPin) {
+      throw StateError(
+        user.role == 'owner' ? pesanOwnerTerkunci : pesanKasirTerkunci,
+      );
     }
 
     // 2b. S5: Cek apakah akun sedang ter-lock karena terlalu banyak gagal login.
@@ -125,6 +148,16 @@ class AuthRepository {
       // S5: Increment login attempts + lockout dengan exponential backoff.
       await _incrementLoginAttempts(user.id);
       return null;
+    }
+
+    // Akun dihapus (username-nya sudah diganti, jadi praktis tak tertemukan
+    // — ini jaring kedua) atau dinonaktifkan. Diperiksa SESUDAH PIN benar:
+    // kalau sebelumnya, pesannya membocorkan username mana yang ada.
+    if (user.deletedAt != null) {
+      throw StateError('Akun Anda sudah dihapus oleh pemilik.');
+    }
+    if (!user.isActive) {
+      throw StateError('Akun Anda dinonaktifkan oleh pemilik.');
     }
 
     // S5: PIN benar → reset login attempts + clear lock.
@@ -472,6 +505,10 @@ class AuthRepository {
           recoveryUsedAt: Value(DateTime.now()),
           recoveryAttempts: const Value(0),
           recoveryLockedUntil: const Value(null),
+          // PIN baru = kunci salah PIN dilepas. Dulu owner yang dikunci
+          // orang iseng tetap harus menunggu sesudah memulihkan PIN-nya.
+          loginAttempts: const Value(0),
+          loginLockedUntil: const Value(null),
           updatedAt: Value(DateTime.now()),
           syncStatus: const Value('pending'),
         ),
@@ -493,13 +530,19 @@ class AuthRepository {
       return RecoveryResult.ownerNotFound();
     }
 
-    // Verify current PIN
+    // PIN yang sama dengan login: salahnya ikut dihitung di hitungan login,
+    // supaya HP owner yang ditinggal terbuka tidak bisa dipakai menebak PIN
+    // tanpa batas lewat halaman ini.
+    if (owner.loginAttempts >= batasSalahPin) {
+      return RecoveryResult.pinTerkunci();
+    }
     final isValid = await CryptoUtils.verifyPinDiLatar(
       currentPin,
       owner.salt,
       owner.pinHash,
     );
     if (!isValid) {
+      await _incrementLoginAttempts(owner.id);
       return RecoveryResult.pinMismatch();
     }
 

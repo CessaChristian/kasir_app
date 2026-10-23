@@ -156,7 +156,9 @@ void main() {
       await t.enterText(kolom(0), 'owner');
       await t.enterText(kolom(1), pin);
       await tekan(t, 'Masuk');
-      await tunggu(t, 200);
+      // Pesannya baru keluar sesudah PIN diperiksa — sebelum itu, username
+      // nonaktif dijawab sama seperti PIN salah (revisi QA B7b).
+      await tungguSelesai(t);
       expect(
         find.text('Akun Anda dinonaktifkan oleh pemilik.'),
         findsOneWidget,
