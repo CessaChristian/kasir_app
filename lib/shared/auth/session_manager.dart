@@ -39,6 +39,9 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_sessionKey, json.encode(session.toJson()));
     await catatKabar();
+    // Login juga sentuhan — owner tidak boleh langsung dikeluarkan karena
+    // sentuhan terakhirnya tercatat dari sesi sebelumnya.
+    catatSentuhan();
   }
 
   /// Kasir yang memegang shift dan selama ini tidak memberi kabar ke server
@@ -101,9 +104,27 @@ class SessionManager {
   void catatSentuhan([DateTime? waktu]) {
     final kini = waktu ?? DateTime.now();
     _sentuhanTerakhir = kini;
+    final tersimpan = _sentuhanTersimpan;
+    // Selisih mutlak: jam HP yang dimundurkan tidak boleh membuat sentuhan
+    // berhenti tersimpan.
+    if (tersimpan == null ||
+        kini.difference(tersimpan).abs() >= jedaSimpanSentuhan) {
+      _sentuhanTersimpan = kini;
+      unawaited(_simpanSentuhan(kini));
+    }
     final kabar = _kabarTerakhir;
     if (kabar != null && kini.difference(kabar) < jedaSimpanSentuhan) return;
     unawaited(catatKabar(kini));
+  }
+
+  DateTime? _sentuhanTersimpan;
+  static const String _kunciSentuhan = 'sentuhan_terakhir';
+
+  /// Disimpan supaya HP owner yang ditinggal lalu aplikasinya digeser dari
+  /// riwayat tetap ketahuan sudah lama tidak disentuh saat dibuka lagi.
+  Future<void> _simpanSentuhan(DateTime waktu) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kunciSentuhan, waktu.toIso8601String());
   }
 
   static const jedaSimpanSentuhan = Duration(minutes: 1);
@@ -117,6 +138,9 @@ class SessionManager {
   /// aplikasi di depan — untuk keranjang yang dibiarkan berisi.
   Future<bool> akhiriKalauDiam({DateTime? sekarang}) async {
     final sesi = _currentSession;
+    if (sesi != null && sesi.isOwner) {
+      return _akhiriOwnerKalauDitinggal(sekarang ?? DateTime.now());
+    }
     final kabar = _kabarTerakhir;
     if (sesi == null || !sesi.isCashier || sesi.shiftId == null) return false;
     if (kabar == null) return false;
@@ -125,6 +149,25 @@ class SessionManager {
     }
     await clearSession();
     sesiDicabut.value = pesanDiam;
+    return true;
+  }
+
+  static const pesanDiamOwner =
+      'Sesi owner berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';
+
+  /// Owner: HANYA sentuhan yang dihitung (keputusan owner 2026-10-24).
+  ///
+  /// Tujuannya berbeda dari aturan kasir: mencegah orang lain memakai HP
+  /// owner yang ditinggal dalam keadaan terbuka — membuka Kelola Kasir atau
+  /// mengubah harga. Sinkron sengaja tidak dihitung: ia berjalan tiap lima
+  /// menit selama aplikasi terbuka, jadi aturannya tidak akan pernah berlaku.
+  Future<bool> _akhiriOwnerKalauDitinggal(DateTime sekarang) async {
+    final sentuh = _sentuhanTerakhir;
+    if (sentuh == null || sekarang.difference(sentuh) < batasDiam) {
+      return false;
+    }
+    await clearSession();
+    sesiDicabut.value = pesanDiamOwner;
     return true;
   }
 
@@ -147,6 +190,8 @@ class SessionManager {
     final sessionJson = prefs.getString(_sessionKey);
     final kabar = prefs.getString(_kunciKabar);
     _kabarTerakhir = kabar == null ? null : DateTime.tryParse(kabar);
+    final sentuhan = prefs.getString(_kunciSentuhan);
+    _sentuhanTerakhir = sentuhan == null ? null : DateTime.tryParse(sentuhan);
 
     if (sessionJson == null) return;
 

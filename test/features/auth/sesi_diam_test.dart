@@ -83,7 +83,8 @@ void main() {
       expect(sm.sesiDicabut.value, SessionManager.pesanDiam);
     });
 
-    test('owner tidak pernah terkena', () async {
+    test('owner tidak terkena aturan kabar kasir (owner diukur dari sentuhan '
+        '— lihat grup B7e)', () async {
       await sm.setSession(sesi(id: 'owner-1', shiftId: null));
       await sm.catatKabar(DateTime(2026, 1, 1));
       expect(await sm.akhiriKalauDiam(), isFalse);
@@ -326,6 +327,58 @@ void main() {
 
     test('belum pernah lapor sejak aplikasi dibuka: lapor', () {
       expect(perlu(sentuhan: jam10, lapor: null, sekarang: jam10), isTrue);
+    });
+  });
+
+  group('owner: hanya sentuhan yang dihitung (B7e)', () {
+    test('owner yang ditinggal 15 menit tanpa disentuh dikeluarkan', () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      final sentuh = DateTime(2026, 10, 24, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(14))),
+          isFalse);
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15))),
+          isTrue);
+      expect(sm.sesiDicabut.value, SessionManager.pesanDiamOwner);
+    });
+
+    test('sinkron TIDAK menyelamatkan owner yang ditinggal', () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      final sentuh = DateTime(2026, 10, 24, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      // Sinkron berkala terus mencatat kabar selama aplikasi terbuka.
+      await sm.catatKabar(sentuh.add(menit(19)));
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(20))),
+          isTrue);
+    });
+
+    test('baru login: tidak langsung dikeluarkan', () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      expect(await sm.akhiriKalauDiam(), isFalse);
+    });
+
+    test('ditinggal lalu aplikasinya dibuka ulang: tetap ketahuan', () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      final sentuh = DateTime.now().subtract(menit(40));
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      // Aplikasi dibuka ulang: langsung dikeluarkan saat sesinya dipulihkan.
+      await sm.restoreSession();
+      expect(sm.isLoggedIn, isFalse,
+          reason: 'jam sentuhan terakhir tersimpan, bukan hanya di memori');
+      expect(sm.sesiDicabut.value, SessionManager.pesanDiamOwner);
+    });
+
+    test('aturan kasir tidak berubah: sinkron tetap dihitung', () async {
+      await sm.setSession(sesi());
+      final kabar = DateTime(2026, 10, 24, 9);
+      sm.catatSentuhan(kabar.subtract(menit(30)));
+      await sm.catatKabar(kabar);
+      expect(await sm.akhiriKalauDiam(sekarang: kabar.add(menit(14))),
+          isFalse);
     });
   });
 }
