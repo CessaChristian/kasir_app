@@ -63,27 +63,48 @@ on conflict (id) do update
 --  aplikasi punya penjaga tambahan yang menolak menghapus apa pun kalau tabel
 --  produknya kosong (lihat SyncGambar).
 -- ---------------------------------------------------------------------
-drop policy if exists gambar_baca   on storage.objects;
-drop policy if exists gambar_tambah on storage.objects;
-drop policy if exists gambar_ubah   on storage.objects;
-drop policy if exists gambar_hapus  on storage.objects;
+-- ── ⚠ ATURAN INI HARUS IKUT PENEGAKAN PERANGKAT ──
+--
+-- Dulu berkas ini membuat aturan tanpa `public.perangkat_aktif()`, padahal
+-- supabase/perangkat_tegakkan.sql sudah memperketatnya. Menjalankan ulang
+-- berkas ini — yang tertulis "aman dijalankan ulang" — diam-diam membuka
+-- lemari foto lagi untuk HP yang sudah DICABUT.
+--
+-- Sekarang: kalau fungsi `perangkat_aktif()` sudah ada, aturannya langsung
+-- yang ketat. Kalau belum (server baru disiapkan dan perangkat.sql belum
+-- dijalankan), aturan TIDAK dibuat sama sekali — tidak ada yang bisa
+-- membuka lemarinya sampai perangkat_tegakkan.sql dijalankan. Kalau ragu,
+-- tutup.
+do $$
+begin
+  drop policy if exists gambar_baca   on storage.objects;
+  drop policy if exists gambar_tambah on storage.objects;
+  drop policy if exists gambar_ubah   on storage.objects;
+  drop policy if exists gambar_hapus  on storage.objects;
 
-create policy gambar_baca on storage.objects
-  for select to authenticated
-  using (bucket_id = 'product-images');
+  if to_regprocedure('public.perangkat_aktif()') is null then
+    raise notice 'perangkat_aktif() belum ada: aturan foto belum dibuat. '
+                 'Jalankan supabase/perangkat_tegakkan.sql.';
+    return;
+  end if;
 
-create policy gambar_tambah on storage.objects
-  for insert to authenticated
-  with check (bucket_id = 'product-images');
+  create policy gambar_baca on storage.objects
+    for select to authenticated
+    using (bucket_id = 'product-images' and public.perangkat_aktif());
 
--- Diperlukan karena unggahan memakai `upsert`: mengganti foto produk menulis
--- ke nama berkas BARU, tapi percobaan ulang setelah unggahan yang gagal di
--- tengah jalan akan menimpa berkas yang sama.
-create policy gambar_ubah on storage.objects
-  for update to authenticated
-  using (bucket_id = 'product-images')
-  with check (bucket_id = 'product-images');
+  create policy gambar_tambah on storage.objects
+    for insert to authenticated
+    with check (bucket_id = 'product-images' and public.perangkat_aktif());
 
-create policy gambar_hapus on storage.objects
-  for delete to authenticated
-  using (bucket_id = 'product-images');
+  -- Diperlukan karena unggahan memakai `upsert`: mengganti foto produk
+  -- menulis ke nama berkas BARU, tapi percobaan ulang setelah unggahan yang
+  -- gagal di tengah jalan akan menimpa berkas yang sama.
+  create policy gambar_ubah on storage.objects
+    for update to authenticated
+    using (bucket_id = 'product-images' and public.perangkat_aktif())
+    with check (bucket_id = 'product-images' and public.perangkat_aktif());
+
+  create policy gambar_hapus on storage.objects
+    for delete to authenticated
+    using (bucket_id = 'product-images' and public.perangkat_aktif());
+end $$;
