@@ -23,15 +23,12 @@ Future<bool> batalkanTransaksiLewatDialog(
   return tampilkanDialogPembatalan(
     context,
     pertanyaan: 'Kenapa transaksi ${tx.invoiceNo} dibatalkan?',
-    keteranganPin: 'Masukkan PIN untuk membatalkan transaksi ${tx.invoiceNo}.',
     judulBerhasil: 'Transaksi berhasil dibatalkan',
     keteranganBerhasil:
         '${tx.invoiceNo} ditandai dibatalkan dan tidak '
         'dihitung dalam total penjualan.',
     daftarAlasan: daftarAlasanBatalTransaksi,
-    perluPin: repo.perluPinOwner,
-    kirim: (alasan, pin) =>
-        repo.batalkanTransaksi(tx, alasan: alasan, pinOwner: pin),
+    kirim: (alasan) => repo.batalkanTransaksi(tx, alasan: alasan),
   );
 }
 

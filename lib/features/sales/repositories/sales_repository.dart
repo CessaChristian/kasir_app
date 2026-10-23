@@ -4,7 +4,6 @@ import '../../../data/perangkat/kode_nota.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/sync/sync_engine.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
-import '../../../shared/auth/pin_owner.dart';
 import '../../../shared/auth/session_manager.dart';
 
 /// Satu-satunya pintu akses data transaksi penjualan.
@@ -91,9 +90,6 @@ class SalesRepository {
   // Dulu tombolnya "Hapus": kasir bisa menghilangkan transaksinya kapan saja
   // tanpa jejak.
 
-  /// Kasir wajib memasukkan PIN owner; owner yang sedang login tidak.
-  bool get perluPinOwner => !SessionManager.instance.isOwner;
-
   /// Owner: transaksi apa pun yang belum batal. Kasir: hanya miliknya sendiri
   /// di shift yang SEDANG berjalan — shift yang sudah ditutup dan diserahkan
   /// ke owner tidak boleh berubah diam-diam.
@@ -107,12 +103,11 @@ class SalesRepository {
   }
 
   /// Batalkan [tx]. Aturannya ditegakkan DI SINI, bukan hanya dengan
-  /// menyembunyikan tombol di halaman. PIN owner diperiksa
-  /// [PemeriksaPinOwner] — sama dengan pembatalan pengeluaran.
+  /// menyembunyikan tombol di halaman. Alasan wajib; PIN owner tidak
+  /// diminta (keputusan owner 2026-10-24) — siapa dan kenapa tetap tercatat.
   Future<void> batalkanTransaksi(
     Transaction tx, {
     required String alasan,
-    String? pinOwner,
   }) async {
     final sesi = SessionManager.instance.currentSession;
     if (sesi == null) throw StateError('Belum masuk.');
@@ -123,8 +118,6 @@ class SalesRepository {
           ? 'Transaksi ini sudah dibatalkan.'
           : 'Transaksi ini hanya bisa dibatalkan owner.');
     }
-    if (perluPinOwner) await PemeriksaPinOwner(_db).periksa(pinOwner ?? '');
-
     await _db.batalkanTransaksi(tx.id, olehUserId: sesi.userId, alasan: teks);
   }
 

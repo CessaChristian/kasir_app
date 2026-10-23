@@ -21,16 +21,11 @@ Future<bool> batalkanPengeluaranLewatDialog(
   return tampilkanDialogPembatalan(
     context,
     pertanyaan: 'Kenapa pengeluaran ${e.description} dibatalkan?',
-    keteranganPin:
-        'Masukkan PIN untuk membatalkan pengeluaran '
-        '${e.description}.',
     judulBerhasil: 'Pengeluaran berhasil dibatalkan',
     keteranganBerhasil:
         '${e.description} ditandai dibatalkan dan tidak '
         'dihitung dalam total pengeluaran.',
     daftarAlasan: daftarAlasanBatalPengeluaran,
-    perluPin: repo.perluPinOwner,
-    kirim: (alasan, pin) =>
-        repo.batalkanPengeluaran(e, alasan: alasan, pinOwner: pin),
+    kirim: (alasan) => repo.batalkanPengeluaran(e, alasan: alasan),
   );
 }

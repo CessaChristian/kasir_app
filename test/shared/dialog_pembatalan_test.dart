@@ -3,12 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/shared/ui/tombol_lembar.dart';
 import 'package:kasir_app/shared/widgets/dialog_pembatalan.dart';
 
-/// Dialog pembatalan (desain): alasan → (kasir) PIN → berhasil.
+/// Dialog pembatalan (desain): alasan → berhasil. PIN owner tidak diminta
+/// lagi (keputusan owner 2026-10-24) — kasir maupun owner cukup memilih
+/// alasan.
 void main() {
   Future<bool? Function()> buka(
     WidgetTester t, {
-    required bool perluPin,
-    required Future<void> Function(String, String?) kirim,
+    required Future<void> Function(String) kirim,
   }) async {
     // Ukuran layar HP sungguhan (1080x2400 @3x), bukan bawaan 800x600.
     t.view.physicalSize = const Size(1080, 2400);
@@ -22,11 +23,9 @@ void main() {
             hasil = await tampilkanDialogPembatalan(
               context,
               pertanyaan: 'Kenapa pengeluaran Es Batu dibatalkan?',
-              keteranganPin: 'Masukkan PIN.',
               judulBerhasil: 'Pengeluaran berhasil dibatalkan',
               keteranganBerhasil: 'Tidak dihitung.',
               daftarAlasan: const ['Salah input nominal', alasanLainnya],
-              perluPin: perluPin,
               kirim: kirim,
             );
           },
@@ -44,11 +43,11 @@ void main() {
     await t.pumpAndSettle();
   }
 
-  testWidgets('owner: tanpa PIN, langsung berhasil', (t) async {
-    final dikirim = <(String, String?)>[];
-    final hasil = await buka(t, perluPin: false, kirim: (a, p) async {
-      dikirim.add((a, p));
-    });
+  testWidgets('pilih alasan lalu Batalkan: langsung berhasil, tanpa PIN', (
+    t,
+  ) async {
+    final dikirim = <String>[];
+    final hasil = await buka(t, kirim: (a) async => dikirim.add(a));
     await t.pump();
     await t.tap(find.text('buka'));
     await t.pumpAndSettle();
@@ -59,45 +58,31 @@ void main() {
     await t.pump();
     await tekanTombol(t, 'Batalkan');
 
-    expect(dikirim, [('Salah input nominal', null)]);
+    expect(dikirim, ['Salah input nominal']);
+    expect(find.text('Masukkan PIN'), findsNothing);
     expect(find.text('Pengeluaran berhasil dibatalkan'), findsOneWidget);
     await tekanTombol(t, 'Selesai');
     expect(hasil(), isTrue);
   });
 
-  testWidgets('kasir: PIN salah tetap di langkah PIN, PIN benar berhasil',
-      (t) async {
-    final pinDicoba = <String?>[];
-    final hasil = await buka(t, perluPin: true, kirim: (a, p) async {
-      pinDicoba.add(p);
-      if (p != '135790') throw StateError('PIN salah.');
+  testWidgets('ditolak (mis. sudah dibatalkan HP lain): pesannya tampil, '
+      'dialog tetap di langkah alasan', (t) async {
+    await buka(t, kirim: (a) async {
+      throw StateError('Pengeluaran ini sudah dibatalkan.');
     });
     await t.pump();
     await t.tap(find.text('buka'));
     await t.pumpAndSettle();
-
     await t.tap(find.text('Salah input nominal'));
     await t.pump();
-    await tekanTombol(t, 'Lanjut');
-    expect(find.text('Masukkan PIN'), findsOneWidget);
-
-    final isian = find.byKey(const Key('isian-pin-pembatalan'));
-    await t.enterText(isian, '111111');
-    await t.pumpAndSettle();
-    expect(find.text('PIN salah.'), findsOneWidget);
-    expect(find.text('Masukkan PIN'), findsOneWidget);
-
-    await t.enterText(isian, '135790');
-    await t.pumpAndSettle();
-    expect(pinDicoba, ['111111', '135790']);
-    expect(find.text('Pengeluaran berhasil dibatalkan'), findsOneWidget);
-    await tekanTombol(t, 'Selesai');
-    expect(hasil(), isTrue);
+    await tekanTombol(t, 'Batalkan');
+    expect(find.text('Pengeluaran ini sudah dibatalkan.'), findsOneWidget);
+    expect(find.text('Alasan pembatalan'), findsOneWidget);
   });
 
   testWidgets('"Lainnya" wajib diisi dan disimpan dengan awalan', (t) async {
     String? alasan;
-    await buka(t, perluPin: false, kirim: (a, p) async => alasan = a);
+    await buka(t, kirim: (a) async => alasan = a);
     await t.pump();
     await t.tap(find.text('buka'));
     await t.pumpAndSettle();
@@ -112,32 +97,26 @@ void main() {
     expect(alasan, 'Lainnya: Dobel dicatat');
   });
 
-  testWidgets('tombol bersama: Lanjut nonaktif sampai alasan dipilih', (t) async {
+  testWidgets('tombol Batalkan nonaktif sampai alasan dipilih', (t) async {
     var dikirim = false;
-    await buka(t, perluPin: true, kirim: (_, _) async => dikirim = true);
+    await buka(t, kirim: (_) async => dikirim = true);
     await t.tap(find.text('buka'));
     await t.pumpAndSettle();
 
-    TombolLembar lanjut() => t.widget<TombolLembar>(
-      find.widgetWithText(TombolLembar, 'Lanjut'),
+    TombolLembar batalkan() => t.widget<TombolLembar>(
+      find.widgetWithText(TombolLembar, 'Batalkan'),
     );
-    expect(lanjut().onPressed, isNull, reason: 'belum ada alasan');
-    expect(lanjut().sudut, 12, reason: 'ukuran desain dialog ini');
-    await t.tap(find.text('Lanjut'));
-    await t.pumpAndSettle();
-    expect(find.text('Lanjut'), findsOneWidget, reason: 'tidak ke langkah PIN');
-
+    expect(batalkan().onPressed, isNull, reason: 'belum ada alasan');
+    expect(batalkan().sudut, 12, reason: 'ukuran desain dialog ini');
     await t.tap(find.text('Salah input nominal'));
     await t.pump();
-    expect(lanjut().onPressed, isNotNull);
+    expect(batalkan().onPressed, isNotNull);
     expect(dikirim, isFalse);
   });
 
   testWidgets('Batal menutup dialog tanpa membatalkan apa pun', (t) async {
     var dipanggil = false;
-    final hasil = await buka(t, perluPin: false, kirim: (a, p) async {
-      dipanggil = true;
-    });
+    final hasil = await buka(t, kirim: (a) async => dipanggil = true);
     await t.pump();
     await t.tap(find.text('buka'));
     await t.pumpAndSettle();

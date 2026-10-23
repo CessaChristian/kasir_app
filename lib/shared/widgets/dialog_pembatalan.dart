@@ -1,44 +1,35 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import '../../utils/crypto_utils.dart';
 import '../ui/teks_teras.dart';
 import '../ui/tombol_lembar.dart';
 import '../ui/warna_teras.dart';
 
 /// Dialog pembatalan yang dipakai bersama transaksi dan pengeluaran,
-/// mengikuti desain: pilih alasan → (kasir) masukkan PIN → berhasil.
+/// mengikuti desain: pilih alasan → berhasil.
 ///
-/// Owner langsung membatalkan dari langkah alasan (tombolnya merah,
-/// "Batalkan"); kasir lanjut ke PIN owner (tombolnya "Lanjut"). Tulisan PIN
-/// sengaja tidak menyebut PIN siapa. Kesalahan dari [kirim] (PIN salah,
-/// terkunci) ditampilkan di langkah PIN supaya bisa dicoba lagi tanpa
-/// memilih ulang alasan.
+/// Kasir maupun owner cukup mengisi alasan — PIN owner tidak diminta lagi
+/// (keputusan owner 2026-10-24): yang owner butuhkan adalah tahu SIAPA yang
+/// membatalkan dan KENAPA, dan keduanya tercatat. Kesalahan dari [kirim]
+/// ditampilkan di bawah pilihan alasan.
 ///
 /// Mengembalikan true kalau pembatalan berhasil.
 Future<bool> tampilkanDialogPembatalan(
   BuildContext context, {
   required String pertanyaan,
-  required String keteranganPin,
   required String judulBerhasil,
   required String keteranganBerhasil,
   required List<String> daftarAlasan,
-  required bool perluPin,
-  required Future<void> Function(String alasan, String? pin) kirim,
+  required Future<void> Function(String alasan) kirim,
 }) async {
   final hasil = await showDialog<bool>(
     context: context,
     barrierColor: const Color(0x73281909),
     builder: (_) => DialogPembatalan(
       pertanyaan: pertanyaan,
-      keteranganPin: keteranganPin,
       judulBerhasil: judulBerhasil,
       keteranganBerhasil: keteranganBerhasil,
       daftarAlasan: daftarAlasan,
-      perluPin: perluPin,
       kirim: kirim,
     ),
   );
@@ -48,25 +39,21 @@ Future<bool> tampilkanDialogPembatalan(
 /// Alasan yang mewajibkan isian teks.
 const alasanLainnya = 'Lainnya';
 
-enum _Langkah { alasan, pin, berhasil }
+enum _Langkah { alasan, berhasil }
 
 class DialogPembatalan extends StatefulWidget {
   final String pertanyaan;
-  final String keteranganPin;
   final String judulBerhasil;
   final String keteranganBerhasil;
   final List<String> daftarAlasan;
-  final bool perluPin;
-  final Future<void> Function(String alasan, String? pin) kirim;
+  final Future<void> Function(String alasan) kirim;
 
   const DialogPembatalan({
     super.key,
     required this.pertanyaan,
-    required this.keteranganPin,
     required this.judulBerhasil,
     required this.keteranganBerhasil,
     required this.daftarAlasan,
-    required this.perluPin,
     required this.kirim,
   });
 
@@ -74,38 +61,19 @@ class DialogPembatalan extends StatefulWidget {
   State<DialogPembatalan> createState() => _DialogPembatalanState();
 }
 
-class _DialogPembatalanState extends State<DialogPembatalan>
-    with SingleTickerProviderStateMixin {
+class _DialogPembatalanState extends State<DialogPembatalan> {
   /// Panjang maksimal alasan "Lainnya".
   static const _panjangAlasanMaks = 100;
 
-  final _pinC = TextEditingController();
-  final _pinFokus = FocusNode();
   final _lainnyaC = TextEditingController();
-  // Dibuat di initState, BUKAN `late` malas: kalau tidak pernah dipakai
-  // (owner tanpa PIN), `late` baru membuatnya di dispose() — dan saat itu
-  // ticker tidak boleh lagi dibuat (galat "deactivated widget's ancestor").
-  late final AnimationController _goyang;
   var _langkah = _Langkah.alasan;
   String? _alasan;
   String? _galat;
   var _memproses = false;
 
   @override
-  void initState() {
-    super.initState();
-    _goyang = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-    );
-  }
-
-  @override
   void dispose() {
-    _pinC.dispose();
-    _pinFokus.dispose();
     _lainnyaC.dispose();
-    _goyang.dispose();
     super.dispose();
   }
 
@@ -115,25 +83,14 @@ class _DialogPembatalanState extends State<DialogPembatalan>
   String get _alasanTersimpan =>
       _alasan == alasanLainnya ? '$alasanLainnya: $_teksAlasan' : _teksAlasan;
 
-  void _lanjut() {
+  Future<void> _kirim() async {
     if (_teksAlasan.isEmpty || _memproses) return;
-    if (!widget.perluPin) {
-      _kirim(null);
-      return;
-    }
-    setState(() => _langkah = _Langkah.pin);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _pinFokus.requestFocus(),
-    );
-  }
-
-  Future<void> _kirim(String? pin) async {
     setState(() {
       _memproses = true;
       _galat = null;
     });
     try {
-      await widget.kirim(_alasanTersimpan, pin);
+      await widget.kirim(_alasanTersimpan);
       if (!mounted) return;
       setState(() {
         _memproses = false;
@@ -148,13 +105,10 @@ class _DialogPembatalanState extends State<DialogPembatalan>
 
   void _salah(String pesan) {
     if (!mounted) return;
-    _pinC.clear();
     setState(() {
       _memproses = false;
       _galat = pesan;
     });
-    _goyang.forward(from: 0);
-    _pinFokus.requestFocus();
   }
 
   @override
@@ -179,7 +133,6 @@ class _DialogPembatalanState extends State<DialogPembatalan>
               duration: const Duration(milliseconds: 220),
               child: switch (_langkah) {
                 _Langkah.alasan => _isiAlasan(),
-                _Langkah.pin => _isiPin(),
                 _Langkah.berhasil => _isiBerhasil(),
               },
             ),
@@ -234,7 +187,6 @@ class _DialogPembatalanState extends State<DialogPembatalan>
 
   Widget _isiAlasan() {
     final siap = _teksAlasan.isNotEmpty && !_memproses;
-    final warnaUtama = widget.perluPin ? WarnaTeras.oranye : WarnaTeras.merah;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -295,14 +247,12 @@ class _DialogPembatalanState extends State<DialogPembatalan>
             Expanded(
               flex: 14,
               child: TombolLembar(
-                label: _memproses
-                    ? 'Memproses…'
-                    : (widget.perluPin ? 'Lanjut' : 'Batalkan'),
-                latar: warnaUtama,
+                label: _memproses ? 'Memproses…' : 'Batalkan',
+                latar: WarnaTeras.merah,
                 warna: Colors.white,
                 tinggi: _tinggiTombol,
                 sudut: _sudutTombol,
-                onPressed: siap ? _lanjut : null,
+                onPressed: siap ? _kirim : null,
               ),
             ),
           ],
@@ -357,127 +307,6 @@ class _DialogPembatalanState extends State<DialogPembatalan>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _isiPin() {
-    final panjang = CryptoUtils.pinLength;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ikon(Icons.lock_rounded, WarnaTeras.oranyeMuda, WarnaTeras.oranye),
-        _judul('Masukkan PIN', widget.keteranganPin),
-        const SizedBox(height: 18),
-        AnimatedBuilder(
-          animation: _goyang,
-          builder: (context, isi) => Transform.translate(
-            // Goyang kiri-kanan yang mereda saat PIN salah.
-            offset: Offset(
-              8 * (1 - _goyang.value) * math.sin(_goyang.value * 6 * math.pi),
-              0,
-            ),
-            child: isi,
-          ),
-          child: GestureDetector(
-            onTap: () => _pinFokus.requestFocus(),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _pinC,
-                  builder: (context, v, _) => Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var i = 0; i < panjang; i++)
-                        Container(
-                          width: 36,
-                          height: 46,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              width: 1.5,
-                              color: _galat != null
-                                  ? const Color(0xFFE0828A)
-                                  : i == v.text.length
-                                  ? WarnaTeras.oranye
-                                  : const Color(0xFFDDD6CF),
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: i < v.text.length
-                                  ? WarnaTeras.teksSedang
-                                  : Colors.transparent,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                // Isian tak terlihat yang menerima ketikan PIN.
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: 0,
-                    child: TextField(
-                      key: const Key('isian-pin-pembatalan'),
-                      controller: _pinC,
-                      focusNode: _pinFokus,
-                      enabled: !_memproses,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      showCursor: false,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(panjang),
-                      ],
-                      onChanged: (v) {
-                        if (_galat != null) setState(() => _galat = null);
-                        if (v.length == panjang) _kirim(v);
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 18,
-          child: Text(
-            _memproses ? 'Memeriksa…' : (_galat ?? ''),
-            style: TextStyle(
-              fontSize: TeksTeras.kecil,
-              fontWeight: FontWeight.w500,
-              color: _memproses ? WarnaTeras.teksPudar : WarnaTeras.merah,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: TombolLembar(
-            label: 'Kembali',
-            latar: WarnaTeras.latarAbu,
-            warna: WarnaTeras.teks,
-            tinggi: _tinggiTombol,
-            sudut: _sudutTombol,
-            onPressed: _memproses
-                ? null
-                : () => setState(() {
-                    _pinC.clear();
-                    _galat = null;
-                    _langkah = _Langkah.alasan;
-                  }),
-          ),
-        ),
-      ],
     );
   }
 

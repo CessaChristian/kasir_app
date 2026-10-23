@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
-import 'package:kasir_app/shared/auth/pin_owner.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/utils/crypto_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,14 +89,13 @@ void main() {
     await db.close();
   });
 
-  test('kasir membatalkan transaksinya di shift berjalan dengan PIN owner',
-      () async {
+  test('kasir membatalkan transaksinya di shift berjalan cukup dengan alasan '
+      '(tanpa PIN owner, keputusan owner 2026-10-24)', () async {
     final t = await trx('t-1');
     await masuk('budi', 'cashier', shiftId: 's-aktif');
 
     expect(repo.bolehDibatalkan(t), isTrue);
-    expect(repo.perluPinOwner, isTrue);
-    await repo.batalkanTransaksi(t, alasan: 'Salah input', pinOwner: pinOwner);
+    await repo.batalkanTransaksi(t, alasan: 'Salah input');
 
     final batal = await ambil('t-1');
     expect(batal.deletedAt, isNotNull, reason: 'keluar dari semua total');
@@ -111,19 +108,6 @@ void main() {
         reason: 'isi struk yang dibatalkan tetap bisa dilihat sebagai bukti');
   });
 
-  test('tanpa PIN atau dengan PIN salah, kasir ditolak', () async {
-    final t = await trx('t-1');
-    await masuk('budi', 'cashier', shiftId: 's-aktif');
-
-    await expectLater(repo.batalkanTransaksi(t, alasan: 'Salah input'),
-        throwsA(isA<StateError>()));
-    await expectLater(
-        repo.batalkanTransaksi(t, alasan: 'Salah input', pinOwner: '111111'),
-        throwsA(isA<StateError>()),
-        reason: 'PIN kasir sendiri bukan PIN owner');
-    expect((await ambil('t-1')).deletedAt, isNull);
-  });
-
   test('kasir tidak bisa membatalkan transaksi shift lain atau kasir lain',
       () async {
     final lama = await trx('t-lama', shift: 's-lama');
@@ -134,16 +118,15 @@ void main() {
         reason: 'shift yang sudah ditutup hanya bisa diubah owner');
     expect(repo.bolehDibatalkan(punyaSari), isFalse);
     await expectLater(
-        repo.batalkanTransaksi(lama, alasan: 'Salah input', pinOwner: pinOwner),
+        repo.batalkanTransaksi(lama, alasan: 'Salah input'),
         throwsA(isA<StateError>()));
   });
 
-  test('owner membatalkan transaksi apa pun tanpa PIN', () async {
+  test('owner membatalkan transaksi apa pun', () async {
     final lama = await trx('t-lama', shift: 's-lama');
     await masuk('owner', 'owner');
 
     expect(repo.bolehDibatalkan(lama), isTrue);
-    expect(repo.perluPinOwner, isFalse);
     await repo.batalkanTransaksi(lama, alasan: 'Pelanggan batal');
     expect((await ambil('t-lama')).cancelledByUserId, 'owner');
   });
@@ -160,41 +143,6 @@ void main() {
     expect(repo.bolehDibatalkan(batal), isFalse);
     await expectLater(repo.batalkanTransaksi(batal, alasan: 'Lagi'),
         throwsA(isA<StateError>()));
-  });
-
-  test('memeriksa PIN owner tidak menahan layar', () async {
-    var detak = 0;
-    final jam = Timer.periodic(
-      const Duration(milliseconds: 10),
-      (_) => detak++,
-    );
-    await PemeriksaPinOwner(db).periksa(pinOwner);
-    jam.cancel();
-    expect(detak, greaterThanOrEqualTo(5),
-        reason: 'dialog PIN owner harus tetap hidup selama PIN diperiksa');
-  });
-
-  test('5 kali PIN salah mengunci pembatalan di HP ini, bukan login owner',
-      () async {
-    final t = await trx('t-1');
-    await masuk('budi', 'cashier', shiftId: 's-aktif');
-
-    for (var i = 0; i < 5; i++) {
-      await expectLater(
-          repo.batalkanTransaksi(t, alasan: 'Salah input', pinOwner: '000000'),
-          throwsA(isA<StateError>()));
-    }
-    await expectLater(
-        repo.batalkanTransaksi(t, alasan: 'Salah input', pinOwner: pinOwner),
-        throwsA(isA<StateError>().having(
-            (e) => e.message, 'pesan', contains('Terlalu banyak'))),
-        reason: 'PIN benar pun ditolak selama terkunci');
-
-    final owner = await (db.select(db.users)
-          ..where((u) => u.id.equals('owner')))
-        .getSingle();
-    expect(owner.loginLockedUntil, isNull,
-        reason: 'kasir yang menebak PIN tidak boleh bisa mengunci owner');
   });
 
   test('transaksi batal tampil di Riwayat tapi tidak di kueri laporan',

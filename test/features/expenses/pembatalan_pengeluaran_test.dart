@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/expenses/repositories/expense_repository.dart';
-import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/utils/crypto_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -74,16 +73,15 @@ void main() {
     await db.close();
   });
 
-  test('kasir membatalkan pengeluarannya di shift berjalan dengan PIN owner',
-      () async {
+  test('kasir membatalkan pengeluarannya di shift berjalan cukup dengan '
+      'alasan (tanpa PIN owner, keputusan owner 2026-10-24)', () async {
     final e = await pengeluaran('e-1');
     await masuk('budi', 'cashier', shiftId: 's-aktif');
 
     expect(repo.bolehDibatalkan(e), isTrue);
-    await expectLater(repo.batalkanPengeluaran(e, alasan: 'Salah input'),
-        throwsA(isA<StateError>()), reason: 'tanpa PIN ditolak');
-    await repo.batalkanPengeluaran(e,
-        alasan: 'Tercatat dobel', pinOwner: pinOwner);
+    await expectLater(repo.batalkanPengeluaran(e, alasan: '  '),
+        throwsA(isA<ArgumentError>()), reason: 'alasan tetap wajib');
+    await repo.batalkanPengeluaran(e, alasan: 'Tercatat dobel');
 
     final batal = await (db.select(db.expenses)
           ..where((x) => x.id.equals('e-1')))
@@ -103,52 +101,18 @@ void main() {
     expect(repo.bolehDibatalkan(punyaSari), isFalse,
         reason: 'dulu tombol hapus muncul untuk SEMUA pengeluaran di shift');
     await expectLater(
-        repo.batalkanPengeluaran(punyaSari,
-            alasan: 'Salah input', pinOwner: pinOwner),
+        repo.batalkanPengeluaran(punyaSari, alasan: 'Salah input'),
         throwsA(isA<StateError>()));
   });
 
-  test('owner membatalkan pengeluaran apa pun tanpa PIN', () async {
+  test('owner membatalkan pengeluaran apa pun', () async {
     final lama = await pengeluaran('e-lama', shift: 's-lama');
     await masuk('owner', 'owner');
 
-    expect(repo.perluPinOwner, isFalse);
     await repo.batalkanPengeluaran(lama, alasan: 'Tidak jadi dibeli');
     final batal = await (db.select(db.expenses)
           ..where((x) => x.id.equals('e-lama')))
         .getSingle();
     expect(batal.cancelledByUserId, 'owner');
-  });
-
-  test('kunci PIN salah DIPAKAI BERSAMA dengan pembatalan transaksi',
-      () async {
-    // Kalau kuncinya terpisah, kasir bisa menebak 4 kali di transaksi lalu
-    // 4 kali lagi di pengeluaran.
-    final e = await pengeluaran('e-1');
-    await db.into(db.transactions).insert(TransactionsCompanion.insert(
-          id: const Value('t-1'),
-          cashierUserId: const Value('budi'),
-          shiftId: const Value('s-aktif'),
-          total: 10000,
-          paymentMethod: 'cash',
-        ));
-    final t = await db.select(db.transactions).getSingle();
-    await masuk('budi', 'cashier', shiftId: 's-aktif');
-    final sales = SalesRepository(db);
-
-    for (var i = 0; i < 3; i++) {
-      await expectLater(
-          sales.batalkanTransaksi(t, alasan: 'x', pinOwner: '000000'),
-          throwsA(isA<StateError>()));
-    }
-    for (var i = 0; i < 2; i++) {
-      await expectLater(
-          repo.batalkanPengeluaran(e, alasan: 'x', pinOwner: '000000'),
-          throwsA(isA<StateError>()));
-    }
-    await expectLater(
-        repo.batalkanPengeluaran(e, alasan: 'x', pinOwner: pinOwner),
-        throwsA(isA<StateError>()
-            .having((x) => x.message, 'pesan', contains('Terlalu banyak'))));
   });
 }

@@ -1,5 +1,4 @@
 import '../../../data/app_database.dart';
-import '../../../shared/auth/pin_owner.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/periode/periode.dart';
 
@@ -53,9 +52,6 @@ class ExpenseRepository {
   // kasir bisa menghapus atau mengubah jumlahnya tanpa jejak. Aturannya sama
   // dengan pembatalan transaksi.
 
-  /// Kasir wajib memasukkan PIN owner; owner yang sedang login tidak.
-  bool get perluPinOwner => !SessionManager.instance.isOwner;
-
   /// Owner: pengeluaran apa pun yang belum batal. Kasir: hanya miliknya di
   /// shift yang SEDANG berjalan.
   bool bolehDibatalkan(Expense e) {
@@ -68,11 +64,11 @@ class ExpenseRepository {
   }
 
   /// Batalkan [e]. Aturannya ditegakkan DI SINI, bukan hanya dengan
-  /// menyembunyikan tombol di halaman.
+  /// menyembunyikan tombol di halaman. Alasan wajib; PIN owner tidak
+  /// diminta (keputusan owner 2026-10-24).
   Future<void> batalkanPengeluaran(
     Expense e, {
     required String alasan,
-    String? pinOwner,
   }) async {
     final sesi = SessionManager.instance.currentSession;
     if (sesi == null) throw StateError('Belum masuk.');
@@ -83,8 +79,6 @@ class ExpenseRepository {
           ? 'Pengeluaran ini sudah dibatalkan.'
           : 'Pengeluaran ini hanya bisa dibatalkan owner.');
     }
-    if (perluPinOwner) await PemeriksaPinOwner(_db).periksa(pinOwner ?? '');
-
     await _db.batalkanPengeluaran(e.id, olehUserId: sesi.userId, alasan: teks);
   }
 
