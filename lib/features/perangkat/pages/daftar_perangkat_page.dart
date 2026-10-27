@@ -580,6 +580,10 @@ class _KartuPerangkat extends StatelessWidget {
         tinggi: 36,
         sudut: 10,
         ukuranTeks: 12,
+        // Tiga tombol berjajar di layar 411 dp hanya ±112 dp per tombol;
+        // dengan jarak bawaan 24+24, "Ganti Nama" pecah jadi dua baris.
+        paddingDalam: const EdgeInsets.symmetric(horizontal: 8),
+        satuBaris: true,
         onPressed: onTap,
       ),
     );

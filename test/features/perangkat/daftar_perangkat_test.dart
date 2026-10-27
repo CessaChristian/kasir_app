@@ -300,6 +300,30 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('teks tombol kartu tetap satu baris di layar HP 411 dp', (
+      t,
+    ) async {
+      // Kartu dicabut berisi tiga tombol sejajar. Dulu "Ganti Nama" pecah
+      // jadi dua baris di HP Realme karena jarak bawaan tombol 24+24 dp.
+      t.view.physicalSize = const Size(1080, 6000);
+      t.view.devicePixelRatio = 2.625; // 411 dp, lebar acuan SkalaLayar
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        MaterialApp(
+          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => online),
+        ),
+      );
+      await tunggu(t);
+      for (final label in ['Ganti Nama', 'Cabut', 'Pulihkan', 'Lupakan']) {
+        for (final e in find.text(label).evaluate()) {
+          final tinggi = (e.renderObject! as RenderBox).size.height;
+          // Huruf 12: satu baris < 24, dua baris >= 24.
+          expect(tinggi, lessThan(24), reason: '"$label" pecah baris');
+        }
+      }
+      await lepas(t);
+    });
+
     testWidgets('kartu: data terakhir diterima & peringatan data', (t) async {
       repo.daftar = [
         hp('hp-owner', 'HP Owner'),

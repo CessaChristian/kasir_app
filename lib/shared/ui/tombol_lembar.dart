@@ -31,6 +31,13 @@ class TombolLembar extends StatelessWidget {
   /// Warna teks/ikon saat nonaktif. Bawaan: [warna].
   final Color? warnaNonaktif;
 
+  /// Jarak kosong di dalam tombol. Bawaan (null): jarak bawaan FilledButton,
+  /// 24 di kiri-kanan — terlalu lebar untuk tombol kecil yang berjajar tiga.
+  final EdgeInsetsGeometry? paddingDalam;
+
+  /// Teks tidak pernah pindah baris; kalau tetap tidak muat, teks mengecil.
+  final bool satuBaris;
+
   const TombolLembar({
     super.key,
     required this.label,
@@ -45,14 +52,26 @@ class TombolLembar extends StatelessWidget {
     this.tepi,
     this.latarNonaktif,
     this.warnaNonaktif,
+    this.paddingDalam,
+    this.satuBaris = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final teks = Text(
-      label,
-      style: TextStyle(fontSize: ukuranTeks, fontWeight: beratTeks),
-    );
+    final Widget teks = satuBaris
+        ? FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(fontSize: ukuranTeks, fontWeight: beratTeks),
+            ),
+          )
+        : Text(
+            label,
+            style: TextStyle(fontSize: ukuranTeks, fontWeight: beratTeks),
+          );
     return SizedBox(
       height: tinggi,
       child: FilledButton(
@@ -60,6 +79,7 @@ class TombolLembar extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: latar,
           foregroundColor: warna,
+          padding: paddingDalam,
           disabledBackgroundColor:
               latarNonaktif ?? latar.withValues(alpha: 0.35),
           disabledForegroundColor: warnaNonaktif ?? warna,
