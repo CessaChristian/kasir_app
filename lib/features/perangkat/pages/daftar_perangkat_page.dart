@@ -567,7 +567,6 @@ class _KartuPerangkat extends StatelessWidget {
   Widget _tombol() {
     Widget tombol(
       String label,
-      IconData ikon,
       VoidCallback onTap, {
       Color latar = WarnaTeras.kartu,
       Color warna = const Color(0xFF5A5048),
@@ -575,7 +574,6 @@ class _KartuPerangkat extends StatelessWidget {
     }) => Expanded(
       child: TombolLembar(
         label: label,
-        ikon: ikon,
         latar: latar,
         warna: warna,
         tepi: tepi,
@@ -588,7 +586,6 @@ class _KartuPerangkat extends StatelessWidget {
 
     final gantiNama = tombol(
       'Ganti Nama',
-      Icons.edit_rounded,
       onGantiNama,
       tepi: const Color(0xFFE6DED6),
     );
@@ -602,7 +599,6 @@ class _KartuPerangkat extends StatelessWidget {
         if (!iniSaya && perangkat.aktif)
           tombol(
             'Cabut',
-            Icons.block_rounded,
             onCabut,
             latar: WarnaTeras.merahMuda,
             warna: WarnaTeras.merah,
@@ -610,14 +606,12 @@ class _KartuPerangkat extends StatelessWidget {
         if (!iniSaya && !perangkat.aktif) ...[
           tombol(
             'Pulihkan',
-            Icons.settings_backup_restore_rounded,
             onPulihkan,
             latar: WarnaTeras.oranyeMuda,
             warna: WarnaTeras.oranye,
           ),
           tombol(
             'Lupakan',
-            Icons.delete_rounded,
             onLupakan,
             warna: WarnaTeras.merah,
             tepi: const Color(0xFFF0B7B1),
