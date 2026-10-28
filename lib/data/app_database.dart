@@ -537,6 +537,10 @@ class OpenBills extends Table {
 /// =======================
 /// DATABASE
 /// =======================
+/// Batas isian produk (keputusan owner 2026-10-28).
+const panjangMaksNamaProduk = 40;
+const hargaMaksProduk = 999999999; // 9 digit
+
 @DriftDatabase(tables: [
   Products,
   Categories,
@@ -1582,9 +1586,36 @@ class AppDatabase extends _$AppDatabase {
     String? imagePath,
   }) async {
     SessionManager.instance.requirePermission('manage_products');
+    // Jaring kedua di belakang formulir: jalur lain (atau formulir yang
+    // berubah) tidak boleh menyimpan produk tanpa nama atau seharga Rp 0.
+    final nama = name.trim();
+    if (nama.isEmpty) throw ArgumentError('Nama produk wajib diisi');
+    if (nama.length > panjangMaksNamaProduk) {
+      throw ArgumentError(
+        'Nama produk paling panjang $panjangMaksNamaProduk huruf',
+      );
+    }
+    if (price <= 0 || price > hargaMaksProduk) {
+      throw ArgumentError('Harga produk tidak valid');
+    }
+
+    final lama = await (select(products)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    // Dulu tetap bilang "Perubahan disimpan", padahal produknya sudah
+    // dihapus HP lain dan tetap terhapus.
+    if (lama?.deletedAt != null) {
+      throw StateError('Produk ini sudah dihapus di perangkat lain.');
+    }
+    final kembar = await (select(products)
+          ..where((t) => t.deletedAt.isNull() & t.id.equals(id).not()))
+        .get();
+    if (kembar.any((p) => p.name.trim().toLowerCase() == nama.toLowerCase())) {
+      throw StateError('Produk bernama "$nama" sudah ada.');
+    }
+
     final data = ProductsCompanion(
       id: Value(id),
-      name: Value(name),
+      name: Value(nama),
       price: Value(price),
       categoryId: Value(categoryId),
       hasSpicyOption: Value(hasSpicyOption),

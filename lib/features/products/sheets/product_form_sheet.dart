@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../data/sync/sync_otomatis.dart';
@@ -290,6 +291,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                 label: 'Nama Produk',
                 ikon: Icons.inventory_2_outlined,
                 textInputAction: TextInputAction.next,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(panjangMaksNamaProduk),
+                ],
                 onChanged: (_) => setState(() => _galat = null),
               ),
               const SizedBox(height: 10),
