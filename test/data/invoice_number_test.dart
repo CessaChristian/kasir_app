@@ -167,6 +167,25 @@ void main() {
     expect(urutan((await jual()).nota), '0001');
   });
 
+  test('lanjut dari nomor TERBESAR, bukan dari jumlah nota', () async {
+    // Nota 0002 HP ini hilang dari database lokal (mis. aturan buang sampah
+    // berubah). Dengan menghitung jumlah baris, nota berikutnya jadi 0002
+    // lagi — padahal 0003 sudah terbit, dan nomor 0003 akan terpakai dua kali.
+    final tgl = await tanggalShift();
+    for (final (id, nota) in [
+      ('t-1', 'CS/00/$tgl/TEST-0001'),
+      ('t-3', 'CS/00/$tgl/TEST-0003'),
+    ]) {
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+            id: Value(id),
+            invoiceNo: Value(nota),
+            total: 1000,
+            paymentMethod: 'cash',
+          ));
+    }
+    expect(urutan((await jual()).nota), '0004');
+  });
+
   test('nomor TIDAK dipakai ulang setelah transaksi dihapus', () async {
     await jual();
     final kedua = await jual();

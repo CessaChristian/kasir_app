@@ -1772,10 +1772,10 @@ class AppDatabase extends _$AppDatabase {
   ///   nomor yang sama — server tidak menolaknya karena `invoice_no` tidak
   ///   unik. Urutannya dihitung lokal supaya nota tetap terbit tanpa
   ///   internet.
-  /// - **NNNN**: nota HP ini bertanggal sama, ditambah satu. Nota HP lain
-  ///   yang sudah tertarik tidak dihitung (kodenya lain), jadi nomor tidak
-  ///   melompat. Yang DIBATALKAN tetap dihitung: kalau tidak, nomor bekasnya
-  ///   terpakai ulang dan dua struk berbeda punya nomor sama.
+  /// - **NNNN**: nomor terbesar nota HP ini bertanggal sama, ditambah satu.
+  ///   Nota HP lain yang sudah tertarik tidak dihitung (kodenya lain), jadi
+  ///   nomor tidak melompat. Yang DIBATALKAN tetap dihitung: kalau tidak,
+  ///   nomor bekasnya terpakai ulang dan dua struk berbeda punya nomor sama.
   ///
   /// Dipanggil dari DALAM transaction milik [createSale] supaya menghitung dan
   /// menyimpan tidak bisa disela.
@@ -1797,13 +1797,21 @@ class AppDatabase extends _$AppDatabase {
     String dua(int n) => (n % 100).toString().padLeft(2, '0');
     final tanggal = '${dua(buka.day)}${dua(buka.month)}${dua(buka.year)}';
 
-    final hitung = transactions.id.count();
-    final baris = await (selectOnly(transactions)
-          ..addColumns([hitung])
+    // Nomor TERBESAR + 1, bukan jumlah nota + 1: kalau suatu hari ada nota
+    // HP ini yang tidak ada di database lokal, jumlahnya jadi lebih kecil dari
+    // nomor terakhir dan nomor yang sudah terbit terpakai lagi.
+    final nota = await (selectOnly(transactions)
+          ..addColumns([transactions.invoiceNo])
           ..where(transactions.invoiceNo
               .like('CS/%/$tanggal/$kodePerangkat-%')))
-        .getSingle();
-    final urut = (baris.read(hitung)! + 1).toString().padLeft(4, '0');
+        .map((r) => r.read(transactions.invoiceNo)!)
+        .get();
+    var terbesar = 0;
+    for (final n in nota) {
+      final urut = int.tryParse(n.substring(n.lastIndexOf('-') + 1)) ?? 0;
+      if (urut > terbesar) terbesar = urut;
+    }
+    final urut = (terbesar + 1).toString().padLeft(4, '0');
     return 'CS/$kasir/$tanggal/$kodePerangkat-$urut';
   }
 
