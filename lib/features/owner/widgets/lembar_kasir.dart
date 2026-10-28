@@ -9,7 +9,7 @@ import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/crypto_utils.dart';
-import '../../../data/nama_tercatat.dart';
+import '../../../shared/auth/aturan_username.dart';
 import '../repositories/cashier_repository.dart';
 import '../../../utils/pesan_galat.dart';
 
@@ -19,12 +19,10 @@ final _formatPin = [
   LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
 ];
 
-/// Isian username: spasi dan [penandaDihapus] tidak bisa diketik sama sekali
-/// (termasuk lewat tempel). Aturannya tetap ditegakkan di
-/// [CashierRepository.periksaUsername].
-final _formatUsername = [
-  FilteringTextInputFormatter.deny(RegExp('[\\s$penandaDihapus]')),
-];
+/// Isian username: huruf langsung jadi kecil walau Caps Lock menyala, dan
+/// karakter selain `a–z 0–9 . _` tidak bisa diketik (termasuk lewat tempel).
+/// Aturannya tetap ditegakkan di [CashierRepository.periksaUsername].
+const _formatUsername = [UsernameInputFormatter()];
 
 /// Pesan di bawah dua isian PIN (desain): kosong selama belum diisi,
 /// "PIN harus 6 digit angka", "PIN belum cocok", atau "PIN cocok".

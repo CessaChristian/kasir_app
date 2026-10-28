@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/auth/aturan_username.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../shared/widgets/business_logo.dart';
 import 'package:flutter/services.dart';
@@ -219,24 +220,14 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
                           icon: Icons.person_outline_rounded,
                           colorScheme: colorScheme,
                         ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Username wajib diisi';
-                          }
-                          if (v.trim().length < 3) {
-                            return 'Username minimal 3 karakter';
-                          }
-                          if (v.trim().length > 30) {
-                            return 'Username maksimal 30 karakter';
-                          }
-                          return null;
-                        },
+                        inputFormatters: const [UsernameInputFormatter()],
+                        validator: (v) => periksaUsername(v ?? ''),
                       ),
 
                       const SizedBox(height: 20),
 
                       // ── PIN ──
-                      _buildLabel('PIN (4–6 digit)'),
+                      _buildLabel('PIN (${CryptoUtils.pinLength} digit)'),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _pinController,

@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+
+import '../../../shared/auth/aturan_username.dart' as aturan;
 import '../../../data/app_database.dart';
 import '../../../data/nama_tercatat.dart';
 import '../../../data/supabase/server_terjangkau.dart';
@@ -52,24 +54,9 @@ class CashierRepository {
     if (!await _terhubung()) throw StateError(pesanButuhInternet);
   }
 
-  static const panjangNamaMin = 3;
-  static const panjangNamaMaks = 30;
-
-  /// Aturan username, ditegakkan di sini untuk akun baru maupun ganti nama
-  /// (lembarnya memakai [periksaUsername] yang sama).
-  static String? periksaUsername(String nama) {
-    final n = nama.trim();
-    if (n.isEmpty) return 'Username wajib diisi';
-    if (n.length < panjangNamaMin || n.length > panjangNamaMaks) {
-      return 'Username harus $panjangNamaMin–$panjangNamaMaks karakter';
-    }
-    if (n.contains(RegExp(r'\s'))) return 'Username tidak boleh memuat spasi';
-    // Dipakai sebagai penanda akun yang dihapus (lihat [usernameTerhapus]).
-    if (n.contains(penandaDihapus)) {
-      return 'Username tidak boleh memuat "$penandaDihapus"';
-    }
-    return null;
-  }
+  /// Aturan username, ditegakkan di sini untuk akun baru maupun ganti nama.
+  /// Isinya di [aturan.periksaUsername] — dipakai bersama halaman buat owner.
+  static String? periksaUsername(String nama) => aturan.periksaUsername(nama);
 
   /// Kelola Kasir adalah hak PATEN owner, bukan izin yang bisa diberikan —
   /// semua fungsi yang mengubah akun kasir memeriksanya di sini, tidak hanya
@@ -97,9 +84,12 @@ class CashierRepository {
     // 2. Username tidak boleh kembar — di HP ini MAUPUN di server. HP lain
     // bisa saja baru membuat akun bernama sama yang belum tertarik ke sini;
     // kalau lolos, server menolak salah satunya dan sinkronnya macet.
+    // Tidak peduli besar-kecil huruf: akun lama yang terlanjur `Sari` tetap
+    // dianggap kembar dengan `sari`.
     final existing = await (_db.select(
       _db.users,
-    )..where((u) => u.username.equals(username))).get();
+    )..where((u) => u.username.lower().equals(aturan.kunciUsername(username))))
+        .get();
 
     if (existing.isNotEmpty || await _namaDipakaiDiServer(username, null)) {
       throw StateError('Username sudah dipakai.');
@@ -355,9 +345,12 @@ class CashierRepository {
     }
     if (akun.username == nama) return;
 
-    final kembarDiSini = await (_db.select(
-      _db.users,
-    )..where((u) => u.username.equals(nama) & u.id.equals(userId).not())).get();
+    final kembarDiSini = await (_db.select(_db.users)..where(
+          (u) =>
+              u.username.lower().equals(aturan.kunciUsername(nama)) &
+              u.id.equals(userId).not(),
+        ))
+        .get();
     if (kembarDiSini.isNotEmpty || await _namaDipakaiDiServer(nama, userId)) {
       throw StateError('Nama "$nama" sudah dipakai akun lain.');
     }
@@ -416,7 +409,9 @@ class CashierRepository {
       var kueri = supabase.client!
           .from('users')
           .select('id')
-          .eq('username', nama);
+          // ilike = tidak peduli besar-kecil huruf. `_` di pola LIKE berarti
+          // "satu huruf apa saja", jadi harus di-escape.
+          .ilike('username', nama.replaceAll('_', r'\_'));
       if (kecualiId != null) kueri = kueri.neq('id', kecualiId);
       final baris = await kueri.limit(1);
       return baris.isNotEmpty;

@@ -59,15 +59,23 @@ void main() {
       expect(periksaPinBaru('123456', '123456'), ('PIN cocok', true));
     });
     test('username', () {
+      const salahHuruf =
+          'Username hanya boleh huruf kecil, angka, titik, dan garis bawah';
       expect(periksaUsername('  '), 'Username wajib diisi');
-      expect(periksaUsername('ab'), 'Username harus 3–30 karakter');
+      expect(periksaUsername('ab'), 'Username harus 3–20 karakter');
+      expect(periksaUsername('a' * 21), 'Username harus 3–20 karakter');
       expect(periksaUsername('sari'), isNull);
-      expect(periksaUsername('sa ri'), 'Username tidak boleh memuat spasi');
+      expect(periksaUsername('sari.w_2'), isNull);
+      expect(periksaUsername('sa ri'), salahHuruf);
+      expect(periksaUsername('Sari'), salahHuruf);
       expect(
         periksaUsername('sari~1'),
-        'Username tidak boleh memuat "~"',
+        salahHuruf,
         reason: '~ adalah penanda akun yang dihapus',
       );
+      // Huruf Cyrillic "а" yang mirip Latin, dan spasi lebar-nol.
+      expect(periksaUsername('s\u0430ri'), salahHuruf);
+      expect(periksaUsername('sa\u200Bri'), salahHuruf);
     });
   });
 
@@ -197,9 +205,23 @@ void main() {
       await repo.createCashier(username: 'tari', pin: '727272');
     });
 
+    test('username kembar tidak peduli besar-kecil huruf', () async {
+      // Akun lama yang terlanjur memuat huruf besar.
+      await akun('k-9', 'Rina', 'cashier');
+      await expectLater(
+        repo.createCashier(username: 'rina', pin: '727272'),
+        throwsA(isA<StateError>()),
+      );
+      await expectLater(
+        repo.gantiNamaKasir('k-1', 'rina'),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('kasir baru: nomor terbesar di HP maupun server, + 1', () async {
-      await (db.update(db.users)..where((u) => u.id.equals('k-3')))
-          .write(const UsersCompanion(nomorKasir: Value(3)));
+      await (db.update(db.users)..where((u) => u.id.equals('k-3'))).write(
+        const UsersCompanion(nomorKasir: Value(3)),
+      );
       Future<int?> buat(String nama, int? diServer) async {
         final r = CashierRepository(
           db,
@@ -207,8 +229,10 @@ void main() {
           terhubung: () async => true,
           nomorTerbesarDiServer: () async => diServer,
         );
-        return (await r.createCashier(username: nama, pin: '727272'))
-            .nomorKasir;
+        return (await r.createCashier(
+          username: nama,
+          pin: '727272',
+        )).nomorKasir;
       }
 
       expect(await buat('rina', 1), 4, reason: 'HP lebih besar');

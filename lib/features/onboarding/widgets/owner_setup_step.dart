@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/auth/aturan_username.dart';
 import '../../../utils/crypto_utils.dart';
 
 /// Step 1 dari onboarding wizard.
@@ -68,11 +69,8 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
                 hintText: 'Contoh: sari',
                 border: OutlineInputBorder(),
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Username wajib diisi';
-                if (v.trim().length < 3) return 'Minimal 3 karakter';
-                return null;
-              },
+              inputFormatters: const [UsernameInputFormatter()],
+              validator: (v) => periksaUsername(v ?? ''),
             ),
             const SizedBox(height: 16),
             TextFormField(

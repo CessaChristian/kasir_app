@@ -6,6 +6,7 @@ import '../../../utils/crypto_utils.dart';
 import '../../../utils/security/hash_utils.dart';
 import '../recovery/models/recovery_result.dart';
 import '../models/auth_session.dart';
+import '../../../shared/auth/aturan_username.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../data/sync/sync_engine.dart';
 import '../../../data/sync/sync_service.dart';
@@ -54,6 +55,10 @@ class AuthRepository {
     if (!CryptoUtils.isValidPinFormat(pin)) {
       throw ArgumentError('PIN harus ${CryptoUtils.pinLength} digit angka');
     }
+    // Aturan username yang sama dengan akun kasir. Dulu owner boleh memakai
+    // `~` atau spasi, dan namanya lalu tampil "(dihapus)" di riwayat.
+    final galatNama = periksaUsername(username);
+    if (galatNama != null) throw ArgumentError(galatNama);
 
     // 3. Generate salt and hash PIN
     final salt = CryptoUtils.generateSalt();
@@ -65,7 +70,7 @@ class AuthRepository {
     // 5. Create owner account
     final ownerCompanion = UsersCompanion.insert(
       id: Value(userId),
-      username: username,
+      username: username.trim(),
       pinHash: pinHash,
       salt: salt,
       role: 'owner',
@@ -109,8 +114,10 @@ class AuthRepository {
     required String pin,
   }) async {
     // 1. Find user by username — getSingleOrNull lebih efisien dari .get().first
+    // Tidak peduli besar-kecil huruf: kasir yang mengetik `Sari` tetap masuk
+    // ke akun `sari`.
     final user = await (_db.select(_db.users)
-          ..where((u) => u.username.equals(username))
+          ..where((u) => u.username.lower().equals(kunciUsername(username)))
           ..limit(1))
         .getSingleOrNull();
 
