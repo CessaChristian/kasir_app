@@ -12,6 +12,7 @@ import '../../../shared/ui/bar_segmen.dart';
 import '../../../shared/ui/judul_bagian.dart';
 import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
+import '../../../shared/ui/periode/pengawas_hari.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/tab_geser.dart';
 import '../../../shared/ui/teks_teras.dart';
@@ -49,6 +50,21 @@ class LaporanPage extends StatefulWidget {
 class _LaporanPageState extends State<LaporanPage> {
   late final _repo = widget.repo ?? LaporanRepository(db);
   var _periode = Periode.hari(DateTime.now());
+
+  /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"
+  /// ikut pindah ke tanggal baru, rentang pilihan sendiri tidak.
+  late final _pengawasHari = PengawasHari(
+    onGanti: (lama, baru) {
+      final p = geserPintasan(_periode, lama, baru);
+      if (p != null && mounted) _ubahPeriode(p);
+    },
+  );
+
+  @override
+  void dispose() {
+    _pengawasHari.dispose();
+    super.dispose();
+  }
   late Stream<RingkasanLaporan> _aliran = _repo.watchLaporan(_periode);
   Map<String, String> _nama = const {};
 
@@ -69,6 +85,7 @@ class _LaporanPageState extends State<LaporanPage> {
   @override
   void initState() {
     super.initState();
+    _pengawasHari; // mulai mengawasi
     _repo.namaAkun().then((m) {
       if (mounted) setState(() => _nama = m);
     });

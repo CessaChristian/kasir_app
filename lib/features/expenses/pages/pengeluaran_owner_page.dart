@@ -8,6 +8,7 @@ import '../../../shared/ui/judul_bagian.dart';
 import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/periode/bagian_filter.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
+import '../../../shared/ui/periode/pengawas_hari.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_tambah.dart';
@@ -35,6 +36,21 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
   final _repo = ExpenseRepository(db);
   var _periode = Periode.hari(DateTime.now());
 
+  /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"
+  /// ikut pindah ke tanggal baru, rentang pilihan sendiri tidak.
+  late final _pengawasHari = PengawasHari(
+    onGanti: (lama, baru) {
+      final p = geserPintasan(_periode, lama, baru);
+      if (p != null && mounted) _ubahPeriode(p);
+    },
+  );
+
+  @override
+  void dispose() {
+    _pengawasHari.dispose();
+    super.dispose();
+  }
+
   /// Kode kategori biaya yang disaring; null = Semua.
   String? _kategori;
 
@@ -56,6 +72,7 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
   @override
   void initState() {
     super.initState();
+    _pengawasHari; // mulai mengawasi
     _muatNama();
   }
 

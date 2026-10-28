@@ -61,6 +61,17 @@ List<(String, Periode)> pintasanPeriode(DateTime hariIni) {
   ];
 }
 
+/// Pintasan yang sama untuk hari [baru], kalau [p] adalah pintasan di hari
+/// [lama] ("Hari ini" kemarin → "Hari ini" sekarang). Null untuk rentang
+/// yang dipilih sendiri — itu tidak digeser.
+Periode? geserPintasan(Periode p, DateTime lama, DateTime baru) {
+  final nama = namaPeriode(p, lama);
+  for (final (n, q) in pintasanPeriode(baru)) {
+    if (n == nama) return q;
+  }
+  return null;
+}
+
 /// "Hari ini", "Bulan Lalu", ... atau "Filter periode".
 String namaPeriode(Periode p, DateTime hariIni) {
   for (final (nama, q) in pintasanPeriode(hariIni)) {

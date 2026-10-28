@@ -6,6 +6,7 @@ import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/ui/kotak_cari.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
 import '../../../shared/ui/periode/bagian_filter.dart';
+import '../../../shared/ui/periode/pengawas_hari.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
@@ -31,6 +32,21 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
 
   var _periode = Periode.hari(DateTime.now());
 
+  /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"
+  /// ikut pindah ke tanggal baru, rentang pilihan sendiri tidak.
+  late final _pengawasHari = PengawasHari(
+    onGanti: (lama, baru) {
+      final p = geserPintasan(_periode, lama, baru);
+      if (p != null && mounted) setState(() => _periode = p);
+    },
+  );
+
+  @override
+  void dispose() {
+    _pengawasHari.dispose();
+    super.dispose();
+  }
+
   /// Kode metode bayar ('cash'/'qris'); null = Semua.
   String? _metode;
   var _cari = '';
@@ -43,6 +59,7 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
   @override
   void initState() {
     super.initState();
+    _pengawasHari; // mulai mengawasi
     _repo.namaAkun().then((m) {
       if (mounted) setState(() => _nama = m);
     });

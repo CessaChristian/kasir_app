@@ -4,6 +4,7 @@ import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
+import '../../../shared/ui/periode/pengawas_hari.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/warna_teras.dart';
@@ -31,6 +32,27 @@ class RiwayatShiftPage extends StatefulWidget {
 class _RiwayatShiftPageState extends State<RiwayatShiftPage> {
   late final _repo = widget.repo ?? ShiftRepository(db);
   var _periode = Periode.hari(DateTime.now());
+
+  /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"
+  /// ikut pindah ke tanggal baru, rentang pilihan sendiri tidak.
+  late final _pengawasHari = PengawasHari(
+    onGanti: (lama, baru) {
+      final p = geserPintasan(_periode, lama, baru);
+      if (p != null && mounted) _ubahPeriode(p);
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _pengawasHari; // mulai mengawasi
+  }
+
+  @override
+  void dispose() {
+    _pengawasHari.dispose();
+    super.dispose();
+  }
   late Stream<List<RingkasanShift>> _aliran = _pantau(_periode);
 
   Stream<List<RingkasanShift>> _pantau(Periode p) {
