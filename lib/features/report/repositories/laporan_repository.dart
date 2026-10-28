@@ -40,16 +40,25 @@ class LaporanRepository {
               )
               ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
             .get();
-    final idSah = [
-      for (final t in transaksi)
-        if (t.deletedAt == null) t.id,
-    ];
-    final item = idSah.isEmpty
-        ? const <TransactionItem>[]
-        : await (_db.select(_db.transactionItems)..where(
-                (i) => i.transactionId.isIn(idSah) & i.deletedAt.isNull(),
-              ))
-              .get();
+    // Item diambil lewat subkueri, bukan `isIn(daftar id)` dari Dart: SQLite
+    // menolak lebih dari ±32.766 isian per kueri, jadi periode dengan
+    // transaksi sebanyak itu (±1 tahun di 100 transaksi/hari) membuat halaman
+    // Laporan gagal dimuat selamanya. JOIN biasa juga tidak dipakai: tanpa
+    // indeks di transaction_items.transaction_id, SQLite mencocokkan setiap
+    // pasangan baris (40.000 transaksi = 70 detik).
+    final tx = _db.transactions;
+    final idSah = _db.selectOnly(tx)
+      ..addColumns([tx.id])
+      ..where(
+        tx.createdAt.isBiggerOrEqualValue(dari) &
+            tx.createdAt.isSmallerThanValue(sampai) &
+            tx.deletedAt.isNull(),
+      );
+    final item =
+        await (_db.select(_db.transactionItems)..where(
+              (i) => i.transactionId.isInQuery(idSah) & i.deletedAt.isNull(),
+            ))
+            .get();
     final itemPerTransaksi = <String, List<TransactionItem>>{};
     for (final i in item) {
       itemPerTransaksi.putIfAbsent(i.transactionId, () => []).add(i);

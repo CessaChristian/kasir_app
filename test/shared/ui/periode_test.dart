@@ -74,6 +74,16 @@ void main() {
     );
   });
 
+  test('lebih dari 12 bulan: batas unduh laporan', () {
+    bool lebih(DateTime a, DateTime b) => Periode(a, b).lebihDari12Bulan;
+    expect(lebih(DateTime(2026, 1, 1), DateTime(2026, 12, 31)), isFalse);
+    expect(lebih(DateTime(2026, 1, 1), DateTime(2027, 1, 1)), isTrue);
+    expect(lebih(DateTime(2026, 3, 15), DateTime(2027, 3, 14)), isFalse);
+    expect(lebih(DateTime(2026, 3, 15), DateTime(2027, 3, 15)), isTrue);
+    expect(lebih(DateTime(2025, 1, 1), DateTime(2026, 10, 28)), isTrue);
+    expect(Periode.hari(DateTime(2026, 10, 28)).lebihDari12Bulan, isFalse);
+  });
+
   test('jam diabaikan, dan batas akhir eksklusif = esok hari pukul 00.00', () {
     final p = Periode(DateTime(2026, 10, 1, 23, 59), DateTime(2026, 10, 3, 1));
     expect(p.dari, DateTime(2026, 10, 1));

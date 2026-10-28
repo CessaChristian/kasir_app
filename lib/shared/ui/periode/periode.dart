@@ -19,6 +19,13 @@ class Periode {
 
   bool get satuHari => dari == sampai;
 
+  /// Lebih panjang dari 12 bulan, mis. 1 Jan 2026 – 1 Jan 2027 (1 Jan –
+  /// 31 Des masih boleh). Unduh laporan dibatasi 12 bulan sekali: file PDF
+  /// setahun lebih jadi sangat besar dan lama dibuat (keputusan owner
+  /// 2026-10-28). Tampilan Laporan di layar tidak dibatasi.
+  bool get lebihDari12Bulan =>
+      !sampai.isBefore(DateTime(dari.year + 1, dari.month, dari.day));
+
   @override
   bool operator ==(Object other) =>
       other is Periode && other.dari == dari && other.sampai == sampai;

@@ -83,6 +83,14 @@ class _LaporanPageState extends State<LaporanPage> {
   /// Alur unduh (desain): pilih format → file dibuat → "Laporan siap" →
   /// Simpan ke HP atau Bagikan.
   Future<void> _unduh(RingkasanLaporan r) async {
+    if (_periode.lebihDari12Bulan) {
+      AppToast.warning(
+        context,
+        'Periode terlalu panjang. Unduh maksimal 12 bulan sekali — '
+        'pecah per tahun.',
+      );
+      return;
+    }
     if (!r.adaIsi(denganPengeluaran: _lihatPengeluaran)) {
       AppToast.warning(context, 'Tidak ada data untuk diunduh di periode ini');
       return;
