@@ -19,6 +19,7 @@ import '../repositories/dasbor_owner_repository.dart';
 import '../widgets/kisi_produk_laris.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/status_sinkron.dart';
+import '../../../utils/pemuat_terakhir.dart';
 
 /// Dashboard owner: satu kartu "Ringkasan hari ini".
 class DasborOwnerPage extends StatefulWidget {
@@ -65,10 +66,11 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
     return _aliranLaris!;
   }
 
-  Future<void> _muat() async {
-    final data = await _repo.muat();
+  final _pemuat = PemuatTerakhir();
+
+  Future<void> _muat() => _pemuat.jalankan(_repo.muat, (data) {
     if (mounted) setState(() => _data = data);
-  }
+  });
 
   @override
   Widget build(BuildContext context) {
