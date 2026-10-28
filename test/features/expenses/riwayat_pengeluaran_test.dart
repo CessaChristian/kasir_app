@@ -5,6 +5,7 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/expenses/repositories/expense_repository.dart';
 import 'package:kasir_app/features/expenses/expenses_page.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
+import '../../bantu/sesi.dart';
 
 /// Mengunci dua aturan halaman Pengeluaran yang dulu dilanggar diam-diam.
 ///
@@ -26,6 +27,7 @@ void main() {
   late ShiftRepository shiftRepo;
 
   setUp(() async {
+    await masukSebagaiOwner();
     db = AppDatabase.forTesting(NativeDatabase.memory());
     expenseRepo = ExpenseRepository(db);
     shiftRepo = ShiftRepository(db);

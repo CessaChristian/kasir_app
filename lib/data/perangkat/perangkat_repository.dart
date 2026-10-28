@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
 import 'kode_nota.dart';
+import '../../shared/auth/session_manager.dart';
 import '../../utils/pesan_galat.dart';
 
 /// Perangkat lain yang masih memegang sebuah shift, dan sudah berapa lama
@@ -567,16 +568,19 @@ class PerangkatRepository {
   /// berbeda — ganti nama (aman untuk diri sendiri) dan ubah status (tidak
   /// boleh untuk diri sendiri). Dipisah jadi dua fungsi, syaratnya jadi jelas.
   Future<void> ubahNama(String id, String nama) async {
+    SessionManager.instance.requireOwner();
     await _klien
         ?.rpc('ubah_nama_perangkat', params: {'p_id': id, 'p_nama': nama});
   }
 
   Future<void> ubahStatus(String id, {required bool aktif}) async {
+    SessionManager.instance.requireOwner();
     await _klien
         ?.rpc('ubah_status_perangkat', params: {'p_id': id, 'p_aktif': aktif});
   }
 
   Future<void> lupakan(String id) async {
+    SessionManager.instance.requireOwner();
     await _klien?.rpc('lupakan_perangkat', params: {'p_id': id});
   }
 }

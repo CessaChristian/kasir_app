@@ -13,6 +13,7 @@ import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
 import 'package:kasir_app/shared/ui/warna_teras.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../bantu/sesi.dart';
 
 /// Riwayat Shift dan Detail Shift (desain).
 void main() {
@@ -225,6 +226,7 @@ void main() {
         );
 
     setUp(() async {
+      await masukSebagaiOwner();
       db = AppDatabase.forTesting(NativeDatabase.memory());
       repo = ShiftRepository(db);
       for (final a in ['owner', 'budi', 'sari']) {

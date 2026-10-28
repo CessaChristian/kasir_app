@@ -45,7 +45,14 @@ class ShiftRepository {
   Stream<List<RingkasanShift>> watchRiwayatShift(
     Periode periode, {
     String? hanyaUserId,
-  }) => _pantau(
+  }) {
+    // Shift orang lain hanya untuk owner dan pemegang `view_all_shifts` —
+    // dulu cuma halamannya yang memeriksa.
+    final sesi = SessionManager.instance;
+    if (hanyaUserId == null || hanyaUserId != sesi.currentUserId) {
+      sesi.requirePermission('view_all_shifts');
+    }
+    return _pantau(
         () => _ringkas((s) {
           var syarat = s.deletedAt.isNull() &
               s.startAt.isBiggerOrEqualValue(periode.dari) &
@@ -56,6 +63,7 @@ class ShiftRepository {
           return syarat;
         }),
       );
+  }
 
   /// Satu shift untuk Detail Shift; null kalau tidak ada.
   Stream<RingkasanShift?> watchShift(String shiftId) => _pantau(

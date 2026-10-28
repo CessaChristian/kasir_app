@@ -45,7 +45,7 @@ void main() {
       username: 'sari',
       role: 'cashier',
       shiftId: 'shift-1',
-      permissions: const ['create_transaction', 'manage_products'],
+      permissions: const ['create_transaction', 'manage_products', 'view_report'],
     ));
   });
 

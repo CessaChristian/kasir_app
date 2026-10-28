@@ -13,6 +13,7 @@ import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
 import 'package:kasir_app/features/owner/widgets/lembar_kasir.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../bantu/sesi.dart';
 
 /// Kelola Kasir dan Hak Akses (desain).
 void main() {
@@ -117,6 +118,9 @@ void main() {
         terhubung: () async => online,
       );
       repoIzin = PermissionRepository(db);
+      // Izin hanya bisa diubah owner — sesinya harus ada sebelum izin awal
+      // kasir di bawah ditulis.
+      await masukSebagaiOwner(userId: 'o-0');
       await akun('o-0', 'owner', 'owner');
       await akun('k-1', 'sari', 'cashier');
       await akun('k-2', 'dimas', 'cashier', aktif: false);

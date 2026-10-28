@@ -8,6 +8,7 @@ import 'package:kasir_app/features/expenses/repositories/expense_repository.dart
 import 'package:kasir_app/shared/ui/periode/periode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
+import '../bantu/sesi.dart';
 
 /// v32: pengeluaran mendapat kategori biaya (wajib, tiga pilihan) dan
 /// jumlah (desain baru).
@@ -86,6 +87,7 @@ void main() {
     late ExpenseRepository repo;
 
     setUp(() async {
+      await masukSebagaiOwner();
       db = AppDatabase.forTesting(NativeDatabase.memory());
       repo = ExpenseRepository(db);
       await isiAwal(db);

@@ -31,9 +31,22 @@ class ExpenseRepository {
     required int amount,
     String category = 'bahan_baku',
     int qty = 1,
-  }) {
-    if (shiftId == null && !SessionManager.instance.isOwner) {
-      throw StateError('Pengeluaran kasir harus dicatat saat shift berjalan.');
+  }) async {
+    final sesi = SessionManager.instance;
+    sesi.requireLoggedIn();
+    if (amount <= 0) throw ArgumentError('Nominal harus lebih dari 0');
+    if (qty < 1) throw ArgumentError('Jumlah minimal 1');
+    if (!sesi.isOwner) {
+      if (shiftId == null) {
+        throw StateError('Pengeluaran kasir harus dicatat saat shift berjalan.');
+      }
+      // Kasir hanya mencatat atas namanya sendiri, di shift miliknya.
+      final shift = await (_db.select(_db.shifts)
+            ..where((s) => s.id.equals(shiftId)))
+          .getSingleOrNull();
+      if (userId != sesi.currentUserId || shift?.userId != userId) {
+        throw IzinDitolak('Pengeluaran hanya bisa dicatat di shift sendiri.');
+      }
     }
     return _db.addExpense(
       shiftId: shiftId,

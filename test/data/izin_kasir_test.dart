@@ -5,7 +5,7 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/data/uuid_helper.dart';
 import 'package:kasir_app/features/auth/repositories/permission_repository.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../bantu/sesi.dart';
 
 /// Mengunci agar izin kasir tidak lagi hilang saat HP dipasang ulang.
 ///
@@ -26,7 +26,7 @@ void main() {
   late AppDatabase db;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    await masukSebagaiOwner();
     db = AppDatabase.forTesting(NativeDatabase.memory());
   });
 

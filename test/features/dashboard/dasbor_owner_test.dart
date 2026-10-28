@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/dashboard/repositories/dasbor_owner_repository.dart';
 import 'package:kasir_app/utils/currency_formatter.dart';
+import '../../bantu/sesi.dart';
 
 /// Kartu "Ringkasan hari ini" di dashboard owner.
 void main() {
@@ -26,6 +27,7 @@ void main() {
           ));
 
   setUp(() async {
+    await masukSebagaiOwner();
     db = AppDatabase.forTesting(NativeDatabase.memory());
     repo = DasborOwnerRepository(db);
     for (final (id, nama) in [('budi', 'budi'), ('sari', 'sari')]) {

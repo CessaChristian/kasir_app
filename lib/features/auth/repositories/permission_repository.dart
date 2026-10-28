@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
+import '../../../shared/auth/session_manager.dart';
 
 /// Repository for managing user permissions
 class PermissionRepository {
@@ -27,11 +28,22 @@ class PermissionRepository {
   }
 
   /// Set a specific permission for a user
+  ///
+  /// Hanya owner. Dulu cuma halamannya yang disembunyikan dari kasir.
   Future<void> setUserPermission({
     required String userId,
     required String permissionCode,
     required bool enabled,
   }) async {
+    SessionManager.instance.requireOwner();
+    await _tulisIzin(userId, permissionCode, enabled);
+  }
+
+  Future<void> _tulisIzin(
+    String userId,
+    String permissionCode,
+    bool enabled,
+  ) async {
     // `id` turunan, bukan acak: identitas baris ini adalah pasangan
     // (user, izin) itu sendiri. Kalau acak, HP owner dan HP kasir yang
     // sama-sama menyetel izin yang sama menghasilkan dua baris berbeda, dan
@@ -49,16 +61,19 @@ class PermissionRepository {
   }
 
   /// Set multiple permissions for a user at once
+  ///
+  /// Satu transaksi: semua izin tersimpan atau tidak sama sekali. Dulu
+  /// disimpan satu per satu, jadi kegagalan di tengah meninggalkan izin
+  /// setengah jadi.
   Future<void> setUserPermissions({
     required String userId,
     required Map<String, bool> permissions,
   }) async {
-    await Future.wait(
-      permissions.entries.map((entry) => setUserPermission(
-            userId: userId,
-            permissionCode: entry.key,
-            enabled: entry.value,
-          )),
-    );
+    SessionManager.instance.requireOwner();
+    await _db.transaction(() async {
+      for (final entry in permissions.entries) {
+        await _tulisIzin(userId, entry.key, entry.value);
+      }
+    });
   }
 }

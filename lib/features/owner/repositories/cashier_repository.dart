@@ -223,6 +223,7 @@ class CashierRepository {
   /// Shift dan Dashboard.
   Future<void> toggleCashierStatus(String userId, bool isActive) async {
     _requireManageCashiers();
+    await _wajibAkunKasir(userId);
     await _wajibOnline();
     final sekarang = DateTime.now();
     await _db.transaction(() async {
@@ -274,6 +275,17 @@ class CashierRepository {
     });
   }
 
+  /// Target harus akun KASIR yang belum dihapus. Dulu id apa pun diterima,
+  /// termasuk akun owner sendiri.
+  Future<void> _wajibAkunKasir(String userId) async {
+    final akun = await (_db.select(
+      _db.users,
+    )..where((u) => u.id.equals(userId))).getSingleOrNull();
+    if (akun == null || akun.role != 'cashier' || akun.deletedAt != null) {
+      throw StateError('Akun kasir tidak ditemukan.');
+    }
+  }
+
   Future<void> _akhiriShiftBerjalan(String userId, DateTime sekarang) =>
       (_db.update(_db.shifts)..where(
             (s) =>
@@ -292,6 +304,7 @@ class CashierRepository {
   /// Reset cashier PIN
   Future<void> resetCashierPin(String userId, String newPin) async {
     _requireManageCashiers();
+    await _wajibAkunKasir(userId);
 
     // 1. Validate PIN format
     if (!CryptoUtils.isValidPinFormat(newPin)) {

@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/report/repositories/laporan_repository.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
+import '../../bantu/sesi.dart';
 
 /// Laporan periode panjang. Dulu item struk diambil dengan `isIn(daftar id
 /// transaksi)`, dan SQLite menolak lebih dari ±32.766 isian per kueri — jadi
@@ -25,7 +26,8 @@ void main() {
   setUpAll(() => initializeDateFormatting('id_ID'));
 
   late AppDatabase db;
-  setUp(() {
+  setUp(() async {
+    await masukSebagaiOwner();
     final limit = DynamicLibrary.process().lookupFunction<_LimitC, _LimitDart>(
       'sqlite3_limit',
     );

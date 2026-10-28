@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
+import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../models/ringkasan_laporan.dart';
 
@@ -12,7 +13,9 @@ class LaporanRepository {
 
   /// Ikut berubah setiap kali transaksi, pengeluaran, shift, produk, atau
   /// kategori berubah — mis. sesudah refresh menarik data baru dari server.
-  Stream<RingkasanLaporan> watchLaporan(Periode periode) => _db
+  Stream<RingkasanLaporan> watchLaporan(Periode periode) {
+    SessionManager.instance.requirePermission('view_report');
+    return _db
       .customSelect(
         'SELECT 1',
         readsFrom: {
@@ -26,8 +29,12 @@ class LaporanRepository {
       )
       .watch()
       .asyncMap((_) => muat(periode));
+  }
 
+  /// Owner dan pemegang `view_report` saja — dulu cuma halamannya yang
+  /// memeriksa.
   Future<RingkasanLaporan> muat(Periode periode, {DateTime? sekarang}) async {
+    SessionManager.instance.requirePermission('view_report');
     final dari = periode.dari;
     final sampai = periode.batasAkhir;
 
