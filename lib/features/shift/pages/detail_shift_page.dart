@@ -3,6 +3,7 @@ import '../../../data/nama_tercatat.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
+import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/ui/chip_status.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/kartu_teras.dart';
@@ -21,6 +22,8 @@ import '../../../shared/ui/inisial_akun.dart';
 /// Detail Shift (desain): kartu ringkasan · tab Transaksi/Pengeluaran.
 ///
 /// Yang dibatalkan ikut tampil (pudar, dicoret) tapi tidak dihitung.
+/// Tab-nya hanya untuk yang boleh melihat isi shift itu
+/// ([CakupanRiwayat.bolehLihatIsiShift]); selain itu cukup kartu ringkasan.
 /// Baris "Cash / QRIS" di desain sengaja tidak dipakai (keputusan owner):
 /// jumlahnya sudah terlihat di baris Cash Total dan QRIS Total.
 class DetailShiftPage extends StatefulWidget {
@@ -39,6 +42,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
   late final _repo = widget.repo ?? ShiftRepository(db);
   late final _sales = SalesRepository(db);
   late final _aliran = _repo.watchShift(widget.shiftId);
+  late final _cakupan = CakupanRiwayat.dariSesi();
   Map<String, String> _nama = const {};
 
   /// 0 = Transaksi, 1 = Pengeluaran.
@@ -79,22 +83,29 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             children: [
               _kartu(r),
               const SizedBox(height: 18),
-              TabGeser(
-                pilihan: [
-                  'Transaksi (${r.transaksi.length})',
-                  'Pengeluaran (${r.pengeluaran.length})',
-                ],
-                terpilih: _tab,
-                onPilih: (i) => setState(() => _tab = i),
-                latar: const Color(0xFFEFE6DC),
-                tinggi: 42,
-                sudut: 12,
-              ),
-              const SizedBox(height: 12),
-              if (_tab == 0)
-                ..._daftarTransaksi(r)
-              else
-                ..._daftarPengeluaran(r),
+              if (!_cakupan.bolehLihatIsiShift(r.shift))
+                _kosong(
+                  'Daftar transaksi dan pengeluaran shift yang sudah selesai '
+                  'butuh izin Lihat Riwayat Lengkap.',
+                )
+              else ...[
+                TabGeser(
+                  pilihan: [
+                    'Transaksi (${r.transaksi.length})',
+                    'Pengeluaran (${r.pengeluaran.length})',
+                  ],
+                  terpilih: _tab,
+                  onPilih: (i) => setState(() => _tab = i),
+                  latar: const Color(0xFFEFE6DC),
+                  tinggi: 42,
+                  sudut: 12,
+                ),
+                const SizedBox(height: 12),
+                if (_tab == 0)
+                  ..._daftarTransaksi(r)
+                else
+                  ..._daftarPengeluaran(r),
+              ],
             ],
           );
         },

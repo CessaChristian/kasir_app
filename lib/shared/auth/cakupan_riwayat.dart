@@ -1,3 +1,4 @@
+import '../../data/app_database.dart';
 import 'session_manager.dart';
 
 /// Seberapa jauh ke belakang sebuah akun boleh melihat catatannya.
@@ -45,4 +46,19 @@ class CakupanRiwayat {
     }
     return CakupanRiwayat._(JenisCakupan.shiftAktif, shiftId: s.shiftId);
   }
+
+  /// Boleh melihat DAFTAR transaksi & pengeluaran [shift] di Detail Shift?
+  /// Kartu ringkasannya tetap boleh dilihat siapa pun yang bisa membuka
+  /// shift itu.
+  ///
+  /// Shift yang masih berjalan selalu boleh (Pantau Shift). Shift yang sudah
+  /// selesai mengikuti aturan halaman Riwayat: owner semua, pemegang
+  /// `view_history` hanya miliknya sendiri, selain itu tidak. Dulu Detail
+  /// Shift menjadi pintu samping izin itu (keputusan owner D1, 2026-10-29).
+  bool bolehLihatIsiShift(Shift shift) => switch (jenis) {
+    JenisCakupan.semua => true,
+    _ when shift.endAt == null => true,
+    JenisCakupan.milikSendiri => shift.userId == userId,
+    JenisCakupan.shiftAktif => false,
+  };
 }

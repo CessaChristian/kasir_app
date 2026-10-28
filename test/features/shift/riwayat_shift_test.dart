@@ -9,6 +9,7 @@ import 'package:kasir_app/features/shift/models/ringkasan_shift.dart';
 import 'package:kasir_app/features/shift/pages/detail_shift_page.dart';
 import 'package:kasir_app/features/shift/pages/riwayat_shift_page.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
+import 'package:kasir_app/shared/auth/cakupan_riwayat.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
 import 'package:kasir_app/shared/ui/warna_teras.dart';
@@ -422,6 +423,54 @@ void main() {
       });
       await t.pump();
     }
+
+    group('isi Detail Shift untuk kasir (D1)', () {
+      const catatan =
+          'Daftar transaksi dan pengeluaran shift yang sudah selesai '
+          'butuh izin Lihat Riwayat Lengkap.';
+
+      setUp(() => SharedPreferences.setMockInitialValues({}));
+
+      testWidgets('tanpa izin: shift selesai cuma ringkasan', (t) async {
+        await masuk(owner: false);
+        await bukaDetail(t, 's-budi');
+        expect(find.text('Kas akhir'), findsOneWidget, reason: 'ringkasan');
+        expect(find.text('Transaksi (3)'), findsNothing);
+        expect(find.text('Pengeluaran (1)'), findsNothing);
+        expect(find.text(catatan), findsOneWidget);
+        await lepas(t);
+      });
+
+      testWidgets('tanpa izin: shift berjalan tetap terlihat isinya', (
+        t,
+      ) async {
+        await masuk(owner: false);
+        await bukaDetail(t, 's-sari');
+        expect(find.text('Transaksi (0)'), findsOneWidget);
+        expect(find.text(catatan), findsNothing);
+        await lepas(t);
+      });
+
+      testWidgets('izin Lihat Riwayat Lengkap: shift selesai miliknya', (
+        t,
+      ) async {
+        await masuk(owner: false, izin: ['view_history']);
+        await bukaDetail(t, 's-budi');
+        expect(find.text('Transaksi (3)'), findsOneWidget);
+        expect(find.text(catatan), findsNothing);
+        await lepas(t);
+      });
+
+      test('izin Lihat Riwayat Lengkap hanya untuk shift sendiri', () async {
+        await masuk(owner: false, izin: ['view_history']);
+        final cakupan = CakupanRiwayat.dariSesi();
+        Future<Shift> shift(String id) =>
+            (db.select(db.shifts)..where((s) => s.id.equals(id))).getSingle();
+        final milikSari = (await shift('s-budi')).copyWith(userId: 'sari');
+        expect(cakupan.bolehLihatIsiShift(milikSari), isFalse);
+        expect(cakupan.bolehLihatIsiShift(await shift('s-budi')), isTrue);
+      });
+    });
 
     testWidgets('Detail Shift berjalan: "Kas di laci saat ini"', (t) async {
       await jual('t-sari', 's-sari', 25000);
