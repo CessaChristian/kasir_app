@@ -89,7 +89,12 @@ begin
     'shifts','transactions','transaction_items','expenses','open_bills',
     'perangkat'
   ] loop
-    execute format('revoke delete on public.%I from anon, authenticated', t);
+    -- TRUNCATE, TRIGGER, REFERENCES juga tidak pernah dipakai aplikasi.
+    -- TRUNCATE malah melewati RLS sama sekali (revisi QA C10: masih
+    -- terbuka di server per 28 Okt 2026).
+    execute format(
+      'revoke delete, truncate, trigger, references on public.%I '
+      'from anon, authenticated', t);
   end loop;
 end $$;
 
@@ -123,6 +128,17 @@ revoke insert, update on public.permissions from anon, authenticated;
 --  tabel yang terlewat ketahuan sebagai test merah, bukan sebagai kejutan.
 -- ---------------------------------------------------------------------
 revoke all on public.rahasia from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+--  6. Tabel lain yang murni milik fungsi server — dicabut SEMUANYA
+--
+--  `nomor_terakhir` (nomor_nota.sql) dan `percobaan_kunci`
+--  (perangkat_aman.sql) hanya disentuh fungsi `security definer`. Keduanya
+--  sempat terlewat dari berkas ini; per 28 Okt 2026 `nomor_terakhir` masih
+--  memberi hak tulis ke anon di server (RLS tanpa policy tetap menahan).
+-- ---------------------------------------------------------------------
+revoke all on public.nomor_terakhir from anon, authenticated;
+revoke all on public.percobaan_kunci from anon, authenticated;
 
 -- =====================================================================
 --  PEMERIKSAAN SESUDAH DIJALANKAN

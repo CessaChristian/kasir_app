@@ -19,12 +19,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// Kerusakan yang tidak bersuara seperti itu tidak akan ketahuan sampai ada
 /// yang menyalahgunakannya. Maka dikunci di sini, bukan diingat-ingat.
 void main() {
-  final berkas = Directory('supabase')
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.sql'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final berkas =
+      Directory('supabase')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.sql'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   /// Buang baris komentar, lalu pecah jadi pernyataan per `;`.
   ///
@@ -57,9 +58,10 @@ void main() {
         // ini ikut dikunci `perangkat_aktif()`, tidak ada jalan pulang.
         if (p.contains('public.perangkat')) continue;
 
-        final nama = RegExp(r'create policy\s+(\w+)', caseSensitive: false)
-            .firstMatch(p)
-            ?.group(1);
+        final nama = RegExp(
+          r'create policy\s+(\w+)',
+          caseSensitive: false,
+        ).firstMatch(p)?.group(1);
         pelanggar.add('${f.path}: ${nama ?? p.trim().split('\n').first}');
       }
     }
@@ -67,7 +69,8 @@ void main() {
     expect(
       pelanggar,
       isEmpty,
-      reason: 'Policy ini memakai `true`, bukan `public.perangkat_aktif()` — '
+      reason:
+          'Policy ini memakai `true`, bukan `public.perangkat_aktif()` — '
           'artinya perangkat yang sudah DICABUT tetap boleh melakukannya. '
           'Pakai `public.perangkat_aktif()`, atau kalau memang disengaja, '
           'longgarkan penjaga ini berikut alasannya.',
@@ -92,9 +95,10 @@ void main() {
         if (k.contains('storage.objects')) continue;
         if (!RegExp(r'for\s+delete|for\s+all').hasMatch(k)) continue;
 
-        final nama = RegExp(r'create policy\s+(\w+)', caseSensitive: false)
-            .firstMatch(p)
-            ?.group(1);
+        final nama = RegExp(
+          r'create policy\s+(\w+)',
+          caseSensitive: false,
+        ).firstMatch(p)?.group(1);
         pelanggar.add('${f.path}: ${nama ?? p.trim().split('\n').first}');
       }
     }
@@ -102,7 +106,8 @@ void main() {
     expect(
       pelanggar,
       isEmpty,
-      reason: 'Policy DELETE (atau FOR ALL yang mencakupnya) membuat data bisa '
+      reason:
+          'Policy DELETE (atau FOR ALL yang mencakupnya) membuat data bisa '
           'dilenyapkan permanen dari perangkat. Data yang dikotori masih bisa '
           'dibenahi; data yang dihapus tidak.',
     );
@@ -119,12 +124,17 @@ void main() {
     // Kelalaian jenis ini tidak bisa ketahuan sendiri: tidak ada gejala,
     // tidak ada galat, dan baru berbahaya kalau suatu hari tabelnya diberi
     // policy. Maka dibandingkan otomatis, bukan diingat-ingat.
-    final pembuat = ['supabase/schema.sql', 'supabase/perangkat.sql'];
+    // SEMUA berkas, bukan daftar tulis-tangan: `nomor_terakhir`
+    // (nomor_nota.sql) dan `percobaan_kunci` (perangkat_aman.sql) sempat
+    // lolos karena daftar ini dulu cuma schema.sql dan perangkat.sql.
+    final pembuat = [
+      for (final f in Directory('supabase').listSync())
+        if (f.path.endsWith('.sql')) f.path,
+    ];
 
-    String tanpaKomentar(String path) => File(path)
-        .readAsLinesSync()
-        .where((b) => !b.trimLeft().startsWith('--'))
-        .join('\n');
+    String tanpaKomentar(String path) => File(
+      path,
+    ).readAsLinesSync().where((b) => !b.trimLeft().startsWith('--')).join('\n');
 
     final dibuat = <String>{};
     for (final f in pembuat) {
@@ -138,22 +148,54 @@ void main() {
     }
 
     // Sanity: kalau regexnya berhenti cocok, penjaganya jadi lulus palsu.
-    expect(dibuat.length, greaterThanOrEqualTo(10),
-        reason: 'Pembacaan `create table` gagal — penjaga ini jadi tak berguna');
+    expect(
+      dibuat.length,
+      greaterThanOrEqualTo(10),
+      reason: 'Pembacaan `create table` gagal — penjaga ini jadi tak berguna',
+    );
 
     final rls = tanpaKomentar('supabase/rls.sql');
-    final terlewat = dibuat
-        .where((t) => !rls.contains("'$t'") && !rls.contains('public.$t'))
-        .toList()
-      ..sort();
+    final terlewat =
+        dibuat
+            .where((t) => !rls.contains("'$t'") && !rls.contains('public.$t'))
+            .toList()
+          ..sort();
 
     expect(
       terlewat,
       isEmpty,
-      reason: 'Tabel ini dibuat tapi tidak disebut sama sekali di '
+      reason:
+          'Tabel ini dibuat tapi tidak disebut sama sekali di '
           'supabase/rls.sql, jadi hak anon/authenticated-nya tidak pernah '
           'dicabut. Tambahkan ke blok revoke — DELETE untuk tabel data, atau '
           '`revoke all` kalau tabelnya murni milik server.',
+    );
+  });
+
+  test('URUTAN.md menyebut setiap berkas SQL tepat sekali', () {
+    // Server dibangun dengan menjalankan berkas-berkas ini berurutan.
+    // Berkas baru yang lupa dicatat = server bangun ulang yang tidak sama.
+    final berkas = {
+      for (final f in Directory('supabase').listSync())
+        if (f.path.endsWith('.sql')) f.uri.pathSegments.last,
+    };
+    final tercatat = [
+      for (final m in RegExp(
+        r'^\| \d+ \| `([a-z_]+\.sql)`',
+        multiLine: true,
+      ).allMatches(File('supabase/URUTAN.md').readAsStringSync()))
+        m.group(1)!,
+    ];
+    expect(tercatat.toSet(), berkas);
+    expect(
+      tercatat.length,
+      berkas.length,
+      reason: 'ada yang tercatat dua kali',
+    );
+    expect(
+      tercatat.last,
+      'rls.sql',
+      reason: 'rls.sql menyebut tabel yang dibuat berkas-berkas sesudahnya',
     );
   });
 
@@ -175,14 +217,18 @@ void main() {
 
     expect(
       isi,
-      contains('revoke all on function public.buang_sampah(interval) '
-          'from anon, authenticated'),
-      reason: 'hak memanggil buang_sampah harus dicabut dari anon dan '
+      contains(
+        'revoke all on function public.buang_sampah(interval) '
+        'from anon, authenticated',
+      ),
+      reason:
+          'hak memanggil buang_sampah harus dicabut dari anon dan '
           'authenticated — hanya dashboard dan pg_cron yang boleh',
     );
     expect(
-      RegExp(r'grant\s+\w+\s+on\s+function\s+public\.buang_sampah')
-          .hasMatch(isi),
+      RegExp(
+        r'grant\s+\w+\s+on\s+function\s+public\.buang_sampah',
+      ).hasMatch(isi),
       isFalse,
       reason: 'buang_sampah tidak boleh diberi hak ke peran mana pun',
     );
@@ -200,9 +246,13 @@ void main() {
         .replaceAll(RegExp(r'\s+'), ' ');
 
     expect(isi, contains("cron.schedule( 'buang-sampah-harian'"));
-    expect(isi, contains(r'$$select * from public.buang_sampah()$$'),
-        reason: 'jadwal wajib memanggil buang_sampah tanpa argumen, supaya '
-            'rem 30 harinya berlaku');
+    expect(
+      isi,
+      contains(r'$$select * from public.buang_sampah()$$'),
+      reason:
+          'jadwal wajib memanggil buang_sampah tanpa argumen, supaya '
+          'rem 30 harinya berlaku',
+    );
   });
   test('buang_sampah tidak pernah membuang transaksi maupun pengeluaran', () {
     // Transaksi tidak dihapus, hanya DIBATALKAN, dan catatan pembatalan
@@ -216,7 +266,10 @@ void main() {
 
     expect(isi, isNot(contains('delete from public.transactions')));
     expect(isi, isNot(contains('delete from public.transaction_items')));
-    expect(isi, isNot(contains('delete from public.expenses')),
-        reason: 'pengeluaran juga hanya dibatalkan, disimpan selamanya');
+    expect(
+      isi,
+      isNot(contains('delete from public.expenses')),
+      reason: 'pengeluaran juga hanya dibatalkan, disimpan selamanya',
+    );
   });
 }

@@ -40,7 +40,10 @@ create table public.users (
   login_attempts        integer     not null default 0,
   login_locked_until    timestamptz,
   -- Nomor pendek di nomor nota: owner 0, kasir 1, 2, ... (nomor_nota.sql).
-  nomor_kasir           integer     unique,
+  -- Keunikannya dipasang nomor_nota.sql (`users_nomor_kasir_unik`); kalau
+  -- juga ditulis `unique` di sini, server hasil bangun ulang punya dua
+  -- indeks unik yang sama (revisi QA C10).
+  nomor_kasir           integer,
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
   -- Sengaja tanpa deleted_at: akun tidak pernah dihapus, hanya dinonaktifkan.
@@ -68,8 +71,9 @@ create table public.user_permissions (
   enabled         boolean     not null default false,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  deleted_at      timestamptz,
-  unique (user_id, permission_code)
+  deleted_at      timestamptz
+  -- Pasangan (user_id, permission_code) unik dipasang izin.sql dengan nama
+  -- `user_permissions_pasangan_unik` — tidak ditulis ulang di sini.
 );
 
 -- ----------------------------------------------------------- categories
