@@ -449,7 +449,6 @@ class SyncEngine {
     bool pakaiUrut,
   ) async {
     final kolom = pakaiUrut ? kolomUrut : 'updated_at';
-    final terlihat = <String>{};
     PenandaHalaman? setelah;
     var diterima = 0;
     var berubah = 0;
@@ -465,13 +464,13 @@ class SyncEngine {
       // Dulu semua halaman ditampung di memori lebih dulu: HP yang baru
       // dipasang setelah setahun menampung ratusan ribu baris sekaligus,
       // dan putus di tengah jalan berarti mulai lagi dari nol.
-      final baru = [
-        for (final r in halaman)
-          // Baris yang PINDAH ke belakang selagi kita menarik (diubah di
-          // server) bisa terlihat dua kali. Cukup dibuang di sini.
-          if (terlihat.add(r['id'] as String)) r,
-      ];
-      final h = await _gabungkan(e, baru, urutan);
+      //
+      // Baris yang PINDAH ke belakang selagi kita menarik (diubah di server)
+      // bisa datang dua kali. Keduanya digabung biasa: salinan kedua lebih
+      // baru dan menang, salinan yang sama persis dilewati. Dulu id semua
+      // baris disimpan di memori untuk membuang salinan kedua — HP baru
+      // menampung ratusan ribu id, dan justru versi TERBARU yang dibuang.
+      final h = await _gabungkan(e, halaman, urutan);
       diterima += h.$1;
       berubah += h.$2;
 
