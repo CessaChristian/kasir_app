@@ -561,12 +561,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+          await _pasangIndeks();
           await _seedPermissions();
         },
         onUpgrade: (m, from, to) async {
@@ -1352,6 +1353,26 @@ class AppDatabase extends _$AppDatabase {
             ).get();
             if (ada.isEmpty) await m.createTable(barisTertahan);
           }
+          if (from < 41 && to >= 41) {
+            // v41 — (1) indeks, lihat [_pasangIndeks]. (2) Penanda tarik
+            // dikosongkan, pola yang sama dengan v25: v36–v39 menambah kolom
+            // (`tampil_di_kasir`, `kas_awal`, `bill_name`, `nomor_kasir`)
+            // tanpa menarik ulang, jadi baris yang tidak berubah sejak itu
+            // kolom barunya tetap kosong — mis. struk tercetak `CS/XX/...`.
+            // Baris yang isinya sama dilewati saat menarik, jadi aman.
+            await _pasangIndeks();
+            final adaSyncState = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'sync_state'",
+            ).get();
+            if (adaSyncState.isNotEmpty) {
+              await customStatement(
+                  'UPDATE sync_state SET last_pulled_cursor = NULL');
+            }
+          }
+          // ⚠️ Migrasi yang MENAMBAH KOLOM ke tabel yang disinkronkan wajib
+          // ikut mengosongkan penanda tarik (lihat v41), supaya kolom barunya
+          // terisi dari server untuk baris lama.
         },
         beforeOpen: (details) async {
           if (details.wasCreated || (details.hadUpgrade && details.versionBefore! < 5)) {
@@ -1394,6 +1415,59 @@ class AppDatabase extends _$AppDatabase {
         ],
       ),
     );
+  }
+
+  /// Indeks database HP (v41). Sebelumnya TIDAK ADA satu pun: mencari
+  /// "transaksi tanggal 5" berarti membaca semua transaksi dari awal, dan
+  /// setiap sinkron membaca semua baris tiap tabel untuk mencari yang
+  /// `pending`. Hari ini belum terasa; setahun lagi Riwayat, Laporan, dan
+  /// sinkron makin lambat.
+  ///
+  /// Ditulis sebagai SQL biasa (bukan anotasi drift) karena indeks `pending`
+  /// memakai WHERE — cukup kecil karena hanya memuat baris yang belum
+  /// terkirim. `IF NOT EXISTS` membuatnya aman dijalankan ulang.
+  Future<void> _pasangIndeks() async {
+    const indeks = [
+      'idx_tx_dibuat ON transactions (created_at)',
+      'idx_tx_shift ON transactions (shift_id)',
+      'idx_item_tx ON transaction_items (transaction_id)',
+      'idx_pengeluaran_dibuat ON expenses (created_at)',
+      'idx_pengeluaran_shift ON expenses (shift_id)',
+      'idx_shift_user ON shifts (user_id)',
+      'idx_shift_mulai ON shifts (start_at)',
+      'idx_produk_kategori ON products (category_id)',
+      'idx_bill_shift ON open_bills (shift_id)',
+    ];
+    // Upgrade dari skema yang sangat tua bisa belum punya semua tabel.
+    final ada = {
+      for (final r in await customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      ).get())
+        r.read<String>('name'),
+    };
+    for (final i in indeks) {
+      final tabel = i.split(' ON ')[1].split(' ').first;
+      if (ada.contains(tabel)) {
+        await customStatement('CREATE INDEX IF NOT EXISTS $i');
+      }
+    }
+    for (final t in const [
+      'categories',
+      'products',
+      'transactions',
+      'transaction_items',
+      'users',
+      'shifts',
+      'user_permissions',
+      'expenses',
+      'open_bills',
+    ]) {
+      if (!ada.contains(t)) continue;
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_${t}_pending ON $t (sync_status) '
+        "WHERE sync_status = 'pending'",
+      );
+    }
   }
 
   Future<void> _seedPermissions() async {
