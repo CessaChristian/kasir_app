@@ -39,14 +39,22 @@ abstract final class SimpanBerkas {
   }
 
   /// Buka menu bagikan bawaan (WhatsApp, email, Drive, …). Berkasnya ditulis
-  /// ke folder sementara dulu.
+  /// ke folder sementara khusus dulu.
+  ///
+  /// Dulu berkasnya tidak pernah dihapus dan menumpuk. Tidak dihapus tepat
+  /// sesudah dibagikan: aplikasi tujuan (Gmail, Drive) bisa baru membacanya
+  /// belakangan. Yang dibuang adalah sisa bagikan sebelumnya yang sudah
+  /// lebih dari [umurSisaBagikan].
   static Future<void> bagikan({
     required String nama,
     required String mime,
     required Uint8List bita,
     String? subjek,
   }) async {
-    final jalur = '${(await getTemporaryDirectory()).path}/$nama';
+    final folder = Directory('${(await getTemporaryDirectory()).path}/laporan');
+    await folder.create(recursive: true);
+    await buangSisaBagikan(folder);
+    final jalur = '${folder.path}/$nama';
     await File(jalur).writeAsBytes(bita);
     await SharePlus.instance.share(
       ShareParams(
@@ -54,6 +62,25 @@ abstract final class SimpanBerkas {
         subject: subjek,
       ),
     );
+  }
+}
+
+const umurSisaBagikan = Duration(days: 1);
+
+/// Buang berkas di [folder] yang lebih tua dari [umur]. Galat diabaikan —
+/// berkas yang sedang dipakai aplikasi lain dicoba lagi lain kali.
+Future<void> buangSisaBagikan(
+  Directory folder, {
+  Duration umur = umurSisaBagikan,
+  DateTime? sekarang,
+}) async {
+  final batas = (sekarang ?? DateTime.now()).subtract(umur);
+  if (!await folder.exists()) return;
+  await for (final f in folder.list()) {
+    if (f is! File) continue;
+    try {
+      if ((await f.lastModified()).isBefore(batas)) await f.delete();
+    } catch (_) {}
   }
 }
 
