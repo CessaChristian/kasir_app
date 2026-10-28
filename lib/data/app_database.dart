@@ -2274,6 +2274,16 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'kasir_app.sqlite'));
-    return NativeDatabase(file);
+    // Isolate terpisah: dulu database berjalan di jalur yang sama dengan
+    // layar, jadi selama kueri berat (sinkron besar, laporan panjang) layar
+    // tersendat. Semua kueri tetap lewat satu koneksi ini.
+    //
+    // KECUALI di `flutter test`: test layar berjalan dengan jam tiruan, dan
+    // pesan dari isolate lain tidak pernah sampai di dalamnya — test yang
+    // memakai `db` utama menggantung selamanya.
+    if (Platform.environment['FLUTTER_TEST'] == 'true') {
+      return NativeDatabase(file);
+    }
+    return NativeDatabase.createInBackground(file);
   });
 }
