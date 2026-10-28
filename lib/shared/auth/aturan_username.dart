@@ -27,8 +27,8 @@ String? periksaUsername(String nama) {
 }
 
 /// Bentuk pembanding username: tanpa spasi di ujung, huruf kecil. Dipakai
-/// saat login dan saat memeriksa nama kembar, supaya akun lama yang
-/// terlanjur memuat huruf besar tetap bisa masuk dan tetap dianggap kembar.
+/// saat memeriksa nama kembar, supaya akun lama yang terlanjur memuat huruf
+/// besar tetap dianggap kembar. Login TIDAK memakainya — harus persis.
 String kunciUsername(String nama) => nama.trim().toLowerCase();
 
 /// Isian username: huruf besar langsung jadi kecil (walau Caps Lock

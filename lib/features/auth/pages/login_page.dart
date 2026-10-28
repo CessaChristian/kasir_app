@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../../app/app_shell.dart';
 import '../../../data/db.dart';
+import '../../../shared/auth/aturan_username.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/kerangka_masuk.dart';
 import '../../../shared/ui/warna_teras.dart';
@@ -141,6 +142,7 @@ class _LoginPageState extends State<LoginPage> {
           petunjuk: 'Masukkan username',
           galat: galat,
           textInputAction: TextInputAction.next,
+          inputFormatters: const [UsernameInputFormatter()],
           onChanged: _hapusGalat,
         ),
         const LabelMasuk('PIN'),

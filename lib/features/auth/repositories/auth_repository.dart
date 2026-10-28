@@ -114,10 +114,11 @@ class AuthRepository {
     required String pin,
   }) async {
     // 1. Find user by username — getSingleOrNull lebih efisien dari .get().first
-    // Tidak peduli besar-kecil huruf: kasir yang mengetik `Sari` tetap masuk
-    // ke akun `sari`.
+    // Harus persis sama dengan yang didaftarkan (keputusan owner
+    // 2026-10-28): `SARI` bukan `sari`. Kolom login sudah memaksa huruf
+    // kecil; ini jaring kedua untuk jalur lain.
     final user = await (_db.select(_db.users)
-          ..where((u) => u.username.lower().equals(kunciUsername(username)))
+          ..where((u) => u.username.equals(username.trim()))
           ..limit(1))
         .getSingleOrNull();
 

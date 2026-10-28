@@ -1,9 +1,10 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
+import 'package:kasir_app/features/auth/pages/login_page.dart';
 import 'package:kasir_app/features/auth/repositories/auth_repository.dart';
 import 'package:kasir_app/shared/auth/aturan_username.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
@@ -73,11 +74,21 @@ void main() {
       await db.close();
     });
 
-    test('username diketik huruf besar tetap masuk ke akunnya', () async {
-      final sesi = await AuthRepository(
-        db,
-      ).login(username: ' SARI ', pin: '246810');
+    test('harus persis huruf kecil: SARI bukan sari', () async {
+      final repo = AuthRepository(db);
+      expect(await repo.login(username: 'SARI', pin: '246810'), isNull);
+      expect(await repo.login(username: 'Sari', pin: '246810'), isNull);
+      final sesi = await repo.login(username: ' sari ', pin: '246810');
       expect(sesi?.userId, 'k-1');
+    });
+
+    testWidgets('kolom username di halaman login memaksa huruf kecil', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+      await tester.enterText(find.byType(TextField).first, 'SARI');
+      expect(find.text('sari'), findsOneWidget);
+      expect(find.text('SARI'), findsNothing);
     });
   });
 
