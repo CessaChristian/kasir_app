@@ -71,6 +71,7 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
     _keranjang.addListener(_keranjangBerubah);
     SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
     SessionManager.instance.shiftDitutupDariLuar.addListener(_shiftDitutup);
+    SessionManager.instance.shiftDigabung.addListener(_shiftDigabung);
   }
 
   @override
@@ -80,6 +81,7 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
       ..dispose();
     SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     SessionManager.instance.shiftDitutupDariLuar.removeListener(_shiftDitutup);
+    SessionManager.instance.shiftDigabung.removeListener(_shiftDigabung);
     // Kalau tidak dibersihkan, keluar dengan keranjang berisi membuat
     // penjadwal mengira pesanan masih disusun — dan sinkron otomatis berhenti
     // selamanya.
@@ -110,6 +112,13 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
     if (pesan == null || !mounted) return;
     SessionManager.instance.shiftDitutupDariLuar.value = null;
     AppToast.warning(context, pesan);
+  }
+
+  void _shiftDigabung() {
+    final pesan = SessionManager.instance.shiftDigabung.value;
+    if (pesan == null || !mounted) return;
+    SessionManager.instance.shiftDigabung.value = null;
+    AppToast.info(context, pesan);
   }
 
   Widget _halaman(int tab) {

@@ -65,4 +65,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 33 | `perangkat_aman.sql` | PERANGKAT AMAN — kunci pemasangan tidak bisa ditebak, HP yang |
 | 34 | `username_huruf_kecil.sql` | USERNAME UNIK TANPA PEDULI BESAR-KECIL HURUF (revisi QA C1, 28 Okt 2026) |
 | 35 | `cabut_hak_sisa.sql` | CABUT HAK SISA (revisi QA C10, 28 Okt 2026) |
-| 36 | `rls.sql` | SISA PENGETATAN AKSES |
+| 36 | `shift_gabung.sql` | SHIFT GABUNG — dua shift satu akun dari dua HP offline disatukan (revisi QA K9, 29 Okt 2026) |
+| 37 | `rls.sql` | SISA PENGETATAN AKSES |

@@ -1255,6 +1255,11 @@ class SyncEngine {
                 kasAwal: r.containsKey('kas_awal')
                     ? Value((r['kas_awal'] as num?)?.toInt())
                     : const Value.absent(),
+                // Diisi server (supabase/shift_gabung.sql); sama seperti
+                // kas_awal, server tanpa kolomnya tidak mengosongkan nilai HP.
+                digabungKe: r.containsKey('digabung_ke')
+                    ? Value(r['digabung_ke'] as String?)
+                    : const Value.absent(),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),
                 syncStatus: const Value('synced'),

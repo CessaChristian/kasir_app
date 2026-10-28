@@ -337,6 +337,12 @@ class Shifts extends Table {
   /// sebelum shift dibuka manual — tidak ada kas awal yang dicatat.
   IntColumn get kasAwal => integer().nullable()();
 
+  /// Diisi SERVER (v42, `supabase/shift_gabung.sql`): shift ini dibuka akun
+  /// yang sama di HP lain selagi offline, waktunya tumpang tindih dengan
+  /// shift yang lebih dulu sampai ke server, lalu digabung ke sana. Barisnya
+  /// ikut terhapus; catatannya pindah ke shift tujuan. Tidak pernah dikirim.
+  TextColumn get digabungKe => text().nullable()();
+
   // Sync-friendly (NEW in v10)
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -561,7 +567,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1370,6 +1376,34 @@ class AppDatabase extends _$AppDatabase {
                   'UPDATE sync_state SET last_pulled_cursor = NULL');
             }
           }
+          if (from < 42 && to >= 42) {
+            // v42 — shift yang digabung server (revisi QA K9). Penanda tarik
+            // `shifts` dikosongkan seperti aturan di bawah; tabel lain tidak
+            // berubah.
+            final adaShifts = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'shifts'",
+            ).get();
+            if (adaShifts.isNotEmpty) {
+              final adaKolom = await customSelect(
+                "SELECT 1 FROM pragma_table_info('shifts') "
+                "WHERE name = 'digabung_ke'",
+              ).get();
+              if (adaKolom.isEmpty) {
+                await m.addColumn(shifts, shifts.digabungKe);
+              }
+            }
+            final adaSyncState = await customSelect(
+              "SELECT 1 FROM sqlite_master "
+              "WHERE type = 'table' AND name = 'sync_state'",
+            ).get();
+            if (adaSyncState.isNotEmpty) {
+              await customStatement(
+                "UPDATE sync_state SET last_pulled_cursor = NULL "
+                "WHERE entity = 'shifts'",
+              );
+            }
+          }
           // ⚠️ Migrasi yang MENAMBAH KOLOM ke tabel yang disinkronkan wajib
           // ikut mengosongkan penanda tarik (lihat v41), supaya kolom barunya
           // terisi dari server untuk baris lama.
@@ -1812,7 +1846,7 @@ class AppDatabase extends _$AppDatabase {
 
     late String invoiceNo;
     await transaction(() async {
-      await _wajibShiftBerjalan(shiftId);
+      final shiftTujuan = await _shiftBerjalan(shiftId);
       await _validasiProdukMasihAda(lines);
       final bill = billId == null ? null : await _billTerbuka(billId);
       if (billId != null && bill == null) {
@@ -1824,7 +1858,7 @@ class AppDatabase extends _$AppDatabase {
       invoiceNo = await _nextInvoiceNo(
         kodePerangkat: kodePerangkat,
         cashierUserId: cashierUserId,
-        shiftId: shiftId,
+        shiftId: shiftTujuan,
       );
 
       await into(transactions).insert(
@@ -1837,7 +1871,7 @@ class AppDatabase extends _$AppDatabase {
           change: Value(changeAmount),
           cashierUserId: Value(cashierUserId),
           cashierName: Value(await usernameAkun(cashierUserId)),
-          shiftId: Value(shiftId),
+          shiftId: Value(shiftTujuan),
           orderType: Value(orderType),
           billName: Value(bill?.name),
           syncStatus: const Value('pending'),
@@ -2067,20 +2101,37 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// Tolak penjualan/pengeluaran ke shift yang sudah ditutup. Tanpa ini HP
-  /// yang belum tahu shift-nya ditutup HP lain tetap menjual ke situ, dan
-  /// kas akhir shift yang sudah diserahkan ikut berubah.
+  /// Shift tujuan penjualan/pengeluaran yang sebenarnya.
+  ///
+  /// Tolak shift yang sudah ditutup. Tanpa ini HP yang belum tahu shift-nya
+  /// ditutup HP lain tetap menjual ke situ, dan kas akhir shift yang sudah
+  /// diserahkan ikut berubah.
+  ///
+  /// Shift yang sudah DIGABUNG server ke shift lain ([Shifts.digabungKe])
+  /// diganti tujuannya — kasir tetap berjualan di shift yang sama, hanya
+  /// namanya yang berbeda; sesinya dipindah [SessionManager] sesudah sinkron.
   ///
   /// Shift yang barisnya belum ada di HP ini dibiarkan: belum tentu ditutup,
   /// barisnya saja yang belum sampai.
-  Future<void> _wajibShiftBerjalan(String shiftId) async {
-    final shift = await (select(shifts)
-          ..where((s) => s.id.equals(shiftId))
-          ..limit(1))
-        .getSingleOrNull();
-    if (shift != null && (shift.endAt != null || shift.deletedAt != null)) {
-      throw ShiftSudahDitutup();
+  Future<String> _shiftBerjalan(String shiftId) async {
+    var id = shiftId;
+    for (var i = 0; i < 10; i++) {
+      final shift = await (select(shifts)
+            ..where((s) => s.id.equals(id))
+            ..limit(1))
+          .getSingleOrNull();
+      if (shift == null) return id;
+      final tujuan = shift.digabungKe;
+      if (tujuan != null) {
+        id = tujuan;
+        continue;
+      }
+      if (shift.endAt != null || shift.deletedAt != null) {
+        throw ShiftSudahDitutup();
+      }
+      return id;
     }
+    return id;
   }
 
   Future<void> addExpense({
@@ -2091,11 +2142,12 @@ class AppDatabase extends _$AppDatabase {
     String category = 'bahan_baku',
     int qty = 1,
   }) async {
-    if (shiftId != null) await _wajibShiftBerjalan(shiftId);
+    final shiftTujuan =
+        shiftId == null ? null : await _shiftBerjalan(shiftId);
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(newUuid()),
-        shiftId: Value(shiftId),
+        shiftId: Value(shiftTujuan),
         userId: Value(userId),
         userName: Value(await usernameAkun(userId)),
         description: Value(description),

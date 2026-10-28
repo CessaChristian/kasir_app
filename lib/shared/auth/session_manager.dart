@@ -369,6 +369,10 @@ class SessionManager {
   /// perangkat lain; layar menampilkannya lalu mengosongkannya kembali.
   final ValueNotifier<String?> shiftDitutupDariLuar = ValueNotifier(null);
 
+  /// Berisi pesan kalau shift HP ini DIGABUNG server ke shift lain akun yang
+  /// sama; layar menampilkannya lalu mengosongkannya kembali.
+  final ValueNotifier<String?> shiftDigabung = ValueNotifier(null);
+
   /// Lepaskan shift dari sesi ini kalau shiftnya sudah ditutup dari
   /// perangkat lain.
   ///
@@ -389,7 +393,7 @@ class SessionManager {
   ///
   /// Gagal membaca sengaja diam: kasir yang sedang melayani tidak boleh
   /// diganggu hanya karena satu kueri tersendat.
-  Future<void> periksaShiftMasihBerjalan() async {
+  Future<void> periksaShiftMasihBerjalan({int sisaGabungan = 10}) async {
     final sesi = _currentSession;
     final shiftId = sesi?.shiftId;
     if (sesi == null || shiftId == null) return;
@@ -408,6 +412,19 @@ class SessionManager {
     // memang belum sampai. Yang dijadikan alasan hanya yang JELAS tertutup.
     if (shift == null || (shift.endAt == null && shift.deletedAt == null)) {
       return;
+    }
+
+    // Digabung server ke shift akun yang sama yang lebih dulu sampai
+    // (supabase/shift_gabung.sql): kasir tetap berjualan, sesinya pindah ke
+    // shift tujuan. Tujuannya sendiri diperiksa di putaran ini juga — bisa
+    // saja sudah ditutup HP lain.
+    final tujuan = shift.digabungKe;
+    if (tujuan != null && sisaGabungan > 0) {
+      await aturShift(tujuan);
+      shiftDigabung.value =
+          'Shift ini digabung dengan shift yang lebih dulu dibuka akun ini '
+          'di perangkat lain. Penjualan tetap tercatat.';
+      return periksaShiftMasihBerjalan(sisaGabungan: sisaGabungan - 1);
     }
 
     await aturShift(null);
