@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../shared/ui/pegang_lembar.dart';
 import '../../../shared/ui/tombol_lembar.dart';
@@ -209,9 +208,7 @@ class _LembarPembayaranState extends State<_LembarPembayaran> {
                 enabled: !_memproses,
                 keyboardType: TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(digitMaksUangDiterima),
-                  RupiahInputFormatter(),
+                  RupiahInputFormatter(maksDigit: digitMaksUangDiterima),
                 ],
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (_) => _konfirmasi(),

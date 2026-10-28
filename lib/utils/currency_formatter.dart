@@ -25,29 +25,72 @@ int? parseRupiah(String value) {
   return int.tryParse(cleaned);
 }
 
-/// TextInputFormatter untuk input harga dengan format rupiah otomatis
+/// TextInputFormatter untuk isian uang dengan titik ribuan otomatis.
+///
+/// Sudah menyaring sendiri semua yang bukan angka, jadi JANGAN dipasang
+/// bersama `FilteringTextInputFormatter.digitsOnly`: penyaring itu membuang
+/// koma desimal sebelum formatter ini sempat melihatnya.
+///
+/// - Paling banyak [maksDigit] angka. Ketikan yang melebihi diabaikan (angka
+///   lama tetap). Dulu tidak dibatasi, dan 19–20 digit tidak muat di `int`
+///   sehingga harganya diam-diam jadi Rp 0.
+/// - Tempelan berdesimal ("50.000,00") dibaca 50.000, bukan 5.000.000.
+/// - Kursor tetap di tempat yang diketik, tidak melompat ke ujung.
 class RupiahInputFormatter extends TextInputFormatter {
+  final int maksDigit;
+
+  RupiahInputFormatter({this.maksDigit = 9});
+
+  /// Sen di ujung tempelan: ",5" atau ",00". Formatter ini sendiri tidak
+  /// pernah menulis koma, jadi koma pasti datang dari luar.
+  static final _desimal = RegExp(r',\d{1,2}$');
+  static final _bukanAngka = RegExp(r'\D');
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Hapus semua karakter non-digit
-    final digitsOnly = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    var teks = newValue.text;
+    var kursor = newValue.selection.end.clamp(0, teks.length);
+    final desimal = _desimal.firstMatch(teks);
+    if (desimal != null) {
+      teks = teks.substring(0, desimal.start);
+      if (kursor > teks.length) kursor = teks.length;
+    }
 
-    if (digitsOnly.isEmpty) {
+    final angka = teks.replaceAll(_bukanAngka, '');
+    if (angka.isEmpty) {
       return const TextEditingValue(
         text: '',
         selection: TextSelection.collapsed(offset: 0),
       );
     }
+    // Panjang dicek SEBELUM diubah jadi angka: 19 digit ke atas tidak muat
+    // di int.
+    final tanpaNolDepan = angka.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+    if (tanpaNolDepan.length > maksDigit) return oldValue;
+    final nilai = int.parse(tanpaNolDepan);
 
-    final value = int.tryParse(digitsOnly) ?? 0;
-    final formatted = formatRupiah(value);
-
+    final hasil = formatRupiah(nilai);
+    // Banyaknya angka di KANAN kursor tetap sama sesudah titik ribuan
+    // disusun ulang.
+    final angkaKanan = teks
+        .substring(kursor)
+        .replaceAll(_bukanAngka, '')
+        .length
+        .clamp(0, tanpaNolDepan.length);
+    var posisi = hasil.length;
+    for (var dilewati = 0; dilewati < angkaKanan; posisi--) {
+      if (hasil[posisi - 1] != '.') dilewati++;
+    }
+    // Menempel ke angka terakhir yang diketik, bukan di belakang titik.
+    while (posisi > 0 && hasil[posisi - 1] == '.') {
+      posisi--;
+    }
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      text: hasil,
+      selection: TextSelection.collapsed(offset: posisi),
     );
   }
 }

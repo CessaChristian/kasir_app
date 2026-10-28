@@ -212,10 +212,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                             controller: _nominalC,
                             focusNode: _nominalFokus,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              RupiahInputFormatter(),
-                            ],
+                            inputFormatters: [RupiahInputFormatter()],
                             onChanged: (_) => setState(() => _galat = null),
                             style: _gayaIsian,
                             decoration: _hias('Nominal'),

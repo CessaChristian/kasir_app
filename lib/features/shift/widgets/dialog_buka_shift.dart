@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/ui/teks_teras.dart';
@@ -156,9 +155,7 @@ class _DialogBukaShiftState extends State<_DialogBukaShift> {
                       autofocus: true,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(digitMaksKasAwal),
-                        RupiahInputFormatter(),
+                        RupiahInputFormatter(maksDigit: digitMaksKasAwal),
                       ],
                       onChanged: (_) => setState(() => _galat = ''),
                       onSubmitted: (_) => _buka(),
