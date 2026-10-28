@@ -35,6 +35,10 @@ class _DialogStrukState extends State<_DialogStruk> {
   List<TransactionItem>? _items;
   String? _namaKasir;
 
+  /// Struk gagal dimuat. Dulu lingkaran memuatnya berputar selamanya dan
+  /// kasir harus menutup paksa aplikasi.
+  bool _gagal = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,17 +46,68 @@ class _DialogStrukState extends State<_DialogStruk> {
   }
 
   Future<void> _muat() async {
-    final tx = await widget.repo.ambilTransaksi(widget.transaksiId);
-    if (tx == null) return;
-    final items = await widget.repo.getTransactionItems(tx.id);
-    final nama = await widget.repo.namaAkun();
-    if (!mounted) return;
-    setState(() {
-      _tx = tx;
-      _items = items;
-      _namaKasir = tx.namaKasir(nama);
-    });
+    if (_gagal) setState(() => _gagal = false);
+    try {
+      final tx = await widget.repo.ambilTransaksi(widget.transaksiId);
+      if (tx == null) throw StateError('transaksi tidak ditemukan');
+      final items = await widget.repo.getTransactionItems(tx.id);
+      final nama = await widget.repo.namaAkun();
+      if (!mounted) return;
+      setState(() {
+        _tx = tx;
+        _items = items;
+        _namaKasir = tx.namaKasir(nama);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _gagal = true);
+    }
   }
+
+  Widget _layarGagal() => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Struk tidak bisa dimuat.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Transaksinya sudah tersimpan. Struk bisa dilihat lagi dari Riwayat.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: WarnaTeras.teksPudar),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: TombolLembar(
+                label: 'Coba lagi',
+                latar: WarnaTeras.oranyeMuda,
+                warna: WarnaTeras.oranye,
+                tinggi: 42,
+                sudut: 6,
+                onPressed: _muat,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TombolLembar(
+                label: 'Tutup',
+                latar: WarnaTeras.oranye,
+                warna: Colors.white,
+                tinggi: 42,
+                sudut: 6,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +118,9 @@ class _DialogStrukState extends State<_DialogStruk> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 340),
-        child: tx == null
+        child: _gagal
+            ? _layarGagal()
+            : tx == null
             ? const SizedBox(
                 height: 200,
                 child: Center(child: CircularProgressIndicator()),
