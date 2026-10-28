@@ -6,6 +6,28 @@ import '../app_database.dart';
 import 'kemajuan_sync.dart';
 
 /// Hasil satu putaran sinkronisasi gambar.
+/// Jalankan [kerja] untuk setiap berkas; yang gagal dicatat ke [gagal] dan
+/// dilewati. Mengembalikan jumlah yang berhasil. [maju] dipanggil sesudah
+/// setiap berkas, berhasil atau tidak.
+Future<int> kerjakanPerBerkas(
+  Iterable<String> berkas,
+  List<String> gagal,
+  Future<void> Function(String path) kerja,
+  void Function() maju,
+) async {
+  var berhasil = 0;
+  for (final p in berkas) {
+    try {
+      await kerja(p);
+      berhasil++;
+    } catch (e) {
+      gagal.add('$p ($e)');
+    }
+    maju();
+  }
+  return berhasil;
+}
+
 class HasilSyncGambar {
   final int diunggah;
   final int diunduh;
@@ -158,11 +180,13 @@ class SyncGambar {
       if (total == 0) return const HasilSyncGambar();
 
       var selesai = 0;
-      var diunggah = 0;
-      var diunduh = 0;
       _lapor(0, total);
 
-      for (final p in naik) {
+      // Satu per satu: foto yang ditolak server (mis. kebesaran) dilewati,
+      // yang lain jalan terus. Dulu satu kegagalan menghentikan SEMUA foto,
+      // unduhan, dan pembersihan — dan terulang di setiap sinkron.
+      final gagal = <String>[];
+      final diunggah = await kerjakanPerBerkas(naik, gagal, (p) async {
         final f = await _berkas.fileDari(p);
         // `upsert` supaya percobaan ulang setelah unggahan yang terputus tidak
         // ditolak sebagai duplikat dan macet selamanya.
@@ -171,16 +195,12 @@ class SyncGambar {
               f,
               fileOptions: const FileOptions(upsert: true),
             );
-        diunggah++;
-        _lapor(++selesai, total);
-      }
+      }, () => _lapor(++selesai, total));
 
-      for (final p in turun) {
+      final diunduh = await kerjakanPerBerkas(turun, gagal, (p) async {
         final data = await _client.storage.from(bucket).download(p);
         await _berkas.simpanBytes(p, data);
-        diunduh++;
-        _lapor(++selesai, total);
-      }
+      }, () => _lapor(++selesai, total));
 
       var dihapus = 0;
       if (buang.isNotEmpty) {
@@ -200,6 +220,9 @@ class SyncGambar {
         diunduh: diunduh,
         dihapus: dihapus,
         dihapusLokal: buangLokal.length,
+        error: gagal.isEmpty
+            ? null
+            : '${gagal.length} foto gagal dipindahkan: ${gagal.first}',
       );
     } catch (e) {
       return HasilSyncGambar(error: e.toString());

@@ -28,7 +28,32 @@ import '../../data/uuid_helper.dart';
 ///    stabil, tapi di iOS berubah setiap kali aplikasi di-update sehingga
 ///    seluruh gambar "hilang" sekaligus. Bentuk relatif juga yang nanti
 ///    dipakai Supabase Storage, jadi tidak perlu diubah dua kali.
+/// Mengompres [sumber] ke [tujuan]. Null = gagal. Bisa diganti di test.
+typedef Pengompres =
+    Future<XFile?> Function(String sumber, String tujuan, CompressFormat format);
+
 class ImageStorageService {
+  ImageStorageService({Pengompres? kompres})
+    : _kompres = kompres ?? _kompresAsli;
+
+  final Pengompres _kompres;
+
+  static Future<XFile?> _kompresAsli(
+    String sumber,
+    String tujuan,
+    CompressFormat format,
+  ) => FlutterImageCompress.compressAndGetFile(
+    sumber,
+    tujuan,
+    format: format,
+    minWidth: _sisiMaksimal,
+    minHeight: _sisiMaksimal,
+    quality: _kualitas,
+  );
+
+  /// Pesan kalau foto tidak bisa dikompres sama sekali.
+  static const pesanFotoGagal = 'Foto ini tidak bisa dipakai. Pilih foto lain.';
+
   /// Sisi terpanjang gambar setelah dikompres.
   static const int _sisiMaksimal = 800;
 
@@ -83,7 +108,9 @@ class ImageStorageService {
     return p.join(dasar.path, relatif);
   }
 
-  /// Simpan gambar dari [sumber] sebagai WebP di folder permanen.
+  /// Simpan gambar dari [sumber] sebagai WebP (JPEG kalau encoder WebP
+  /// gagal) di folder permanen. Melempar [StateError] berisi
+  /// [pesanFotoGagal] kalau keduanya gagal.
   ///
   /// Mengembalikan path RELATIF untuk disimpan ke database.
   ///
@@ -97,28 +124,22 @@ class ImageStorageService {
       tujuanFolder.createSync(recursive: true);
     }
 
-    final namaFile = '${newUuid()}.webp';
-    final tujuan = p.join(tujuanFolder.path, namaFile);
-
-    final hasil = await FlutterImageCompress.compressAndGetFile(
-      sumber.absolute.path,
-      tujuan,
-      format: CompressFormat.webp,
-      minWidth: _sisiMaksimal,
-      minHeight: _sisiMaksimal,
-      quality: _kualitas,
-    );
-
-    if (hasil == null) {
-      // Encoder WebP bisa gagal pada format yang tidak didukung. Daripada
-      // kehilangan gambarnya, salin apa adanya ke folder permanen — yang
-      // penting file tidak tertinggal di cache.
-      final cadangan = p.join(tujuanFolder.path, '${newUuid()}${p.extension(sumber.path)}');
-      await sumber.copy(cadangan);
-      return p.join(subfolder, p.basename(cadangan));
+    // WebP dulu; kalau encoder-nya gagal, JPEG. Foto ASLI tidak pernah
+    // disalin lagi: ukurannya bisa beberapa MB, ditolak server, dan dulu
+    // membuat antrean unggah foto macet.
+    for (final (format, ekstensi) in const [
+      (CompressFormat.webp, 'webp'),
+      (CompressFormat.jpeg, 'jpg'),
+    ]) {
+      final tujuan = p.join(tujuanFolder.path, '${newUuid()}.$ekstensi');
+      try {
+        final hasil = await _kompres(sumber.absolute.path, tujuan, format);
+        if (hasil != null) return p.join(subfolder, p.basename(hasil.path));
+      } catch (_) {
+        // Coba format berikutnya.
+      }
     }
-
-    return p.join(subfolder, p.basename(hasil.path));
+    throw StateError(pesanFotoGagal);
   }
 
   /// Objek [File] untuk path relatif, untuk diserahkan ke pengunggah.

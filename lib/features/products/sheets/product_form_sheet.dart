@@ -53,6 +53,15 @@ String? galatFormProduk({required String nama, required String hargaTeks}) {
   return null;
 }
 
+/// Pesan saat image_picker gagal, biasanya karena izin ditolak.
+String pesanIzinFoto(PlatformException e, ImageSource sumber) {
+  final izin = sumber == ImageSource.camera ? 'kamera' : 'galeri';
+  if (e.code.contains('access_denied') || e.code.contains('permission')) {
+    return 'Izin $izin ditolak. Buka Pengaturan HP untuk mengizinkan.';
+  }
+  return 'Tidak bisa membuka $izin. Coba lagi.';
+}
+
 class ProductFormSheet extends StatefulWidget {
   final Product? editing;
 
@@ -107,7 +116,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     _imagePath = p?.imagePath;
   }
 
-
   @override
   void dispose() {
     SyncOtomatis.instance.sedangMenyuntingProduk = false;
@@ -117,7 +125,6 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     _priceC.dispose();
     super.dispose();
   }
-
 
   // Ada perubahan yang akan hilang kalau sheet ditutup?
   //
@@ -177,8 +184,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   }
 
   void _submit() {
-    final galat =
-        galatFormProduk(nama: _nameC.text, hargaTeks: _priceC.text);
+    final galat = galatFormProduk(nama: _nameC.text, hargaTeks: _priceC.text);
     if (galat != null) {
       setState(() => _galat = galat);
       return;
@@ -229,8 +235,15 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     // ASLI. Kompresi dilakukan sekali saja di ImageStorageService (ke WebP).
     // Mengompres di sini lalu di sana = dua kali lossy, kualitas turun dua
     // tahap tanpa ukuran ikut mengecil sebanding.
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source);
+    final XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(source: source);
+    } on PlatformException catch (e) {
+      // Izin kamera/galeri ditolak. Dulu galat ini tidak ditangkap dan
+      // pemilik tidak melihat apa-apa setelah memilih Kamera.
+      if (mounted) AppToast.error(context, pesanIzinFoto(e, source));
+      return;
+    }
     if (picked == null) return;
 
     try {
@@ -241,7 +254,10 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
       if (mounted) setState(() => _imagePath = relatif);
     } catch (e) {
       if (mounted) {
-        AppToast.error(context, pesanGalat(e, awalan: 'Gagal menyimpan gambar'));
+        AppToast.error(
+          context,
+          pesanGalat(e, awalan: 'Gagal menyimpan gambar'),
+        );
       }
     }
   }
@@ -605,10 +621,10 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   }
 
   bool _nilaiPilihan(KelompokPilihan k) => switch (k) {
-        KelompokPilihan.pedas => _hasSpicyOption,
-        KelompokPilihan.manis => _hasSweetOption,
-        KelompokPilihan.es => _hasIceOption,
-      };
+    KelompokPilihan.pedas => _hasSpicyOption,
+    KelompokPilihan.manis => _hasSweetOption,
+    KelompokPilihan.es => _hasIceOption,
+  };
 
   Widget _sakelar(KelompokPilihan k) {
     final g = gayaPilihan(k);
