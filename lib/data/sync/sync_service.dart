@@ -92,6 +92,28 @@ class SyncService {
     }
   }
 
+  static const _kunciCocokkan = 'sync_cocokkan_id_terakhir';
+
+  /// Perlu mencocokkan daftar produk & kategori dengan server
+  /// ([SyncEngine.cocokkanId])? Ya kalau HP ini baru dipulihkan owner, atau
+  /// sudah seminggu — jaring pengaman untuk HP yang dicabut dan dipulihkan
+  /// selagi aplikasinya tertutup.
+  static Future<bool> perluCocokkanId({DateTime? sekarang}) async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getBool(PerangkatRepository.kunciDipulihkan) ?? false) return true;
+    final terakhir =
+        DateTime.tryParse(p.getString(_kunciCocokkan) ?? '');
+    return terakhir == null ||
+        (sekarang ?? DateTime.now()).difference(terakhir) >
+            const Duration(days: 7);
+  }
+
+  Future<void> _catatCocokkanId() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(PerangkatRepository.kunciDipulihkan);
+    await p.setString(_kunciCocokkan, DateTime.now().toIso8601String());
+  }
+
   Future<void> _catatBerhasil() async {
     final sekarang = DateTime.now();
     terakhirBerhasil.value = sekarang;
@@ -185,6 +207,17 @@ class SyncService {
     // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
     // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
     // tempat, dan putaran berikutnya mencoba lagi.
+    // Sebelum buang sampah lokal: yang disembunyikan di sini ikut terbuang.
+    if (await perluCocokkanId()) {
+      try {
+        final n = await SyncEngine(db).cocokkanId();
+        if (n > 0) debugPrint('[sync] $n produk/kategori sudah tidak ada');
+        await _catatCocokkanId();
+      } catch (e) {
+        debugPrint('[sync] cocokkan id gagal: $e');
+      }
+    }
+
     try {
       await db.buangSampahLokal();
     } catch (e) {

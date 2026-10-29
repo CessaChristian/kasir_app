@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase/supabase_service.dart';
@@ -254,7 +255,20 @@ class PerangkatRepository {
     }
   }
 
+  /// HP ini baru saja dipulihkan owner: sinkron berikutnya mencocokkan
+  /// daftar produk & kategori dengan server (QA kedua S12,
+  /// `SyncService.perluCocokkanId`).
+  static const kunciDipulihkan = 'perangkat_dipulihkan';
+
   Future<void> _aturDicabut(bool nilai) async {
+    if (dicabut.value && !nilai) {
+      try {
+        final p = await SharedPreferences.getInstance();
+        await p.setBool(kunciDipulihkan, true);
+      } catch (e) {
+        debugPrint('[perangkat] tanda dipulihkan tak tersimpan: $e');
+      }
+    }
     dicabut.value = nilai;
     try {
       if (nilai) {

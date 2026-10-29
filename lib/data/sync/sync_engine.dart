@@ -704,6 +704,60 @@ class SyncEngine {
   @visibleForTesting
   static void lupakanCobaLagi() => _cobaLagiTerakhir.clear();
 
+  /// Pengganti [_daftarIdServer] untuk test.
+  @visibleForTesting
+  Future<List<String>> Function(String tabel)? daftarIdServerUntukTest;
+
+  /// Semua id di tabel server — hanya kolom id, per halaman.
+  Future<List<String>> _daftarIdServer(String tabel) async {
+    final pengganti = daftarIdServerUntukTest;
+    if (pengganti != null) return pengganti(tabel);
+    const ukuran = 1000;
+    final semua = <String>[];
+    for (var dari = 0; ; dari += ukuran) {
+      final baris = await (klienUntukTest ?? _supabase.client!)
+          .from(tabel)
+          .select('id')
+          .order('id', ascending: true)
+          .range(dari, dari + ukuran - 1);
+      semua.addAll(baris.map((b) => b['id'] as String));
+      if (baris.length < ukuran) return semua;
+    }
+  }
+
+  /// Sembunyikan produk & kategori di HP ini yang sudah TIDAK ADA di server
+  /// (QA kedua S12). Mengembalikan jumlah yang disembunyikan.
+  ///
+  /// Tarikan biasa hanya membawa baris yang berubah. Baris yang sudah
+  /// dibuang permanen (`buang_sampah`) tidak pernah datang lagi — HP yang
+  /// selama itu dicabut tetap menyimpannya, bisa menjualnya, dan kalau
+  /// mengeditnya, menghidupkannya lagi di server. Hanya dua tabel kecil ini
+  /// yang ikut dibuang permanen, jadi daftar id-nya murah.
+  ///
+  /// Disembunyikan dengan `deleted_at` dan status `synced` — tidak dikirim
+  /// balik, dan dibuang dari HP oleh buang sampah lokal. Baris yang belum
+  /// terkirim tidak disentuh. Server yang menjawab kosong padahal HP punya
+  /// data dianggap jawaban yang salah (mis. akses ditolak), bukan "semuanya
+  /// sudah dibuang".
+  Future<int> cocokkanId() async {
+    var disembunyikan = 0;
+    for (final tabel in const ['products', 'categories']) {
+      final diServer = (await _daftarIdServer(tabel)).toSet();
+      if (diServer.isEmpty) continue;
+      disembunyikan += await _db.customUpdate(
+        'UPDATE $tabel SET deleted_at = ?, sync_status = \'synced\' '
+        'WHERE deleted_at IS NULL AND sync_status = \'synced\' '
+        'AND id NOT IN (SELECT value FROM json_each(?))',
+        variables: [
+          Variable.withDateTime(DateTime.now()),
+          Variable.withString(jsonEncode(diServer.toList())),
+        ],
+        updates: {tabel == 'products' ? _db.products : _db.categories},
+      );
+    }
+    return disembunyikan;
+  }
+
   /// Pengganti pengambilan baris menurut id untuk test.
   @visibleForTesting
   Future<List<Map<String, dynamic>>> Function(
