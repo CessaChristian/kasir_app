@@ -2061,25 +2061,12 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
-  /// Id transaksi yang punya item bernama mengandung [kata] (tanpa beda
-  /// huruf besar/kecil) — untuk "Cari riwayat" berdasarkan nama menu. Item
-  /// transaksi yang dibatalkan ikut, karena transaksinya tetap tampil.
-  Future<Set<String>> idTransaksiBerisiMenu(String kata) async {
-    // `%` dan `_` adalah wildcard LIKE — diloloskan supaya dicari apa adanya.
-    final aman = kata
-        .trim()
-        .replaceAll(r'\', r'\\')
-        .replaceAll('%', r'\%')
-        .replaceAll('_', r'\_');
-    if (aman.isEmpty) return {};
-    final baris = await customSelect(
-      r"SELECT DISTINCT transaction_id FROM transaction_items "
-      r"WHERE product_name LIKE ? ESCAPE '\'",
-      variables: [Variable.withString('%$aman%')],
-      readsFrom: {transactionItems},
-    ).get();
-    return {for (final b in baris) b.read<String>('transaction_id')};
-  }
+  /// `%` dan `_` adalah wildcard LIKE — diloloskan supaya dicari apa adanya
+  /// (dipakai bersama `ESCAPE '\'`).
+  static String lolosLike(String kata) => kata
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_');
 
   /// Username akun [id] SAAT INI — untuk salinan nama di catatan baru
   /// (v35, lihat `nama_tercatat.dart`). Null kalau id kosong/tidak dikenal.
@@ -2094,6 +2081,12 @@ class AppDatabase extends _$AppDatabase {
   Future<Map<String, String>> namaAkun() async => {
         for (final u in await select(users).get()) u.id: u.username,
       };
+
+  /// [namaAkun] yang ikut berubah saat akun baru atau nama baru tiba lewat
+  /// sinkron (QA kedua K7).
+  Stream<Map<String, String>> watchNamaAkun() => select(users).watch().map(
+        (semua) => {for (final u in semua) u.id: u.username},
+      );
 
   // ---- EXPENSES ----
 

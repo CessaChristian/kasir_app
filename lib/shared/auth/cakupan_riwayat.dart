@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../data/app_database.dart';
 import 'session_manager.dart';
 
@@ -33,6 +35,20 @@ class CakupanRiwayat {
   final String? shiftId;
 
   const CakupanRiwayat._(this.jenis, {this.userId, this.shiftId});
+
+  /// Cakupan owner, untuk test yang tidak memasang sesi.
+  @visibleForTesting
+  static const semuaUntukTest = CakupanRiwayat._(JenisCakupan.semua);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CakupanRiwayat &&
+      other.jenis == jenis &&
+      other.userId == userId &&
+      other.shiftId == shiftId;
+
+  @override
+  int get hashCode => Object.hash(jenis, userId, shiftId);
 
   factory CakupanRiwayat.dariSesi() {
     final sesi = SessionManager.instance;

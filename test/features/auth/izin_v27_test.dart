@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
+import 'package:kasir_app/features/history/models/saringan_riwayat.dart';
 import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
 import 'package:kasir_app/shared/auth/cakupan_riwayat.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
@@ -112,9 +113,11 @@ void main() {
     });
 
     Future<List<String>> lihat() async {
-      final daftar = await SalesRepository(db)
-          .watchRiwayat(CakupanRiwayat.dariSesi())
-          .first;
+      final repo = SalesRepository(db);
+      final s = SaringanRiwayat(cakupan: CakupanRiwayat.dariSesi());
+      final hari = await repo.watchHariRiwayat(s).first;
+      final daftar =
+          await repo.watchIsiHari(s, [for (final h in hari) h.tanggal]).first;
       return daftar.map((t) => t.id).toList()..sort();
     }
 

@@ -143,6 +143,8 @@ void main() {
     const diizinkan = <String, String>{
       'lib/data/app_database.dart':
           'konversi rentang tanggal ke epoch untuk query',
+      'lib/features/sales/repositories/sales_repository.dart':
+          'batas periode Riwayat jadi epoch untuk query (QA kedua K8)',
       'lib/data/sync/sync_engine.dart':
           'membandingkan updated_at lokal (detik) dengan server (mikrodetik) '
           'untuk memutuskan versi mana yang menang saat menarik — bukan ID',

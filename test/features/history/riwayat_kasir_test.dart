@@ -172,11 +172,11 @@ void main() {
     );
 
     await t.tap(find.text('QRIS'));
-    await t.pump();
+    await tunggu(t); // disaring di database (QA kedua K8)
     expect(find.text('TRX/A2'), findsOneWidget);
     expect(find.text('TRX/A1'), findsNothing);
     await t.tap(find.text('Semua'));
-    await t.pump();
+    await tunggu(t);
 
     await t.enterText(find.byType(TextField), 'latte');
     await tunggu(t);
@@ -201,6 +201,32 @@ void main() {
     await t.pump();
     expect(find.text('TRX/L1'), findsNothing, reason: 'hari kemarin dilipat');
     expect(find.text('TRX/A1'), findsOneWidget, reason: 'hari ini tetap');
+    await lepas(t);
+  });
+
+  testWidgets('QA K8: hanya 5 hari teratas terbuka, hari lebih lama dilipat '
+      'tapi bisa dibuka', (t) async {
+    await t.runAsync(() async {
+      for (var i = 0; i < 7; i++) {
+        await jual('H$i', 's-lama', 'Roti', 1,
+            pada: kini.subtract(Duration(days: i + 1)));
+      }
+      await masuk(riwayat: true);
+    });
+    await buka(t);
+    for (var i = 0; i < 5; i++) {
+      expect(find.text('TRX/H$i'), findsOneWidget, reason: 'hari ke-${i + 1}');
+    }
+    expect(find.text('TRX/H5'), findsNothing, reason: 'hari ke-6 dilipat');
+    expect(find.text('TRX/H6'), findsNothing);
+    expect(find.text('1 Transaksi'), findsAtLeastNWidgets(6),
+        reason: 'pita tanggalnya tetap tampil (yang di bawah layar baru '
+            'dibangun saat digulir)');
+
+    await t.tap(find.text('1 Transaksi').at(5));
+    await tunggu(t);
+    expect(find.text('TRX/H5'), findsOneWidget, reason: 'dibuka sendiri');
+    expect(find.text('TRX/H6'), findsNothing);
     await lepas(t);
   });
 

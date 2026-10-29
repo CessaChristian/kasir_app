@@ -7,7 +7,6 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
-import 'package:kasir_app/features/history/models/kelompok_riwayat.dart';
 import 'package:kasir_app/features/open_bill/models/isi_bill.dart';
 import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
 import 'package:kasir_app/features/sales/models/keranjang.dart';
@@ -316,27 +315,6 @@ void main() {
       k.kosongkan();
       expect((k.isEmpty, k.bill), (true, null));
     });
-  });
-
-  test('cari riwayat juga mencocokkan nama bill', () {
-    Transaction t(String id, String? bill) => Transaction(
-      id: id,
-      invoiceNo: 'TRX/$id',
-      createdAt: DateTime(2026, 10, 14, 10),
-      total: 1000,
-      paymentMethod: 'cash',
-      orderType: 'dine_in',
-      billName: bill,
-      updatedAt: DateTime(2026, 10, 14, 10),
-      syncStatus: 'synced',
-    );
-    final hari = kelompokkanRiwayat(
-      [t('1', 'Meja 4 · Pak Budi'), t('2', null)],
-      periode: null,
-      metode: null,
-      cari: 'budi',
-    );
-    expect(hari.single.isi.map((x) => x.id), ['1']);
   });
 
   group('sinkron', () {
