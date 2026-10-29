@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -70,6 +71,29 @@ KeputusanServer keputusanDariBaris(Map<String, dynamic>? baris) {
 /// Jawaban [OpenBillRepository.cekDiServer]: boleh/tidaknya, dan isi bill
 /// di server (JSON seperti `open_bills.items`) kalau terbaca.
 typedef CekBill = ({KeputusanServer keputusan, String? isi});
+
+/// Hasil [OpenBillRepository.perbarui].
+enum HasilPerbarui {
+  tersimpan,
+
+  /// Tersimpan, digabung dengan perubahan HP lain di server.
+  digabung,
+
+  /// Sudah dibayar / dihapus HP lain — tidak tersimpan.
+  sudahDibayar,
+  sudahDihapus,
+
+  /// HP ini sudah tahu bill-nya tidak terbuka, tapi tidak tahu sebabnya.
+  tidakTerbuka,
+}
+
+/// "dibayar" / "dihapus" / "dibayar atau dihapus" untuk pesan penolakan.
+String? kataPenolakan(HasilPerbarui h) => switch (h) {
+  HasilPerbarui.sudahDibayar => 'dibayar',
+  HasilPerbarui.sudahDihapus => 'dihapus',
+  HasilPerbarui.tidakTerbuka => 'dibayar atau dihapus',
+  _ => null,
+};
 
 /// Satu-satunya pintu data Open Bill. Bill milik shift yang sedang berjalan;
 /// membayarnya lewat `SalesRepository.createSale(billId: ...)`.
@@ -212,6 +236,44 @@ class OpenBillRepository {
     } catch (_) {
       return KeputusanServer.takTerjawab;
     }
+  }
+
+  /// Perbarui bill [id] yang dimuat ke keranjang dengan isi [isiAwal].
+  ///
+  /// Sinkron otomatis ditahan selama keranjang berisi — HP ini belum tentu
+  /// tahu kabar terbaru bill-nya, jadi server ditanya dulu. Tak terjawab:
+  /// tetap disimpan. Dipakai "Perbarui Bill" di keranjang dan pindah bill
+  /// di daftar Open Bill.
+  Future<HasilPerbarui> perbarui({
+    required String id,
+    required String nama,
+    required String isiAwal,
+    required List<SaleLine> baris,
+  }) async {
+    final cek = await cekDiServer(id);
+    if (cek.keputusan == KeputusanServer.sudahDibayar ||
+        cek.keputusan == KeputusanServer.sudahDihapus) {
+      await tandaiTertutup(id);
+      unawaited(segarkanDariServer());
+      return cek.keputusan == KeputusanServer.sudahDibayar
+          ? HasilPerbarui.sudahDibayar
+          : HasilPerbarui.sudahDihapus;
+    }
+    try {
+      await simpan(
+        id: id,
+        nama: nama,
+        baris: baris,
+        isiAwal: isiAwal,
+        isiServer: cek.isi,
+      );
+    } on BillTidakTerbuka {
+      return HasilPerbarui.tidakTerbuka;
+    }
+    final isi = cek.isi;
+    return isi != null && !isiBillSama(isi, isiAwal)
+        ? HasilPerbarui.digabung
+        : HasilPerbarui.tersimpan;
   }
 
   /// Simpan isi keranjang sebagai bill baru, atau perbarui bill [id].

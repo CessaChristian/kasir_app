@@ -126,36 +126,19 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
       total: _k.total,
       namaAwal: aktif?.nama ?? '',
       simpan: (nama) async {
-        String? isiServer;
-        if (aktif != null) {
-          // Sinkron otomatis ditahan selama keranjang berisi — HP ini belum
-          // tentu tahu kabar terbaru bill-nya. Tak terjawab: tetap jalan.
-          final cek = await widget.repoBill.cekDiServer(aktif.id);
-          final keputusan = cek.keputusan;
-          if (keputusan == KeputusanServer.sudahDibayar ||
-              keputusan == KeputusanServer.sudahDihapus) {
-            await widget.repoBill.tandaiTertutup(aktif.id);
-            unawaited(widget.repoBill.segarkanDariServer());
-            ditolak = keputusan == KeputusanServer.sudahDibayar
-                ? 'dibayar'
-                : 'dihapus';
+        try {
+          if (aktif == null) {
+            await widget.repoBill.simpan(nama: nama, baris: baris);
             return null;
           }
-          isiServer = cek.isi;
-        }
-        try {
-          await widget.repoBill.simpan(
-            id: aktif?.id,
+          final hasil = await widget.repoBill.perbarui(
+            id: aktif.id,
             nama: nama,
+            isiAwal: aktif.isiAwal,
             baris: baris,
-            isiAwal: aktif?.isiAwal,
-            isiServer: isiServer,
           );
-          digabung =
-              isiServer != null && !isiBillSama(isiServer, aktif!.isiAwal);
-          return null;
-        } on BillTidakTerbuka {
-          ditolak = 'dibayar atau dihapus';
+          digabung = hasil == HasilPerbarui.digabung;
+          ditolak = kataPenolakan(hasil);
           return null;
         } catch (e) {
           return pesanGalat(e, awalan: 'Gagal menyimpan bill');

@@ -81,7 +81,7 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
   /// hapusnya dimatikan supaya tidak terketuk dua kali.
   String? _sedangDihapus;
 
-  void _buka(OpenBill b, BillTermuat isi) {
+  Future<void> _buka(OpenBill b, BillTermuat isi) async {
     final aktif = _k.bill;
     if (aktif?.id == b.id) {
       Navigator.pop(context, true);
@@ -101,6 +101,11 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       );
       return;
     }
+    // Bill di keranjang sudah diubah tapi belum "Perbarui Bill": dulu
+    // perubahannya hilang diam-diam dan tidak tertagih (QA kedua S5).
+    if (aktif != null && !isiBillSama(kodekanIsiBill(_k.baris), aktif.isiAwal)) {
+      if (!await _tanganiPerubahan(aktif) || !mounted) return;
+    }
     _k.muatBill((id: b.id, nama: b.name, isiAwal: b.items), isi.baris);
     if (isi.produkHilang > 0) {
       AppToast.warning(
@@ -111,6 +116,55 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       AppToast.success(context, 'Keranjang diganti dengan bill ${b.name}');
     }
     Navigator.pop(context, true);
+  }
+
+  /// True kalau boleh lanjut membuka bill lain.
+  Future<bool> _tanganiPerubahan(BillAktif aktif) async {
+    final pilih = await tampilkanDialogPilihan<bool>(
+      context,
+      ikon: Icons.edit_note_rounded,
+      judul: 'Bill ${aktif.nama} ada perubahan yang belum disimpan',
+      catatan: 'Simpan dulu supaya pesanan tambahannya ikut tertagih.',
+      pilihan: [
+        (
+          label: 'Simpan ke ${aktif.nama}',
+          nilai: true,
+          latar: WarnaTeras.oranye,
+          warna: Colors.white,
+        ),
+        (
+          label: 'Buang perubahan',
+          nilai: false,
+          latar: WarnaTeras.merahMuda,
+          warna: WarnaTeras.merah,
+        ),
+      ],
+    );
+    if (pilih == null || !mounted) return false;
+    if (!pilih) return true;
+    try {
+      final hasil = await widget.repo.perbarui(
+        id: aktif.id,
+        nama: aktif.nama,
+        isiAwal: aktif.isiAwal,
+        baris: List.of(_k.baris),
+      );
+      if (!mounted) return false;
+      final ditolak = kataPenolakan(hasil);
+      if (ditolak != null) {
+        AppToast.error(
+          context,
+          'Bill ${aktif.nama} sudah $ditolak di perangkat lain. '
+          'Perubahannya tidak tersimpan.',
+        );
+      }
+      return true;
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(context, pesanGalat(e, awalan: 'Gagal menyimpan bill'));
+      }
+      return false;
+    }
   }
 
   Future<void> _hapus(OpenBill b) async {

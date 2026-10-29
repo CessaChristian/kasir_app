@@ -310,6 +310,69 @@ void main() {
     await lepas(t);
   });
 
+  group('QA S5: pindah bill padahal bill di keranjang sudah diubah', () {
+    Future<Keranjang> mejaSatuDitambah(WidgetTester t) async {
+      await t.runAsync(() async {
+        await repo.simpan(nama: 'Meja 1', baris: [baris('teh', 1)]);
+        await repo.simpan(nama: 'Meja 2', baris: [baris('latte', 1)]);
+      });
+      final k = Keranjang();
+      await pasang(t, k);
+      await bukaDaftar(t);
+      await t.tap(find.text('Meja 1'));
+      await t.pumpAndSettle();
+      await t.tapAt(const Offset(10, 10));
+      await t.pumpAndSettle();
+      k.tambahSatu(0); // 2 Teh, belum "Perbarui Bill"
+      await bukaDaftar(t);
+      await t.tap(find.text('Meja 2'));
+      await t.pumpAndSettle();
+      return k;
+    }
+
+    Future<String> isiMejaSatu(WidgetTester t) async => (await semuaBill(t))
+        .firstWhere((b) => b.name == 'Meja 1')
+        .items;
+
+    testWidgets('ditanya dulu, tidak diganti diam-diam', (t) async {
+      final k = await mejaSatuDitambah(t);
+      expect(find.text('Bill Meja 1 ada perubahan yang belum disimpan'),
+          findsOneWidget);
+      expect(k.bill?.nama, 'Meja 1');
+      await t.tap(find.text('Batal'));
+      await t.pumpAndSettle();
+      expect(k.bill?.nama, 'Meja 1');
+      expect(k.baris.single.qty, 2);
+      await lepas(t);
+    });
+
+    testWidgets('Simpan ke Meja 1: tambahan tersimpan, lalu Meja 2 dibuka', (
+      t,
+    ) async {
+      final k = await mejaSatuDitambah(t);
+      await t.tap(find.text('Simpan ke Meja 1'));
+      await tunggu(t);
+      await t.pumpAndSettle();
+      expect(isiBillSama(await isiMejaSatu(t), kodekanIsiBill([baris('teh', 2)])),
+          isTrue);
+      expect(k.bill?.nama, 'Meja 2');
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('Buang perubahan: Meja 1 tetap, Meja 2 dibuka', (t) async {
+      final k = await mejaSatuDitambah(t);
+      await t.tap(find.text('Buang perubahan'));
+      await tunggu(t);
+      await t.pumpAndSettle();
+      expect(isiBillSama(await isiMejaSatu(t), kodekanIsiBill([baris('teh', 1)])),
+          isTrue);
+      expect(k.bill?.nama, 'Meja 2');
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+  });
+
   testWidgets('hapus bill yang sedang di keranjang', (t) async {
     await t.runAsync(
       () => repo.simpan(nama: 'Meja 1', baris: [baris('teh', 1)]),
