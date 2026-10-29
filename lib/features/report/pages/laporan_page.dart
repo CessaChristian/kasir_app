@@ -199,7 +199,13 @@ class _LaporanPageState extends State<LaporanPage> {
     return StreamBuilder<RingkasanLaporan>(
       stream: _aliran,
       builder: (context, snap) {
-        final r = snap.data;
+        // Sesudah periode berganti, StreamBuilder tetap memegang data periode
+        // LAMA (keadaan "waiting") sampai hitungan baru selesai — dulu angka
+        // hari ini tampil berlabel 12 bulan, dan Unduh di jeda itu membuat
+        // PDF yang salah isi (QA kedua S14).
+        final r = snap.connectionState == ConnectionState.waiting
+            ? null
+            : snap.data;
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [

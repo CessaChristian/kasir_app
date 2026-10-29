@@ -116,7 +116,9 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
     return StreamBuilder<List<Expense>>(
       stream: _aliran,
       builder: (context, snap) {
-        final r = snap.hasData
+        // Data periode lama tidak ditampilkan selagi periode baru dimuat —
+        // lihat LaporanPage.
+        final r = snap.hasData && snap.connectionState != ConnectionState.waiting
             ? ringkasPengeluaran(snap.data!, kategori: _kategori)
             : null;
         return Stack(

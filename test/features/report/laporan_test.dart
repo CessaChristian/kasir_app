@@ -627,6 +627,30 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('QA S14: ganti periode — angka periode lama tidak tampil, '
+        'Unduh tidak bisa ditekan sampai hitungan baru selesai', (t) async {
+      await buka(t, owner: true);
+      expect(find.text('Unduh Laporan'), findsOneWidget);
+      await t.tap(find.byType(KartuPeriode));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.text('7 Hari Terakhir'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('7 Hari Terakhir'));
+      await t.pump();
+      await t.tap(find.text('Terapkan'));
+      await t.pump(); // hitungan periode baru belum selesai
+      expect(find.text('Unduh Laporan'), findsNothing);
+      expect(find.text('Laba kotor'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('Unduh Laporan'), findsOneWidget);
+      await lepas(t);
+    });
+
     testWidgets(
       'kasir tanpa izin pengeluaran: bagian pengeluaran tersembunyi',
       (t) async {
