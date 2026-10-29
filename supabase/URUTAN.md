@@ -66,4 +66,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 34 | `username_huruf_kecil.sql` | USERNAME UNIK TANPA PEDULI BESAR-KECIL HURUF (revisi QA C1, 28 Okt 2026) |
 | 35 | `cabut_hak_sisa.sql` | CABUT HAK SISA (revisi QA C10, 28 Okt 2026) |
 | 36 | `shift_gabung.sql` | SHIFT GABUNG — dua shift satu akun dari dua HP offline disatukan (revisi QA K9, 29 Okt 2026) |
-| 37 | `rls.sql` | SISA PENGETATAN AKSES |
+| 37 | `nomor_kasir_server.sql` | NOMOR KASIR HANYA DIBAGIKAN SERVER (revisi QA kedua S9, 30 Okt 2026) |
+| 38 | `rls.sql` | SISA PENGETATAN AKSES |

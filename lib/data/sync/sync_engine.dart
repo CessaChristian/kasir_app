@@ -1103,10 +1103,10 @@ class SyncEngine {
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
                 'deleted_at': _iso(u.deletedAt),
-                // Hanya kalau sudah ada: mengirim null akan MENIMPA nomor
-                // yang sudah dibagikan server (upsert memperbarui semua
-                // kolom yang dikirim).
-                if (u.nomorKasir != null) 'nomor_kasir': u.nomorKasir,
+                // nomor_kasir SENGAJA tidak dikirim: hanya server yang
+                // membagikannya (supabase/nomor_kasir_server.sql). Tebakan
+                // HP bisa kembar dengan HP lain, dan kiriman berisi null
+                // menimpa nomor yang sudah ada (QA kedua S9).
               }
           ];
         },

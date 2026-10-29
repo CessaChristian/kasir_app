@@ -102,10 +102,10 @@ class CashierRepository {
     // 4. Primary key WAJIB UUID supaya unik lintas device saat sync.
     final userId = newUuid();
 
-    // 5. Nomor kasir (nomor nota): terbesar di HP ini MAUPUN di server, + 1
-    // — HP owner lain bisa saja baru membuat kasir yang belum tertarik ke
-    // sini. Server tak terbaca: dibiarkan kosong, server yang mengisinya
-    // saat akun ini terkirim (trg_users_nomor_kasir).
+    // 5. Nomor kasir (nomor nota): TEBAKAN sementara — terbesar di HP ini
+    // maupun di server, + 1 — supaya nota pertama tidak bernomor XX. Yang
+    // berlaku nomor dari server (supabase/nomor_kasir_server.sql); HP tidak
+    // mengirimnya dan menerimanya lewat sinkron. Server tak terbaca: kosong.
     final nomor = await _nomorBerikutnya();
 
     // I1: Bungkus insert user + set permissions dalam satu transaksi.

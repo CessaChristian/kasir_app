@@ -69,7 +69,8 @@ void main() {
     expect(await nomorLokal('k-1'), isNull);
   });
 
-  test('kirim: nomor ikut kalau ada, TIDAK dikirim kalau kosong', () async {
+  test('kirim: nomor TIDAK PERNAH dikirim — hanya server yang membagikan '
+      '(QA kedua S9)', () async {
     for (final (id, nomor) in [('k-ada', 2), ('k-kosong', null)]) {
       await db
           .into(db.users)
@@ -87,12 +88,10 @@ void main() {
     await mesin.dorongSemua();
     final ada = terkirim.firstWhere((b) => b['id'] == 'k-ada');
     final kosong = terkirim.firstWhere((b) => b['id'] == 'k-kosong');
-    expect(ada['nomor_kasir'], 2);
-    expect(
-      kosong.containsKey('nomor_kasir'),
-      isFalse,
-      reason: 'null akan menimpa nomor yang sudah dibagikan server',
-    );
+    expect(ada.containsKey('nomor_kasir'), isFalse,
+        reason: 'tebakan HP bisa kembar dengan HP lain');
+    expect(kosong.containsKey('nomor_kasir'), isFalse,
+        reason: 'null akan menimpa nomor yang sudah dibagikan server');
   });
 
   test('migrasi v38 → v39: kolom nomor_kasir ditambah, akun utuh', () async {
