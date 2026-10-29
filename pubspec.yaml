@@ -52,7 +52,7 @@ dependencies:
   supabase_flutter: ^2.17.2
   # Menebak nama perangkat (merek + tipe) untuk halaman Daftar Perangkat.
   device_info_plus: ^13.3.0
-  flutter_secure_storage: ^10.3.1
+  flutter_secure_storage: ^11.2.0
 
   # Dipakai test migrasi untuk MEMBANGUN database berbentuk versi lama.
   # Migrasi hanya bisa diuji dengan jujur di atas database lama — pada
