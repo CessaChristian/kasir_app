@@ -1668,6 +1668,28 @@ class AppDatabase extends _$AppDatabase {
 
   // ---- PRODUCTS ----
 
+  /// Jumlah baris HP ini yang belum terkirim, di semua tabel yang disinkron.
+  Future<int> jumlahTertunda() async {
+    var n = 0;
+    for (final t in const [
+      'categories',
+      'products',
+      'transactions',
+      'transaction_items',
+      'users',
+      'shifts',
+      'user_permissions',
+      'expenses',
+      'open_bills',
+    ]) {
+      final r = await customSelect(
+        "SELECT COUNT(*) AS n FROM $t WHERE sync_status = 'pending'",
+      ).getSingle();
+      n += r.read<int>('n');
+    }
+    return n;
+  }
+
   /// Jumlah baris server yang tertahan di HP ini (lihat [BarisTertahan]).
   Future<int> jumlahTertahan() async {
     final jumlah = barisTertahan.rowId.count();

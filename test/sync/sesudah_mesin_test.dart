@@ -107,4 +107,35 @@ void main() {
       expect(h.denganGambar(naik: 1).tarikSelesai, isTrue);
     });
   });
+
+  group('QA K10: data yang ditulis selagi sinkron berjalan', () {
+    const bersih = HasilSync(tarikSelesai: true, ditolak: 0);
+    test('masih ada yang tertunda: diulang sekali', () {
+      expect(SyncService.perluUlang(bersih, 1), isTrue);
+    });
+    test('tidak ada yang tertunda: tidak diulang', () {
+      expect(SyncService.perluUlang(bersih, 0), isFalse);
+    });
+    test('yang tertunda hanya baris yang ditolak server: tidak diulang '
+        '(tidak berputar tanpa henti)', () {
+      const ditolak = HasilSync(
+          error: 'x', tarikSelesai: true, ditolak: 2);
+      expect(SyncService.perluUlang(ditolak, 2), isFalse);
+      expect(SyncService.perluUlang(ditolak, 3), isTrue);
+    });
+    test('koneksi putus atau dibatalkan: tidak diulang', () {
+      expect(
+        SyncService.perluUlang(
+            const HasilSync(error: 'x', tarikSelesai: true, koneksiPutus: true),
+            5),
+        isFalse,
+      );
+      expect(
+        SyncService.perluUlang(
+            const HasilSync(error: 'x', tarikSelesai: true, dibatalkan: true),
+            5),
+        isFalse,
+      );
+    });
+  });
 }

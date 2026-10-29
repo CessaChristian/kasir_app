@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +10,7 @@ import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
 import 'sync_engine.dart';
 import 'sync_gambar.dart';
+import 'sync_otomatis.dart';
 
 /// Pintu tunggal untuk menjalankan sinkronisasi dari mana pun di aplikasi.
 ///
@@ -268,6 +271,31 @@ class SyncService {
   static bool tarikBersih(HasilSync hasil, int tertahan) =>
       hasil.tarikSelesai && tertahan == 0;
 
+  HasilSync? _hasilTerakhir;
+
+  /// Data yang ditulis SELAGI putaran berjalan tidak ikut terkirim: tabelnya
+  /// mungkin sudah lewat, dan pendengar tulisan sengaja tuli selama sinkron
+  /// (SyncOtomatis.perluKirimSetelahTulisan). Dulu data itu menunggu sinkron
+  /// berkala sampai 5 menit (QA kedua K10). Sekarang putarannya diulang
+  /// sekali — lewat SyncOtomatis, jadi keranjang berisi tetap menahannya.
+  Future<void> _ulangiKalauAdaDataBaru(HasilSync h) async {
+    try {
+      if (!perluUlang(h, await db.jumlahTertunda())) return;
+      await SyncOtomatis.instance
+          .picu('data baru selama sinkron', abaikanJeda: true);
+    } catch (e) {
+      debugPrint('[sync] periksa data baru gagal: $e');
+    }
+  }
+
+  /// Masih ada yang tertunda selain baris yang memang ditolak server, dan
+  /// server bisa dijangkau? Koneksi putus atau Batalkan tidak diulang.
+  @visibleForTesting
+  static bool perluUlang(HasilSync h, int tertunda) {
+    if (!h.bolehRampung || h.dibatalkan || h.koneksiPutus) return false;
+    return tertunda > (h.ditolak ?? 0);
+  }
+
   Future<HasilSync> _mulai() async {
     try {
       // Pastikan sesinya hidup DULU. Perangkat yang dipasang saat jaringan
@@ -312,13 +340,16 @@ class SyncService {
       // Hanya tarikan yang bisa menambah atau melepas baris tertahan.
       await _hitungTertahan();
       await _catatGagalKirim(hasil);
-      return urutanSesudahMesin(
+      return _hasilTerakhir = await urutanSesudahMesin(
         hasil,
         hanyaKalauBerhasil: () => _rampungkan(hasil),
         selamaTersambung: () => _periksaSesudahSinkron(hasil),
       );
     } finally {
       _berjalan = null;
+      final h = _hasilTerakhir;
+      _hasilTerakhir = null;
+      if (h != null) unawaited(_ulangiKalauAdaDataBaru(h));
       kemajuan.value = null;
       // Berhasil atau tidak, HP ini terbukti masih hidup — internet mati
       // tidak dihitung diam (lihat SessionManager.catatKabar).

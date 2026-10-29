@@ -79,6 +79,19 @@ void main() {
     expect(mesin.ditolak, 1, reason: 'QA S10: dilaporkan ke owner');
   });
 
+  test('QA K10: jumlahTertunda menghitung yang belum terkirim di semua tabel',
+      () async {
+    await pasangKategori('Minuman');
+    await pasangProduk('Kopi');
+    await db.into(db.products).insert(ProductsCompanion.insert(
+          id: const Value('p-sudah'),
+          name: 'Sudah',
+          price: 1,
+          syncStatus: const Value('synced'),
+        ));
+    expect(await db.jumlahTertunda(), 2);
+  });
+
   test('satu tabel gagal tidak menghentikan tabel lain', () async {
     await pasangKategori('Minuman');
     final produk = await pasangProduk('Kopi');
