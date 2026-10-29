@@ -35,8 +35,8 @@ import '../../../utils/pesan_galat.dart';
 /// metode bayar · tipe pesanan · per kategori · per produk.
 ///
 /// Dipakai owner (dari Profil) dan kasir yang punya izin `view_report`.
-/// Pengeluaran hanya tampil untuk yang boleh melihatnya
-/// (`view_all_expenses`, owner selalu boleh).
+/// Pengeluaran dan laba kotor khusus owner (keputusan owner 2026-10-30, QA
+/// kedua K4) — kasir cukup melihat pendapatan.
 class LaporanPage extends StatefulWidget {
   /// Diisi test; aplikasi memakai basis data utama.
   final LaporanRepository? repo;
@@ -79,8 +79,9 @@ class _LaporanPageState extends State<LaporanPage> {
 
   static const _produkAwal = 5;
 
-  bool get _lihatPengeluaran =>
-      SessionManager.instance.hasPermission('view_all_expenses');
+  // Dulu `view_all_expenses` — izin yang tidak ada di Kelola Izin, jadi
+  // hanya owner yang pernah memilikinya.
+  bool get _lihatPengeluaran => SessionManager.instance.isOwner;
 
   @override
   void initState() {

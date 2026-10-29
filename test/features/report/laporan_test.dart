@@ -452,7 +452,11 @@ void main() {
     });
     tearDown(() => db.close());
 
-    Future<void> buka(WidgetTester t, {required bool owner}) async {
+    Future<void> buka(
+      WidgetTester t, {
+      required bool owner,
+      List<String> izinKasir = const ['view_report'],
+    }) async {
       t.view.physicalSize = const Size(1080, 9000);
       t.view.devicePixelRatio = 3;
       addTearDown(t.view.reset);
@@ -463,7 +467,7 @@ void main() {
           username: owner ? 'owner' : 'budi',
           role: owner ? 'owner' : 'cashier',
           shiftId: null,
-          permissions: owner ? const [] : const ['view_report'],
+          permissions: owner ? const [] : izinKasir,
         ),
       );
       addTearDown(SessionManager.instance.clearSession);
@@ -648,6 +652,18 @@ void main() {
       );
       await t.pumpAndSettle();
       expect(find.text('Unduh Laporan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('QA K4: pengeluaran & laba kotor khusus owner — izin lama '
+        'view_all_expenses tidak membukanya', (t) async {
+      await buka(
+        t,
+        owner: false,
+        izinKasir: const ['view_report', 'view_all_expenses'],
+      );
+      expect(find.text('Laba kotor'), findsNothing);
+      expect(find.text('Pengeluaran Dibatalkan'), findsNothing);
       await lepas(t);
     });
 
