@@ -520,7 +520,7 @@ class SessionManager {
   String? get currentUserId => _currentSession?.userId;
 
   // =====================================
-  // Context-aware permission (Phase 1 multi-business)
+  // Nama lama pemeriksa izin
   // =====================================
 
   /// Nama lama dari [hasPermission]. Keduanya kini menjawab dari sumber yang

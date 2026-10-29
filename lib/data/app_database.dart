@@ -78,7 +78,7 @@ class BarisTertahan extends Table {
 }
 
 /// =======================
-/// TABLE: CATEGORIES (modified in v10 — add business_id + sync fields)
+/// TABLE: CATEGORIES
 /// =======================
 class Categories extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -105,7 +105,7 @@ class Categories extends Table {
 }
 
 /// =======================
-/// TABLE: PRODUCTS (modified in v10 — add business_id + sync fields)
+/// TABLE: PRODUCTS
 /// =======================
 class Products extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -139,7 +139,7 @@ class Products extends Table {
 }
 
 /// =======================
-/// TABLE: TRANSACTIONS (modified in v10 — add business_id + sync fields)
+/// TABLE: TRANSACTIONS
 /// =======================
 class Transactions extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -222,7 +222,7 @@ class Transactions extends Table {
 }
 
 /// =======================
-/// TABLE: TRANSACTION_ITEMS (modified in v10 — add business_id + sync fields)
+/// TABLE: TRANSACTION_ITEMS
 /// =======================
 class TransactionItems extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -270,7 +270,7 @@ class TransactionItems extends Table {
 }
 
 /// =======================
-/// TABLE: USERS (modified in v10 — add sync fields. NO business_id karena global)
+/// TABLE: USERS
 /// =======================
 class Users extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -320,7 +320,7 @@ class Users extends Table {
 }
 
 /// =======================
-/// TABLE: SHIFTS (modified in v10 — add business_id + sync fields)
+/// TABLE: SHIFTS
 /// =======================
 class Shifts extends Table {
   TextColumn get id => text().clientDefault(() => newUuid())();
@@ -2222,7 +2222,7 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Shifts milik seorang user di active business, terurut terbaru di atas
+  /// Shifts milik seorang user, terurut terbaru di atas
   Future<List<Shift>> getShiftsByUser(String userId) async {
     return (select(shifts)
           ..where((s) =>

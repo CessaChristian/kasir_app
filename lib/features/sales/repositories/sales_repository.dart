@@ -126,7 +126,7 @@ class SalesRepository {
 
   // ---- BACA ----
 
-  /// Semua transaksi business aktif, terbaru dulu. Yang terhapus tidak ikut.
+  /// Semua transaksi, terbaru dulu. Yang terhapus tidak ikut.
   Stream<List<Transaction>> watchTransactions() => _db.watchTransactions();
 
   /// Transaksi untuk halaman Riwayat, dibatasi [cakupan] akun yang melihat.

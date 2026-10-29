@@ -58,7 +58,7 @@ class _OwnerSetupStepState extends State<OwnerSetupStep> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Akun ini adalah owner — punya akses penuh ke semua business.',
+              'Akun ini adalah owner — punya akses penuh ke semua fitur.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 24),

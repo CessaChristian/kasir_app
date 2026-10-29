@@ -109,7 +109,7 @@ void main() {
     expect(await repo.getTransactionsForShift('shift-1'), hasLength(1));
   });
 
-  test('getShiftsByUser hanya membawa shift business aktif', () async {
+  test('getShiftsByUser hanya membawa shift milik kasir itu', () async {
     final shifts = await repo.getShiftsByUser('kasir-1');
     expect(shifts, hasLength(1));
     expect(shifts.single.id, 'shift-1');

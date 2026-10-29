@@ -27,7 +27,7 @@ class ProductRepository {
 
   // ---- KATEGORI ----
 
-  /// Kategori milik business aktif, urut nama. Yang sudah dihapus tidak ikut.
+  /// Semua kategori, urut nama. Yang sudah dihapus tidak ikut.
   Stream<List<Category>> watchCategories() => _db.watchCategories();
 
   /// Simpan seluruh perubahan halaman Kategori sekaligus.
@@ -46,7 +46,7 @@ class ProductRepository {
 
   // ---- PRODUK ----
 
-  /// Produk milik business aktif. Yang sudah dihapus tidak ikut.
+  /// Semua produk. Yang sudah dihapus tidak ikut.
   Stream<List<Product>> watchProducts() => _db.watchProducts();
 
   /// Tambah produk baru atau perbarui yang sudah ada.

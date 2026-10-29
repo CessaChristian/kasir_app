@@ -23,8 +23,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   bool _isSubmitting = false;
 
-  /// Setup owner → kedua business (Teras Inn + Thai Tea) di-seed otomatis
-  /// dari kode (spec REVISI 2 D3) — tidak ada lagi form business.
+  /// Setup akun owner — satu-satunya langkah onboarding.
   Future<void> _handleOwnerSubmit({
     required String username,
     required String pin,
