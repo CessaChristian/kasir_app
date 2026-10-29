@@ -262,27 +262,22 @@ void main() {
     expect(p.syncStatus, 'pending');
   });
 
-  test('baris synced TIDAK ditulis ulang oleh pecahan detik yang sama', () async {
-    // ── KEPUTUSAN INI PERNAH SEBALIKNYA ──
+  test('baris synced MENERIMA versi server di detik yang sama kalau isinya '
+      'berbeda (QA kedua K11)', () async {
+    // ── KEPUTUSAN INI SUDAH DUA KALI BERUBAH ──
     //
-    // Dulu baris `synced` dibandingkan presisi penuh, dengan alasan "tidak ada
-    // yang bisa hilang, paling-paling ditulis ulang dengan isi yang sama".
-    // Alasannya benar, tapi akibatnya tidak: salinan lokal TIDAK AKAN PERNAH
-    // bisa menyamai pecahan detik milik server, sehingga baris seperti ini
-    // ditulis ulang di SETIAP sinkron, selamanya, dan ikut terhitung sebagai
-    // "berubah".
+    // Mula-mula baris `synced` dibandingkan presisi penuh: salinan lokal
+    // (detik) tidak pernah menyamai pecahan detik server, jadi baris seperti
+    // ini ditulis ulang di SETIAP sinkron dan terhitung "berubah" — pengguna
+    // melihat "2 data diperbarui" berulang padahal tidak ada yang berubah.
     //
-    // Selama penandanya `gt`, baris itu tersaring keluar sesudah sekali
-    // tertarik jadi tidak kelihatan. Begitu penandanya memakai jeda aman,
-    // pengguna melihat "2 data diperbarui" berulang padahal tidak ada yang
-    // berubah — penunjuk yang berbohong, dan penunjuk yang diabaikan sama saja
-    // dengan tidak ada.
+    // Lalu dibandingkan per detik, dan perubahan server di detik yang sama
+    // dilewati. Akibatnya (QA kedua K11): owner membetulkan harga tepat
+    // sesudah mengubahnya, HP lain menyimpan harga pertama SELAMANYA karena
+    // penandanya sudah lewat.
     //
-    // Yang ditukar: perubahan sisi-server yang mendarat di DETIK YANG SAMA
-    // dengan salinan lokal tidak akan terpakai. Itu menuntut dua penulisan ke
-    // baris yang sama dalam satu detik, dengan salah satunya dari SQL langsung
-    // — aplikasi selalu mengirim cap waktu berpecahan nol, karena sisi
-    // lokalnya memang hanya punya detik.
+    // Sekarang: detik yang sama tetap ditulis, tapi hanya terhitung kalau
+    // isinya benar-benar berbeda — tidak ada lagi penunjuk yang berbohong.
     await pasangProdukLokal(
       id: 'p9',
       nama: 'Lama',
@@ -298,8 +293,8 @@ void main() {
       ),
     ]);
 
-    expect(berubah, 0);
-    expect((await ambil('p9')).name, 'Lama');
+    expect(berubah, 1);
+    expect((await ambil('p9')).name, 'Baru');
   });
 
   test('baris synced TETAP menerima versi server yang detiknya lebih baru',
@@ -440,5 +435,68 @@ void main() {
 
     expect(hasil, (1, 1),
         reason: 'produk ini hilang dari layar — itu perubahan nyata');
+  });
+
+  group('QA K11: dua perubahan dalam detik yang sama', () {
+    test('baris yang sudah terkirim: versi server dipakai walau detiknya sama',
+        () async {
+      // Owner mengubah nama lalu membetulkannya dalam detik yang sama. HP
+      // ini sudah menerima versi pertama; dulu versi kedua dilewati karena
+      // "tidak lebih baru 1 detik", dan penandanya sudah lewat — tertinggal
+      // selamanya.
+      await pasangProdukLokal(
+        id: 'p1',
+        nama: 'Es Teh',
+        updatedAt: detik('2026-09-04T10:00:00Z'),
+        syncStatus: 'synced',
+      );
+      final hasil = await mesin.gabungkanTabel('products', [
+        barisServer(
+          id: 'p1',
+          nama: 'Es Teh Manis',
+          updatedAt: '2026-09-04T10:00:00.800000+00:00',
+        ),
+      ]);
+      expect((await ambil('p1')).name, 'Es Teh Manis');
+      expect(hasil.$2, 1);
+    });
+
+    test('isinya sama persis: tidak dihitung "data diperbarui"', () async {
+      await pasangProdukLokal(
+        id: 'p1',
+        nama: 'Es Teh',
+        updatedAt: detik('2026-09-04T10:00:00Z'),
+        syncStatus: 'synced',
+      );
+      final baris = barisServer(
+        id: 'p1',
+        nama: 'Es Teh',
+        updatedAt: '2026-09-04T10:00:00.570000+00:00',
+      );
+      // Ditulis sekali dulu supaya semua kolom lokal sama dengan server.
+      await mesin.gabungkanTabel('products', [baris]);
+      final hasil = await mesin.gabungkanTabel('products', [baris]);
+      expect(hasil.$2, 0,
+          reason: 'penunjuk "2 data diperbarui" berulang membuat orang '
+              'berhenti mempercayainya');
+    });
+
+    test('baris yang belum terkirim di detik yang sama: editan HP ini tetap',
+        () async {
+      await pasangProdukLokal(
+        id: 'p1',
+        nama: 'Editan Kasir',
+        updatedAt: detik('2026-09-04T10:00:00Z'),
+        syncStatus: 'pending',
+      );
+      await mesin.gabungkanTabel('products', [
+        barisServer(
+          id: 'p1',
+          nama: 'Versi Server',
+          updatedAt: '2026-09-04T10:00:00.800000+00:00',
+        ),
+      ]);
+      expect((await ambil('p1')).name, 'Editan Kasir');
+    });
   });
 }

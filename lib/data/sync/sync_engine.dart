@@ -825,6 +825,20 @@ class SyncEngine {
           // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
           if (lokal != null || !terhapusDiServer) berubah++;
         }
+      } else if (!lokal.pending && _detikSama(lokal, mikroServer)) {
+        // Detik yang SAMA, dan HP ini tidak punya perubahan yang menunggu:
+        // dua perubahan server dalam satu detik (owner membetulkan harga
+        // tepat sesudah mengubahnya). Dulu versi kedua dilewati, dan karena
+        // penandanya sudah lewat, HP ini menyimpan versi pertama selamanya
+        // (QA kedua K11). Server-lah yang benar untuk baris yang sudah
+        // terkirim; hanya dihitung kalau isinya memang berbeda — lihat
+        // catatan "KENAPA BARIS synced" di [_serverMenang].
+        final id = r['id'] as String;
+        final sebelum = await _barisMentah(e.nama, id);
+        if (await _tulisAtauTahan(e, r) &&
+            sebelum != await _barisMentah(e.nama, id)) {
+          berubah++;
+        }
       }
 
       sudah++;
@@ -961,10 +975,34 @@ class SyncEngine {
   /// selalu berpecahan nol. Yang berubah hanya baris yang cap waktunya
   /// diberikan server sendiri — dan untuk baris itu, perbedaan di bawah satu
   /// detik memang tidak bisa diamati dari sini.
+  ///
+  /// Baris `synced` di detik yang SAMA tidak lewat sini: [_gabungkan]
+  /// menulisnya dan hanya menghitungnya kalau isinya berbeda (QA kedua K11).
   static bool _serverMenang(
       ({int mikro, bool pending}) lokal, int mikroServer) {
     const sejuta = 1000000;
     return (mikroServer ~/ sejuta) > (lokal.mikro ~/ sejuta);
+  }
+
+  static bool _detikSama(({int mikro, bool pending}) lokal, int mikroServer) {
+    const sejuta = 1000000;
+    return mikroServer ~/ sejuta == lokal.mikro ~/ sejuta;
+  }
+
+  /// Isi baris lokal sebagai teks, untuk melihat apakah tulisan benar-benar
+  /// mengubah sesuatu. Cap waktu dan status sinkron tidak dihitung — bukan
+  /// isi yang dilihat pemakai.
+  Future<String?> _barisMentah(String tabel, String id) async {
+    final b = await _db.customSelect(
+      'SELECT * FROM $tabel WHERE id = ?',
+      variables: [Variable.withString(id)],
+    ).getSingleOrNull();
+    if (b == null) return null;
+    return jsonEncode({
+      for (final e in b.data.entries)
+        if (!const {'created_at', 'updated_at', 'sync_status'}.contains(e.key))
+          e.key: e.value,
+    });
   }
 
   /// Waktu ISO dari server jadi mikrodetik epoch, untuk dibandingkan.
