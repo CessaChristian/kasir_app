@@ -109,8 +109,9 @@ dua HP offline digabung), RLS per perangkat.
 - **Hak semua akun** (bukan izin): menu Riwayat dan shift sendiri.
   `CakupanRiwayat` menentukan seberapa jauh riwayat boleh dilihat
   (owner: semua; `view_history`: milik sendiri; selain itu: shift berjalan).
-- **Sesi berakhir** setelah 15 menit diam (kasir: tanpa kabar; owner: tanpa
-  sentuhan) dan paling lama 12 jam.
+- **Sesi berakhir** setelah 15 menit layar tidak disentuh (owner, dan kasir
+  yang memegang shift — server langsung diberi tahu shift-nya dilepas) dan
+  paling lama 12 jam.
 
 ## 6. Keamanan
 

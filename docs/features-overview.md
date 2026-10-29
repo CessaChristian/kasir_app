@@ -93,4 +93,4 @@ kunci), hapus, dan atur **hak akses** per kasir.
 | Navigasi tengah | Produk | Kasir |
 | Shift | Memantau semua shift | Buka/tutup shift sendiri |
 | Izin bawaan kasir baru | — | `open_close_shift`, `create_transaction` |
-| Sesi berakhir | 15 menit tanpa sentuhan | 15 menit tanpa kabar |
+| Sesi berakhir | 15 menit tanpa sentuhan | 15 menit tanpa sentuhan (selama memegang shift) |

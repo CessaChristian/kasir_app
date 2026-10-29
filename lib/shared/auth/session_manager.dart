@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
+import '../../data/perangkat/perangkat_repository.dart';
 import '../../features/auth/models/auth_session.dart';
 
 /// Singleton untuk manajemen authentication session.
@@ -14,8 +15,8 @@ import '../../features/auth/models/auth_session.dart';
 /// SessionManager re-validate ke DB saat `restoreSession()` untuk
 /// mencegah privilege escalation via tamper SharedPreferences (S6).
 ///
-/// Session expire setelah 12 jam (S7), atau lebih cepat untuk kasir yang
-/// memegang shift tapi [batasDiam] tidak memberi kabar ke server.
+/// Session expire setelah 12 jam (S7), atau lebih cepat untuk owner dan
+/// kasir yang memegang shift kalau [batasDiam] layarnya tidak disentuh.
 class SessionManager {
   static final SessionManager instance = SessionManager._();
   SessionManager._();
@@ -62,7 +63,7 @@ class SessionManager {
   static const batasDiam = Duration(minutes: 15);
 
   static const pesanDiam =
-      'Sesi berakhir karena 15 menit tidak aktif. Silakan masuk lagi.';
+      'Sesi berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';
 
   static const String _kunciKabar = 'kabar_terakhir';
 
@@ -72,11 +73,9 @@ class SessionManager {
   /// Catat bahwa HP ini masih hidup dan dipakai.
   ///
   /// Dipanggil setiap putaran sinkron selesai — BERHASIL ATAU TIDAK — dan
-  /// saat layar disentuh ([catatSentuhan]). Internet mati sengaja tidak
-  /// dihitung diam (keputusan owner): aplikasinya tetap terbuka dan mencoba,
-  /// kasir harus tetap bisa berjualan offline. Yang dihitung diam hanya saat
-  /// sinkron tidak berjalan DAN layar tidak disentuh: aplikasi di latar
-  /// belakang, layar mati, atau keranjang berisi yang ditinggal.
+  /// saat layar disentuh ([catatSentuhan]). Sejak QA kedua S4 kabar tidak
+  /// lagi menentukan sesi diam (yang menentukan sentuhan, lihat
+  /// [akhiriKalauDiam]); ia cadangan untuk HP yang belum mencatat sentuhan.
   ///
   /// Disimpan juga ke storage supaya aplikasi yang digeser dari riwayat lalu
   /// dibuka lagi tahu sudah berapa lama ia diam.
@@ -136,21 +135,38 @@ class SessionManager {
   /// Dipanggil saat aplikasi dibuka, saat kembali dari latar belakang
   /// (SEBELUM sinkron, yang akan mencatat kabar baru), dan tiap menit selama
   /// aplikasi di depan — untuk keranjang yang dibiarkan berisi.
+  ///
+  /// Kasir diukur dari SENTUHAN, sama seperti owner (keputusan owner
+  /// 2026-10-30, QA kedua S4). Dulu sinkron tiap 5 menit ikut dihitung: HP
+  /// kasir yang ditinggal dengan aplikasi terbuka tidak pernah keluar dan
+  /// terus terlihat memegang shift, jadi HP lain tidak bisa menutupnya.
+  /// Internet mati tetap tidak dihitung diam — yang dihitung sentuhannya.
   Future<bool> akhiriKalauDiam({DateTime? sekarang}) async {
     final sesi = _currentSession;
     if (sesi != null && sesi.isOwner) {
       return _akhiriOwnerKalauDitinggal(sekarang ?? DateTime.now());
     }
-    final kabar = _kabarTerakhir;
     if (sesi == null || !sesi.isCashier || sesi.shiftId == null) return false;
-    if (kabar == null) return false;
-    if ((sekarang ?? DateTime.now()).difference(kabar) < batasDiam) {
+    // Kabar hanya cadangan untuk HP yang belum pernah mencatat sentuhan.
+    final patokan = _sentuhanTerakhir ?? _kabarTerakhir;
+    if (patokan == null) return false;
+    if ((sekarang ?? DateTime.now()).difference(patokan) < batasDiam) {
       return false;
     }
     await clearSession();
     sesiDicabut.value = pesanDiam;
+    // Server diberi tahu sekarang, tidak menunggu sinkron berikutnya —
+    // HP lain langsung bisa menutup shift-nya.
+    unawaited(
+      (laporLepasShiftUntukTest ??
+          () => PerangkatRepository.instance.hadir(null))(),
+    );
     return true;
   }
+
+  /// Pengganti laporan "shift dilepas" ke server, untuk test.
+  @visibleForTesting
+  Future<void> Function()? laporLepasShiftUntukTest;
 
   static const pesanDiamOwner =
       'Sesi owner berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';

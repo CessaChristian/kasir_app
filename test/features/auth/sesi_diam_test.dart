@@ -69,7 +69,8 @@ void main() {
     test('14:59 masih masuk, 15:00 login ulang dengan pesan', () async {
       await sm.setSession(sesi());
       final kabar = DateTime(2026, 10, 20, 9);
-      await sm.catatKabar(kabar);
+      sm.catatSentuhan(kabar);
+      await pumpEventQueue();
 
       expect(
         await sm.akhiriKalauDiam(
@@ -93,7 +94,8 @@ void main() {
 
     test('kasir yang belum membuka shift tidak terkena', () async {
       await sm.setSession(sesi(shiftId: null));
-      await sm.catatKabar(DateTime(2026, 1, 1));
+      sm.catatSentuhan(DateTime(2026, 1, 1));
+      await pumpEventQueue();
       expect(await sm.akhiriKalauDiam(), isFalse);
       expect(sm.isLoggedIn, isTrue);
     });
@@ -101,7 +103,8 @@ void main() {
     test('membuka shift sesudah lama diam memulai hitungan dari nol',
         () async {
       await sm.setSession(sesi(shiftId: null));
-      await sm.catatKabar(DateTime.now().subtract(menit(40)));
+      sm.catatSentuhan(DateTime.now().subtract(menit(40)));
+      await pumpEventQueue();
       await sm.aturShift('shift-1');
       expect(await sm.akhiriKalauDiam(), isFalse,
           reason: 'kasir baru saja menekan Buka shift — jelas sedang dipakai');
@@ -114,7 +117,7 @@ void main() {
         'auth_session': json.encode(sesi().toJson()),
       };
       if (diam != null) {
-        prefs['kabar_terakhir'] =
+        prefs['sentuhan_terakhir'] =
             DateTime.now().subtract(diam).toIso8601String();
       }
       await sm.clearSession();
@@ -170,7 +173,8 @@ void main() {
   group('sinkron otomatis', () {
     test('kembali dari latar belakang: diperiksa SEBELUM sinkron', () async {
       await sm.setSession(sesi());
-      await sm.catatKabar(DateTime.now().subtract(menit(20)));
+      sm.catatSentuhan(DateTime.now().subtract(menit(20)));
+      await pumpEventQueue();
       bool? masukSaatSinkron;
       SyncOtomatis.instance.penggantiPicuUntukTest =
           (_) async => masukSaatSinkron = sm.isLoggedIn;
@@ -195,7 +199,7 @@ void main() {
 
         // Keranjang berisi = sinkron dilewati = tidak ada kabar baru.
         SyncOtomatis.instance.sedangMenyusunPesanan = true;
-        sm.catatKabar(DateTime.now().subtract(menit(15)));
+        sm.catatSentuhan(DateTime.now().subtract(menit(15)));
         async.flushMicrotasks();
 
         async.elapse(SyncOtomatis.jarakPeriksaDiam);
@@ -372,13 +376,34 @@ void main() {
       expect(sm.sesiDicabut.value, SessionManager.pesanDiamOwner);
     });
 
-    test('aturan kasir tidak berubah: sinkron tetap dihitung', () async {
+  });
+
+  group('QA S4: kasir pemegang shift juga diukur dari sentuhan', () {
+    // Dulu sinkron tiap 5 menit ikut dihitung "masih dipakai": HP kasir yang
+    // ditinggal dengan aplikasi terbuka tidak pernah keluar, dan HP lain
+    // tidak bisa menutup shift-nya (keputusan owner 2026-10-30).
+    test('sinkron TIDAK menyelamatkan kasir yang ditinggal', () async {
       await sm.setSession(sesi());
-      final kabar = DateTime(2026, 10, 24, 9);
-      sm.catatSentuhan(kabar.subtract(menit(30)));
-      await sm.catatKabar(kabar);
-      expect(await sm.akhiriKalauDiam(sekarang: kabar.add(menit(14))),
-          isFalse);
+      final sentuh = DateTime(2026, 10, 30, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      await sm.catatKabar(sentuh.add(menit(14)));
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15))),
+          isTrue);
+      expect(sm.sesiDicabut.value, SessionManager.pesanDiam);
+    });
+
+    test('keluar karena diam: server langsung diberi tahu shift dilepas',
+        () async {
+      final lapor = <String?>[];
+      sm.laporLepasShiftUntukTest = () async => lapor.add(sm.currentSession?.shiftId);
+      addTearDown(() => sm.laporLepasShiftUntukTest = null);
+      await sm.setSession(sesi());
+      final sentuh = DateTime(2026, 10, 30, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15)));
+      expect(lapor, [null], reason: 'dilaporkan SESUDAH sesinya dihapus');
     });
   });
 }
