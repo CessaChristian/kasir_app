@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../data/nama_tercatat.dart';
@@ -63,6 +65,7 @@ class _LaporanPageState extends State<LaporanPage> {
   @override
   void dispose() {
     _pengawasHari.dispose();
+    _langgananNama?.cancel();
     super.dispose();
   }
   late Stream<RingkasanLaporan> _aliran = _repo.watchLaporan(_periode);
@@ -87,10 +90,13 @@ class _LaporanPageState extends State<LaporanPage> {
   void initState() {
     super.initState();
     _pengawasHari; // mulai mengawasi
-    _repo.namaAkun().then((m) {
+    // Ikut berubah saat sinkron membawa akun/nama baru (QA kedua K7).
+    _langgananNama = _repo.watchNamaAkun().listen((m) {
       if (mounted) setState(() => _nama = m);
     });
   }
+
+  StreamSubscription<Map<String, String>>? _langgananNama;
 
   void _ubahPeriode(Periode p) => setState(() {
     _periode = p;

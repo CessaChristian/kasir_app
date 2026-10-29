@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../data/app_database.dart';
@@ -48,6 +50,7 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
   @override
   void dispose() {
     _pengawasHari.dispose();
+    _langgananNama?.cancel();
     super.dispose();
   }
 
@@ -73,13 +76,13 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
   void initState() {
     super.initState();
     _pengawasHari; // mulai mengawasi
-    _muatNama();
+    // Ikut berubah saat sinkron membawa akun/nama baru (QA kedua K7).
+    _langgananNama = _repo.watchNamaAkun().listen((m) {
+      if (mounted) setState(() => _nama = m);
+    });
   }
 
-  Future<void> _muatNama() async {
-    final nama = await _repo.namaAkun();
-    if (mounted) setState(() => _nama = nama);
-  }
+  StreamSubscription<Map<String, String>>? _langgananNama;
 
   Future<void> _catat() async {
     final sesi = SessionManager.instance.currentSession;

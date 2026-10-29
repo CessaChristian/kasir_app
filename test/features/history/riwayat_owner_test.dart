@@ -134,6 +134,19 @@ void main() {
       expect(hasil.last.single.jumlah, 1);
     });
 
+    test('nama akun baru/ganti nama ikut tampil tanpa membuka ulang '
+        '(QA kedua K7)', () async {
+      final nama = <Map<String, String>>[];
+      final sub = db.watchNamaAkun().listen(nama.add);
+      await pumpEventQueue();
+      await (db.update(db.users)..where((u) => u.id.equals('budi')))
+          .write(const UsersCompanion(username: Value('budi2')));
+      await pumpEventQueue();
+      await sub.cancel();
+      expect(nama.first['budi'], 'budi');
+      expect(nama.last['budi'], 'budi2');
+    });
+
     test('% dicari apa adanya, bukan wildcard', () async {
       await isiOktober();
       await trx('D1', DateTime(2026, 10, 2, 10), 1, menu: 'Es Teh 100%');

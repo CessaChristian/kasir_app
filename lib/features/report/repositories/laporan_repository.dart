@@ -103,4 +103,7 @@ class LaporanRepository {
 
   /// Nama akun per id — untuk "oleh siapa" di daftar yang dibatalkan.
   Future<Map<String, String>> namaAkun() => _db.namaAkun();
+
+  /// [namaAkun] yang ikut berubah saat sinkron membawa akun/nama baru.
+  Stream<Map<String, String>> watchNamaAkun() => _db.watchNamaAkun();
 }

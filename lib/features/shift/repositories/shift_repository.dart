@@ -250,6 +250,9 @@ class ShiftRepository {
   /// Nama akun per id — untuk "Dibatalkan · nama, jam".
   Future<Map<String, String>> namaAkun() => _db.namaAkun();
 
+  /// [namaAkun] yang ikut berubah saat sinkron membawa akun/nama baru.
+  Stream<Map<String, String>> watchNamaAkun() => _db.watchNamaAkun();
+
   /// Total pendapatan satu shift — dipakai dialog tutup shift.
   ///
   /// Filter `deletedAt` WAJIB. Sebelum dipindah ke sini, query ini ditulis

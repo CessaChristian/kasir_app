@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../data/nama_tercatat.dart';
 import 'package:intl/intl.dart';
@@ -48,12 +50,21 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
   /// 0 = Transaksi, 1 = Pengeluaran.
   var _tab = 0;
 
+  StreamSubscription<Map<String, String>>? _langgananNama;
+
   @override
   void initState() {
     super.initState();
-    _repo.namaAkun().then((m) {
+    // Ikut berubah saat sinkron membawa akun/nama baru (QA kedua K7).
+    _langgananNama = _repo.watchNamaAkun().listen((m) {
       if (mounted) setState(() => _nama = m);
     });
+  }
+
+  @override
+  void dispose() {
+    _langgananNama?.cancel();
+    super.dispose();
   }
 
   @override

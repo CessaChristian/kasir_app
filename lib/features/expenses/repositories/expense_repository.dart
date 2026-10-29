@@ -100,6 +100,9 @@ class ExpenseRepository {
   /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
   Future<Map<String, String>> namaAkun() => _db.namaAkun();
 
+  /// [namaAkun] yang ikut berubah saat sinkron membawa akun/nama baru.
+  Stream<Map<String, String>> watchNamaAkun() => _db.watchNamaAkun();
+
   /// Pengeluaran satu shift, terbaru dulu — TERMASUK yang dibatalkan, karena
   /// halaman Pengeluaran menampilkannya dengan label dan tidak menghitungnya.
   Stream<List<Expense>> watchExpensesByShift(String shiftId) =>
