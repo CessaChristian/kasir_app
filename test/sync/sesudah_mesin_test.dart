@@ -39,6 +39,27 @@ void main() {
     expect(identical(h, gagal), isTrue, reason: 'galat asli tetap dilaporkan');
   });
 
+  test('QA S10: baris ditolak tapi tarikan selesai — foto & buang sampah '
+      'tetap jalan, galatnya tetap dilaporkan', () async {
+    const gagal = HasilSync(
+      error: 'products: ditolak',
+      tarikSelesai: true,
+      ditolak: 2,
+    );
+    await jalankan(gagal);
+    expect(urutan, ['foto & catat berhasil', 'periksa & lapor aktif']);
+  });
+
+  for (final (nama, h) in const [
+    ('koneksi putus', HasilSync(error: 'x', tarikSelesai: true, koneksiPutus: true)),
+    ('dibatalkan', HasilSync(error: 'x', tarikSelesai: true, dibatalkan: true)),
+  ]) {
+    test('QA S10: $nama — foto tidak dicoba', () async {
+      await jalankan(h);
+      expect(urutan, ['periksa & lapor aktif']);
+    });
+  }
+
   test('putaran gagal & pemeriksaannya ikut gagal: galat asli tidak tertimpa',
       () async {
     const gagal = HasilSync(error: 'baris ditolak');

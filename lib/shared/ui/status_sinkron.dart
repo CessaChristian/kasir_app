@@ -23,6 +23,7 @@ String labelSinkronTerakhir(DateTime? waktu, DateTime sekarang) {
 
 /// Peringatan sinkron, atau null kalau semuanya normal.
 ///
+/// - Ada baris HP ini yang ditolak server ([SyncService.jumlahGagalKirim]).
 /// - Ada baris server yang tertahan di HP ini (lihat `BarisTertahan`):
 ///   biasanya karena aplikasinya belum diperbarui.
 /// - Sinkron belum berhasil lebih dari [SyncOtomatis.batasBasi]: data di HP
@@ -32,9 +33,16 @@ String labelSinkronTerakhir(DateTime? waktu, DateTime sekarang) {
 /// tulisan kecil abu-abu ini, yang tidak berubah walau sudah berhari-hari.
 String? peringatanSinkron({
   required int tertahan,
+  int gagalKirim = 0,
   required DateTime? terakhirBerhasil,
   required DateTime sekarang,
 }) {
+  // Paling dulu: data yang hanya ada di HP ini (QA kedua S10). Owner juga
+  // melihatnya di Daftar Perangkat.
+  if (gagalKirim > 0) {
+    return '$gagalKirim data dari HP ini ditolak server dan belum terkirim. '
+        'Beri tahu owner.';
+  }
   if (tertahan > 0) {
     return '$tertahan data dari server belum bisa disimpan di HP ini. '
         'Perbarui aplikasi ke versi terbaru.';
@@ -68,10 +76,7 @@ class _StatusSinkronState extends State<StatusSinkron> {
     super.initState();
     // "Basi" bergantung pada jam, bukan hanya pada kejadian: tanpa detak ini
     // labelnya tidak pernah berubah oranye selama tidak ada sinkron baru.
-    _detak = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) => setState(() {}),
-    );
+    _detak = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
   }
 
   @override
@@ -83,38 +88,38 @@ class _StatusSinkronState extends State<StatusSinkron> {
   @override
   Widget build(BuildContext context) {
     final sync = SyncService.instance;
-    return ValueListenableBuilder<int>(
-      valueListenable: sync.jumlahTertahan,
-      builder: (context, tertahan, _) => ValueListenableBuilder<DateTime?>(
-        valueListenable: sync.terakhirBerhasil,
-        builder: (context, waktu, _) {
-          final sekarang = DateTime.now();
-          final pesan = peringatanSinkron(
-            tertahan: tertahan,
-            terakhirBerhasil: waktu,
-            sekarang: sekarang,
-          );
-          if (pesan != null) return _peringatan(pesan);
-          if (widget.hanyaPeringatan) return const SizedBox.shrink();
-          return Row(
-            children: [
-              const Icon(
-                Icons.update_rounded,
-                size: 15,
-                color: WarnaTeras.teksPudar,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                labelSinkronTerakhir(waktu, sekarang),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: WarnaTeras.teksPudar,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        sync.jumlahTertahan,
+        sync.jumlahGagalKirim,
+        sync.terakhirBerhasil,
+      ]),
+      builder: (context, _) {
+        final waktu = sync.terakhirBerhasil.value;
+        final sekarang = DateTime.now();
+        final pesan = peringatanSinkron(
+          tertahan: sync.jumlahTertahan.value,
+          gagalKirim: sync.jumlahGagalKirim.value,
+          terakhirBerhasil: waktu,
+          sekarang: sekarang,
+        );
+        if (pesan != null) return _peringatan(pesan);
+        if (widget.hanyaPeringatan) return const SizedBox.shrink();
+        return Row(
+          children: [
+            const Icon(
+              Icons.update_rounded,
+              size: 15,
+              color: WarnaTeras.teksPudar,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              labelSinkronTerakhir(waktu, sekarang),
+              style: const TextStyle(fontSize: 12, color: WarnaTeras.teksPudar),
+            ),
+          ],
+        );
+      },
     );
   }
 

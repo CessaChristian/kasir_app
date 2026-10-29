@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
+import 'package:kasir_app/features/perangkat/widgets/peringatan_perangkat.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/perangkat/pages/daftar_perangkat_page.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
@@ -114,6 +115,55 @@ void main() {
       final m = hp('a', 'A', tertahan: 12).masalahData(sekarang: sekarang)!;
       expect(m.judul, '12 data tertahan di HP ini');
       expect(m.catatan, contains('Perbarui aplikasi'));
+    });
+
+    test('QA S10: ada data yang gagal terkirim dari HP ini', () {
+      final p = Perangkat.dariBaris({
+        'id': 'a',
+        'nama': 'Realme Sari',
+        'status': 'aktif',
+        'terakhir_aktif': sekarang.toUtc().toIso8601String(),
+        'terakhir_tarik': sekarang.toUtc().toIso8601String(),
+        'jumlah_gagal_kirim': 3,
+      });
+      final m = p.masalahData(sekarang: sekarang)!;
+      expect(m.judul, '3 data gagal terkirim dari HP ini');
+      expect(m.catatan, contains('belum sampai'));
+      expect(p.perluPerhatian(sekarang: sekarang), isTrue);
+    });
+
+    testWidgets('QA S10: Dashboard owner — strip "HP perlu dicek" hanya '
+        'kalau ada masalah', (t) async {
+      Future<void> pasang(List<Perangkat> daftar) async {
+        await t.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: PeringatanPerangkat(
+              key: UniqueKey(),
+              muat: () async => daftar,
+              idSaya: 'saya',
+            ),
+          ),
+        ));
+        await t.pump();
+      }
+
+      await pasang([hp('a', 'A')]);
+      expect(find.textContaining('perlu dicek'), findsNothing);
+
+      final gagal = Perangkat.dariBaris({
+        'id': 'b',
+        'nama': 'Realme Sari',
+        'status': 'aktif',
+        'terakhir_aktif': sekarang.toUtc().toIso8601String(),
+        'terakhir_tarik': sekarang.toUtc().toIso8601String(),
+        'jumlah_gagal_kirim': 2,
+      });
+      await pasang([hp('a', 'A'), gagal]);
+      expect(
+        find.text('1 HP perlu dicek — ada data yang gagal terkirim. '
+            'Ketuk untuk buka Daftar Perangkat.'),
+        findsOneWidget,
+      );
     });
 
     test('dipakai tapi lebih dari sehari tidak menerima data', () {

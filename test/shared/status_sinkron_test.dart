@@ -31,6 +31,19 @@ void main() {
       );
     });
 
+    test('QA S10: ada data yang ditolak server: hubungi owner', () {
+      expect(
+        peringatanSinkron(
+          tertahan: 0,
+          gagalKirim: 3,
+          terakhirBerhasil: kini,
+          sekarang: kini,
+        ),
+        '3 data dari HP ini ditolak server dan belum terkirim. '
+        'Beri tahu owner.',
+      );
+    });
+
     test('lebih dari 30 menit belum berhasil: data mungkin basi', () {
       expect(
         peringatanSinkron(

@@ -61,7 +61,23 @@ class SyncService {
     final p = await SharedPreferences.getInstance();
     final teks = p.getString(_kunciTerakhir);
     if (teks != null) terakhirBerhasil.value = DateTime.tryParse(teks);
+    jumlahGagalKirim.value = p.getInt(_kunciGagalKirim) ?? 0;
     await _hitungTertahan();
+  }
+
+  /// Baris HP ini yang DITOLAK server dan tetap tertunda (QA kedua S10).
+  /// Ditampilkan di HP ini dan dilaporkan ke server supaya owner melihatnya
+  /// di Daftar Perangkat. Hanya diperbarui oleh putaran yang pengirimannya
+  /// selesai — koneksi putus tidak berarti barisnya beres.
+  final ValueNotifier<int> jumlahGagalKirim = ValueNotifier(0);
+  static const _kunciGagalKirim = 'sync_gagal_kirim';
+
+  Future<void> _catatGagalKirim(HasilSync hasil) async {
+    final n = hasil.ditolak;
+    if (n == null) return;
+    jumlahGagalKirim.value = n;
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(_kunciGagalKirim, n);
   }
 
   /// Jumlah baris server yang tertahan di HP ini (`baris_tertahan`). Hanya
@@ -119,7 +135,11 @@ class SyncService {
   /// tetap bisa berjualan. Satu baris bermasalah bisa bertahan berhari-hari.
   ///
   /// [hanyaKalauBerhasil] (foto, buang sampah, catatan "terakhir berhasil")
-  /// tetap menunggu putaran yang bersih.
+  /// menunggu putaran yang tersambung dan tarikannya selesai
+  /// ([HasilSync.bolehRampung]). Dulu menunggu putaran yang BERSIH: satu
+  /// baris yang ditolak terus membuat foto tidak pernah terunggah dan
+  /// "Sinkron terakhir" membeku (QA kedua S10). Baris yang ditolak sekarang
+  /// punya peringatannya sendiri ([jumlahGagalKirim]).
   ///
   /// Saat putarannya gagal, galat pemeriksaan tidak menimpa galat aslinya.
   @visibleForTesting
@@ -128,7 +148,7 @@ class SyncService {
     required Future<HasilSync> Function() hanyaKalauBerhasil,
     required Future<void> Function() selamaTersambung,
   }) async {
-    if (!hasil.berhasil) {
+    if (!hasil.bolehRampung) {
       try {
         await selamaTersambung();
       } catch (e) {
@@ -206,6 +226,7 @@ class SyncService {
       SessionManager.instance.currentSession?.shiftId,
       tarikBersih: tarikBersih(hasil, jumlahTertahan.value),
       tertahan: jumlahTertahan.value,
+      gagalKirim: jumlahGagalKirim.value,
     );
   }
 
@@ -257,6 +278,7 @@ class SyncService {
       }
       // Hanya tarikan yang bisa menambah atau melepas baris tertahan.
       await _hitungTertahan();
+      await _catatGagalKirim(hasil);
       return urutanSesudahMesin(
         hasil,
         hanyaKalauBerhasil: () => _rampungkan(hasil),

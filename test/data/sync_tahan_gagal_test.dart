@@ -76,6 +76,7 @@ void main() {
     expect(terkirim, 2);
     expect(gagal, hasLength(1));
     expect(gagal.first, contains('products'));
+    expect(mesin.ditolak, 1, reason: 'QA S10: dilaporkan ke owner');
   });
 
   test('satu tabel gagal tidak menghentikan tabel lain', () async {

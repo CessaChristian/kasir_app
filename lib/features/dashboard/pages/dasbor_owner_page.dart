@@ -20,6 +20,7 @@ import '../widgets/kisi_produk_laris.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/status_sinkron.dart';
 import '../../../utils/pemuat_terakhir.dart';
+import '../../perangkat/widgets/peringatan_perangkat.dart';
 
 /// Dashboard owner: satu kartu "Ringkasan hari ini".
 class DasborOwnerPage extends StatefulWidget {
@@ -92,6 +93,7 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
             padding: EdgeInsets.only(bottom: 12),
             child: StatusSinkron(hanyaPeringatan: true),
           ),
+          const PeringatanPerangkat(),
           _kartuRingkasan(data),
           // Hanya dilihat: owner tidak menjual.
           StreamBuilder<List<ProdukLaris>>(

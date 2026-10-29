@@ -63,6 +63,8 @@ void main() {
       expect(terkirim, 0);
       expect(gagal, hasLength(1));
       expect(await masihTertunda(), 5, reason: 'tetap aman di HP');
+      expect(mesin.koneksiPutus, isTrue);
+      expect(mesin.ditolak, isNull, reason: 'belum tahu — tidak terkirim');
     });
   }
 

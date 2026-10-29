@@ -63,6 +63,18 @@ class HasilSync {
   /// Dihentikan lewat tombol Batalkan.
   final bool dibatalkan;
 
+  /// Pengiriman berhenti karena koneksi putus atau server tidak menjawab.
+  final bool koneksiPutus;
+
+  /// Baris yang DITOLAK server di putaran ini dan tetap tertunda; null kalau
+  /// pengiriman tidak selesai sehingga jumlahnya belum diketahui.
+  final int? ditolak;
+
+  /// Server bisa dijangkau dan semua data sudah tertarik — foto dan buang
+  /// sampah tetap boleh jalan walau ada baris yang ditolak (QA kedua S10).
+  bool get bolehRampung =>
+      berhasil || (tarikSelesai && !dibatalkan && !koneksiPutus);
+
   const HasilSync({
     this.diperiksa = 0,
     this.berubah = 0,
@@ -76,6 +88,8 @@ class HasilSync {
     this.sebabTerputus,
     this.tarikSelesai = false,
     this.dibatalkan = false,
+    this.koneksiPutus = false,
+    this.ditolak,
   });
 
   bool get berhasil => error == null;
@@ -101,6 +115,8 @@ class HasilSync {
         sebabTerputus: sebabTerputus,
         tarikSelesai: tarikSelesai,
         dibatalkan: dibatalkan,
+        koneksiPutus: koneksiPutus,
+        ditolak: ditolak,
       );
 
   /// Ada yang berhasil walau ada juga yang gagal.
@@ -139,7 +155,10 @@ class _GagalSebagian implements Exception {
   final int terkirim;
   final Object penyebab;
 
-  _GagalSebagian(this.tabel, this.terkirim, this.penyebab);
+  /// Baris yang ditolak dan tetap tertunda.
+  final int ditolak;
+
+  _GagalSebagian(this.tabel, this.terkirim, this.penyebab, {this.ditolak = 0});
 
   @override
   String toString() => penyebab.toString();
@@ -257,6 +276,15 @@ class SyncEngine {
   /// dan ikut putaran berikutnya.
   void batalkan() => _dibatalkan = true;
 
+  /// Hasil pengiriman terakhir — lihat [HasilSync.ditolak] dan
+  /// [HasilSync.koneksiPutus].
+  @visibleForTesting
+  int? get ditolak => _ditolak;
+  int? _ditolak;
+  @visibleForTesting
+  bool get koneksiPutus => _koneksiPutus;
+  bool _koneksiPutus = false;
+
   Future<HasilSync> jalankan() async {
     if (!_supabase.online) {
       return const HasilSync(error: 'offline atau perangkat belum didaftarkan');
@@ -314,6 +342,8 @@ class SyncEngine {
       error: gagal.isEmpty ? null : gagal.join(' | '),
       tarikSelesai: tarikSelesai,
       dibatalkan: _dibatalkan,
+      koneksiPutus: koneksiPutus,
+      ditolak: ditolak,
     );
   }
 
@@ -897,21 +927,26 @@ class SyncEngine {
 
   Future<(int, List<String>)> _dorongSemua() async {
     var didorong = 0;
+    var ditolak = 0;
     final gagal = <String>[];
+    _ditolak = null;
     for (var i = 0; i < _entitas.length; i++) {
       try {
         didorong += await _dorong(_entitas[i], i + 1);
       } on _GagalSebagian catch (g) {
         didorong += g.terkirim;
+        ditolak += g.ditolak;
         gagal.add('${g.tabel}: ${g.penyebab}');
       } on _Berhenti catch (b) {
         didorong += b.terkirim;
+        _koneksiPutus = galatTakTersambung(b.penyebab);
         gagal.add('${b.tabel}: ${b.penyebab}');
-        break;
+        return (didorong, gagal);
       } catch (e) {
         gagal.add('${_entitas[i].nama}: $e');
       }
     }
+    _ditolak = ditolak;
     return (didorong, gagal);
   }
 
@@ -975,7 +1010,12 @@ class SyncEngine {
     // satu permintaan ~266 byte per baris beracun per putaran, karena baris
     // sehat sudah lolos lewat percobaan satu per satu di atas.
     if (galatTerakhir != null) {
-      throw _GagalSebagian(e.nama, terkirim, galatTerakhir);
+      throw _GagalSebagian(
+        e.nama,
+        terkirim,
+        galatTerakhir,
+        ditolak: tertunda.length - terkirim,
+      );
     }
     return terkirim;
   }

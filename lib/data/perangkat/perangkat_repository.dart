@@ -39,6 +39,9 @@ class Perangkat {
   /// Baris server yang ditolak database HP ini (lihat `BarisTertahan`).
   final int jumlahTertahan;
 
+  /// Baris HP ini yang ditolak SERVER dan belum terkirim (QA kedua S10).
+  final int jumlahGagalKirim;
+
   const Perangkat({
     required this.id,
     required this.nama,
@@ -49,6 +52,7 @@ class Perangkat {
     this.tablet = false,
     this.terakhirTarik,
     this.jumlahTertahan = 0,
+    this.jumlahGagalKirim = 0,
   });
 
   factory Perangkat.dariBaris(Map<String, dynamic> b) {
@@ -67,6 +71,7 @@ class Perangkat {
         _ => null,
       },
       jumlahTertahan: (b['jumlah_tertahan'] as num?)?.toInt() ?? 0,
+      jumlahGagalKirim: (b['jumlah_gagal_kirim'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -87,6 +92,15 @@ class Perangkat {
     String? idSaya,
   }) {
     if (!aktif || perluDicek(sekarang: sekarang, idSaya: idSaya)) return null;
+    // Paling dulu: data penjualan yang hanya ada di HP itu.
+    if (jumlahGagalKirim > 0) {
+      return (
+        judul: '$jumlahGagalKirim data gagal terkirim dari HP ini',
+        catatan: 'Data dari HP ini ditolak server dan belum sampai. '
+            'Perbarui aplikasi di HP itu ke versi terbaru, lalu tarik layar '
+            'untuk mengirim ulang.',
+      );
+    }
     if (jumlahTertahan > 0) {
       return (
         judul: '$jumlahTertahan data tertahan di HP ini',
@@ -409,22 +423,38 @@ class PerangkatRepository {
     String? shiftId, {
     bool tarikBersih = false,
     int? tertahan,
+    int? gagalKirim,
   }) async {
     final k = _klien;
     if (k == null) return;
-    try {
-      try {
-        await k.rpc('perangkat_hadir', params: {
+    // Dari yang paling lengkap. Server yang belum menjalankan
+    // supabase/perangkat_gagal_kirim.sql (atau perangkat_tarik.sql) belum
+    // menerima parameter barunya — kabar "masih dipakai" tetap harus
+    // sampai: pemegang shift dan sesi diam bergantung padanya.
+    final pilihan = <Map<String, dynamic>>[
+      {
+        'p_shift_id': shiftId,
+        if (tarikBersih) 'p_tarik_bersih': true,
+        'p_tertahan': ?tertahan,
+        'p_gagal_kirim': ?gagalKirim,
+      },
+      if (gagalKirim != null)
+        {
           'p_shift_id': shiftId,
           if (tarikBersih) 'p_tarik_bersih': true,
           'p_tertahan': ?tertahan,
-        });
-      } catch (e) {
-        // supabase/perangkat_tarik.sql belum dijalankan: fungsinya belum
-        // menerima parameter baru. Kabar "masih dipakai" tetap harus sampai
-        // — pemegang shift dan sesi diam bergantung padanya.
-        if (!belumDisiapkan(e) || (!tarikBersih && tertahan == null)) rethrow;
-        await k.rpc('perangkat_hadir', params: {'p_shift_id': shiftId});
+        },
+      if (tarikBersih || tertahan != null || gagalKirim != null)
+        {'p_shift_id': shiftId},
+    ];
+    try {
+      for (var i = 0; ; i++) {
+        try {
+          await k.rpc('perangkat_hadir', params: pilihan[i]);
+          break;
+        } catch (e) {
+          if (!belumDisiapkan(e) || i == pilihan.length - 1) rethrow;
+        }
       }
     } catch (e) {
       if (!belumDisiapkan(e)) debugPrint('[perangkat] hadir gagal: $e');
