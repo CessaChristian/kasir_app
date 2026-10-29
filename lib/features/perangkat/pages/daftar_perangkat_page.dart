@@ -7,6 +7,7 @@ import '../../../data/supabase/server_terjangkau.dart';
 import '../../../data/sync/sync_service.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/chip_status.dart';
+import '../../../shared/ui/dialog_memuat.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/kolom_lembar.dart';
 import '../../../shared/ui/layar_butuh_internet.dart';
@@ -168,30 +169,50 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     });
   }
 
-  Future<void> _jalankan(Future<void> Function() aksi, String pesan) async {
-    try {
-      await aksi();
-      if (mounted) AppToast.success(context, pesan);
+  /// Jalankan aksi server sambil menampilkan kartu "[memuat]".
+  ///
+  /// Dulu tanpa tanda apa pun: saat koneksi putus, permintaannya menunggu
+  /// lalu pemeriksaan koneksinya menunggu lagi (sampai 5 detik), dan selama
+  /// itu layar diam — pemilik mengira ketukannya tidak masuk. Pemeriksaan
+  /// koneksi sesudah gagal ikut di dalam kartu yang sama.
+  Future<void> _jalankan(
+    Future<void> Function() aksi,
+    String pesan, {
+    required String memuat,
+  }) async {
+    final gagal = await jalankanDenganMemuat<(Object, bool)?>(
+      context,
+      () async {
+        try {
+          await aksi();
+          return null;
+        } catch (e) {
+          return (e, await _cekKoneksi());
+        }
+      },
+      pesan: memuat,
+    );
+    if (!mounted) return;
+    if (gagal == null) {
+      AppToast.success(context, pesan);
       await _muat(diam: true);
-    } catch (e) {
-      if (!mounted) return;
-      if (!await _cekKoneksi()) {
-        if (!mounted) return;
-        setState(() => _keadaan = _Keadaan.offline);
-        AppToast.error(context, pesanButuhInternet);
-        return;
-      }
-      if (!mounted) return;
-      // Fungsi servernya ditambahkan lewat berkas SQL yang dijalankan pemilik.
-      // Pesan mentah PostgREST tidak berarti apa-apa bagi pemilik warung —
-      // yang dia butuhkan adalah tahu APA yang harus dilakukan.
-      AppToast.error(
-        context,
-        PerangkatRepository.belumDisiapkan(e)
-            ? 'Perlu menjalankan ulang supabase/perangkat.sql di Supabase'
-            : pesanGalat(e),
-      );
+      return;
     }
+    final (e, online) = gagal;
+    if (!online) {
+      setState(() => _keadaan = _Keadaan.offline);
+      AppToast.error(context, pesanButuhInternet);
+      return;
+    }
+    // Fungsi servernya ditambahkan lewat berkas SQL yang dijalankan pemilik.
+    // Pesan mentah PostgREST tidak berarti apa-apa bagi pemilik warung —
+    // yang dia butuhkan adalah tahu APA yang harus dilakukan.
+    AppToast.error(
+      context,
+      PerangkatRepository.belumDisiapkan(e)
+          ? 'Perlu menjalankan ulang supabase/perangkat.sql di Supabase'
+          : pesanGalat(e),
+    );
   }
 
   Future<void> _gantiNama(Perangkat p) async {
@@ -203,6 +224,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     await _jalankan(
       () => _repo.ubahNama(p.id, hasil),
       'Nama perangkat diperbarui',
+      memuat: 'Menyimpan nama…',
     );
   }
 
@@ -220,6 +242,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     await _jalankan(
       () => _repo.ubahStatus(p.id, aktif: false),
       '${p.nama} dicabut',
+      memuat: 'Mencabut perangkat…',
     );
   }
 
@@ -227,6 +250,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
   Future<void> _pulihkan(Perangkat p) => _jalankan(
     () => _repo.ubahStatus(p.id, aktif: true),
     '${p.nama} dipulihkan',
+    memuat: 'Memulihkan perangkat…',
   );
 
   Future<void> _lupakan(Perangkat p) async {
@@ -240,7 +264,11 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
       labelAksi: 'Lupakan',
     );
     if (!ya) return;
-    await _jalankan(() => _repo.lupakan(p.id), '${p.nama} dilupakan');
+    await _jalankan(
+      () => _repo.lupakan(p.id),
+      '${p.nama} dilupakan',
+      memuat: 'Melupakan perangkat…',
+    );
   }
 
   @override

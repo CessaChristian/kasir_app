@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -15,6 +17,12 @@ class _RepoPalsu extends PerangkatRepository {
   List<Perangkat> daftar;
   final panggilan = <String>[];
 
+  /// Diisi test: jawaban server ditahan sampai ini selesai.
+  Completer<void>? tahan;
+
+  /// Diisi test: permintaan gagal (mis. koneksi putus di tengah jalan).
+  Object? gagal;
+
   @override
   String? get idSaya => 'hp-owner';
 
@@ -28,6 +36,8 @@ class _RepoPalsu extends PerangkatRepository {
 
   @override
   Future<void> ubahNama(String id, String nama) async {
+    await tahan?.future;
+    if (gagal case final g?) throw g;
     panggilan.add('nama $id $nama');
     _ganti(id, (p) => _salin(p, nama: nama));
   }
@@ -409,6 +419,45 @@ void main() {
       await tunggu(t);
       expect(repo.panggilan, ['nama tab Tablet Depan']);
       expect(find.text('Tablet Depan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('Ganti Nama: kartu "Menyimpan nama…" selama menunggu server', (
+      t,
+    ) async {
+      // Dulu layar diam ±4 detik saat koneksi putus — pemilik mengira
+      // ketukannya tidak masuk.
+      repo.tahan = Completer<void>();
+      await buka(t);
+      await t.tap(find.text('Ganti Nama').at(1));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'Tablet Depan');
+      await t.tap(find.text('Simpan'));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
+      expect(find.text('Menyimpan nama…'), findsOneWidget);
+
+      repo.tahan!.complete();
+      await tunggu(t);
+      expect(find.text('Menyimpan nama…'), findsNothing);
+      expect(find.text('Tablet Depan'), findsOneWidget);
+      await lepas(t);
+    });
+
+    testWidgets('Ganti Nama saat koneksi putus: pesan butuh internet', (
+      t,
+    ) async {
+      await buka(t);
+      repo.gagal = Exception('SocketException');
+      online = false;
+      await t.tap(find.text('Ganti Nama').at(1));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'Tablet Depan');
+      await t.tap(find.text('Simpan'));
+      await tunggu(t);
+      expect(find.text('Menyimpan nama…'), findsNothing);
+      expect(find.text('Tidak ada koneksi internet'), findsOneWidget);
+      expect(repo.panggilan, isEmpty);
       await lepas(t);
     });
 
