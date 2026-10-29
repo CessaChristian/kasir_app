@@ -1046,8 +1046,8 @@ class SyncEngine {
                 'recovery_used_at': _iso(u.recoveryUsedAt),
                 'recovery_attempts': u.recoveryAttempts,
                 'recovery_locked_until': _iso(u.recoveryLockedUntil),
-                'login_attempts': u.loginAttempts,
-                'login_locked_until': _iso(u.loginLockedUntil),
+                // Hitungan & kunci salah PIN SENGAJA tidak dikirim — milik HP
+                // masing-masing (QA kedua S2, lihat `tulis` di bawah).
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
                 'deleted_at': _iso(u.deletedAt),
@@ -1059,6 +1059,16 @@ class SyncEngine {
           ];
         },
         tulis: (r) async {
+          // Hitungan & kunci salah PIN milik HP ini, tidak ditimpa server.
+          // Dulu ikut sinkron: sari yang terkunci di HP kasir lepas kuncinya
+          // begitu owner mengganti namanya (baris tiba dengan hitungan HP
+          // owner, 0), dan salah PIN di satu HP mengunci akun di semua HP.
+          // Satu-satunya yang melepasnya dari HP lain adalah Reset PIN —
+          // terlihat dari hash PIN yang berubah.
+          final lama = await (_db.select(_db.users)
+                ..where((u) => u.id.equals(r['id'] as String)))
+              .getSingleOrNull();
+          final pinDiganti = lama != null && lama.pinHash != r['pin_hash'];
           await _db.into(_db.users).insertOnConflictUpdate(UsersCompanion(
                 id: Value(r['id'] as String),
                 username: Value(r['username'] as String),
@@ -1072,8 +1082,10 @@ class SyncEngine {
                 recoveryUsedAt: Value(_dt(r['recovery_used_at'])),
                 recoveryAttempts: Value((r['recovery_attempts'] as num).toInt()),
                 recoveryLockedUntil: Value(_dt(r['recovery_locked_until'])),
-                loginAttempts: Value((r['login_attempts'] as num).toInt()),
-                loginLockedUntil: Value(_dt(r['login_locked_until'])),
+                loginAttempts:
+                    pinDiganti ? const Value(0) : const Value.absent(),
+                loginLockedUntil:
+                    pinDiganti ? const Value(null) : const Value.absent(),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 // Server sebelum salinan_nama_akun.sql tidak punya kolom ini.
