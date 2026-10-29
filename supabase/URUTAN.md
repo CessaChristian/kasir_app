@@ -70,4 +70,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 38 | `open_bill_aman.sql` | OPEN BILL AMAN — pelunasan selalu diterima, isi terkunci selama dibayar, klaim kedaluwarsa (revisi QA kedua S6 & S8, 30 Okt 2026) |
 | 39 | `perangkat_tebak_aman.sql` | BATAS TEBAK KUNCI PEMASANGAN YANG TIDAK BISA DITEMBUS (revisi QA kedua S3, 30 Okt 2026) |
 | 40 | `perangkat_gagal_kirim.sql` | JUMLAH DATA GAGAL TERKIRIM PER PERANGKAT (revisi QA kedua S10, 30 Okt 2026) |
-| 41 | `rls.sql` | SISA PENGETATAN AKSES |
+| 41 | `pengetatan_kecil.sql` | PENGETATAN KECIL (revisi QA kedua K12 & K13, 30 Okt 2026) |
+| 42 | `rls.sql` | SISA PENGETATAN AKSES |
