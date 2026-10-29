@@ -558,4 +558,23 @@ void main() {
       KeputusanServer.sudahDihapus,
     );
   });
+
+  test('QA S8: klaim lebih dari 15 menit sudah kedaluwarsa — HP yang '
+      'mengklaim dianggap mati', () {
+    final kini = DateTime.utc(2026, 10, 30, 10);
+    Map<String, dynamic> diklaim(Duration lalu) => {
+      'transaction_id': null,
+      'deleted_at': null,
+      'klaim_tx': 't',
+      'klaim_pada': kini.subtract(lalu).toIso8601String(),
+    };
+    expect(
+      keputusanDariBaris(diklaim(const Duration(minutes: 14)), sekarang: kini),
+      KeputusanServer.sudahDibayar,
+    );
+    expect(
+      keputusanDariBaris(diklaim(const Duration(minutes: 16)), sekarang: kini),
+      KeputusanServer.boleh,
+    );
+  });
 }

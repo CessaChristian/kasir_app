@@ -58,15 +58,28 @@ KeputusanServer keputusanDariJawaban(Object? jawaban) => switch (jawaban) {
 
 /// Baris `open_bills` di server → keputusan memperbarui bill. Tidak ada
 /// baris = bill belum pernah terkirim (dibuat offline), jadi boleh. Bill
-/// yang sedang diklaim pembayaran (`klaim_tx`) dihitung sudah dibayar.
-KeputusanServer keputusanDariBaris(Map<String, dynamic>? baris) {
+/// yang sedang diklaim pembayaran (`klaim_tx`) dihitung sudah dibayar —
+/// kecuali klaimnya sudah lewat [batasKlaim] (`klaim_pada`): HP yang
+/// mengklaim dianggap mati (supabase/open_bill_aman.sql, QA kedua S8).
+KeputusanServer keputusanDariBaris(
+  Map<String, dynamic>? baris, {
+  DateTime? sekarang,
+}) {
   if (baris == null) return KeputusanServer.boleh;
   if (baris['deleted_at'] != null) return KeputusanServer.sudahDihapus;
-  if (baris['transaction_id'] != null || baris['klaim_tx'] != null) {
-    return KeputusanServer.sudahDibayar;
+  if (baris['transaction_id'] != null) return KeputusanServer.sudahDibayar;
+  if (baris['klaim_tx'] != null) {
+    final pada = DateTime.tryParse('${baris['klaim_pada']}');
+    final basi = pada != null &&
+        (sekarang ?? DateTime.now()).difference(pada) > batasKlaim;
+    if (!basi) return KeputusanServer.sudahDibayar;
   }
   return KeputusanServer.boleh;
 }
+
+/// Klaim pembayaran bill kedaluwarsa — HARUS sama dengan `klaim_berlaku`
+/// di supabase/open_bill_aman.sql.
+const batasKlaim = Duration(minutes: 15);
 
 /// Jawaban [OpenBillRepository.cekDiServer]: boleh/tidaknya, dan isi bill
 /// di server (JSON seperti `open_bills.items`) kalau terbaca.
@@ -186,7 +199,9 @@ class OpenBillRepository {
       if (!k.online) return (keputusan: KeputusanServer.takTerjawab, isi: null);
       final baris = await k.client!
           .from('open_bills')
-          .select('transaction_id, deleted_at, klaim_tx, items')
+          // Semua kolom: `klaim_pada` belum ada di server sebelum
+          // open_bill_aman.sql, dan memintanya by name akan gagal.
+          .select()
           .eq('id', billId)
           .maybeSingle()
           .timeout(batasTungguServer);

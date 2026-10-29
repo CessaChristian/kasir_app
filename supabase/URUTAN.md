@@ -67,4 +67,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 35 | `cabut_hak_sisa.sql` | CABUT HAK SISA (revisi QA C10, 28 Okt 2026) |
 | 36 | `shift_gabung.sql` | SHIFT GABUNG — dua shift satu akun dari dua HP offline disatukan (revisi QA K9, 29 Okt 2026) |
 | 37 | `nomor_kasir_server.sql` | NOMOR KASIR HANYA DIBAGIKAN SERVER (revisi QA kedua S9, 30 Okt 2026) |
-| 38 | `rls.sql` | SISA PENGETATAN AKSES |
+| 38 | `open_bill_aman.sql` | OPEN BILL AMAN — pelunasan selalu diterima, isi terkunci selama dibayar, klaim kedaluwarsa (revisi QA kedua S6 & S8, 30 Okt 2026) |
+| 39 | `rls.sql` | SISA PENGETATAN AKSES |
