@@ -107,6 +107,17 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
       AppToast.info(context, 'Buka shift dulu untuk mulai berjualan');
       return;
     }
+    // Keranjang disembunyikan untuk kasir tanpa izin ini: isi yang masuk
+    // tidak bisa dikosongkan, dan sinkron otomatis menunggunya kosong sampai
+    // logout (QA kedua S13).
+    if (!SessionManager.instance.hasPermission('create_transaction')) {
+      AppToast.info(
+        context,
+        'Kamu belum punya izin membuat transaksi. Minta owner '
+        'mengaktifkannya.',
+      );
+      return;
+    }
     String? catatan;
     if (kelompokUntuk(p).isNotEmpty) {
       catatan = await tanyaPilihanProduk(context, p);

@@ -503,6 +503,30 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('QA S13: tanpa izin Buat Transaksi, produk laris tidak masuk '
+        'keranjang', (t) async {
+      // Ikon keranjang disembunyikan untuk kasir ini — isi yang masuk tidak
+      // bisa dikosongkan, dan sinkron otomatis menunggu keranjang kosong
+      // sampai logout.
+      layarHp(t);
+      await siapkanShift(t);
+      await t.runAsync(() => masuk(shiftId: 's-1', izin: ['open_close_shift']));
+      final keranjang = Keranjang();
+      await t.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DasborKasirPage(keranjang: keranjang, repo: repo),
+          ),
+        ),
+      );
+      await tunggu(t);
+      await t.tap(find.text('Kopi Susu'));
+      await t.pump();
+      expect(keranjang.isEmpty, isTrue);
+      expect(find.textContaining('izin membuat transaksi'), findsOneWidget);
+      await lepas(t);
+    });
+
     testWidgets('dashboard shift selesai: ringkasan, terlaris, tidak bisa '
         'menambah ke keranjang', (t) async {
       layarHp(t);
