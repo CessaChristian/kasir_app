@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../utils/pesan_galat.dart';
 import 'package:intl/intl.dart';
 
 import '../ui/teks_teras.dart';
@@ -96,10 +98,11 @@ class _DialogPembatalanState extends State<DialogPembatalan> {
         _memproses = false;
         _langkah = _Langkah.berhasil;
       });
-    } on StateError catch (e) {
-      _salah(e.message);
-    } on ArgumentError catch (e) {
-      _salah('${e.message}');
+    } catch (e) {
+      // Galat APA PUN mengembalikan tombolnya. Dulu hanya penolakan yang
+      // ditangkap; galat lain (mis. database sibuk) membuat dialog macet di
+      // "Memproses…" (QA kedua K6).
+      _salah(pesanGalat(e, awalan: 'Gagal membatalkan'));
     }
   }
 

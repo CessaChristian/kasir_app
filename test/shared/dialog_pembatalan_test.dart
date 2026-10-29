@@ -80,6 +80,25 @@ void main() {
     expect(find.text('Alasan pembatalan'), findsOneWidget);
   });
 
+  testWidgets('QA K6: galat tak terduga — tidak macet "Memproses…", bisa '
+      'dicoba lagi', (t) async {
+    var coba = 0;
+    await buka(t, kirim: (a) async {
+      coba++;
+      throw Exception('database is locked');
+    });
+    await t.pump();
+    await t.tap(find.text('buka'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Salah input nominal'));
+    await t.pump();
+    await tekanTombol(t, 'Batalkan');
+    expect(find.text('Memproses…'), findsNothing);
+    expect(find.text('Gagal membatalkan. Coba lagi.'), findsOneWidget);
+    await tekanTombol(t, 'Batalkan');
+    expect(coba, 2);
+  });
+
   testWidgets('"Lainnya" wajib diisi dan disimpan dengan awalan', (t) async {
     String? alasan;
     await buka(t, kirim: (a) async => alasan = a);
