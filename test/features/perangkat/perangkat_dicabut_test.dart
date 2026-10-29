@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasir_app/app/app_shell.dart';
 import 'package:kasir_app/app/penjaga_perangkat.dart';
 import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// HP yang DICABUT tetap terkunci walau aplikasinya dibuka ulang tanpa
 /// internet, dan tidak bisa mengaktifkan dirinya dengan kunci (revisi QA
@@ -131,12 +133,54 @@ void main() {
     // dibuka ulang (terbukti di emulator 2026-10-24).
     final shell = File('lib/app/app_shell.dart').readAsStringSync();
     expect(shell, contains('p.dicabut, p.identitasHilang, p.belumTerdaftar'));
-    expect(shell, contains('PenjagaPerangkat(child: LoginPage())'));
+    expect(shell, contains('ruteMasuk()'));
     final otomatis =
         File('lib/data/sync/sync_otomatis.dart').readAsStringSync();
     expect(otomatis, contains('await periksaPerangkatIni();'),
         reason: 'status dicek tiap menit, bukan tiap sinkron 5 menit');
     final main = File('lib/main.dart').readAsStringSync();
     expect(main, contains('await PerangkatRepository.instance.muatTandaDicabut();'));
+  });
+
+  group('QA S1: dicabut sesudah keluar akun', () {
+    final p = PerangkatRepository.instance;
+    tearDown(() => p.dicabut.value = false);
+
+    test('setiap jalan ke halaman Login lewat penjaga perangkat', () {
+      // Kasir Keluar Akun → owner mencabut HP → halaman Login polos tidak
+      // menanggapi tandanya, kasir login lagi dan berjualan.
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        expect(f.readAsStringSync(), isNot(contains('=> const LoginPage()')),
+            reason: '${f.path}: pakai ruteMasuk()');
+      }
+    });
+
+    testWidgets('ruteMasuk() saat HP dicabut: layar dicabut', (t) async {
+      p.dicabut.value = true;
+      await t.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (c) => TextButton(
+            onPressed: () => Navigator.of(c).push(ruteMasuk()),
+            child: const Text('keluar'),
+          ),
+        ),
+      ));
+      await t.tap(find.text('keluar'));
+      await t.pumpAndSettle();
+      expect(find.text('HP ini dicabut pemilik'), findsOneWidget);
+    });
+
+    testWidgets('AppShell dibangun saat HP SUDAH dicabut: tetap terkunci', (
+      t,
+    ) async {
+      // Tandanya sudah menyala sebelum login, jadi tidak ada "perubahan"
+      // yang didengar AppShell.
+      SharedPreferences.setMockInitialValues({});
+      p.dicabut.value = true;
+      await t.pumpWidget(const MaterialApp(home: AppShell()));
+      await t.pumpAndSettle();
+      expect(find.text('HP ini dicabut pemilik'), findsOneWidget);
+    });
   });
 }

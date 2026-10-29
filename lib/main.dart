@@ -258,7 +258,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
               // pushAndRemoveUntil — bersihkan OnboardingPage + SaveRecoveryCodePage
               // dari stack supaya back button tidak balik ke onboarding.
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
+                ruteMasuk(),
                 (route) => false,
               );
             },

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../data/perangkat/perangkat_repository.dart';
-import '../features/auth/pages/login_page.dart';
 import '../shared/auth/session_manager.dart';
 import '../shared/widgets/app_toast.dart';
 import 'kerangka_kasir.dart';
@@ -30,6 +29,9 @@ class AppShellState extends State<AppShell> {
     for (final n in _penandaPerangkat) {
       n.addListener(_perangkatBerubah);
     }
+    // Tandanya bisa SUDAH menyala sebelum login — tidak ada perubahan yang
+    // terdengar, jadi diperiksa sekali di sini.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _perangkatBerubah());
   }
 
   List<ValueNotifier<bool>> get _penandaPerangkat {
@@ -51,12 +53,7 @@ class AppShellState extends State<AppShell> {
     if (!_penandaPerangkat.any((n) => n.value)) return;
     _sudahDialihkan = true;
     unawaited(SessionManager.instance.clearSession());
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => const PenjagaPerangkat(child: LoginPage()),
-      ),
-      (route) => false,
-    );
+    Navigator.of(context).pushAndRemoveUntil(ruteMasuk(), (route) => false);
   }
 
   /// Sesi dicabut dari jarak jauh — pemilik menonaktifkan atau menghapus akun
@@ -76,10 +73,7 @@ class AppShellState extends State<AppShell> {
     SessionManager.instance.tandaiPencabutanSudahDitangani();
 
     AppToast.warning(context, alasan);
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
-    );
+    Navigator.of(context).pushAndRemoveUntil(ruteMasuk(), (route) => false);
   }
 
   void _sesiBerubah() {
@@ -98,6 +92,12 @@ class AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Di bawah penjaga juga: selama sesinya belum sempat dihapus, layar
+    // kasir tidak boleh tampil sedetik pun di HP yang dicabut.
+    return PenjagaPerangkat(child: Builder(builder: _kerangka));
+  }
+
+  Widget _kerangka(BuildContext context) {
     // Role, BUKAN permission — lihat test/arsitektur/role_bukan_permission_test.dart
     if (SessionManager.instance.isOwner) return const KerangkaOwner();
     return const KerangkaKasir();

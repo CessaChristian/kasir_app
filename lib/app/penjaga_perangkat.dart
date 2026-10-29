@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/perangkat/perangkat_repository.dart';
+import '../features/auth/pages/login_page.dart';
 import '../features/perangkat/pages/daftarkan_perangkat_page.dart';
 import '../shared/ui/teks_teras.dart';
 import '../shared/ui/tombol_lembar.dart';
@@ -26,6 +27,15 @@ import '../shared/ui/warna_teras.dart';
 /// `AppShell` sesudah login — dulu penjaganya hanya ada di awal, dan
 /// halaman login menggantinya begitu masuk, sehingga HP yang dicabut tetap
 /// bisa dipakai sampai aplikasinya dibuka ulang.
+/// Rute ke halaman Login, SELALU di bawah [PenjagaPerangkat].
+///
+/// Halaman Login polos tidak menanggapi tanda dicabut: kasir yang Keluar
+/// Akun lalu HP-nya dicabut owner bisa login lagi dan terus berjualan sampai
+/// aplikasinya ditutup paksa (QA kedua S1). Semua jalan ke Login lewat sini.
+Route<void> ruteMasuk() => MaterialPageRoute(
+      builder: (_) => const PenjagaPerangkat(child: LoginPage()),
+    );
+
 class PenjagaPerangkat extends StatelessWidget {
   final Widget child;
 
