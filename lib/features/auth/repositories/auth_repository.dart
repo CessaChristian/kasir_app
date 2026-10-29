@@ -183,8 +183,9 @@ class AuthRepository {
 
     // 3b. Migrasi transparan: kalau hash masih format lama (SHA-256),
     // re-hash dengan PBKDF2 dan update DB.
+    var pinHash = user.pinHash;
     if (CryptoUtils.needsRehash(user.pinHash)) {
-      final newHash = await CryptoUtils.hashPinDiLatar(pin, user.salt);
+      final newHash = pinHash = await CryptoUtils.hashPinDiLatar(pin, user.salt);
       await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
           .write(UsersCompanion(
         pinHash: Value(newHash),
@@ -192,6 +193,8 @@ class AuthRepository {
         syncStatus: const Value('pending'),
       ));
     }
+    // Patokan untuk mengenali Reset PIN selagi akun ini masuk (QA kedua K2).
+    await SessionManager.instance.ingatPinMasuk(user.id, pinHash);
 
     // 4. Lanjutkan shift yang masih berjalan — HANYA untuk kasir. Sejak v37
     // login TIDAK membuka shift: kasir membukanya sendiri lewat "Buka shift"

@@ -168,6 +168,9 @@ class SessionManager {
   @visibleForTesting
   Future<void> Function()? laporLepasShiftUntukTest;
 
+  static const pesanPinDiganti =
+      'PIN akun ini diganti owner. Silakan masuk lagi dengan PIN baru.';
+
   static const pesanDiamOwner =
       'Sesi owner berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';
 
@@ -192,6 +195,17 @@ class SessionManager {
     _currentSession = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
+    await prefs.remove(_kunciPin);
+  }
+
+  /// "userId:hash PIN" akun yang sedang masuk — patokan
+  /// [periksaAkunMasihBerlaku] untuk mengenali Reset PIN (QA kedua K2).
+  static const _kunciPin = 'pin_saat_masuk';
+
+  /// Dicatat `AuthRepository.login` begitu PIN-nya terbukti benar.
+  Future<void> ingatPinMasuk(String userId, String pinHash) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kunciPin, '$userId:$pinHash');
   }
 
   /// Restore session dari storage.
@@ -296,6 +310,10 @@ class SessionManager {
       // Gagal membaca bukan alasan untuk mencabut izin yang sedang berlaku.
       return;
     }
+    // Sesinya berakhir atau berganti selagi membaca (mis. 15 menit tidak
+    // disentuh): menulisnya di bawah menghidupkan sesi yang sudah diakhiri
+    // (QA kedua K3).
+    if (!identical(_currentSession, sesi)) return;
 
     if (baru.toSet().length == sesi.permissions.toSet().length &&
         baru.toSet().containsAll(sesi.permissions)) {
@@ -349,6 +367,21 @@ class SessionManager {
       // bekerja. Kalau memang dicabut, putaran berikutnya akan menangkapnya.
       return;
     }
+    // Lihat muatUlangIzin (QA kedua K3).
+    if (!identical(_currentSession, sesi)) return;
+
+    // Owner mereset PIN akun ini (mis. PIN-nya bocor): orang yang sedang
+    // memakainya harus keluar, bukan berjualan terus sampai logout sendiri
+    // (QA kedua K2). Ganti nama tidak menyentuh PIN.
+    final prefs = await SharedPreferences.getInstance();
+    final pinMasuk = prefs.getString(_kunciPin);
+    final tercatat = user != null && (pinMasuk?.startsWith('${user.id}:') ?? false);
+    final pinDiganti =
+        tercatat && pinMasuk != '${user.id}:${user.pinHash}';
+    // Sesi dari APK sebelum K2 belum punya catatan: dimulai dari sekarang.
+    if (user != null && !tercatat) {
+      await prefs.setString(_kunciPin, '${user.id}:${user.pinHash}');
+    }
 
     final alasan = user == null
         ? 'Akun Anda sudah tidak ada.'
@@ -356,6 +389,8 @@ class SessionManager {
         ? 'Akun Anda dihapus oleh pemilik.'
         : !user.isActive
             ? 'Akses Anda dinonaktifkan oleh pemilik.'
+            : pinDiganti
+            ? pesanPinDiganti
             : null;
     if (alasan == null) {
       // Owner mengganti nama akun ini dari HP lain: nama di menu ikut
