@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
 import '../supabase/supabase_service.dart';
+import '../../utils/pesan_galat.dart' show galatTakTersambung;
 
 /// Hasil satu putaran sinkronisasi.
 class HasilSync {
@@ -59,6 +60,9 @@ class HasilSync {
   /// menerima kabar dari server.
   final bool tarikSelesai;
 
+  /// Dihentikan lewat tombol Batalkan.
+  final bool dibatalkan;
+
   const HasilSync({
     this.diperiksa = 0,
     this.berubah = 0,
@@ -71,6 +75,7 @@ class HasilSync {
     this.errorGambar,
     this.sebabTerputus,
     this.tarikSelesai = false,
+    this.dibatalkan = false,
   });
 
   bool get berhasil => error == null;
@@ -95,6 +100,7 @@ class HasilSync {
         errorGambar: error,
         sebabTerputus: sebabTerputus,
         tarikSelesai: tarikSelesai,
+        dibatalkan: dibatalkan,
       );
 
   /// Ada yang berhasil walau ada juga yang gagal.
@@ -137,6 +143,17 @@ class _GagalSebagian implements Exception {
 
   @override
   String toString() => penyebab.toString();
+}
+
+/// Pengiriman dihentikan: koneksi putus, atau tombol Batalkan. Berbeda
+/// dari [_GagalSebagian], tabel-tabel sesudahnya TIDAK dicoba — masing-masing
+/// hanya akan menunggu batas waktu yang sama.
+class _Berhenti implements Exception {
+  final String tabel;
+  final int terkirim;
+  final Object penyebab;
+
+  _Berhenti(this.tabel, this.terkirim, this.penyebab);
 }
 
 /// Satu tabel yang ikut disinkronkan.
@@ -231,6 +248,15 @@ class SyncEngine {
     _openBills(),
   ];
 
+  /// Diminta berhenti lewat tombol Batalkan (QA kedua S11).
+  bool _dibatalkan = false;
+
+  /// Hentikan putaran ini di titik aman berikutnya: sesudah halaman tarikan
+  /// atau potongan kiriman yang sedang berjalan. Yang sudah sampai di server
+  /// TIDAK ditarik balik — itu penjualan sungguhan; sisanya tetap `pending`
+  /// dan ikut putaran berikutnya.
+  void batalkan() => _dibatalkan = true;
+
   Future<HasilSync> jalankan() async {
     if (!_supabase.online) {
       return const HasilSync(error: 'offline atau perangkat belum didaftarkan');
@@ -253,6 +279,7 @@ class SyncEngine {
     var tarikSelesai = false;
     try {
       for (var i = 0; i < _entitas.length; i++) {
+        if (_dibatalkan) throw 'dibatalkan';
         final h = await _tarik(_entitas[i], i + 1);
         diperiksa += h.$1;
         berubah += h.$2;
@@ -274,9 +301,11 @@ class SyncEngine {
     // Per tabel pula: tidak ada alasan `expenses` ikut mati karena `shifts`
     // bermasalah. Anak yang gagal karena induknya belum naik pun tidak apa —
     // barisnya tetap `pending` dan ikut lagi di putaran berikutnya.
-    final h = await _dorongSemua();
-    didorong += h.$1;
-    gagal.addAll(h.$2);
+    if (!_dibatalkan) {
+      final h = await _dorongSemua();
+      didorong += h.$1;
+      gagal.addAll(h.$2);
+    }
 
     return HasilSync(
       diperiksa: diperiksa,
@@ -284,6 +313,7 @@ class SyncEngine {
       didorong: didorong,
       error: gagal.isEmpty ? null : gagal.join(' | '),
       tarikSelesai: tarikSelesai,
+      dibatalkan: _dibatalkan,
     );
   }
 
@@ -457,6 +487,7 @@ class SyncEngine {
     // yang membuat penandanya tidak maju, sinkronnya berhenti alih-alih
     // berputar selamanya.
     for (var putaran = 0; putaran < 1000; putaran++) {
+      if (_dibatalkan) throw 'dibatalkan';
       final halaman = await _halaman(e.nama, sejak, setelah, pakaiUrut);
       if (halaman.isEmpty) break;
 
@@ -873,6 +904,10 @@ class SyncEngine {
       } on _GagalSebagian catch (g) {
         didorong += g.terkirim;
         gagal.add('${g.tabel}: ${g.penyebab}');
+      } on _Berhenti catch (b) {
+        didorong += b.terkirim;
+        gagal.add('${b.tabel}: ${b.penyebab}');
+        break;
       } catch (e) {
         gagal.add('${_entitas[i].nama}: $e');
       }
@@ -892,12 +927,24 @@ class SyncEngine {
     final sampai = <Map<String, dynamic>>[];
     Object? galatTerakhir;
 
+    // Yang sudah sampai tetap dicap terkirim sebelum berhenti.
+    Future<Never> berhenti(Object sebab) async {
+      await _tandaiYangTidakBerubah(e, sampai);
+      throw _Berhenti(e.nama, sampai.length, sebab);
+    }
+
     for (var i = 0; i < tertunda.length; i += ukuranPotongan) {
+      if (_dibatalkan) await berhenti('dibatalkan');
       final potongan = tertunda.skip(i).take(ukuranPotongan).toList();
       try {
         await _kirim(e, potongan);
         sampai.addAll(potongan);
-      } catch (_) {
+      } catch (galat) {
+        // Koneksi putus atau server tidak menjawab: mencoba satu per satu
+        // cuma menunggu batas waktu yang sama untuk setiap baris — 100 baris
+        // ±25 menit (QA kedua S11). Berhenti; putaran berikutnya mencoba lagi.
+        if (galatTakTersambung(galat)) await berhenti(galat);
+
         // Potongan ditolak. Bisa jadi SELURUH isinya bermasalah, tapi jauh
         // lebih sering cuma SATU baris — dan 99 baris sehat lainnya ikut
         // tertahan tanpa sebab.
@@ -912,6 +959,8 @@ class SyncEngine {
         final h = await _kirimSatuSatu(e, potongan);
         sampai.addAll(h.$1);
         galatTerakhir ??= h.$2;
+        final sebab = h.$3;
+        if (sebab != null) await berhenti(sebab);
       }
       _lapor('mengirim', e.nama, urutan,
           (i + potongan.length).clamp(0, tertunda.length), tertunda.length);
@@ -984,22 +1033,25 @@ class SyncEngine {
   static bool _samaPersis(Map<String, dynamic>? a, Map<String, dynamic> b) =>
       a != null && jsonEncode(a) == jsonEncode(b);
 
-  /// Mengembalikan (baris yang lolos, galat pertama yang ditemui).
-  Future<(List<Map<String, dynamic>>, Object?)> _kirimSatuSatu(
+  /// Mengembalikan (baris yang lolos, galat penolakan pertama, sebab
+  /// berhenti di tengah — koneksi putus atau Batalkan).
+  Future<(List<Map<String, dynamic>>, Object?, Object?)> _kirimSatuSatu(
     _Entitas e,
     List<Map<String, dynamic>> potongan,
   ) async {
     final lolos = <Map<String, dynamic>>[];
     Object? galat;
     for (final baris in potongan) {
+      if (_dibatalkan) return (lolos, galat, 'dibatalkan');
       try {
         await _kirim(e, [baris]);
         lolos.add(baris);
       } catch (err) {
+        if (galatTakTersambung(err)) return (lolos, galat, err);
         galat ??= err;
       }
     }
-    return (lolos, galat);
+    return (lolos, galat, null);
   }
 
   /// Tandai baris sudah terkirim.

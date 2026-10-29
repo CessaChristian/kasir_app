@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../data/sync/kemajuan_sync.dart';
 import '../../../data/sync/sinkron_berbatas.dart';
 import '../../../data/sync/sync_engine.dart';
+import '../../../data/sync/sync_service.dart';
 import '../../widgets/alasan_terputus.dart';
 
 enum KeadaanSegarkan { diam, berjalan, selesai }
@@ -28,13 +29,17 @@ class PengendaliSegarkan extends ChangeNotifier {
   /// Dipasang halaman (yang punya `context`) untuk menampilkan AppToast.
   void Function(String pesan, {required bool sebagian})? onGagal;
 
+  final void Function()? _batalkan;
+
   PengendaliSegarkan({
     Future<HasilSync> Function()? jalankan,
     ValueNotifier<KemajuanSync?>? kemajuan,
     this.batasTersambungUji = batasTersambung,
     this.lamaHasil = const Duration(milliseconds: 1500),
+    void Function()? batalkan,
   }) : _jalankan = jalankan,
-       _kemajuan = kemajuan;
+       _kemajuan = kemajuan,
+       _batalkan = batalkan;
 
   KeadaanSegarkan _keadaan = KeadaanSegarkan.diam;
   HasilSync? _hasil;
@@ -44,6 +49,18 @@ class PengendaliSegarkan extends ChangeNotifier {
   KeadaanSegarkan get keadaan => _keadaan;
   HasilSync? get hasil => _hasil;
   bool get berjalan => _keadaan == KeadaanSegarkan.berjalan;
+
+  /// Batalkan sudah ditekan; menunggu putarannya berhenti.
+  bool get membatalkan => _membatalkan;
+  bool _membatalkan = false;
+
+  /// Tombol Batalkan di pita (QA kedua S11).
+  void batalkan() {
+    if (!berjalan || _membatalkan) return;
+    _membatalkan = true;
+    (_batalkan ?? SyncService.instance.batalkan)();
+    notifyListeners();
+  }
 
   /// Pita terlihat selama sinkron dan sesaat setelah berhasil.
   bool get pitaTerlihat => _keadaan != KeadaanSegarkan.diam;
@@ -60,6 +77,7 @@ class PengendaliSegarkan extends ChangeNotifier {
       batas: batasTersambungUji,
     );
     if (_dibuang) return;
+    _membatalkan = false;
     _hasil = hasil;
     if (hasil.berhasil) {
       _ubah(KeadaanSegarkan.selesai);

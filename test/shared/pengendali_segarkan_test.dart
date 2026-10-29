@@ -7,6 +7,7 @@ import 'package:kasir_app/data/supabase/supabase_service.dart';
 import 'package:kasir_app/data/sync/kemajuan_sync.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/shared/ui/segarkan/pengendali_segarkan.dart';
+import 'package:kasir_app/shared/ui/segarkan/pita_sinkron.dart';
 import 'package:kasir_app/shared/widgets/alasan_terputus.dart';
 
 /// Tombol refresh di header (komponen bersama UI baru).
@@ -120,6 +121,35 @@ void main() {
       expect(p.keadaan, KeadaanSegarkan.selesai);
       waktu.elapse(const Duration(seconds: 2));
     });
+  });
+
+  testWidgets('QA S11: Batalkan di pita menghentikan putaran, pesannya '
+      'menenangkan', (t) async {
+    final selesai = Completer<HasilSync>();
+    var dibatalkan = 0;
+    String? pesan;
+    final p = PengendaliSegarkan(
+      jalankan: () => selesai.future,
+      kemajuan: ValueNotifier(null),
+      batalkan: () => dibatalkan++,
+    )..onGagal = (m, {required sebagian}) => pesan = m;
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(body: PitaSinkron(pengendali: p)),
+    ));
+    unawaited(p.segarkan());
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400)); // pita selesai turun
+    await t.tap(find.text('Batalkan'));
+    await t.pump();
+    expect(dibatalkan, 1);
+    expect(find.text('Menghentikan…'), findsOneWidget);
+    await t.tap(find.text('Menghentikan…'));
+    expect(dibatalkan, 1, reason: 'tidak dobel');
+
+    selesai.complete(const HasilSync(error: 'dibatalkan', dibatalkan: true));
+    await t.pumpAndSettle();
+    expect(pesan, contains('aman di HP ini'));
+    expect(p.membatalkan, isFalse);
   });
 
   test('dibuang di tengah sinkron tidak melempar galat', () {

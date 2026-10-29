@@ -86,6 +86,20 @@ class PitaSinkron extends StatelessWidget {
                     ],
                   ),
                 ),
+                // Berhenti dulu; yang sudah terkirim tetap di server, sisanya
+                // aman di HP ini (QA kedua S11).
+                if (keadaan == KeadaanSegarkan.berjalan)
+                  TextButton(
+                    onPressed:
+                        pengendali.membatalkan ? null : pengendali.batalkan,
+                    style: TextButton.styleFrom(
+                      foregroundColor: WarnaTeras.oranye,
+                      minimumSize: const Size(48, 40),
+                    ),
+                    child: Text(
+                      pengendali.membatalkan ? 'Menghentikan…' : 'Batalkan',
+                    ),
+                  ),
               ],
             ),
           ),

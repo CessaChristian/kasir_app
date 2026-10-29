@@ -22,17 +22,12 @@ const pesanTakTersambung =
 /// - Penolakan dari fungsi server (`raise exception`) → pesannya.
 /// - Selain itu → "[awalan]. Coba lagi."; galat aslinya hanya dicatat di log.
 String pesanGalat(Object e, {String awalan = 'Terjadi kesalahan'}) {
+  if (galatTakTersambung(e)) return pesanTakTersambung;
   switch (e) {
     case StateError(:final message):
       return message;
     case ArgumentError(:final message):
       return '$message';
-    case SocketException() ||
-        TimeoutException() ||
-        HandshakeException() ||
-        ClientException() ||
-        AuthRetryableFetchException():
-      return pesanTakTersambung;
     case PostgrestException(:final code, :final message)
         when const {'28000', '42501', 'P0001'}.contains(code):
       return _kalimat(message);
@@ -40,6 +35,14 @@ String pesanGalat(Object e, {String awalan = 'Terjadi kesalahan'}) {
   debugPrint('[galat] $awalan: $e');
   return '$awalan. Coba lagi.';
 }
+
+/// Putus koneksi atau server tidak menjawab — bukan penolakan dari server.
+bool galatTakTersambung(Object e) =>
+    e is SocketException ||
+    e is TimeoutException ||
+    e is HandshakeException ||
+    e is ClientException ||
+    e is AuthRetryableFetchException;
 
 /// "perangkat ini tidak berhak" → "Perangkat ini tidak berhak."
 String _kalimat(String teks) {

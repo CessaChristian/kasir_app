@@ -29,6 +29,12 @@ String? alasanTakPulihSendiri(SebabTerputus? sebab) => switch (sebab) {
 /// [sebagian] = sebagian tabel sudah berhasil (cukup peringatan, bukan
 /// galat): data yang lolos memang sudah tersimpan.
 ({String pesan, bool sebagian}) pesanGagalSinkron(HasilSync hasil) {
+  if (hasil.dibatalkan) {
+    return (
+      pesan: 'Sinkron dihentikan — data yang belum terkirim aman di HP ini',
+      sebagian: true,
+    );
+  }
   if (hasil.sebagian) {
     return (
       pesan: 'Sebagian data belum tersinkron — akan dicoba lagi',

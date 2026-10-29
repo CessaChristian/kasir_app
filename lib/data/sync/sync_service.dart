@@ -86,6 +86,14 @@ class SyncService {
   /// Jalankan satu putaran, atau ikut menunggu yang sedang berjalan.
   Future<HasilSync> jalankan() => _berjalan ??= _mulai();
 
+  /// Mesin putaran yang sedang berjalan — untuk [batalkan].
+  SyncEngine? _mesin;
+
+  /// Tombol Batalkan: hentikan putaran yang sedang berjalan di titik aman
+  /// berikutnya (lihat [SyncEngine.batalkan]). Tahap foto sesudahnya tidak
+  /// ikut jalan, karena hasilnya tidak lagi "berhasil".
+  void batalkan() => _mesin?.batalkan();
+
   /// Tunggu putaran yang sedang berjalan selesai, kalau ada. Hasilnya tidak
   /// dipedulikan, dan paling lama [_batasTunggu] — keluar dari akun tidak
   /// boleh menggantung karena jaringannya tersendat.
@@ -239,8 +247,14 @@ class SyncService {
       // penyebabnya sudah diketahui server sejak tadi.
       await PerangkatRepository.instance.periksaStatusSaya();
 
-      final hasil =
-          await SyncEngine(db, onKemajuan: (k) => kemajuan.value = k).jalankan();
+      final mesin = _mesin =
+          SyncEngine(db, onKemajuan: (k) => kemajuan.value = k);
+      final HasilSync hasil;
+      try {
+        hasil = await mesin.jalankan();
+      } finally {
+        _mesin = null;
+      }
       // Hanya tarikan yang bisa menambah atau melepas baris tertahan.
       await _hitungTertahan();
       return urutanSesudahMesin(
