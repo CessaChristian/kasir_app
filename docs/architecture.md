@@ -1,223 +1,167 @@
 # Arsitektur Kasir App
 
-Dokumen ini adalah **peta besar** kode. Tujuannya: kamu tahu *di mana* sesuatu
-berada dan *aturan main* yang membuat kode ini tetap konsisten — bukan
-penjelasan baris per baris (kode bisa berubah; prinsip di sini jarang berubah).
+Dokumen ini adalah **peta besar** kode: *di mana* sesuatu berada dan *aturan
+main* yang menjaga kode tetap konsisten. Detail per baris ada di komentar kode —
+komentar di project ini sengaja panjang dan menjelaskan *kenapa*.
 
 ---
 
 ## 1. Gambaran umum
 
-Kasir App adalah aplikasi POS **local-first** (semua data di SQLite pada
-perangkat) yang menangani **beberapa usaha dalam satu aplikasi**. Masalah inti
-yang dipecahkan:
+Kasir App adalah POS untuk **satu usaha (Teras Inn)** dengan beberapa HP:
 
-1. **Multi-business** — 1 owner punya beberapa usaha; data tiap usaha harus
-   terpisah rapi walau disimpan di 1 database.
-2. **Peran & izin** — Owner (akses penuh) vs Kasir (akses terbatas, bisa diatur).
-3. **Siap sinkronisasi (Phase 2)** — walau sekarang offline, struktur data sudah
-   disiapkan agar nanti bisa sync ke cloud tanpa merombak skema.
+1. **Local-first** — setiap HP menyimpan seluruh data di SQLite (Drift). Kasir
+   tetap bisa berjualan tanpa internet.
+2. **Sinkron ke Supabase** — perubahan dikirim ke server dan ditarik HP lain.
+   Server juga menjaga aturan penting, karena HP bisa offline lama atau
+   dibongkar.
+3. **Perangkat terdaftar** — hanya HP yang didaftarkan owner yang boleh
+   membaca/menulis data server (RLS `perangkat_aktif()`).
+4. **Peran & izin** — Owner (akses penuh) vs Kasir (7 izin yang diatur owner).
 
-## 2. Peta kode (codemap)
+> Dulu ada arsitektur **multi-business** (Teras Inn + Thai Tea). Arsitektur itu
+> dibuang di skema v13; sisa catatannya di `docs/research/` tinggal sejarah.
+
+## 2. Peta kode
 
 ```
 lib/
-├── main.dart              # Entry point. Inisialisasi + routing berdasar status login.
-│
+├── main.dart                 # Inisialisasi + AuthFlowHandler (layar awal)
 ├── app/
-│   ├── app_shell.dart     # Kerangka utama setelah login: drawer + isi halaman.
-│   │                        Menu difilter sesuai permission user.
-│   └── app_theme.dart     # buildAppTheme(seed) — 1 tema, warna dihitung dari "seed"
-│                            per tipe usaha (dine-in oranye, grab-and-go monokrom).
-│
-├── data/                  # LAPISAN DATA (semua soal database ada di sini)
-│   ├── app_database.dart  # Definisi tabel Drift + SEMUA query + strategi migrasi.
-│   ├── app_database.g.dart# Hasil generate build_runner (JANGAN diedit manual).
-│   ├── business_context.dart # Singleton: usaha mana yang sedang aktif.
-│   ├── db.dart            # Instance global `db` + "wiring" BusinessContext ke DB.
-│   ├── uuid_helper.dart   # newUuid() untuk ID sync-friendly.
-│   └── models/            # Model bantu (ReportSummary, SaleLine, TopProduct, dll).
-│
-├── features/             # LAPISAN FITUR (feature-first: 1 folder = 1 modul)
-│   ├── auth/             #   login, setup owner, recovery code, AuthSession, repo
-│   ├── onboarding/       #   wizard pertama kali: owner + seed 2 usaha
-│   ├── business/         #   halaman daftar & detail usaha, service switch usaha
-│   ├── dashboard/        #   halaman utama + kartu ringkasan
-│   ├── products/         #   kelola produk & kategori
-│   ├── sales/            #   Kasir/POS: keranjang, pembayaran
-│   ├── history/          #   riwayat transaksi
-│   ├── report/           #   laporan harian/bulanan + export Excel
-│   ├── reports/          #   repo & widget laporan shift (dipakai fitur shift)
-│   ├── shift/            #   Pantau Shift (owner) + detail shift
-│   ├── expenses/         #   catat pengeluaran per shift
-│   ├── owner/            #   kelola kasir + atur izin
-│   └── settings/         #   mode device
-│
-├── shared/               # LAPISAN BERSAMA (dipakai lintas fitur)
-│   ├── auth/session_manager.dart # Singleton: sesi login + pengecekan permission
-│   ├── constants/        #   konstanta app, spacing, text styles
-│   └── widgets/          #   widget reusable (toast, dialog, logo, dsb.)
-│
-└── utils/                # Formatter (rupiah, tanggal) + kripto (PBKDF2) + helper
+│   ├── app_shell.dart        # Sesudah login: KerangkaOwner atau KerangkaKasir
+│   ├── kerangka_owner.dart   # Navigasi bawah owner (tengah: Produk)
+│   ├── kerangka_kasir.dart   # Navigasi bawah kasir (tengah: Kasir) + keranjang
+│   ├── penjaga_perangkat.dart# Layar dicabut / daftar perangkat di atas segalanya
+│   ├── keluar_akun.dart
+│   └── app_theme.dart        # buildAppTheme(seed) — warna brand Teras Inn
+├── data/
+│   ├── app_database.dart     # Tabel Drift, SEMUA query, migrasi (skema v42)
+│   ├── app_database.g.dart   # Hasil generate — JANGAN diedit
+│   ├── db.dart               # Instance global `db`
+│   ├── sync/                 # SyncEngine (tarik/kirim), SyncOtomatis, foto
+│   ├── supabase/             # Klien, konfigurasi, sesi aman, cek server
+│   └── perangkat/            # Pendaftaran HP, kode nota per HP
+├── features/                 # feature-first: 1 folder = 1 modul
+│   ├── auth/  onboarding/    #   login, setup owner, recovery
+│   ├── dashboard/  profil/
+│   ├── sales/  open_bill/    #   kasir, keranjang, pembayaran, open bill
+│   ├── history/  report/     #   riwayat transaksi, laporan + unduh
+│   ├── shift/  expenses/     #   shift (buka/tutup/riwayat/detail), pengeluaran
+│   ├── products/             #   produk & kategori
+│   ├── owner/                #   kelola kasir & hak akses
+│   └── perangkat/            #   daftar perangkat (owner)
+├── shared/
+│   ├── auth/                 # SessionManager, aturan username, cakupan riwayat
+│   ├── ui/  widgets/         # komponen UI bersama (kartu, lembar, toast, …)
+│   └── services/             # simpan foto, simpan/bagikan berkas
+└── utils/                    # rupiah, kripto PIN, pesan galat, dll.
 ```
 
-Aturan lapisan: **UI (features) → data/shared → drift**. Halaman & widget
-mengambil data lewat `db` (AppDatabase) atau *repository*, **tidak** menulis SQL
-mentah sendiri.
+Aturan lapisan: **halaman → repository fitur → `AppDatabase` (Drift)**.
+Halaman tidak menulis SQL sendiri.
 
-## 3. Alur startup (`main.dart`)
+## 3. Alur layar awal
 
 ```
 main()
- ├─ initializeDateFormatting('id_ID')      # format tanggal lokal Indonesia
- ├─ SessionManager.restoreSession()        # pulihkan sesi login (kalau ada)
- ├─ BusinessContext.loadPersistedForBranding()  # warna/logo halaman login
- └─ runApp(MyApp)
-       └─ AuthFlowHandler menentukan halaman awal:
-            ├─ belum ada user      → OnboardingPage (wizard pertama kali)
-            ├─ belum ada owner     → OwnerSetupPage (jalur cadangan)
-            ├─ belum login         → LoginPage
-            └─ sudah login         → AppShell (aplikasi utama)
+ ├─ initializeDateFormatting('id_ID'), ImageStorageService.init()
+ ├─ SupabaseService.init()            # klien server
+ ├─ SessionManager.restoreSession()   # sesi login lama (dicek ulang ke DB)
+ ├─ PerangkatRepository.muatTandaDicabut()
+ ├─ sinkron awal (latar) + SyncOtomatis.mulai()
+ └─ runApp → PenjagaPerangkat → AuthFlowHandler
+        ├─ HP dicabut          → layar "HP ini dicabut" (tanpa kolom kunci)
+        ├─ HP belum terdaftar  → Daftarkan Perangkat (kunci pemasangan)
+        ├─ pasang pertama, server tak terjangkau → "Perlu internet"
+        ├─ belum ada akun      → Onboarding (setup owner + recovery code)
+        ├─ belum login         → Login
+        └─ sudah login         → AppShell → KerangkaOwner / KerangkaKasir
 ```
 
-`MyApp` membungkus `MaterialApp` dengan `ListenableBuilder` ke `BusinessContext`.
-Saat usaha aktif berganti, `key` MaterialApp ikut berganti → seluruh widget tree
-dibangun ulang ("soft restart") sehingga tema & data ganti bersih.
+Penyiapan pertama **wajib online** (supaya tidak lahir owner kedua).
+Sesudahnya aplikasi jalan penuh offline.
 
-## 4. Pola-pola kunci
+## 4. Sinkron (`data/sync/`)
 
-### a. State global via Singleton `ChangeNotifier`
-Dua "otak" aplikasi:
+- **Tarik dulu, baru kirim.** Tarikan berhenti di kegagalan pertama (urutan
+  induk → anak); pengiriman tetap jalan per tabel karena data yang belum
+  terkirim hanya ada di HP itu.
+- **Penanda tarik = `server_urut`** (jam kedatangan di server) + `id`, per tabel,
+  disimpan di `sync_state`. Ditarik per halaman 500 baris.
+- **Baris yang ditolak HP** (mis. aturan isian belum dikenal) disisihkan ke
+  `baris_tertahan`, tarikan jalan terus, dicoba ulang berkala.
+- **Server menang kalau lebih baru** (dibandingkan per detik `updated_at`).
+- **Otomatis:** tiap 5 menit, sesudah aksi penting, saat kembali ke aplikasi;
+  ditunda selama keranjang berisi. Owner/kasir juga bisa tarik layar.
 
-- **`BusinessContext`** (`data/business_context.dart`) — menyimpan **usaha aktif**
-  + daftar usaha yang boleh diakses user. UI dengar perubahan lewat
-  `ListenableBuilder`. Method penting: `loadInitial()` (setelah login),
-  `switchTo()` (ganti usaha), `clear()` (logout).
-- **`SessionManager`** (`shared/auth/session_manager.dart`) — menyimpan **sesi
-  login** (`AuthSession`) + fungsi cek izin. Sesi juga di-*persist* ke
-  `shared_preferences`.
+Penjaga di server (`supabase/`, lihat [database-schema.md](database-schema.md)):
+`tolak_versi_lama` (versi lebih tua tidak menimpa), `kunci_kolom` (total,
+nominal, kas awal, role tidak bisa diganti), `shift_gabung` (shift dobel dari
+dua HP offline digabung), RLS per perangkat.
 
-### b. Database di-*scope* otomatis per usaha 🔑
-Hampir semua data punya kolom `business_id`. Supaya kita tidak lupa memfilter,
-`AppDatabase` punya "jembatan":
+## 5. Izin & sesi
 
-```dart
-// di db.dart — dijalankan sekali saat `db` pertama diakses:
-AppDatabase.activeBusinessIdProvider =
-    () => BusinessContext.instance.activeBusinessId;
-```
+- **`SessionManager`** (`shared/auth/session_manager.dart`) — sesi login,
+  izin, shift yang dipegang. Role & izin **selalu dibaca ulang dari DB** saat
+  sesi dipulihkan.
+- **Izin ditegakkan di repository**, bukan hanya dengan menyembunyikan menu:
+  `requireOwner()` / `requirePermission(kode)` melempar `IzinDitolak`.
+- **Hak semua akun** (bukan izin): menu Riwayat dan shift sendiri.
+  `CakupanRiwayat` menentukan seberapa jauh riwayat boleh dilihat
+  (owner: semua; `view_history`: milik sendiri; selain itu: shift berjalan).
+- **Sesi berakhir** setelah 15 menit diam (kasir: tanpa kabar; owner: tanpa
+  sentuhan) dan paling lama 12 jam.
 
-Lalu setiap query operasional memakai `_getActiveBusinessId()` /
-`_requireActiveBusinessId()` untuk menambahkan `WHERE business_id = ?` secara
-otomatis. **Akibatnya:** kamu tidak perlu (dan tidak boleh) menulis query yang
-mengabaikan usaha aktif — data antar usaha tidak akan pernah bocor satu sama
-lain.
+## 6. Keamanan
 
-> **Kenapa lewat "provider" dan bukan import langsung?** `business_context.dart`
-> meng-import `app_database.dart`. Kalau `app_database.dart` balik meng-import
-> `business_context.dart`, terjadi **circular import** (dilarang). Jembatan
-> fungsi ini memutus lingkaran itu.
+- **PIN 6 digit** di-hash PBKDF2-HMAC-SHA256 + salt; perbandingan
+  *constant-time*. Verifikasi berjalan di isolate latar.
+- **Salah PIN**: penundaan bertahap; **10 kali** → akun terkunci sampai owner
+  mereset PIN (owner sendiri: lewat recovery code).
+- **Username** hanya `a–z 0–9 . _`, 3–20 karakter, login harus persis.
+- **Perangkat**: identitas & tiket login server disimpan di brankas HP
+  (`flutter_secure_storage`). HP yang dicabut langsung berhenti dan tetap
+  terkunci walau dibuka ulang offline.
+- **Kunci Supabase** di `supabase_config.dart` memang publik (anon key) —
+  yang menahan adalah RLS, bukan kerahasiaan kuncinya.
 
-### c. Skema *sync-friendly* (siap Phase 2)
-Setiap tabel data bisnis memakai pola yang sama:
+## 7. Shift
 
-- **UUID** sebagai primary key (`newUuid()`), bukan angka auto-increment —
-  supaya ID tetap unik lintas perangkat saat sync nanti.
-- Kolom **`createdAt`, `updatedAt`, `deletedAt`, `syncStatus`** di setiap tabel.
-- **Soft-delete**: menghapus = mengisi `deletedAt` (baris tetap ada), bukan
-  benar-benar dihapus. Query selalu menyaring `deletedAt IS NULL`.
+- Dibuka **manual** dengan **kas awal**; satu shift boleh dipegang beberapa HP
+  (kasir pindah HP tidak melahirkan shift baru).
+- **Kas akhir** = kas awal + penjualan tunai − pengeluaran shift (dihitung,
+  tidak disimpan).
+- **Tutup shift wajib online** — supaya HP lain yang masih memegangnya tidak
+  ikut terputus diam-diam.
+- Shift yang ditutup dari HP lain: HP ini dilepas dari shift itu dan penjualan
+  ke shift tersebut ditolak. Shift yang **digabung server** (dua HP offline
+  membuka shift bersamaan): sesi pindah ke shift tujuan.
 
-Detail lengkap: [database-schema.md](database-schema.md).
+## 8. Aturan yang TIDAK boleh dilanggar
 
-### d. Izin (permission) — 2 lapis
-Ada dua mekanisme cek izin yang berdampingan:
+1. **Tabel yang disinkron** wajib punya `id` (UUID), `created_at`, `updated_at`,
+   `deleted_at`, `sync_status`.
+2. **Tidak ada hapus permanen dari HP.** Transaksi & pengeluaran **dibatalkan**
+   (alasan + siapa, disimpan selamanya); produk/kategori ditandai `deleted_at`
+   dan baru dibuang server (`buang_sampah`) setelah semua HP menerima kabarnya.
+3. **Migrasi menjaga data** — tidak ada `deleteTable` untuk data asli. Migrasi
+   yang menambah kolom ke tabel yang disinkron wajib mengosongkan penanda tarik
+   tabel itu.
+4. **Izin dicek di repository**, bukan hanya di tampilan.
+5. **Jangan percaya role/izin dari storage** — selalu dari DB.
+6. **Perubahan server = berkas SQL baru** di `supabase/`, dicatat di
+   `URUTAN.md` (dicek test arsitektur), aman dijalankan ulang, dan fungsi baru
+   ditutup dari `anon`.
+7. **Jangan edit `app_database.g.dart`.**
 
-1. **Per-user** — `SessionManager.hasPermission(code)`. Owner selalu `true`;
-   kasir sesuai daftar izin yang diaktifkan di DB (`user_permissions`). Dipakai
-   untuk memfilter menu drawer & sebagai penjaga di lapisan DB
-   (`requirePermission`).
-2. **Per-role** — `SessionManager.hasCurrentPermission(code)`. Berdasar
-   `users.role` dicocokkan ke matriks tetap `_rolePermissions`.
-
-> Namanya menyesatkan: `hasCurrentPermission` dulu berarti "izin di usaha yang
-> sedang aktif", dibaca dari `user_business_roles`. Arsitektur multi-usaha
-> dihapus di v13 dan role kini hanya ada di satu tempat (`users.role`), tapi
-> nama fungsinya belum ikut diganti.
-
-> **Arah ke depan:** izin per-user akan diganti kapabilitas paten per role,
-> sehingga lapis pertama hilang dan tabel `user_permissions` ikut dibuang.
-> Sampai itu terjadi, JANGAN memakai izin sebagai tebakan role —
-> `hasPermission('manage_products')` TIDAK berarti "ini owner"; pakai
-> `SessionManager.isOwner`. Bug nyata pernah lahir dari situ.
-
-> Kalau menambah pengecekan izin baru, ikuti pola fitur sejenis yang sudah ada,
-> dan lihat daftar kode izin di [database-schema.md](database-schema.md).
-
-### e. Keamanan
-- **PIN**: di-hash **PBKDF2-HMAC-SHA256, 120.000 iterasi** + salt acak, dengan
-  format `pbkdf2:<iter>:<base64>`. Perbandingan *constant-time* (anti timing
-  attack). Hash lama (SHA-256) masih bisa login lalu **otomatis di-*rehash*** ke
-  PBKDF2 (`utils/crypto_utils.dart`).
-- **Rate limiting**: gagal login/recovery beruntun → akun terkunci sementara
-  dengan *exponential backoff* (60 dtk → 5 mnt → 30 mnt → 1 jam → 24 jam setiap
-  kelipatan 5 percobaan).
-- **Sesi anti-tamper**: saat `restoreSession()`, role & permission **selalu
-  di-ambil ulang dari DB** — nilai di storage tidak dipercaya (mencegah
-  privilege escalation). Sesi kedaluwarsa setelah 12 jam.
-- **Recovery code** owner untuk reset PIN bila lupa.
-
-### f. Shift (lihat juga [features-overview.md](features-overview.md))
-- **Kasir**: login → otomatis membuka shift di usaha aktif; logout / ganti usaha
-  → shift ditutup (`endAt` diisi).
-- **Owner**: **tidak** menjalankan shift (`shiftId` = `null`). Owner memantau
-  shift kasir lewat halaman **Pantau Shift**.
-
-### g. Tema dinamis per usaha
-Satu fungsi `buildAppTheme(seed)` di `app/app_theme.dart`. Warna diturunkan dari
-`seed` yang dipilih berdasar tipe usaha. Ganti usaha = ganti seed = seluruh
-tampilan ikut menyesuaikan tanpa menyentuh halaman mana pun.
-
-## 5. Invariants (aturan yang TIDAK boleh dilanggar)
-
-Ini hal-hal yang sulit ditebak hanya dari membaca kode, tapi wajib dijaga:
-
-1. **Semua query data bisnis di-scope `business_id` aktif.** Jangan menulis query
-   yang mengambil data lintas usaha. Gunakan helper yang sudah ada.
-2. **Tabel data bisnis wajib punya** `id (UUID)`, `createdAt`, `updatedAt`,
-   `deletedAt`, `syncStatus`. Tanpa ini, sync Phase 2 akan rusak.
-3. **Penghapusan data bisnis idealnya soft-delete** (isi `deletedAt`).
-   *Catatan jujur:* saat ini transaksi sudah soft-delete, tapi beberapa operasi
-   (produk/kategori/pengeluaran) masih hard-delete — ini utang teknis menuju
-   Phase 2, jangan ditambah.
-4. **Owner tidak punya shift.** Kode yang menyangkut shift harus tahan
-   `shiftId == null`.
-5. **Jangan percaya role/permission dari storage** — selalu validasi dari DB.
-6. **`app_database.dart` tidak boleh import `business_context.dart`** (circular).
-   Pakai `activeBusinessIdProvider`.
-7. **Jangan edit `app_database.g.dart` manual** — itu hasil generate.
-
-## 6. Roadmap: Phase 1 → Phase 2
-
-| | Phase 1 (SEKARANG) | Phase 2 (RENCANA) |
-|---|---|---|
-| Penyimpanan | SQLite lokal saja | + sinkronisasi cloud (Firebase/Supabase) |
-| Data | 1 device | multi-device per usaha |
-| Kolom sync | sudah ada tapi belum dipakai | dipakai untuk push/pull perubahan |
-| Migrasi skema | *fresh-start* boleh (data masih dummy) | **wajib preserve data** (dilarang drop table) |
-| Pantau Shift (owner) | hanya lihat data di device ini | lihat shift kasir dari device lain (setelah sync) |
-
-> ⚠️ Migrasi `v10` melakukan *drop & recreate* tabel (fresh-start) karena datanya
-> masih dummy. **Pola ini tidak boleh dipakai lagi** begitu ada data client
-> sungguhan — Phase 2 harus menjaga data lama. Lihat [database-schema.md](database-schema.md).
-
-## 7. Diagram lapisan (ringkas)
+## 9. Diagram lapisan
 
 ```mermaid
 flowchart TD
-    UI["features/* (Pages & Widgets)"] --> S["shared/ (SessionManager, widgets)"]
-    UI --> R["repositories/* per fitur"]
-    R --> DB["data/app_database.dart (Drift)"]
-    UI --> BC["data/business_context.dart (usaha aktif)"]
-    BC -.provider.-> DB
-    DB --> SQLITE[("SQLite (kasir_app.sqlite)")]
+    UI["features/* (halaman)"] --> R["repositories/* per fitur"]
+    UI --> S["shared/ (SessionManager, UI)"]
+    R --> DB["data/app_database.dart (Drift, isolate latar)"]
+    DB --> SQLITE[("SQLite di HP")]
+    SYNC["data/sync/SyncEngine"] --> DB
+    SYNC <--> SB[("Supabase: Postgres + RLS + Storage")]
 ```

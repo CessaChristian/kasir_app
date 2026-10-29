@@ -1,114 +1,97 @@
-# Kasir App — Aplikasi POS Multi-Business
+# Kasir App — Teras Inn POS
 
-Aplikasi **Point of Sale (POS)** berbasis **Flutter** untuk usaha F&B kecil.
-Berjalan **local-first** (semua data di perangkat, tanpa server/internet) dan
-dirancang menangani **beberapa usaha dalam satu aplikasi** — saat ini
-**Teras Inn** (rumah makan / dine-in) dan **Thai Tea** (minuman / grab-and-go).
+Aplikasi **Point of Sale (POS)** berbasis **Flutter** untuk **Teras Inn**
+(rumah makan / kedai kopi).
 
-> **Status:** Phase 1 (local-only) aktif. Arsitektur sudah disiapkan untuk
-> Phase 2 (sinkronisasi cloud) namun sync-nya belum dikerjakan.
-> `flutter analyze` bersih, **41 test lulus**.
+Berjalan **local-first**: semua data disimpan di HP, jadi kasir tetap bisa
+berjualan saat internet mati. Begitu online, data disinkronkan ke server
+**Supabase** sehingga beberapa HP (kasir & owner) melihat data yang sama.
+
+> Verifikasi wajib sebelum menyatakan pekerjaan selesai:
+> `flutter analyze` bersih dan `flutter test` lulus semua.
 
 ---
 
 ## ✨ Fitur Utama
 
-- **Multi-business** — satu aplikasi menangani 2 usaha; owner bisa berpindah usaha, data terpisah otomatis per usaha.
-- **Autentikasi 2 peran** — Owner & Kasir dengan **PIN** (di-hash PBKDF2), *recovery code* untuk owner, dan *rate limiting* login.
-- **Onboarding** — wizard setup akun owner pertama + seed 2 usaha otomatis.
-- **Manajemen produk** — produk, kategori, barcode, opsi level pedas, foto produk.
-- **Kasir (POS)** — keranjang, pembayaran **Cash & QRIS**, tipe pesanan (dine-in / take away / delivery), struk.
-- **Shift** — kasir otomatis membuka shift saat login & menutupnya saat logout; owner memantau lewat halaman **Pantau Shift**.
-- **Riwayat transaksi** — filter, detail item, hapus transaksi (soft-delete).
-- **Laporan** — harian & bulanan, grafik tren, produk terlaris, performa per kasir, **export Excel**.
-- **Pengeluaran** — catat pengeluaran per shift.
-- **Manajemen usaha & kasir** — kelola kasir + izin akses, profil usaha, mode device.
+- **Pendaftaran perangkat** — HP baru harus didaftarkan owner (kunci pemasangan).
+  Owner bisa ganti nama, mencabut, memulihkan, atau melupakan HP.
+- **Akun & PIN** — Owner & Kasir, PIN 6 digit (PBKDF2), username huruf kecil,
+  penguncian bertahap saat salah PIN, *recovery code* untuk owner.
+- **Shift** — dibuka manual dengan **kas awal**, bisa dipegang beberapa HP,
+  kas akhir dihitung otomatis, tutup shift wajib online.
+- **Kasir (POS)** — keranjang, opsi pedas/manis/es, Dine In / Delivery,
+  bayar **Tunai & QRIS**, struk di layar, nomor nota per HP.
+- **Open Bill** — simpan pesanan dulu, bayar belakangan.
+- **Riwayat** — per tanggal, cari nota/bill/menu, pembatalan dengan alasan.
+- **Pengeluaran** — kasir mencatat dalam shift; owner boleh tanpa shift.
+- **Laporan** — periode bebas, grafik, produk terlaris, yang dibatalkan,
+  unduh **PDF / Excel** (simpan ke HP atau bagikan).
+- **Riwayat & Detail Shift** — rekap per shift (Cash/QRIS, kas awal/akhir).
+- **Kelola Kasir & Hak Akses** — 7 izin yang bisa diatur per kasir.
+- **Sinkron otomatis** — tiap 5 menit, sesudah aksi penting, atau tarik layar.
+
+Belum ada: **cetak struk ke printer Bluetooth** (tombolnya sudah tampil, belum
+berfungsi).
 
 ## 🧰 Tech Stack
 
 | Komponen | Teknologi |
 |---|---|
-| Framework | Flutter (Dart, SDK `^3.10.7`) |
-| Database lokal | [drift](https://drift.simonbinder.eu/) `^2.22` (SQLite ORM) + `sqlite3_flutter_libs` |
-| ID & format | `uuid`, `intl` (locale `id_ID`) |
-| Grafik | [fl_chart](https://pub.dev/packages/fl_chart) |
-| Keamanan PIN | `crypto` (PBKDF2-HMAC-SHA256 + salt) |
-| Preferensi lokal | `shared_preferences` |
-| Export / share | `excel`, `share_plus` |
-| Gambar | `image_picker` |
-| Codegen (dev) | `drift_dev`, `build_runner`, `flutter_lints`, `flutter_launcher_icons` |
+| Framework | Flutter (Dart SDK `^3.10.7`) |
+| Database HP | [drift](https://drift.simonbinder.eu/) `^2.35` + `sqlite3` `^3.4` (SQLite dibawa lewat build hook) |
+| Server | Supabase (PostgreSQL + RLS + Storage) lewat `supabase_flutter` |
+| Brankas HP | `flutter_secure_storage` (identitas perangkat, tiket login server) |
+| Laporan | `pdf`, `excel`, `share_plus` |
+| Foto produk | `image_picker` + `flutter_image_compress` |
+| Lain-lain | `uuid`, `intl` (`id_ID`), `crypto`, `shared_preferences`, `device_info_plus` |
+| Dev | `drift_dev`, `build_runner`, `flutter_lints`, `flutter_launcher_icons` |
 
 ## 📱 Platform
 
-Target utama **Android** (dan iOS). Folder `web/`, `linux/`, `macos/`,
-`windows/` masih berupa *scaffolding* bawaan Flutter dan belum jadi fokus.
+Target utama **Android** (minSdk 24). Folder `ios/`, `web/`, `linux/`,
+`macos/`, `windows/` masih bawaan Flutter dan belum disiapkan untuk rilis.
 
 ---
 
 ## 🚀 Quick Start
 
-Butuh [Flutter SDK](https://docs.flutter.dev/get-started/install) `^3.10.7`.
-Cek dulu: `flutter doctor`.
-
 ```bash
-# 1. Clone
 git clone https://github.com/CessaChristian/kasir_app.git
 cd kasir_app
-
-# 2. Install dependencies
 flutter pub get
-
-# 3. Generate kode database (Drift) — WAJIB sebelum run pertama kali
-dart run build_runner build --delete-conflicting-outputs
-
-# 4. Jalankan (pastikan ada emulator/device aktif)
+dart run build_runner build --delete-conflicting-outputs   # kode Drift
 flutter run
 ```
 
-> ℹ️ Langkah **build_runner** membuat file `lib/data/app_database.g.dart`
-> (kode Drift). Ulangi perintah tersebut setiap kali skema database di
-> `lib/data/app_database.dart` berubah.
-
-Panduan setup lengkap + akun pertama ada di
+Server Supabase dibangun dari berkas di `supabase/` — urutannya ada di
+**[supabase/URUTAN.md](supabase/URUTAN.md)**. Panduan lengkap:
 **[docs/getting-started.md](docs/getting-started.md)**.
-
-## ✅ Verifikasi (wajib sebelum menyatakan "selesai")
-
-```bash
-flutter analyze   # harus: No issues found!
-flutter test      # harus: All tests passed!
-```
-
----
 
 ## 🗂️ Struktur Folder (ringkas)
 
 ```
 lib/
-├── app/            # AppShell (navigasi) + AppTheme (tema per usaha)
-├── data/           # Database (Drift): schema, query, BusinessContext, wiring db
-├── features/       # Fitur per modul: auth, business, dashboard, products,
-│                   #   sales, history, report, reports, shift, expenses,
-│                   #   owner, onboarding, settings
-├── shared/         # Widget/konstanta/auth (SessionManager) yang dipakai lintas fitur
-├── utils/          # Formatter, kripto (PBKDF2), helper
-└── main.dart       # Entry point + routing berdasarkan status login
-test/               # Unit & integration test (41 test)
-docs/               # Dokumentasi project (baca di bawah)
+├── app/        # AppShell, kerangka owner/kasir, penjaga perangkat, tema
+├── data/       # Drift (skema & query), sinkron, Supabase, perangkat
+├── features/   # auth, dashboard, expenses, history, onboarding, open_bill,
+│               #   owner, perangkat, products, profil, report, sales, shift
+├── shared/     # SessionManager, aturan username, UI & widget bersama
+├── utils/      # formatter, kripto, pesan galat
+└── main.dart   # inisialisasi + alur layar awal
+supabase/       # berkas SQL server + URUTAN.md
+test/           # unit, widget, dan test arsitektur
+docs/           # dokumentasi
 ```
 
-## 📚 Dokumentasi Lengkap
+## 📚 Dokumentasi
 
-Mulai dari sini kalau kamu baru bergabung — baca berurutan:
-
-1. **[docs/getting-started.md](docs/getting-started.md)** — instalasi, run, akun pertama, troubleshooting.
-2. **[docs/architecture.md](docs/architecture.md)** — peta arsitektur & pola-pola kunci.
-3. **[docs/database-schema.md](docs/database-schema.md)** — tabel, relasi, dan migrasi database.
-4. **[docs/features-overview.md](docs/features-overview.md)** — apa saja fitur yang sudah dibangun.
-5. **[docs/code-style.md](docs/code-style.md)** — konvensi kode & penamaan.
-6. **[docs/contributing.md](docs/contributing.md)** — cara kerja tim, commit, & menambah fitur.
-
-Indeks lengkap: **[docs/README.md](docs/README.md)**.
+1. **[docs/getting-started.md](docs/getting-started.md)** — instalasi, server, HP pertama.
+2. **[docs/architecture.md](docs/architecture.md)** — peta kode, sinkron, keamanan.
+3. **[docs/database-schema.md](docs/database-schema.md)** — tabel, izin, migrasi.
+4. **[docs/features-overview.md](docs/features-overview.md)** — fitur & izinnya.
+5. **[docs/code-style.md](docs/code-style.md)** — konvensi kode.
+6. **[docs/contributing.md](docs/contributing.md)** — alur kerja & Definition of Done.
 
 ## 📄 Lisensi
 

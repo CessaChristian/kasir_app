@@ -1,143 +1,91 @@
 # Getting Started — Setup & Menjalankan Kasir App
 
-Panduan ini untuk **menyiapkan project di komputermu dari nol** sampai aplikasi
-berjalan di emulator/HP. Ditulis untuk pemula, jadi setiap langkah dijelaskan
-*kenapa*-nya juga.
+Panduan **menyiapkan project dari nol** sampai aplikasi berjalan di HP.
 
 ---
 
-## 1. Prasyarat (yang harus diinstall dulu)
+## 1. Prasyarat
 
 | Alat | Keterangan |
 |---|---|
-| **Flutter SDK** `^3.10.7` | Sudah termasuk Dart. [Panduan instalasi resmi](https://docs.flutter.dev/get-started/install). |
-| **Android Studio** atau **VS Code** | Untuk editor + emulator Android. Pasang plugin/extension **Flutter**. |
-| **Git** | Untuk clone & kerja versi kode. |
-| **Emulator Android** atau **HP fisik** | Tempat menjalankan aplikasi. |
-
-Setelah install Flutter, jalankan:
+| **Flutter SDK** (Dart `^3.10.7`) | [Panduan instalasi resmi](https://docs.flutter.dev/get-started/install). |
+| **Android Studio** atau **VS Code** | Editor + emulator Android, plugin **Flutter**. |
+| **Git** | Untuk clone & versi kode. |
+| **Emulator Android** atau **HP fisik** | Android 7 (API 24) ke atas. |
+| **Internet saat build pertama** | `sqlite3` mengunduh SQLite saat build. |
 
 ```bash
 flutter doctor
+flutter doctor --android-licenses   # kalau diminta
 ```
-
-Perintah ini mengecek apakah semua sudah beres. Perbaiki dulu item yang
-ditandai ❌ (biasanya soal Android SDK / lisensi Android). Kalau butuh menerima
-lisensi Android:
-
-```bash
-flutter doctor --android-licenses
-```
-
----
 
 ## 2. Ambil kode & dependencies
 
 ```bash
-# Clone repository
 git clone https://github.com/CessaChristian/kasir_app.git
 cd kasir_app
-
-# Download semua package yang dibutuhkan (tercatat di pubspec.yaml)
 flutter pub get
 ```
 
-`flutter pub get` membaca `pubspec.yaml` lalu mengunduh semua library (drift,
-fl_chart, dll.) ke cache lokal. Wajib dijalankan setiap kali `pubspec.yaml`
-berubah.
-
----
-
-## 3. Generate kode database (WAJIB) 🔑
-
-Project ini memakai **Drift** (ORM SQLite). Sebagian kode database
-**dibuat otomatis** oleh generator dan disimpan di file
-`lib/data/app_database.g.dart`.
+## 3. Generate kode database (WAJIB)
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-- **Kenapa perlu?** File `.g.dart` berisi kelas-kelas hasil generate (misalnya
-  `Product`, `ProductsCompanion`, class `_$AppDatabase`). Tanpa file ini, kode
-  **tidak akan bisa di-compile**.
-- **Kapan diulang?** Setiap kali kamu mengubah definisi tabel/skema di
-  `lib/data/app_database.dart` (menambah tabel, menambah kolom, dsb.).
-- **`--delete-conflicting-outputs`** artinya: kalau ada file hasil generate lama
-  yang bentrok, timpa saja. Aman dipakai.
+Membuat `lib/data/app_database.g.dart` (kode Drift). Ulangi setiap skema di
+`app_database.dart` berubah. File ini ikut di-commit.
 
-> File `app_database.g.dart` **ikut di-commit** ke Git di project ini, jadi
-> kadang setelah `git pull` kamu tidak perlu generate ulang — kecuali skema
-> berubah. Kalau ragu, jalankan saja perintah di atas; tidak berbahaya.
+## 4. Server Supabase
 
----
+Alamat & kunci publik server sudah tertulis di
+`lib/data/supabase/supabase_config.dart` — tidak perlu `--dart-define`.
 
-## 4. Jalankan aplikasi
+Untuk server **baru**, jalankan semua berkas di `supabase/` lewat **SQL Editor**
+Supabase, berurutan sesuai [`supabase/URUTAN.md`](../supabase/URUTAN.md).
+Sebelum `buang_sampah_jadwal.sql`, nyalakan ekstensi `pg_cron`
+(Database → Extensions).
 
-Pastikan ada emulator menyala atau HP tersambung (`flutter devices` untuk cek),
-lalu:
+## 5. Jalankan aplikasi
 
 ```bash
-flutter run
+flutter run                    # debug
+flutter build apk --release    # APK rilis
 ```
 
-Build release APK (untuk dipasang di HP tanpa kabel):
+**APK rilis** ditandatangani dengan kunci di folder `teras-inn-kunci/` (tidak
+ada di Git, cadangannya disimpan owner). Tanpa folder itu build rilis gagal
+dengan pesan yang menjelaskannya. APK yang ditandatangani kunci berbeda **tidak
+bisa dipasang di atas** versi lama — datanya harus dihapus dulu.
+
+## 6. HP pertama
+
+Penyiapan pertama **wajib online**:
+
+1. **Setup Owner** — username (huruf kecil) + PIN 6 digit.
+2. **Recovery code** ditampilkan **sekali** — simpan baik-baik.
+3. Login sebagai owner. Tambah kasir lewat **Profil → Kelola Kasir**.
+
+**HP berikutnya** menampilkan **Daftarkan Perangkat** dan meminta **kunci
+pemasangan**. Kunci itu dibuat owner sekali di Supabase (SQL Editor, perintahnya
+ada di kepala `supabase/perangkat.sql` — kuncinya sengaja tidak ditulis di repo)
+dan bisa diganti kapan saja tanpa memengaruhi HP yang sudah terdaftar.
+Daftar HP dikelola di **Profil → Perangkat Terdaftar**.
+
+## 7. Verifikasi
 
 ```bash
-flutter build apk --release
+flutter analyze   # harus: No issues found!
+flutter test      # harus: All tests passed!
 ```
 
----
-
-## 5. Akun pertama (onboarding)
-
-Saat aplikasi dibuka **pertama kali** (database masih kosong), akan muncul
-**wizard onboarding**:
-
-1. **Setup Owner** — isi *username* dan **PIN** (4–6 digit). Ini akun pemilik
-   dengan akses penuh.
-2. Aplikasi otomatis membuat **2 usaha**: **Teras Inn** (dine-in) dan
-   **Thai Tea** (grab-and-go). (Keduanya *hardcode* di kode — lihat
-   [features-overview.md](features-overview.md).)
-3. **Recovery code** ditampilkan **sekali** — simpan baik-baik. Kode ini dipakai
-   untuk reset PIN kalau owner lupa PIN.
-4. Setelah itu kamu diarahkan ke halaman **Login**. Masuk pakai username + PIN
-   owner.
-
-Setelah login sebagai owner, kamu bisa menambah **kasir** lewat menu
-**Kelola Kasir** (drawer). Kasir login dengan PIN masing-masing dan otomatis
-membuka *shift*.
-
-> **Reset dari awal:** kalau ingin mengulang onboarding, hapus data aplikasi
-> (uninstall / clear data). Database SQLite tersimpan di folder dokumen aplikasi
-> (`kasir_app.sqlite`).
-
----
-
-## 6. Verifikasi bahwa semuanya sehat
-
-Sebelum & sesudah mengerjakan sesuatu, pastikan project tetap sehat:
-
-```bash
-flutter analyze   # analisa statik — harus: "No issues found!"
-flutter test      # jalankan semua test — harus: "All tests passed!"
-```
-
-Kedua perintah ini adalah **syarat wajib** sebelum menyatakan sebuah pekerjaan
-selesai (lihat [contributing.md](contributing.md)).
-
----
-
-## 7. Troubleshooting umum
+## 8. Troubleshooting
 
 | Gejala | Penyebab & solusi |
 |---|---|
-| Error `_$AppDatabase` / class dari `.g.dart` tidak ditemukan | Belum generate. Jalankan langkah **3** (`build_runner`). |
-| Perubahan skema tidak muncul | Belum generate ulang setelah ubah `app_database.dart`. Ulangi langkah **3**. |
-| Halaman stuck loading / data kosong terus | Biasanya belum ada **usaha aktif** (belum login) atau database belum ter-*wire*. Pastikan sudah login. |
-| `flutter pub get` gagal | Cek koneksi internet & versi Flutter (`flutter --version`) sesuai `^3.10.7`. |
-| Emulator tidak terdeteksi | `flutter devices` untuk cek; nyalakan emulator dari Android Studio (Device Manager). |
-| Ingin lihat isi database | Database = file SQLite di folder dokumen app. Bisa dibuka dengan DB Browser for SQLite (ambil file dari device via `adb`). |
-
-Kalau masih mentok, baca [architecture.md](architecture.md) untuk paham alur
-data, atau tanyakan ke tim.
+| `_$AppDatabase` / class `.g.dart` tidak ditemukan | Jalankan langkah **3**. |
+| Build rilis gagal "key.properties tidak ditemukan" | Folder `teras-inn-kunci/` belum ada — minta cadangannya ke owner. |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Tanda tangan beda dengan APK terpasang (debug vs rilis). Pasang jenis yang sama, atau hapus aplikasi lama. |
+| Layar "Perlu internet" saat pertama dibuka | Server tak terjangkau — cek internet. Penyiapan pertama memang wajib online. |
+| Data HP lain tidak muncul | Tarik layar ke bawah untuk sinkron, atau cek **Perangkat Terdaftar** (HP bermasalah diberi peringatan). |
+| Ingin lihat isi database | APK debug: `adb exec-out run-as id.terasinn.kasir cat app_flutter/kasir_app.sqlite > db.sqlite`. |

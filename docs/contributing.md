@@ -41,8 +41,9 @@ main          ← branch stabil. Kode yang sudah lolos analyze + test.
 **Aturan penting:**
 - Jangan push kode yang belum terverifikasi (belum lolos analyze + test) ke `main`.
 - Sering-sering sinkron dengan `main` agar konflik kecil & mudah diselesaikan.
-- **Jangan commit file kerja internal** — `CLAUDE.md` dan `docs/superpowers/`
-  sudah ada di `.gitignore` dan sengaja tidak masuk repo.
+- **Jangan commit file kerja internal** — `CLAUDE.md`, `INSTRUCTION.md`, dan
+  `docs/superpowers/` sudah ada di `.gitignore` dan sengaja tidak masuk repo.
+- **Jangan pernah commit `teras-inn-kunci/`** (kunci tanda tangan rilis).
 - File `app_database.g.dart` **ikut di-commit** (jangan hapus dari Git).
 
 ## 2. Format commit — Conventional Commits
@@ -56,11 +57,11 @@ Kita memakai gaya **[Conventional Commits](https://www.conventionalcommits.org/)
 - Ditulis dalam **kalimat perintah** (imperative), huruf kecil, tanpa titik akhir.
 - Contoh nyata dari repo ini:
   ```
-  feat(business): page list+detail, konsolidasi menu, shift card scoped
-  fix(auth): restoreSession populate BusinessContext + roleCache
-  chore(git): stop tracking CLAUDE.md & docs/superpowers
-  test(data): integration test schema v10 multi-business
-  docs: multi-business architecture spec
+  feat(shift): shift satu akun dari dua HP offline digabung server
+  fix(auth): login username harus persis huruf kecil
+  fix(dasbor): angka lama tidak lagi menimpa yang baru
+  chore(deps): drift 2.35 + sqlite3 3, sqlite3_flutter_libs dibuang
+  docs: perbarui dokumentasi sesuai keadaan aplikasi
   ```
 
 **Tipe yang dipakai:**
@@ -90,29 +91,41 @@ agar fitur kita mengikuti pola POS yang sudah terbukti, bukan mengarang sendiri.
 1. Buat folder `lib/features/<nama_fitur>/` (struktur feature-first — lihat
    [code-style.md](code-style.md)).
 2. Kalau butuh data: tambahkan query di `app_database.dart` atau buat
-   *repository* di fitur tsb. Ingat scope `business_id` otomatis.
-3. Kalau butuh muncul di menu: tambahkan di `lib/app/app_shell.dart` dengan
-   `permission` yang sesuai.
+   *repository* di fitur tsb. Tegakkan izin di repository
+   (`requireOwner()` / `requirePermission(kode)`), jangan hanya di tampilan.
+3. Kalau butuh muncul di menu: tambahkan di kerangka/profil yang sesuai
+   (`lib/app/kerangka_owner.dart`, `kerangka_kasir.dart`, `features/profil/`).
 4. Tambahkan **test** bila logikanya penting.
 5. Perbarui dokumentasi ([features-overview.md](features-overview.md)) bila perlu.
 
 ### Menambah tabel / kolom database
 Ikuti langkah di **[database-schema.md](database-schema.md) §5** (naikkan
-`schemaVersion`, tambah blok migrasi, sertakan kolom sync wajib, generate ulang
+`schemaVersion`, tambah blok migrasi, sertakan kolom sync wajib, kosongkan
+penanda tarik bila menambah kolom ke tabel yang disinkron, generate ulang
 dengan `build_runner`). **Jangan pakai pola drop-table** untuk migrasi baru.
 
+Kalau tabelnya juga ada di server: buat berkas SQL baru di `supabase/`, catat
+di `URUTAN.md`, uji dulu di PostgreSQL lokal, lalu minta owner menjalankannya
+di SQL Editor Supabase.
+
 ### Menambah izin (permission) baru
-1. Tambahkan kode izin di `_seedPermissions()` (`app_database.dart`).
-2. Kalau izin bersifat per-usaha, tambahkan juga ke matriks role
-   (`_rolePermissions` di `session_manager.dart`).
-3. Beri ikon di halaman pengaturan izin bila perlu
-   (`user_permissions_page.dart`).
+1. Tambahkan kode izin di `_seedPermissions()` (`app_database.dart`) — perlu
+   migrasi yang men-*seed* ulang izin untuk HP lama.
+2. Tambahkan definisinya (nama, keterangan, ikon) di
+   `features/owner/models/ringkasan_kasir.dart` supaya muncul di Hak Akses.
+3. Tegakkan di repository dengan `requirePermission(kode)`.
+4. Bawaan kasir baru diatur `izinBawaanKasir`; izin yang tidak berlaku untuk
+   owner diatur `SessionManager.izinBukanUntukOwner`.
 
 ## 5. Testing
 
 - Test ada di folder `test/` (mengikuti struktur `lib/`).
 - Untuk logika DB, pakai `AppDatabase.forTesting(NativeDatabase.memory())`
-  (database di memori) — lihat contoh di `test/features/shift/`.
+  (database di memori) — lihat contoh di `test/features/shift/`. Repository
+  yang dijaga izin butuh sesi: `masukSebagaiOwner()` di `test/bantu/sesi.dart`.
+- Perbaikan bug: test baru harus **terbukti gagal di kode lama** dulu.
+- `test/arsitektur/` menjaga aturan lintas file (berkas SQL tercatat di
+  URUTAN.md, fungsi server tertutup dari `anon`, izin tidak longgar, dll.).
 - Jalankan: `flutter test`. Semua test harus lulus.
 
 ## 6. Definition of Done ✅
@@ -124,7 +137,8 @@ Sebuah pekerjaan **belum** boleh dianggap selesai / digabung ke `main` sebelum:
 - [ ] Kode di-*format* (`dart format .`).
 - [ ] (Fitur POS baru) sudah mengacu riset di `docs/research/`.
 - [ ] Dokumentasi terkait diperbarui bila perlu.
+- [ ] Perubahan yang menyentuh layar/sinkron dicoba langsung di HP/emulator.
 - [ ] Tidak menyertakan file internal yang di-*gitignore* (`CLAUDE.md`,
-      `docs/superpowers/`).
+      `INSTRUCTION.md`, `docs/superpowers/`, `teras-inn-kunci/`).
 - [ ] Sudah di-*review* (lewat Pull Request / diperiksa anggota lain) sebelum
       masuk `main`.

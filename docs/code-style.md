@@ -14,8 +14,8 @@ Acuan resmi: [Effective Dart](https://dart.dev/effective-dart) dan
 |---|---|---|
 | File & folder | `snake_case` (huruf kecil + garis bawah) | `shift_monitor_page.dart` |
 | Class & Widget & enum | `PascalCase` (UpperCamelCase) | `ShiftMonitorPage`, `AuthSession` |
-| Variabel, fungsi, parameter | `lowerCamelCase` | `activeBusinessId`, `hasPermission()` |
-| Konstanta | `lowerCamelCase` (boleh awalan `k`) | `kSeedBusinesses`, `_activeBusinessKey` |
+| Variabel, fungsi, parameter | `lowerCamelCase` | `shiftId`, `hasPermission()` |
+| Konstanta | `lowerCamelCase` (boleh awalan `k`) | `kSeedDineIn`, `batasSalahPin` |
 | Private (khusus dalam file/class) | awali `_` | `_load()`, `_ShiftRow` |
 
 Beri nama yang **deskriptif**. Hindari singkatan tak jelas. Nama widget
@@ -41,13 +41,17 @@ Kalau sebuah widget/util dipakai **lintas fitur**, pindahkan ke `lib/shared/`.
 ## 3. Bahasa & komentar
 
 - **Komentar & dokumentasi ditulis dalam Bahasa Indonesia** (konsisten dengan
-  kode yang sudah ada). Nama identifier (class/variabel) tetap Inggris.
+  kode yang sudah ada). Nama identifier di kode baru juga umumnya Bahasa
+  Indonesia (`PengelolaShift`, `bolehDibatalkan`, `kasAwal`) — ikuti gaya file
+  yang kamu sentuh.
 - Pakai **dartdoc** `///` untuk mendokumentasikan class/method penting —
   jelaskan *kenapa* (niat/keputusan), bukan sekadar *apa*:
   ```dart
-  /// Singleton untuk manajemen active business.
-  /// Listen via [ListenableBuilder] untuk auto-rebuild saat business switch.
-  class BusinessContext extends ChangeNotifier { ... }
+  /// Shift tujuan penjualan/pengeluaran yang sebenarnya.
+  ///
+  /// Tolak shift yang sudah ditutup. Tanpa ini HP yang belum tahu shift-nya
+  /// ditutup HP lain tetap menjual ke situ, dan kas akhir ikut berubah.
+  Future<String> _shiftBerjalan(String shiftId) async { ... }
   ```
 - Komentar `//` untuk penjelasan singkat di dalam fungsi. Fokus pada bagian yang
   tidak jelas maksudnya (mis. alasan sebuah *guard* atau *workaround*).
@@ -83,6 +87,6 @@ sembarangan.
 
 - UI mengambil data lewat `db` (AppDatabase) atau *repository* fitur — **jangan**
   menulis SQL mentah di dalam widget.
-- Ingat: query data bisnis otomatis di-scope ke usaha aktif. Jangan membuat
-  jalan pintas yang melewati aturan ini (lihat [architecture.md](architecture.md)).
+- Izin ditegakkan di repository — jangan membuat jalan pintas ke `db` yang
+  melewati pemeriksaan itu (lihat [architecture.md](architecture.md) §5).
 - **Jangan pernah edit** `lib/data/app_database.g.dart` (hasil generate).
