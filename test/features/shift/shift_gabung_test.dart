@@ -231,7 +231,7 @@ void main() {
       final mentah = sqlite3.open(jalur);
       mentah.execute('ALTER TABLE shifts DROP COLUMN digabung_ke');
       mentah.execute('PRAGMA user_version = 41');
-      mentah.dispose();
+      mentah.close();
 
       final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
       addTearDown(baru.close);

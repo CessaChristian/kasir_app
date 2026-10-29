@@ -443,7 +443,7 @@ void main() {
       ..execute('DROP TABLE open_bills')
       ..execute('ALTER TABLE transactions DROP COLUMN bill_name')
       ..execute('PRAGMA user_version = 37');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final t = await baru.select(baru.transactions).getSingle();

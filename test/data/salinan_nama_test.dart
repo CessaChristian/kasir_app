@@ -93,7 +93,7 @@ void main() {
         mentah.execute('ALTER TABLE $tabel DROP COLUMN $kolom');
       }
       mentah.execute('PRAGMA user_version = 34');
-      mentah.dispose();
+      mentah.close();
 
       final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
       addTearDown(baru.close);

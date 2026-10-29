@@ -51,7 +51,7 @@ void main() {
         'REFERENCES users (id)');
     mentah.execute("UPDATE expenses SET updated_by_user_id = 'budi'");
     mentah.execute('PRAGMA user_version = 30');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final kolom = (await baru

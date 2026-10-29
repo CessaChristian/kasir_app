@@ -50,7 +50,7 @@ void main() {
     mentah.execute('ALTER TABLE expenses DROP COLUMN category');
     mentah.execute('ALTER TABLE expenses DROP COLUMN qty');
     mentah.execute('PRAGMA user_version = 31');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     addTearDown(baru.close);

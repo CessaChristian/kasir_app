@@ -31,7 +31,7 @@ void main() {
     final mentah = sqlite3.open(jalur);
     mentah.execute('DROP TABLE baris_tertahan');
     mentah.execute('PRAGMA user_version = 39');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     addTearDown(baru.close);

@@ -139,5 +139,5 @@ void _bangunV20(String jalur) {
 
     PRAGMA user_version = 20;
   ''');
-  db.dispose();
+  db.close();
 }

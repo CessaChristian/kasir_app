@@ -99,7 +99,7 @@ void main() {
         "DELETE FROM permissions WHERE code = 'manage_categories'",
       );
       mentah.execute('PRAGMA user_version = 35');
-      mentah.dispose();
+      mentah.close();
 
       final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
       addTearDown(baru.close);

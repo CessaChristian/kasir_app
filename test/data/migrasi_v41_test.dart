@@ -60,7 +60,7 @@ void main() {
         mentah.execute('DROP INDEX ${r['name']}');
       }
       mentah.execute('PRAGMA user_version = 40');
-      mentah.dispose();
+      mentah.close();
 
       final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
       addTearDown(baru.close);

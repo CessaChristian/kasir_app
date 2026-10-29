@@ -84,7 +84,7 @@ void main() {
     mentah.execute('ALTER TABLE products DROP COLUMN has_sweet_option');
     mentah.execute('ALTER TABLE products DROP COLUMN has_ice_option');
     mentah.execute('PRAGMA user_version = 27');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final p = await baru.select(baru.products).getSingle();

@@ -203,7 +203,7 @@ void main() {
           )
           .single['notnull'];
       expect(notnull, 1, reason: 'prasyarat: keadaan v32 sungguh NOT NULL');
-      mentah.dispose();
+      mentah.close();
 
       final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
       addTearDown(baru.close);

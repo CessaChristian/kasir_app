@@ -38,7 +38,7 @@ void main() {
     mentah.execute('ALTER TABLE products ADD COLUMN barcode TEXT');
     mentah.execute("UPDATE products SET barcode = '899123'");
     mentah.execute('PRAGMA user_version = 28');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final kolom = await baru

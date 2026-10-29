@@ -34,7 +34,7 @@ void main() {
     mentah.execute('ALTER TABLE transactions DROP COLUMN cancelled_by_user_id');
     mentah.execute('ALTER TABLE transactions DROP COLUMN cancel_reason');
     mentah.execute('PRAGMA user_version = 29');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     // Diperiksa langsung di skema: drift membaca dengan SELECT *, jadi kolom

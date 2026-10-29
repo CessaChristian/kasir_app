@@ -183,7 +183,7 @@ void main() {
         "UPDATE permissions SET name = 'Lihat Riwayat Transaksi' "
         "WHERE code = 'view_history'");
     mentah.execute('PRAGMA user_version = 26');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final katalog = await baru.select(baru.permissions).get();

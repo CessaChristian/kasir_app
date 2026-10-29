@@ -117,7 +117,7 @@ void main() {
     final mentah = sqlite3.open(jalur);
     mentah.execute('ALTER TABLE users DROP COLUMN nomor_kasir');
     mentah.execute('PRAGMA user_version = 38');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     addTearDown(baru.close);

@@ -7694,7 +7694,7 @@ final class $$CategoriesTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.products,
-    aliasName: $_aliasNameGenerator(db.categories.id, db.products.categoryId),
+    aliasName: 'categories__id__products__category_id',
   );
 
   $$ProductsTableProcessedTableManager get productsRefs {
@@ -7973,7 +7973,7 @@ class $$CategoriesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$CategoriesTable, Category>(table),
                   $$CategoriesTableReferences(db, table, e),
                 ),
               )
@@ -7986,10 +7986,11 @@ class $$CategoriesTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (productsRefs)
-                    await $_getPrefetchedData<
+                    await $_getPrefetchedDataByColumns<
                       Category,
                       $CategoriesTable,
-                      Product
+                      Product,
+                      $ProductsTable
                     >(
                       currentTable: table,
                       referencedTable: $$CategoriesTableReferences
@@ -8000,8 +8001,8 @@ class $$CategoriesTableTableManager
                             table,
                             p0,
                           ).productsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.categoryId == item.id),
+                      currentColumn: 'id',
+                      referencedColumn: 'category_id',
                       typedResults: items,
                     ),
                 ];
@@ -8064,9 +8065,7 @@ final class $$ProductsTableReferences
   $$ProductsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $CategoriesTable _categoryIdTable(_$AppDatabase db) =>
-      db.categories.createAlias(
-        $_aliasNameGenerator(db.products.categoryId, db.categories.id),
-      );
+      db.categories.createAlias('products__category_id__categories__id');
 
   $$CategoriesTableProcessedTableManager? get categoryId {
     final $_column = $_itemColumn<String>('category_id');
@@ -8422,7 +8421,7 @@ class $$ProductsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ProductsTable, Product>(table),
                   $$ProductsTableReferences(db, table, e),
                 ),
               )
@@ -8541,7 +8540,7 @@ final class $$UsersTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.shifts,
-    aliasName: $_aliasNameGenerator(db.users.id, db.shifts.userId),
+    aliasName: 'users__id__shifts__user_id',
   );
 
   $$ShiftsTableProcessedTableManager get shiftsRefs {
@@ -8559,7 +8558,7 @@ final class $$UsersTableReferences
   static MultiTypedResultKey<$ExpensesTable, List<Expense>>
   _createdExpensesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.expenses,
-    aliasName: $_aliasNameGenerator(db.users.id, db.expenses.userId),
+    aliasName: 'users__id__expenses__user_id',
   );
 
   $$ExpensesTableProcessedTableManager get createdExpensesRefs {
@@ -8580,10 +8579,7 @@ final class $$UsersTableReferences
   _cancelledExpensesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.expenses,
-        aliasName: $_aliasNameGenerator(
-          db.users.id,
-          db.expenses.cancelledByUserId,
-        ),
+        aliasName: 'users__id__expenses__cancelled_by_user_id',
       );
 
   $$ExpensesTableProcessedTableManager get cancelledExpensesRefs {
@@ -8602,7 +8598,7 @@ final class $$UsersTableReferences
   static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
   _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.openBills,
-    aliasName: $_aliasNameGenerator(db.users.id, db.openBills.userId),
+    aliasName: 'users__id__open_bills__user_id',
   );
 
   $$OpenBillsTableProcessedTableManager get openBillsRefs {
@@ -9235,8 +9231,10 @@ class $$UsersTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$UsersTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$UsersTable, User>(table),
+                  $$UsersTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -9258,20 +9256,28 @@ class $$UsersTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (shiftsRefs)
-                        await $_getPrefetchedData<User, $UsersTable, Shift>(
+                        await $_getPrefetchedDataByColumns<
+                          User,
+                          $UsersTable,
+                          Shift,
+                          $ShiftsTable
+                        >(
                           currentTable: table,
                           referencedTable: $$UsersTableReferences
                               ._shiftsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$UsersTableReferences(db, table, p0).shiftsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.userId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'user_id',
                           typedResults: items,
                         ),
                       if (createdExpensesRefs)
-                        await $_getPrefetchedData<User, $UsersTable, Expense>(
+                        await $_getPrefetchedDataByColumns<
+                          User,
+                          $UsersTable,
+                          Expense,
+                          $ExpensesTable
+                        >(
                           currentTable: table,
                           referencedTable: $$UsersTableReferences
                               ._createdExpensesRefsTable(db),
@@ -9281,14 +9287,17 @@ class $$UsersTableTableManager
                                 table,
                                 p0,
                               ).createdExpensesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.userId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'user_id',
                           typedResults: items,
                         ),
                       if (cancelledExpensesRefs)
-                        await $_getPrefetchedData<User, $UsersTable, Expense>(
+                        await $_getPrefetchedDataByColumns<
+                          User,
+                          $UsersTable,
+                          Expense,
+                          $ExpensesTable
+                        >(
                           currentTable: table,
                           referencedTable: $$UsersTableReferences
                               ._cancelledExpensesRefsTable(db),
@@ -9298,14 +9307,17 @@ class $$UsersTableTableManager
                                 table,
                                 p0,
                               ).cancelledExpensesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.cancelledByUserId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'cancelled_by_user_id',
                           typedResults: items,
                         ),
                       if (openBillsRefs)
-                        await $_getPrefetchedData<User, $UsersTable, OpenBill>(
+                        await $_getPrefetchedDataByColumns<
+                          User,
+                          $UsersTable,
+                          OpenBill,
+                          $OpenBillsTable
+                        >(
                           currentTable: table,
                           referencedTable: $$UsersTableReferences
                               ._openBillsRefsTable(db),
@@ -9315,10 +9327,8 @@ class $$UsersTableTableManager
                                 table,
                                 p0,
                               ).openBillsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.userId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'user_id',
                           typedResults: items,
                         ),
                     ];
@@ -9382,7 +9392,7 @@ final class $$ShiftsTableReferences
   $$ShiftsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $UsersTable _userIdTable(_$AppDatabase db) =>
-      db.users.createAlias($_aliasNameGenerator(db.shifts.userId, db.users.id));
+      db.users.createAlias('shifts__user_id__users__id');
 
   $$UsersTableProcessedTableManager get userId {
     final $_column = $_itemColumn<String>('user_id')!;
@@ -9401,7 +9411,7 @@ final class $$ShiftsTableReferences
   static MultiTypedResultKey<$TransactionsTable, List<Transaction>>
   _transactionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.transactions,
-    aliasName: $_aliasNameGenerator(db.shifts.id, db.transactions.shiftId),
+    aliasName: 'shifts__id__transactions__shift_id',
   );
 
   $$TransactionsTableProcessedTableManager get transactionsRefs {
@@ -9420,7 +9430,7 @@ final class $$ShiftsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.expenses,
-    aliasName: $_aliasNameGenerator(db.shifts.id, db.expenses.shiftId),
+    aliasName: 'shifts__id__expenses__shift_id',
   );
 
   $$ExpensesTableProcessedTableManager get expensesRefs {
@@ -9438,7 +9448,7 @@ final class $$ShiftsTableReferences
   static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
   _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.openBills,
-    aliasName: $_aliasNameGenerator(db.shifts.id, db.openBills.shiftId),
+    aliasName: 'shifts__id__open_bills__shift_id',
   );
 
   $$OpenBillsTableProcessedTableManager get openBillsRefs {
@@ -9909,8 +9919,10 @@ class $$ShiftsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$ShiftsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$ShiftsTable, Shift>(table),
+                  $$ShiftsTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -9962,10 +9974,11 @@ class $$ShiftsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (transactionsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Shift,
                           $ShiftsTable,
-                          Transaction
+                          Transaction,
+                          $TransactionsTable
                         >(
                           currentTable: table,
                           referencedTable: $$ShiftsTableReferences
@@ -9976,14 +9989,17 @@ class $$ShiftsTableTableManager
                                 table,
                                 p0,
                               ).transactionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.shiftId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'shift_id',
                           typedResults: items,
                         ),
                       if (expensesRefs)
-                        await $_getPrefetchedData<Shift, $ShiftsTable, Expense>(
+                        await $_getPrefetchedDataByColumns<
+                          Shift,
+                          $ShiftsTable,
+                          Expense,
+                          $ExpensesTable
+                        >(
                           currentTable: table,
                           referencedTable: $$ShiftsTableReferences
                               ._expensesRefsTable(db),
@@ -9993,17 +10009,16 @@ class $$ShiftsTableTableManager
                                 table,
                                 p0,
                               ).expensesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.shiftId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'shift_id',
                           typedResults: items,
                         ),
                       if (openBillsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Shift,
                           $ShiftsTable,
-                          OpenBill
+                          OpenBill,
+                          $OpenBillsTable
                         >(
                           currentTable: table,
                           referencedTable: $$ShiftsTableReferences
@@ -10014,10 +10029,8 @@ class $$ShiftsTableTableManager
                                 table,
                                 p0,
                               ).openBillsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.shiftId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'shift_id',
                           typedResults: items,
                         ),
                     ];
@@ -10097,9 +10110,7 @@ final class $$TransactionsTableReferences
   $$TransactionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $UsersTable _cashierUserIdTable(_$AppDatabase db) =>
-      db.users.createAlias(
-        $_aliasNameGenerator(db.transactions.cashierUserId, db.users.id),
-      );
+      db.users.createAlias('transactions__cashier_user_id__users__id');
 
   $$UsersTableProcessedTableManager? get cashierUserId {
     final $_column = $_itemColumn<String>('cashier_user_id');
@@ -10115,9 +10126,8 @@ final class $$TransactionsTableReferences
     );
   }
 
-  static $ShiftsTable _shiftIdTable(_$AppDatabase db) => db.shifts.createAlias(
-    $_aliasNameGenerator(db.transactions.shiftId, db.shifts.id),
-  );
+  static $ShiftsTable _shiftIdTable(_$AppDatabase db) =>
+      db.shifts.createAlias('transactions__shift_id__shifts__id');
 
   $$ShiftsTableProcessedTableManager? get shiftId {
     final $_column = $_itemColumn<String>('shift_id');
@@ -10134,9 +10144,7 @@ final class $$TransactionsTableReferences
   }
 
   static $UsersTable _cancelledByUserIdTable(_$AppDatabase db) =>
-      db.users.createAlias(
-        $_aliasNameGenerator(db.transactions.cancelledByUserId, db.users.id),
-      );
+      db.users.createAlias('transactions__cancelled_by_user_id__users__id');
 
   $$UsersTableProcessedTableManager? get cancelledByUserId {
     final $_column = $_itemColumn<String>('cancelled_by_user_id');
@@ -10155,10 +10163,7 @@ final class $$TransactionsTableReferences
   static MultiTypedResultKey<$OpenBillsTable, List<OpenBill>>
   _openBillsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.openBills,
-    aliasName: $_aliasNameGenerator(
-      db.transactions.id,
-      db.openBills.transactionId,
-    ),
+    aliasName: 'transactions__id__open_bills__transaction_id',
   );
 
   $$OpenBillsTableProcessedTableManager get openBillsRefs {
@@ -10786,7 +10791,7 @@ class $$TransactionsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$TransactionsTable, Transaction>(table),
                   $$TransactionsTableReferences(db, table, e),
                 ),
               )
@@ -10868,10 +10873,11 @@ class $$TransactionsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (openBillsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Transaction,
                           $TransactionsTable,
-                          OpenBill
+                          OpenBill,
+                          $OpenBillsTable
                         >(
                           currentTable: table,
                           referencedTable: $$TransactionsTableReferences
@@ -10882,10 +10888,8 @@ class $$TransactionsTableTableManager
                                 table,
                                 p0,
                               ).openBillsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.transactionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'transaction_id',
                           typedResults: items,
                         ),
                     ];
@@ -11238,7 +11242,16 @@ class $$TransactionItemsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransactionItemsTable, TransactionItem>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $TransactionItemsTable,
+                    TransactionItem
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -11402,7 +11415,16 @@ class $$PermissionsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$PermissionsTable, Permission>(table),
+                  BaseReferences<_$AppDatabase, $PermissionsTable, Permission>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -11669,7 +11691,16 @@ class $$UserPermissionsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$UserPermissionsTable, UserPermission>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $UserPermissionsTable,
+                    UserPermission
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -11736,9 +11767,8 @@ final class $$ExpensesTableReferences
     extends BaseReferences<_$AppDatabase, $ExpensesTable, Expense> {
   $$ExpensesTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $ShiftsTable _shiftIdTable(_$AppDatabase db) => db.shifts.createAlias(
-    $_aliasNameGenerator(db.expenses.shiftId, db.shifts.id),
-  );
+  static $ShiftsTable _shiftIdTable(_$AppDatabase db) =>
+      db.shifts.createAlias('expenses__shift_id__shifts__id');
 
   $$ShiftsTableProcessedTableManager? get shiftId {
     final $_column = $_itemColumn<String>('shift_id');
@@ -11754,9 +11784,8 @@ final class $$ExpensesTableReferences
     );
   }
 
-  static $UsersTable _userIdTable(_$AppDatabase db) => db.users.createAlias(
-    $_aliasNameGenerator(db.expenses.userId, db.users.id),
-  );
+  static $UsersTable _userIdTable(_$AppDatabase db) =>
+      db.users.createAlias('expenses__user_id__users__id');
 
   $$UsersTableProcessedTableManager get userId {
     final $_column = $_itemColumn<String>('user_id')!;
@@ -11773,9 +11802,7 @@ final class $$ExpensesTableReferences
   }
 
   static $UsersTable _cancelledByUserIdTable(_$AppDatabase db) =>
-      db.users.createAlias(
-        $_aliasNameGenerator(db.expenses.cancelledByUserId, db.users.id),
-      );
+      db.users.createAlias('expenses__cancelled_by_user_id__users__id');
 
   $$UsersTableProcessedTableManager? get cancelledByUserId {
     final $_column = $_itemColumn<String>('cancelled_by_user_id');
@@ -12298,7 +12325,7 @@ class $$ExpensesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ExpensesTable, Expense>(table),
                   $$ExpensesTableReferences(db, table, e),
                 ),
               )
@@ -12514,7 +12541,16 @@ class $$SyncStateTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SyncStateTable, SyncStateData>(table),
+                  BaseReferences<_$AppDatabase, $SyncStateTable, SyncStateData>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -12571,9 +12607,8 @@ final class $$OpenBillsTableReferences
     extends BaseReferences<_$AppDatabase, $OpenBillsTable, OpenBill> {
   $$OpenBillsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $ShiftsTable _shiftIdTable(_$AppDatabase db) => db.shifts.createAlias(
-    $_aliasNameGenerator(db.openBills.shiftId, db.shifts.id),
-  );
+  static $ShiftsTable _shiftIdTable(_$AppDatabase db) =>
+      db.shifts.createAlias('open_bills__shift_id__shifts__id');
 
   $$ShiftsTableProcessedTableManager get shiftId {
     final $_column = $_itemColumn<String>('shift_id')!;
@@ -12589,9 +12624,8 @@ final class $$OpenBillsTableReferences
     );
   }
 
-  static $UsersTable _userIdTable(_$AppDatabase db) => db.users.createAlias(
-    $_aliasNameGenerator(db.openBills.userId, db.users.id),
-  );
+  static $UsersTable _userIdTable(_$AppDatabase db) =>
+      db.users.createAlias('open_bills__user_id__users__id');
 
   $$UsersTableProcessedTableManager get userId {
     final $_column = $_itemColumn<String>('user_id')!;
@@ -12607,10 +12641,9 @@ final class $$OpenBillsTableReferences
     );
   }
 
-  static $TransactionsTable _transactionIdTable(_$AppDatabase db) =>
-      db.transactions.createAlias(
-        $_aliasNameGenerator(db.openBills.transactionId, db.transactions.id),
-      );
+  static $TransactionsTable _transactionIdTable(_$AppDatabase db) => db
+      .transactions
+      .createAlias('open_bills__transaction_id__transactions__id');
 
   $$TransactionsTableProcessedTableManager? get transactionId {
     final $_column = $_itemColumn<String>('transaction_id');
@@ -13042,7 +13075,7 @@ class $$OpenBillsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$OpenBillsTable, OpenBill>(table),
                   $$OpenBillsTableReferences(db, table, e),
                 ),
               )
@@ -13294,7 +13327,16 @@ class $$BarisTertahanTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$BarisTertahanTable, BarisTertahanEntry>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $BarisTertahanTable,
+                    BarisTertahanEntry
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),

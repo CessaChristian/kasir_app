@@ -52,7 +52,7 @@ void main() {
     final mentah = sqlite3.open(jalur);
     // Skema terbaru (v35) sudah punya `deleted_at` — keadaan v25 juga punya.
     mentah.execute('PRAGMA user_version = 25');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final kolom = await baru

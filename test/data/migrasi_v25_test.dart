@@ -42,7 +42,7 @@ void main() {
 
     final mentah = sqlite3.open(jalur);
     mentah.execute('PRAGMA user_version = 24');
-    mentah.dispose();
+    mentah.close();
 
     final baru = AppDatabase.forTesting(NativeDatabase(File(jalur)));
     final penanda = await baru.select(baru.syncState).get();

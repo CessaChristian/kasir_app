@@ -40,6 +40,24 @@ void main() {
   });
   tearDown(() => db.close());
 
+  test('penjaga: batas tiruan Android benar-benar berlaku', () async {
+    // Kalau `sqlite3_limit` di atas mengenai salinan SQLite yang lain (mis.
+    // sesudah cara memuat SQLite berganti), test di bawah lulus tanpa
+    // membuktikan apa-apa.
+    final isian = List.filled(_batasAndroid + 1, '?').join(',');
+    await expectLater(
+      db
+          .customSelect(
+            'SELECT 1 WHERE 1 IN ($isian)',
+            variables: [
+              for (var i = 0; i <= _batasAndroid; i++) Variable.withInt(i),
+            ],
+          )
+          .get(),
+      throwsA(anything),
+    );
+  });
+
   test('40.000 transaksi dalam satu periode tetap bisa dihitung', () async {
     const jumlah = 40000;
     final mulai = DateTime(2026, 1, 1, 10);
