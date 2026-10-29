@@ -230,6 +230,23 @@ void main() {
     await lepas(t);
   });
 
+  testWidgets('QA K5: izin Lihat Riwayat dicabut selagi halaman terbuka — '
+      'hari lama langsung hilang', (t) async {
+    await isiData(t, riwayat: true);
+    await buka(t);
+    expect(find.text('TRX/L1'), findsOneWidget);
+
+    // Seperti SessionManager.muatUlangIzin sesudah sinkron.
+    await t.runAsync(() async {
+      await masuk();
+      SessionManager.instance.sesiBerubah.value++;
+    });
+    await tunggu(t);
+    expect(find.text('TRX/L1'), findsNothing);
+    expect(find.text('TRX/A1'), findsOneWidget, reason: 'shift berjalan');
+    await lepas(t);
+  });
+
   testWidgets('ketuk baris membuka struk', (t) async {
     await isiData(t);
     await buka(t);

@@ -368,6 +368,34 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('QA K5: izin "lihat semua shift" dicabut selagi halaman '
+        'terbuka — langsung berlaku', (t) async {
+      layarHp(t);
+      SharedPreferences.setMockInitialValues({});
+      await masuk(owner: false, izin: const ['view_all_shifts']);
+      addTearDown(SessionManager.instance.clearSession);
+
+      await t.runAsync(() async {
+        await t.pumpWidget(MaterialApp(home: RiwayatShiftPage(repo: repo)));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await t.pump();
+      expect(find.text('sari'), findsOneWidget);
+
+      // Seperti SessionManager.muatUlangIzin sesudah sinkron.
+      await t.runAsync(() async {
+        await masuk(owner: false);
+        SessionManager.instance.sesiBerubah.value++;
+      });
+      await t.pump(); // aliran baru dipasang
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await t.pump();
+      expect(find.text('sari'), findsNothing);
+      await lepas(t);
+    });
+
     testWidgets('Detail Shift: ringkasan, rincian, tab, baris batal', (
       t,
     ) async {

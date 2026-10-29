@@ -46,18 +46,32 @@ class _RiwayatShiftPageState extends State<RiwayatShiftPage> {
   void initState() {
     super.initState();
     _pengawasHari; // mulai mengawasi
+    SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
   }
 
   @override
   void dispose() {
     _pengawasHari.dispose();
+    SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     super.dispose();
   }
+
+  /// Izin dicabut/diberikan selagi halaman terbuka: langsung berlaku, tidak
+  /// menunggu halamannya ditutup (QA kedua K5).
+  void _sesiBerubah() {
+    if (!mounted || _bolehSemua() == _semua) return;
+    setState(() => _aliran = _pantau(_periode));
+  }
+
+  bool _bolehSemua() =>
+      SessionManager.instance.hasCurrentPermission('view_all_shifts');
+  bool? _semua;
+
   late Stream<List<RingkasanShift>> _aliran = _pantau(_periode);
 
   Stream<List<RingkasanShift>> _pantau(Periode p) {
     final sesi = SessionManager.instance;
-    final semua = sesi.hasCurrentPermission('view_all_shifts');
+    final semua = _semua = _bolehSemua();
     return _repo.watchRiwayatShift(
       p,
       hanyaUserId: semua ? null : sesi.currentUserId,

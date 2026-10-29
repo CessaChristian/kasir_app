@@ -36,8 +36,8 @@ class _HistoryPageState extends State<HistoryPage> {
   late final _repo = widget.repo ?? SalesRepository(db);
   late final _repoShift = widget.repoShift ?? ShiftRepository(db);
 
-  // Dibuat sekali: cakupannya ditentukan sesi saat halaman dibuka.
-  final _cakupan = CakupanRiwayat.dariSesi();
+  // Ikut berubah saat izin berubah selagi halaman terbuka (QA kedua K5).
+  var _cakupan = CakupanRiwayat.dariSesi();
   late final Stream<RingkasanShift?>? _aliranRekap;
 
   /// Kode metode bayar ('cash'/'qris'); null = Semua.
@@ -51,6 +51,18 @@ class _HistoryPageState extends State<HistoryPage> {
     _aliranRekap = sesi == null
         ? null
         : _repoShift.watchShiftTerakhirSelesai(sesi.userId);
+    SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
+  }
+
+  @override
+  void dispose() {
+    SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
+    super.dispose();
+  }
+
+  void _sesiBerubah() {
+    final baru = CakupanRiwayat.dariSesi();
+    if (mounted && baru != _cakupan) setState(() => _cakupan = baru);
   }
 
   @override
