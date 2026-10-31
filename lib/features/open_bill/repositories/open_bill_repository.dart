@@ -41,6 +41,11 @@ enum KeputusanServer {
   sudahDibayar,
   sudahDihapus,
 
+  /// Sedang dibayar HP lain (klaimnya masih berlaku): belum tentu lunas.
+  /// Bill-nya TIDAK disembunyikan — kalau pembayaran itu gagal atau HP-nya
+  /// mati, klaimnya hangus dan bill ini terbuka lagi (review R5).
+  sedangDibayar,
+
   /// Offline, galat, fungsi belum dipasang di server, atau lebih dari
   /// [OpenBillRepository.batasTungguServer]. Pekerjaan tetap jalan: kasir
   /// tidak boleh macet menunggu sinyal (risiko offline yang sudah diterima).
@@ -58,9 +63,9 @@ KeputusanServer keputusanDariJawaban(Object? jawaban) => switch (jawaban) {
 
 /// Baris `open_bills` di server → keputusan memperbarui bill. Tidak ada
 /// baris = bill belum pernah terkirim (dibuat offline), jadi boleh. Bill
-/// yang sedang diklaim pembayaran (`klaim_tx`) dihitung sudah dibayar —
-/// kecuali klaimnya sudah lewat [batasKlaim] (`klaim_pada`): HP yang
-/// mengklaim dianggap mati (supabase/open_bill_aman.sql, QA kedua S8).
+/// yang sedang diklaim pembayaran (`klaim_tx`) sedang dibayar — kecuali
+/// klaimnya sudah lewat [batasKlaim] (`klaim_pada`): HP yang mengklaim
+/// dianggap mati (supabase/open_bill_aman.sql, QA kedua S8).
 KeputusanServer keputusanDariBaris(
   Map<String, dynamic>? baris, {
   DateTime? sekarang,
@@ -68,26 +73,52 @@ KeputusanServer keputusanDariBaris(
   if (baris == null) return KeputusanServer.boleh;
   if (baris['deleted_at'] != null) return KeputusanServer.sudahDihapus;
   if (baris['transaction_id'] != null) return KeputusanServer.sudahDibayar;
-  if (baris['klaim_tx'] != null) {
-    final pada = DateTime.tryParse('${baris['klaim_pada']}');
-    final basi = pada != null &&
-        (sekarang ?? DateTime.now()).difference(pada) > batasKlaim;
-    if (!basi) return KeputusanServer.sudahDibayar;
+  if (sisaKlaimDariBaris(baris, sekarang: sekarang) != null) {
+    return KeputusanServer.sedangDibayar;
   }
   return KeputusanServer.boleh;
 }
 
-/// Klaim pembayaran bill kedaluwarsa — HARUS sama dengan `klaim_berlaku`
-/// di supabase/open_bill_aman.sql.
-const batasKlaim = Duration(minutes: 15);
+/// Sisa waktu klaim pembayaran yang masih berlaku di [baris], atau null
+/// kalau tidak diklaim / klaimnya sudah lewat [batasKlaim]. Klaim tanpa
+/// `klaim_pada` (server sebelum open_bill_aman.sql) dianggap berlaku penuh.
+Duration? sisaKlaimDariBaris(Map<String, dynamic> baris, {DateTime? sekarang}) {
+  if (baris['klaim_tx'] == null) return null;
+  final pada = DateTime.tryParse('${baris['klaim_pada']}');
+  if (pada == null) return batasKlaim;
+  final sisa = batasKlaim - (sekarang ?? DateTime.now()).difference(pada);
+  return sisa > Duration.zero ? sisa : null;
+}
 
-/// Jawaban [OpenBillRepository.cekDiServer]: boleh/tidaknya, dan isi bill
-/// di server (JSON seperti `open_bills.items`) kalau terbaca.
-typedef CekBill = ({KeputusanServer keputusan, String? isi});
+/// Klaim pembayaran bill kedaluwarsa — HARUS sama dengan `klaim_berlaku`
+/// di supabase/klaim_lima_menit.sql (keputusan owner 2026-11-01).
+const batasKlaim = Duration(minutes: 5);
+
+/// Jawaban server tentang satu bill: boleh/tidaknya, isi bill di server
+/// (JSON seperti `open_bills.items`) kalau terbaca, dan sisa waktu klaim
+/// kalau [KeputusanServer.sedangDibayar].
+typedef CekBill = ({
+  KeputusanServer keputusan,
+  String? isi,
+  Duration? sisaKlaim,
+});
+
+/// Pesan untuk bill yang sedang dibayar HP lain. [sisa] menurut jam HP ini,
+/// jadi hanya perkiraan.
+String pesanSedangDibayar(String nama, Duration? sisa) {
+  final awal = 'Bill $nama lagi dibayar di perangkat lain.';
+  if (sisa == null) return '$awal Tunggu sebentar lalu coba lagi.';
+  final menit = (sisa.inSeconds / 60).ceil().clamp(1, batasKlaim.inMinutes);
+  return '$awal Kalau perangkat itu bermasalah, bill ini bisa dipakai lagi '
+      '±$menit menit lagi.';
+}
 
 /// Hasil [OpenBillRepository.perbarui].
 enum HasilPerbarui {
   tersimpan,
+
+  /// Sedang dibayar HP lain — tidak tersimpan, tapi isi keranjang tetap.
+  sedangDibayar,
 
   /// Tersimpan, digabung dengan perubahan HP lain di server.
   digabung,
@@ -145,9 +176,7 @@ class OpenBillRepository {
     try {
       if (!SupabaseService.instance.online) return;
       // Semua tabel, bukan open_bills saja — lihat SyncEngine.tarikSemua.
-      await SyncEngine(
-        _db,
-      ).tarikSemua().timeout(const Duration(seconds: 4));
+      await SyncEngine(_db).tarikSemua().timeout(const Duration(seconds: 4));
     } catch (_) {
       // Sengaja dibisukan — lihat catatan di atas.
     }
@@ -161,7 +190,7 @@ class OpenBillRepository {
   /// SEBELUM transaksinya disimpan. Server mengerjakan "cek lalu tandai"
   /// dalam satu langkah, jadi dari dua HP yang membayar bersamaan hanya satu
   /// yang mendapat [KeputusanServer.boleh] — selambat apa pun internetnya.
-  Future<KeputusanServer> klaimDiServer(String billId, String transaksiId) =>
+  Future<CekBill> klaimDiServer(String billId, String transaksiId) =>
       _tanyaServer('klaim_bill', {'p_bill': billId, 'p_tx': transaksiId});
 
   /// Lepas klaim [transaksiId] kalau penyimpanan di HP gagal sesudah klaim
@@ -185,7 +214,7 @@ class OpenBillRepository {
   /// Hapus bill [billId] di server, hanya kalau masih terbuka dan belum
   /// diklaim pembayaran. [KeputusanServer.sudahDihapus] berarti memang sudah
   /// terhapus sebelumnya.
-  Future<KeputusanServer> hapusDiServer(String billId) =>
+  Future<CekBill> hapusDiServer(String billId) =>
       _tanyaServer('hapus_bill', {'p_bill': billId});
 
   /// Tanya server apakah bill [billId] masih terbuka, sebelum diperbarui,
@@ -196,7 +225,7 @@ class OpenBillRepository {
   Future<CekBill> cekDiServer(String billId) async {
     try {
       final k = SupabaseService.instance;
-      if (!k.online) return (keputusan: KeputusanServer.takTerjawab, isi: null);
+      if (!k.online) return _takTerjawab;
       final baris = await k.client!
           .from('open_bills')
           // Semua kolom: `klaim_pada` belum ada di server sebelum
@@ -209,11 +238,18 @@ class OpenBillRepository {
       return (
         keputusan: keputusanDariBaris(baris),
         isi: items == null ? null : jsonEncode(items),
+        sisaKlaim: baris == null ? null : sisaKlaimDariBaris(baris),
       );
     } catch (_) {
-      return (keputusan: KeputusanServer.takTerjawab, isi: null);
+      return _takTerjawab;
     }
   }
+
+  static const CekBill _takTerjawab = (
+    keputusan: KeputusanServer.takTerjawab,
+    isi: null,
+    sisaKlaim: null,
+  );
 
   /// Isi keranjang [milikku] — bill yang dimuat dengan isi [isiAwal] lalu
   /// mungkin diubah kasir — digabungkan ke [isiServer], isi bill yang sudah
@@ -237,20 +273,30 @@ class OpenBillRepository {
     return muatIsiBill(isi, produk);
   }
 
-  Future<KeputusanServer> _tanyaServer(
+  /// Panggil fungsi server [fungsi]. Jawaban "dibayar" juga berarti
+  /// SEDANG dibayar HP lain, jadi barisnya dibaca sekali lagi untuk
+  /// membedakan keduanya — bill yang baru diklaim tidak boleh disembunyikan
+  /// seolah lunas (review R5). Pembacaan itu gagal: tetap "dibayar".
+  Future<CekBill> _tanyaServer(
     String fungsi,
     Map<String, dynamic> param,
   ) async {
+    final KeputusanServer keputusan;
     try {
       final k = SupabaseService.instance;
-      if (!k.online) return KeputusanServer.takTerjawab;
+      if (!k.online) return _takTerjawab;
       final jawaban = await k.client!
           .rpc(fungsi, params: param)
           .timeout(batasTungguServer);
-      return keputusanDariJawaban(jawaban);
+      keputusan = keputusanDariJawaban(jawaban);
     } catch (_) {
-      return KeputusanServer.takTerjawab;
+      return _takTerjawab;
     }
+    if (keputusan == KeputusanServer.sudahDibayar) {
+      final cek = await cekDiServer(param['p_bill'] as String);
+      if (cek.keputusan == KeputusanServer.sedangDibayar) return cek;
+    }
+    return (keputusan: keputusan, isi: null, sisaKlaim: null);
   }
 
   /// Perbarui bill [id] yang dimuat ke keranjang dengan isi [isiAwal].
@@ -259,20 +305,30 @@ class OpenBillRepository {
   /// tahu kabar terbaru bill-nya, jadi server ditanya dulu. Tak terjawab:
   /// tetap disimpan. Dipakai "Perbarui Bill" di keranjang dan pindah bill
   /// di daftar Open Bill.
-  Future<HasilPerbarui> perbarui({
+  ///
+  /// [sisaKlaim] diisi kalau bill-nya [HasilPerbarui.sedangDibayar]: bill
+  /// itu TIDAK ditandai tertutup, karena pembayarannya bisa gagal dan
+  /// klaimnya lalu dilepas tanpa kabar apa pun ke HP ini (review R5).
+  Future<({HasilPerbarui hasil, Duration? sisaKlaim})> perbarui({
     required String id,
     required String nama,
     required String isiAwal,
     required List<SaleLine> baris,
   }) async {
     final cek = await cekDiServer(id);
+    if (cek.keputusan == KeputusanServer.sedangDibayar) {
+      return (hasil: HasilPerbarui.sedangDibayar, sisaKlaim: cek.sisaKlaim);
+    }
     if (cek.keputusan == KeputusanServer.sudahDibayar ||
         cek.keputusan == KeputusanServer.sudahDihapus) {
       await tandaiTertutup(id);
       unawaited(segarkanDariServer());
-      return cek.keputusan == KeputusanServer.sudahDibayar
-          ? HasilPerbarui.sudahDibayar
-          : HasilPerbarui.sudahDihapus;
+      return (
+        hasil: cek.keputusan == KeputusanServer.sudahDibayar
+            ? HasilPerbarui.sudahDibayar
+            : HasilPerbarui.sudahDihapus,
+        sisaKlaim: null,
+      );
     }
     try {
       await simpan(
@@ -283,12 +339,15 @@ class OpenBillRepository {
         isiServer: cek.isi,
       );
     } on BillTidakTerbuka {
-      return HasilPerbarui.tidakTerbuka;
+      return (hasil: HasilPerbarui.tidakTerbuka, sisaKlaim: null);
     }
     final isi = cek.isi;
-    return isi != null && !isiBillSama(isi, isiAwal)
-        ? HasilPerbarui.digabung
-        : HasilPerbarui.tersimpan;
+    return (
+      hasil: isi != null && !isiBillSama(isi, isiAwal)
+          ? HasilPerbarui.digabung
+          : HasilPerbarui.tersimpan,
+      sisaKlaim: null,
+    );
   }
 
   /// Simpan isi keranjang sebagai bill baru, atau perbarui bill [id].

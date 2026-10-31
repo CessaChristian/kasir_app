@@ -71,4 +71,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 39 | `perangkat_tebak_aman.sql` | BATAS TEBAK KUNCI PEMASANGAN YANG TIDAK BISA DITEMBUS (revisi QA kedua S3, 30 Okt 2026) |
 | 40 | `perangkat_gagal_kirim.sql` | JUMLAH DATA GAGAL TERKIRIM PER PERANGKAT (revisi QA kedua S10, 30 Okt 2026) |
 | 41 | `pengetatan_kecil.sql` | PENGETATAN KECIL (revisi QA kedua K12 & K13, 30 Okt 2026) |
-| 42 | `rls.sql` | SISA PENGETATAN AKSES |
+| 42 | `klaim_lima_menit.sql` | KLAIM PEMBAYARAN OPEN BILL HANGUS SESUDAH 5 MENIT (review R5, 1 Nov 2026) |
+| 43 | `rls.sql` | SISA PENGETATAN AKSES |

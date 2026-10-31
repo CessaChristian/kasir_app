@@ -528,8 +528,8 @@ void main() {
     expect(keputusanDariBaris(baris(tx: 't')), KeputusanServer.sudahDibayar);
     expect(
       keputusanDariBaris(baris(klaim: 't')),
-      KeputusanServer.sudahDibayar,
-      reason: 'sedang dibayar HP lain',
+      KeputusanServer.sedangDibayar,
+      reason: 'sedang dibayar HP lain — belum tentu lunas (review R5)',
     );
     expect(
       keputusanDariBaris(baris(hapus: '2026-10-16')),
@@ -537,8 +537,8 @@ void main() {
     );
   });
 
-  test('QA S8: klaim lebih dari 15 menit sudah kedaluwarsa — HP yang '
-      'mengklaim dianggap mati', () {
+  test('klaim lebih dari 5 menit sudah kedaluwarsa — HP yang mengklaim '
+      'dianggap mati (QA S8, keputusan owner 2026-11-01)', () {
     final kini = DateTime.utc(2026, 10, 30, 10);
     Map<String, dynamic> diklaim(Duration lalu) => {
       'transaction_id': null,
@@ -547,11 +547,15 @@ void main() {
       'klaim_pada': kini.subtract(lalu).toIso8601String(),
     };
     expect(
-      keputusanDariBaris(diklaim(const Duration(minutes: 14)), sekarang: kini),
-      KeputusanServer.sudahDibayar,
+      keputusanDariBaris(diklaim(const Duration(minutes: 4)), sekarang: kini),
+      KeputusanServer.sedangDibayar,
     );
     expect(
-      keputusanDariBaris(diklaim(const Duration(minutes: 16)), sekarang: kini),
+      sisaKlaimDariBaris(diklaim(const Duration(minutes: 4)), sekarang: kini),
+      const Duration(minutes: 1),
+    );
+    expect(
+      keputusanDariBaris(diklaim(const Duration(minutes: 6)), sekarang: kini),
       KeputusanServer.boleh,
     );
   });

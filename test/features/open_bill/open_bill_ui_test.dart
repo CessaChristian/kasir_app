@@ -1081,6 +1081,64 @@ void main() {
     await struk(null);
     expect(find.text('Pelanggan'), findsNothing);
   });
+
+  group('review R5: bill yang SEDANG dibayar HP lain tidak disembunyikan', () {
+    const pesan = 'Bill Meja 4 lagi dibayar di perangkat lain. Kalau '
+        'perangkat itu bermasalah, bill ini bisa dipakai lagi ±4 menit lagi.';
+
+    testWidgets('bayar: ditolak, keranjang & bill tetap', (t) async {
+      final id = await simpanMeja4(t);
+      final server = _ServerTiruan(db, klaim: KeputusanServer.sedangDibayar)
+        ..sisaKlaim = const Duration(minutes: 3, seconds: 30);
+      final k = await bayarBill(t, server);
+      expect(server.catatan, ['cek', 'klaim']);
+      expect(k.bill?.id, id, reason: 'keranjang tidak dikosongkan');
+      expect(k.isEmpty, isFalse);
+      expect(find.text(pesan), findsOneWidget);
+      final bill = (await semuaBill(t)).single;
+      expect(bill.deletedAt, isNull, reason: 'bill tetap terlihat');
+      expect(await semuaTx(t), isEmpty);
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('hapus: ditolak, bill tetap di daftar', (t) async {
+      await simpanMeja4(t);
+      final server = _ServerTiruan(
+        db,
+        jawabanHapus: KeputusanServer.sedangDibayar,
+      )..sisaKlaim = const Duration(minutes: 4);
+      await hapusLewatDaftar(t, server);
+      expect(server.catatan, ['hapus']);
+      expect(find.text(pesan), findsOneWidget);
+      expect(find.text('Meja 4'), findsOneWidget, reason: 'kartu bill');
+      expect((await semuaBill(t)).single.deletedAt, isNull);
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('perbarui: tidak tersimpan, bill tidak ditandai tertutup', (
+      t,
+    ) async {
+      final id = await simpanMeja4(t);
+      final server = _ServerTiruan(db, cek: KeputusanServer.sedangDibayar)
+        ..sisaKlaim = const Duration(minutes: 4);
+      final h = (await t.runAsync(
+        () => server.perbarui(
+          id: id,
+          nama: 'Meja 4',
+          isiAwal: '[]',
+          baris: [baris('latte', 3)],
+        ),
+      ))!;
+      expect(h.hasil, HasilPerbarui.sedangDibayar);
+      expect(h.sisaKlaim, const Duration(minutes: 4));
+      final bill = (await semuaBill(t)).single;
+      expect(bill.deletedAt, isNull);
+      expect(bill.items, '[{"p":"latte","q":1}]', reason: 'isi tidak berubah');
+    });
+  });
+
 }
 
 /// Repositori bill dengan server tiruan: jawaban klaim/hapus diatur test,
@@ -1108,18 +1166,21 @@ class _ServerTiruan extends OpenBillRepository {
   /// Isi bill di server yang dijawab [cekDiServer]; null = tak terbaca.
   String? isiServer;
 
+  /// Sisa klaim yang dijawab bersama [KeputusanServer.sedangDibayar].
+  Duration? sisaKlaim;
+
   @override
   Future<CekBill> cekDiServer(String billId) async {
     catatan.add('cek');
     await sebelumCek?.call();
-    return (keputusan: cek, isi: isiServer);
+    return (keputusan: cek, isi: isiServer, sisaKlaim: sisaKlaim);
   }
 
   @override
-  Future<KeputusanServer> klaimDiServer(String billId, String tx) async {
+  Future<CekBill> klaimDiServer(String billId, String tx) async {
     catatan.add('klaim');
     await sebelumKlaim?.call();
-    return klaim;
+    return (keputusan: klaim, isi: null, sisaKlaim: sisaKlaim);
   }
 
   @override
@@ -1127,9 +1188,9 @@ class _ServerTiruan extends OpenBillRepository {
       catatan.add('lepas');
 
   @override
-  Future<KeputusanServer> hapusDiServer(String billId) async {
+  Future<CekBill> hapusDiServer(String billId) async {
     catatan.add('hapus');
-    return jawabanHapus;
+    return (keputusan: jawabanHapus, isi: null, sisaKlaim: sisaKlaim);
   }
 
   @override

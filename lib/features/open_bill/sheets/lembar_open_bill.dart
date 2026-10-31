@@ -103,7 +103,8 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
     }
     // Bill di keranjang sudah diubah tapi belum "Perbarui Bill": dulu
     // perubahannya hilang diam-diam dan tidak tertagih (QA kedua S5).
-    if (aktif != null && !isiBillSama(kodekanIsiBill(_k.baris), aktif.isiAwal)) {
+    if (aktif != null &&
+        !isiBillSama(kodekanIsiBill(_k.baris), aktif.isiAwal)) {
       if (!await _tanganiPerubahan(aktif) || !mounted) return;
     }
     _k.muatBill((id: b.id, nama: b.name, isiAwal: b.items), isi.baris);
@@ -143,13 +144,18 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
     if (pilih == null || !mounted) return false;
     if (!pilih) return true;
     try {
-      final hasil = await widget.repo.perbarui(
+      final (:hasil, :sisaKlaim) = await widget.repo.perbarui(
         id: aktif.id,
         nama: aktif.nama,
         isiAwal: aktif.isiAwal,
         baris: List.of(_k.baris),
       );
       if (!mounted) return false;
+      // Sedang dibayar HP lain: tetap di bill ini, perubahannya tidak hilang.
+      if (hasil == HasilPerbarui.sedangDibayar) {
+        AppToast.warning(context, pesanSedangDibayar(aktif.nama, sisaKlaim));
+        return false;
+      }
       final ditolak = kataPenolakan(hasil);
       if (ditolak != null) {
         AppToast.error(
@@ -185,7 +191,18 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       // Server dulu: bill yang sudah dibayar (atau sedang dibayar) HP lain
       // tidak boleh terhapus. Tak terjawab (offline/lambat): hapus di HP
       // saja seperti biasa.
-      final keputusan = await widget.repo.hapusDiServer(b.id);
+      final jawaban = await widget.repo.hapusDiServer(b.id);
+      final keputusan = jawaban.keputusan;
+      if (keputusan == KeputusanServer.sedangDibayar) {
+        // Belum tentu lunas: bill-nya tetap di daftar (review R5).
+        if (mounted) {
+          AppToast.warning(
+            context,
+            pesanSedangDibayar(b.name, jawaban.sisaKlaim),
+          );
+        }
+        return;
+      }
       if (keputusan == KeputusanServer.sudahDibayar) {
         // Jawaban server sudah pasti: sembunyikan sekarang (sebelum toast),
         // rapikan datanya di belakang layar.

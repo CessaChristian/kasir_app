@@ -131,12 +131,17 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
             await widget.repoBill.simpan(nama: nama, baris: baris);
             return null;
           }
-          final hasil = await widget.repoBill.perbarui(
+          final (:hasil, :sisaKlaim) = await widget.repoBill.perbarui(
             id: aktif.id,
             nama: nama,
             isiAwal: aktif.isiAwal,
             baris: baris,
           );
+          // Sedang dibayar HP lain: dialognya tetap terbuka dengan pesan
+          // ini, keranjang tidak disentuh — bisa disimpan lagi nanti.
+          if (hasil == HasilPerbarui.sedangDibayar) {
+            return pesanSedangDibayar(aktif.nama, sisaKlaim);
+          }
           digabung = hasil == HasilPerbarui.digabung;
           ditolak = kataPenolakan(hasil);
           return null;
@@ -186,6 +191,13 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
       throw const PembayaranDitolak();
     }
 
+    // Sedang dibayar HP lain: pesanan tetap di keranjang dan bill tetap
+    // terlihat — pembayaran itu bisa gagal (review R5).
+    Never tolakSedangDibayar(String nama, Duration? sisa) {
+      AppToast.warning(context, pesanSedangDibayar(nama, sisa));
+      throw const PembayaranDitolak();
+    }
+
     // Shift sudah ditutup HP lain: pesanannya tetap di keranjang, lembar
     // pembayaran ditutup, dan sesi dilepas dari shift itu supaya kasir
     // membuka shift baru lalu membayar lagi.
@@ -228,10 +240,11 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
               milikku: baris,
               isiServer: isiServer,
             );
-            _k.muatBill(
-              (id: bill.id, nama: bill.nama, isiAwal: isiServer),
-              gabungan.baris,
-            );
+            _k.muatBill((
+              id: bill.id,
+              nama: bill.nama,
+              isiAwal: isiServer,
+            ), gabungan.baris);
             if (mounted) {
               AppToast.warning(
                 context,
@@ -241,11 +254,18 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
             }
             throw const PembayaranDitolak();
           }
-          // Sudah pasti tertutup menurut pengecekan tadi: tidak perlu klaim.
-          final keputusan = cek.keputusan == KeputusanServer.sudahDibayar ||
-                  cek.keputusan == KeputusanServer.sudahDihapus
-              ? cek.keputusan
+          // Sudah pasti tertutup atau sedang dibayar menurut pengecekan
+          // tadi: tidak perlu klaim.
+          final jawaban =
+              cek.keputusan == KeputusanServer.sudahDibayar ||
+                  cek.keputusan == KeputusanServer.sudahDihapus ||
+                  cek.keputusan == KeputusanServer.sedangDibayar
+              ? cek
               : await widget.repoBill.klaimDiServer(bill.id, id);
+          final keputusan = jawaban.keputusan;
+          if (keputusan == KeputusanServer.sedangDibayar) {
+            tolakSedangDibayar(bill.nama, jawaban.sisaKlaim);
+          }
           if (keputusan == KeputusanServer.sudahDibayar ||
               keputusan == KeputusanServer.sudahDihapus) {
             // Jawaban server sudah pasti: sembunyikan sekarang, rapikan
