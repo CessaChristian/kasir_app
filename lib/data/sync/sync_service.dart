@@ -76,7 +76,12 @@ class SyncService {
   static const _kunciGagalKirim = 'sync_gagal_kirim';
 
   Future<void> _catatGagalKirim(HasilSync hasil) async {
-    final n = hasil.ditolak;
+    // Tabel yang gagal bukan karena ditolak server: semua yang masih
+    // tertunda dihitung gagal. Dulu tidak dicatat sama sekali — tabel itu
+    // tidak pernah terkirim tanpa peringatan apa pun (review C3).
+    final n = hasil.galatKirimLain
+        ? await db.jumlahTertunda()
+        : hasil.ditolak;
     if (n == null) return;
     jumlahGagalKirim.value = n;
     final p = await SharedPreferences.getInstance();
@@ -125,7 +130,21 @@ class SyncService {
   }
 
   /// Jalankan satu putaran, atau ikut menunggu yang sedang berjalan.
-  Future<HasilSync> jalankan() => _berjalan ??= _mulai();
+  ///
+  /// [ulangan]: putaran ini ulangan dari [_ulangiKalauAdaDataBaru]. Dicatat
+  /// HANYA kalau putarannya benar-benar dimulai di sini — dulu penandanya
+  /// dipasang sebelum sinkron dipicu, dan kalau pemicuannya ditunda
+  /// (keranjang berisi), putaran biasa berikutnya ikut dianggap ulangan dan
+  /// tidak boleh mengulang (review C1).
+  Future<HasilSync> jalankan({bool ulangan = false}) {
+    final b = _berjalan;
+    if (b != null) return b;
+    _putaranUlangan = ulangan;
+    return _berjalan = _mulai();
+  }
+
+  @visibleForTesting
+  bool get putaranUlanganUntukTest => _putaranUlangan;
 
   /// Mesin putaran yang sedang berjalan — untuk [batalkan].
   SyncEngine? _mesin;
@@ -138,11 +157,15 @@ class SyncService {
   /// Tunggu putaran yang sedang berjalan selesai, kalau ada. Hasilnya tidak
   /// dipedulikan, dan paling lama [_batasTunggu] — keluar dari akun tidak
   /// boleh menggantung karena jaringannya tersendat.
-  Future<void> tungguSelesai() async {
+  ///
+  /// [batas] null: tunggu sampai selesai — untuk pekerjaan di latar yang
+  /// tidak membuat siapa pun menunggu. Putarannya sendiri tetap berakhir,
+  /// karena setiap permintaannya berbatas waktu.
+  Future<void> tungguSelesai({Duration? batas = _batasTunggu}) async {
     final b = _berjalan;
     if (b == null) return;
     try {
-      await b.timeout(_batasTunggu);
+      await (batas == null ? b : b.timeout(batas));
     } catch (_) {
       // Gagal atau kelamaan: yang ditunggu cuma selesainya.
     }
@@ -214,8 +237,14 @@ class SyncService {
     if (await perluCocokkanId()) {
       try {
         final n = await SyncEngine(db).cocokkanId();
-        if (n > 0) debugPrint('[sync] $n produk/kategori sudah tidak ada');
-        await _catatCocokkanId();
+        if (n == null) {
+          // Belum lengkap: tidak dicatat selesai, jadi HP yang baru
+          // dipulihkan mencobanya lagi di putaran berikutnya (review C2).
+          debugPrint('[sync] cocokkan id ditunda: daftar server belum pasti');
+        } else {
+          if (n > 0) debugPrint('[sync] $n produk/kategori sudah tidak ada');
+          await _catatCocokkanId();
+        }
       } catch (e) {
         debugPrint('[sync] cocokkan id gagal: $e');
       }
@@ -273,8 +302,8 @@ class SyncService {
 
   HasilSync? _hasilTerakhir;
 
-  /// Putaran yang sedang atau baru berjalan adalah ulangan dari
-  /// [_ulangiKalauAdaDataBaru].
+  /// Putaran yang sedang berjalan adalah ulangan dari
+  /// [_ulangiKalauAdaDataBaru] (lihat [jalankan]).
   bool _putaranUlangan = false;
 
   /// Data yang ditulis SELAGI putaran berjalan tidak ikut terkirim: tabelnya
@@ -282,14 +311,11 @@ class SyncService {
   /// (SyncOtomatis.perluKirimSetelahTulisan). Dulu data itu menunggu sinkron
   /// berkala sampai 5 menit (QA kedua K10). Sekarang putarannya diulang
   /// sekali — lewat SyncOtomatis, jadi keranjang berisi tetap menahannya.
-  Future<void> _ulangiKalauAdaDataBaru(HasilSync h) async {
-    final ulangan = _putaranUlangan;
-    _putaranUlangan = false;
+  Future<void> _ulangiKalauAdaDataBaru(HasilSync h, bool ulangan) async {
     try {
       if (!perluUlang(h, await db.jumlahTertunda(), ulangan: ulangan)) return;
-      _putaranUlangan = true;
       await SyncOtomatis.instance
-          .picu('data baru selama sinkron', abaikanJeda: true);
+          .picu('data baru selama sinkron', abaikanJeda: true, ulangan: true);
     } catch (e) {
       debugPrint('[sync] periksa data baru gagal: $e');
     }
@@ -366,7 +392,9 @@ class SyncService {
       _berjalan = null;
       final h = _hasilTerakhir;
       _hasilTerakhir = null;
-      if (h != null) unawaited(_ulangiKalauAdaDataBaru(h));
+      final ulangan = _putaranUlangan;
+      _putaranUlangan = false;
+      if (h != null) unawaited(_ulangiKalauAdaDataBaru(h, ulangan));
       kemajuan.value = null;
       // Berhasil atau tidak, HP ini terbukti masih hidup — internet mati
       // tidak dihitung diam (lihat SessionManager.catatKabar).

@@ -70,6 +70,10 @@ class HasilSync {
   /// pengiriman tidak selesai sehingga jumlahnya belum diketahui.
   final int? ditolak;
 
+  /// Ada tabel yang gagal dikirim BUKAN karena ditolak server (mis. isi
+  /// barisnya rusak) — [ditolak] lalu null karena jumlahnya tidak diketahui.
+  final bool galatKirimLain;
+
   /// Server bisa dijangkau dan semua data sudah tertarik — foto dan buang
   /// sampah tetap boleh jalan walau ada baris yang ditolak (QA kedua S10).
   bool get bolehRampung =>
@@ -90,6 +94,7 @@ class HasilSync {
     this.dibatalkan = false,
     this.koneksiPutus = false,
     this.ditolak,
+    this.galatKirimLain = false,
   });
 
   bool get berhasil => error == null;
@@ -117,6 +122,7 @@ class HasilSync {
         dibatalkan: dibatalkan,
         koneksiPutus: koneksiPutus,
         ditolak: ditolak,
+        galatKirimLain: galatKirimLain,
       );
 
   /// Ada yang berhasil walau ada juga yang gagal.
@@ -281,6 +287,9 @@ class SyncEngine {
   @visibleForTesting
   int? get ditolak => _ditolak;
   int? _ditolak;
+
+  bool get galatKirimLain => _galatKirimLain;
+  bool _galatKirimLain = false;
   @visibleForTesting
   bool get koneksiPutus => _koneksiPutus;
   bool _koneksiPutus = false;
@@ -344,6 +353,7 @@ class SyncEngine {
       dibatalkan: _dibatalkan,
       koneksiPutus: koneksiPutus,
       ditolak: ditolak,
+      galatKirimLain: _galatKirimLain,
     );
   }
 
@@ -770,13 +780,21 @@ class SyncEngine {
   /// terkirim tidak disentuh. Server yang menjawab kosong padahal HP punya
   /// data dianggap jawaban yang salah (mis. akses ditolak), bukan "semuanya
   /// sudah dibuang".
-  Future<int> cocokkanId() async {
+  ///
+  /// Null kalau daftar id salah satu tabel tidak bisa dipastikan lengkap —
+  /// pencocokannya belum selesai dan harus dicoba lagi (review C2).
+  Future<int?> cocokkanId() async {
     var disembunyikan = 0;
+    var lengkap = true;
     for (final tabel in const ['products', 'categories']) {
       final daftar = await _daftarIdServer(tabel);
       // Tidak bisa dipastikan lengkap: lebih baik tidak membersihkan apa pun
       // daripada menyembunyikan produk yang masih ada.
-      if (daftar == null || daftar.isEmpty) continue;
+      if (daftar == null) {
+        lengkap = false;
+        continue;
+      }
+      if (daftar.isEmpty) continue;
       final diServer = daftar.toSet();
       disembunyikan += await _db.customUpdate(
         'UPDATE $tabel SET deleted_at = ?, sync_status = \'synced\' '
@@ -789,7 +807,7 @@ class SyncEngine {
         updates: {tabel == 'products' ? _db.products : _db.categories},
       );
     }
-    return disembunyikan;
+    return lengkap ? disembunyikan : null;
   }
 
   /// Pengganti pengambilan baris menurut id untuk test.
@@ -1057,6 +1075,7 @@ class SyncEngine {
     var adaGalatLain = false;
     final gagal = <String>[];
     _ditolak = null;
+    _galatKirimLain = false;
     for (var i = 0; i < _entitas.length; i++) {
       try {
         didorong += await _dorong(_entitas[i], i + 1);
@@ -1080,6 +1099,7 @@ class SyncEngine {
     // mengulang. Dulu dihitung 0, dan baris tabel itu dianggap data baru
     // tiap putaran — sinkron mengulang dirinya tanpa henti (review R1).
     _ditolak = adaGalatLain ? null : ditolak;
+    _galatKirimLain = adaGalatLain;
     return (didorong, gagal);
   }
 

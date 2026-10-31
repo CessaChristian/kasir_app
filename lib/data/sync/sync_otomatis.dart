@@ -290,7 +290,13 @@ class SyncOtomatis with WidgetsBindingObserver {
   /// akan menghalangi layar di tengah pekerjaan. Kegagalan juga didiamkan —
   /// transaksinya tetap tersimpan dan terkirim saat jaringan pulih, dan label
   /// "terakhir disinkronkan" sudah membuat kebasiannya terlihat.
-  Future<void> picu(String alasan, {bool abaikanJeda = false}) async {
+  ///
+  /// [ulangan]: diteruskan ke [SyncService.jalankan].
+  Future<void> picu(
+    String alasan, {
+    bool abaikanJeda = false,
+    bool ulangan = false,
+  }) async {
     final dilewati =
         alasanDilewati(sekarang: DateTime.now(), abaikanJeda: abaikanJeda);
     if (dilewati != null) {
@@ -298,7 +304,7 @@ class SyncOtomatis with WidgetsBindingObserver {
       return;
     }
     _percobaanTerakhir = DateTime.now();
-    await SyncService.instance.jalankan();
+    await SyncService.instance.jalankan(ulangan: ulangan);
   }
 
   /// Lapor "HP ini masih dipakai" ke server selama sinkron ditahan.

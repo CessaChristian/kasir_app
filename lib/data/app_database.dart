@@ -1670,8 +1670,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Jumlah baris HP ini yang belum terkirim, di semua tabel yang disinkron.
   Future<int> jumlahTertunda() async {
-    var n = 0;
-    for (final t in const [
+    // Satu kueri, bukan sembilan: dipanggil sesudah setiap tulisan dan setiap
+    // putaran sinkron (review C10).
+    final hitung = const [
       'categories',
       'products',
       'transactions',
@@ -1681,13 +1682,10 @@ class AppDatabase extends _$AppDatabase {
       'user_permissions',
       'expenses',
       'open_bills',
-    ]) {
-      final r = await customSelect(
-        "SELECT COUNT(*) AS n FROM $t WHERE sync_status = 'pending'",
-      ).getSingle();
-      n += r.read<int>('n');
-    }
-    return n;
+    ].map((t) => "(SELECT COUNT(*) FROM $t WHERE sync_status = 'pending')");
+    final r = await customSelect('SELECT ${hitung.join(' + ')} AS n')
+        .getSingle();
+    return r.read<int>('n');
   }
 
   /// Jumlah baris server yang tertahan di HP ini (lihat [BarisTertahan]).

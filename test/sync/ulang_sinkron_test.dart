@@ -36,6 +36,8 @@ void main() {
     final (_, gagal) = await mesin.dorongSemua();
     expect(gagal.single, startsWith('open_bills'));
     expect(mesin.ditolak, isNull, reason: 'ada tabel yang tidak terkirim');
+    expect(mesin.galatKirimLain, isTrue,
+        reason: 'dicatat sebagai gagal kirim (review C3)');
 
     final h = HasilSync(
       error: gagal.single,
@@ -43,6 +45,15 @@ void main() {
       ditolak: mesin.ditolak,
     );
     expect(SyncService.perluUlang(h, await db.jumlahTertunda()), isFalse);
+  });
+
+  test('review C1: ulangan yang DITUNDA (keranjang berisi) tidak membuat '
+      'putaran biasa berikutnya dianggap ulangan', () async {
+    final s = SyncOtomatis.instance..resetUntukTest();
+    addTearDown(s.resetUntukTest);
+    s.sedangMenyusunPesanan = true;
+    await s.picu('data baru selama sinkron', abaikanJeda: true, ulangan: true);
+    expect(SyncService.instance.putaranUlanganUntukTest, isFalse);
   });
 
   test('tulisan hasil tarikan server tidak memicu sinkron lagi; '

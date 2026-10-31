@@ -142,7 +142,9 @@ void main() {
         'apa pun', () async {
       await produk('p-1200');
       await produk('hilang');
-      expect(await server(batasJawaban: 1000, jumlah: 1600).cocokkanId(), 0);
+      expect(await server(batasJawaban: 1000, jumlah: 1600).cocokkanId(),
+          isNull,
+          reason: 'belum selesai — dicoba lagi, tidak dicatat beres (C2)');
       expect((await baca('hilang')).deletedAt, isNull);
     });
   });
