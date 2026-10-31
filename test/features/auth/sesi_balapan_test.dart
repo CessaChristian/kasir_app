@@ -33,7 +33,8 @@ void main() {
       shiftId: 's-1',
       permissions: const [],
     ));
-    await sm.ingatPinMasuk('k-1', 'pin-lama'); // seperti AuthRepository.login
+    // seperti AuthRepository.login
+    await sm.ingatPinMasuk('k-1', 'pin-lama', salt: 's');
   });
 
   tearDown(() async {
@@ -99,6 +100,38 @@ void main() {
           .write(const UsersCompanion(username: Value('sari2')));
       await sm.periksaAkunMasihBerlaku();
       expect(sm.isLoggedIn, isTrue);
+    });
+
+    test('review R3: PIN format lama dipindah ke format baru di HP lain '
+        '(PIN-nya sama) → TETAP masuk', () async {
+      // HP lain login dengan akun ini: hash SHA-256 lama diganti PBKDF2,
+      // garamnya tetap. Dulu dianggap "PIN diganti owner".
+      final baru = await CryptoUtils.hashPinDiLatar('123456', 's');
+      await (db.update(db.users)..where((u) => u.id.equals('k-1')))
+          .write(UsersCompanion(pinHash: Value(baru)));
+      await sm.periksaAkunMasihBerlaku();
+      expect(sm.isLoggedIn, isTrue);
+      expect(sm.sesiDicabut.value, isNull);
+
+      // Sesudahnya Reset PIN sungguhan tetap dikenali.
+      final garam = CryptoUtils.generateSalt();
+      await (db.update(db.users)..where((u) => u.id.equals('k-1'))).write(
+          UsersCompanion(
+              pinHash: Value(await CryptoUtils.hashPinDiLatar('654321', garam)),
+              salt: Value(garam)));
+      await sm.periksaAkunMasihBerlaku();
+      expect(sm.sesiDicabut.value, SessionManager.pesanPinDiganti);
+    });
+
+    test('review R3: akun format lama di-Reset PIN owner (garam baru) → '
+        'keluar', () async {
+      final garam = CryptoUtils.generateSalt();
+      await (db.update(db.users)..where((u) => u.id.equals('k-1'))).write(
+          UsersCompanion(
+              pinHash: Value(await CryptoUtils.hashPinDiLatar('654321', garam)),
+              salt: Value(garam)));
+      await sm.periksaAkunMasihBerlaku();
+      expect(sm.sesiDicabut.value, SessionManager.pesanPinDiganti);
     });
 
     test('aplikasi dibuka ulang: PIN saat masuk tetap diingat', () async {

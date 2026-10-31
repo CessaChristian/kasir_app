@@ -8,6 +8,7 @@ import '../../data/db.dart';
 import '../../data/perangkat/perangkat_repository.dart';
 import '../../data/sync/sync_service.dart';
 import '../../features/auth/models/auth_session.dart';
+import '../../utils/crypto_utils.dart';
 
 /// Singleton untuk manajemen authentication session.
 ///
@@ -206,17 +207,40 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
     await prefs.remove(_kunciPin);
+    await prefs.remove(_kunciGaram);
   }
 
   /// "userId:hash PIN" akun yang sedang masuk — patokan
   /// [periksaAkunMasihBerlaku] untuk mengenali Reset PIN (QA kedua K2).
   static const _kunciPin = 'pin_saat_masuk';
 
+  /// Garam (salt) PIN saat masuk. Setiap ganti PIN membuat garam baru;
+  /// pemindahan hash format lama ke PBKDF2 saat login (di HP mana pun)
+  /// memakai garam yang sama (review R3).
+  static const _kunciGaram = 'garam_saat_masuk';
+
   /// Dicatat `AuthRepository.login` begitu PIN-nya terbukti benar.
-  Future<void> ingatPinMasuk(String userId, String pinHash) async {
+  Future<void> ingatPinMasuk(
+    String userId,
+    String pinHash, {
+    required String salt,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kunciPin, '$userId:$pinHash');
+    await prefs.setString(_kunciGaram, salt);
   }
+
+  /// Hash PIN berubah hanya karena dipindah dari format lama ke PBKDF2 —
+  /// PIN-nya sendiri tetap. Catatan dari sebelum garam ikut dicatat
+  /// (garamnya null) dinilai dari formatnya saja.
+  static bool _hanyaPindahFormat(
+    String hashMasuk,
+    String? garamMasuk,
+    User user,
+  ) =>
+      CryptoUtils.needsRehash(hashMasuk) &&
+      !CryptoUtils.needsRehash(user.pinHash) &&
+      (garamMasuk == null || garamMasuk == user.salt);
 
   /// Restore session dari storage.
   ///
@@ -386,11 +410,15 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     final pinMasuk = prefs.getString(_kunciPin);
     final tercatat = user != null && (pinMasuk?.startsWith('${user.id}:') ?? false);
-    final pinDiganti =
-        tercatat && pinMasuk != '${user.id}:${user.pinHash}';
+    final hashMasuk = tercatat ? pinMasuk!.substring(user.id.length + 1) : null;
+    final berbeda = hashMasuk != null && hashMasuk != user!.pinHash;
+    final hanyaFormat = berbeda &&
+        _hanyaPindahFormat(hashMasuk, prefs.getString(_kunciGaram), user);
+    final pinDiganti = berbeda && !hanyaFormat;
     // Sesi dari APK sebelum K2 belum punya catatan: dimulai dari sekarang.
-    if (user != null && !tercatat) {
-      await prefs.setString(_kunciPin, '${user.id}:${user.pinHash}');
+    // Hash yang hanya pindah format menjadi patokan baru.
+    if (user != null && (!tercatat || hanyaFormat)) {
+      await ingatPinMasuk(user.id, user.pinHash, salt: user.salt);
     }
 
     final alasan = user == null

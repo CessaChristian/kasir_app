@@ -194,7 +194,8 @@ class AuthRepository {
       ));
     }
     // Patokan untuk mengenali Reset PIN selagi akun ini masuk (QA kedua K2).
-    await SessionManager.instance.ingatPinMasuk(user.id, pinHash);
+    await SessionManager.instance
+        .ingatPinMasuk(user.id, pinHash, salt: user.salt);
 
     // 4. Lanjutkan shift yang masih berjalan — HANYA untuk kasir. Sejak v37
     // login TIDAK membuka shift: kasir membukanya sendiri lewat "Buka shift"
