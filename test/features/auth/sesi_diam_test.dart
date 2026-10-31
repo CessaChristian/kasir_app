@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -403,7 +404,30 @@ void main() {
       sm.catatSentuhan(sentuh);
       await pumpEventQueue();
       await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15)));
+      await pumpEventQueue();
       expect(lapor, [null], reason: 'dilaporkan SESUDAH sesinya dihapus');
+    });
+
+    test('review R2: sinkron yang sedang jalan ditunggu dulu — laporannya '
+        'membawa shift lama dan tidak boleh tiba belakangan', () async {
+      final sinkron = Completer<void>();
+      final lapor = <String?>[];
+      sm.tungguSinkronUntukTest = () => sinkron.future;
+      sm.laporLepasShiftUntukTest = () async => lapor.add(sm.currentSession?.shiftId);
+      addTearDown(() {
+        sm.tungguSinkronUntukTest = null;
+        sm.laporLepasShiftUntukTest = null;
+      });
+      await sm.setSession(sesi());
+      final sentuh = DateTime(2026, 10, 30, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15)));
+      await pumpEventQueue();
+      expect(lapor, isEmpty, reason: 'sinkronnya belum selesai');
+      sinkron.complete();
+      await pumpEventQueue();
+      expect(lapor, [null]);
     });
   });
 }

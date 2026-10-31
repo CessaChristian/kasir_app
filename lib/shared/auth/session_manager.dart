@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../data/perangkat/perangkat_repository.dart';
+import '../../data/sync/sync_service.dart';
 import '../../features/auth/models/auth_session.dart';
 
 /// Singleton untuk manajemen authentication session.
@@ -156,17 +157,26 @@ class SessionManager {
     await clearSession();
     sesiDicabut.value = pesanDiam;
     // Server diberi tahu sekarang, tidak menunggu sinkron berikutnya —
-    // HP lain langsung bisa menutup shift-nya.
-    unawaited(
-      (laporLepasShiftUntukTest ??
-          () => PerangkatRepository.instance.hadir(null))(),
-    );
+    // HP lain langsung bisa menutup shift-nya. Sinkron yang sedang jalan
+    // ditunggu DULU, sama seperti keluar biasa (AuthRepository.laporShift):
+    // ia ikut melapor di akhir putarannya dengan shift yang dibacanya
+    // sebelum sesi dihapus, dan kalau tiba belakangan, shift-nya terpasang
+    // lagi di server (review R2).
+    unawaited(() async {
+      await (tungguSinkronUntukTest ?? SyncService.instance.tungguSelesai)();
+      await (laporLepasShiftUntukTest ??
+          () => PerangkatRepository.instance.hadir(null))();
+    }());
     return true;
   }
 
   /// Pengganti laporan "shift dilepas" ke server, untuk test.
   @visibleForTesting
   Future<void> Function()? laporLepasShiftUntukTest;
+
+  /// Pengganti penunggu sinkron yang sedang jalan, untuk test.
+  @visibleForTesting
+  Future<void> Function()? tungguSinkronUntukTest;
 
   static const pesanPinDiganti =
       'PIN akun ini diganti owner. Silakan masuk lagi dengan PIN baru.';
