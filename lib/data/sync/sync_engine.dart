@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show PostgrestException, SupabaseClient;
+    show CountOption, PostgrestException, SupabaseClient;
 
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
@@ -708,21 +708,52 @@ class SyncEngine {
   @visibleForTesting
   Future<List<String>> Function(String tabel)? daftarIdServerUntukTest;
 
-  /// Semua id di tabel server — hanya kolom id, per halaman.
-  Future<List<String>> _daftarIdServer(String tabel) async {
+  /// Pengganti pengambilan satu halaman id ([dari]..[sampai]) untuk test.
+  @visibleForTesting
+  Future<List<String>> Function(String tabel, int dari, int sampai)?
+      halamanIdUntukTest;
+
+  /// Pengganti hitungan baris server untuk test.
+  @visibleForTesting
+  Future<int> Function(String tabel)? jumlahServerUntukTest;
+
+  /// Semua id di tabel server — hanya kolom id, per halaman — atau null
+  /// kalau daftarnya tidak bisa dipastikan lengkap.
+  ///
+  /// Halaman yang lebih pendek dari permintaan BUKAN tanda habis: server
+  /// bisa membatasi jumlah baris per jawaban (`max_rows`) di bawah
+  /// [ukuran]. Dulu dianggap habis, dan semua produk sesudahnya
+  /// disembunyikan (review R8). Sekarang diambil sampai halaman kosong, dan
+  /// jumlahnya dicocokkan dengan hitungan server.
+  Future<List<String>?> _daftarIdServer(String tabel) async {
     final pengganti = daftarIdServerUntukTest;
     if (pengganti != null) return pengganti(tabel);
+    final klien = klienUntukTest ?? _supabase.client;
+    final halaman = halamanIdUntukTest ??
+        (String t, int dari, int sampai) async => [
+              for (final b in await klien!
+                  .from(t)
+                  .select('id')
+                  .order('id', ascending: true)
+                  .range(dari, sampai))
+                b['id'] as String,
+            ];
+    final hitung = jumlahServerUntukTest ??
+        (String t) async => await klien!.from(t).count(CountOption.exact);
+
     const ukuran = 1000;
+    final jumlah = await hitung(tabel);
     final semua = <String>[];
-    for (var dari = 0; ; dari += ukuran) {
-      final baris = await (klienUntukTest ?? _supabase.client!)
-          .from(tabel)
-          .select('id')
-          .order('id', ascending: true)
-          .range(dari, dari + ukuran - 1);
-      semua.addAll(baris.map((b) => b['id'] as String));
-      if (baris.length < ukuran) return semua;
+    while (true) {
+      final baris = await halaman(tabel, semua.length,
+          semua.length + ukuran - 1);
+      if (baris.isEmpty) break;
+      semua.addAll(baris);
+      // Pengaman: server yang terus menjawab tidak boleh membuat ini
+      // berputar selamanya.
+      if (semua.length > jumlah) return null;
     }
+    return semua.length == jumlah ? semua : null;
   }
 
   /// Sembunyikan produk & kategori di HP ini yang sudah TIDAK ADA di server
@@ -742,8 +773,11 @@ class SyncEngine {
   Future<int> cocokkanId() async {
     var disembunyikan = 0;
     for (final tabel in const ['products', 'categories']) {
-      final diServer = (await _daftarIdServer(tabel)).toSet();
-      if (diServer.isEmpty) continue;
+      final daftar = await _daftarIdServer(tabel);
+      // Tidak bisa dipastikan lengkap: lebih baik tidak membersihkan apa pun
+      // daripada menyembunyikan produk yang masih ada.
+      if (daftar == null || daftar.isEmpty) continue;
+      final diServer = daftar.toSet();
       disembunyikan += await _db.customUpdate(
         'UPDATE $tabel SET deleted_at = ?, sync_status = \'synced\' '
         'WHERE deleted_at IS NULL AND sync_status = \'synced\' '
