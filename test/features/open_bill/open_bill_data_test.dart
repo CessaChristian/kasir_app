@@ -559,4 +559,35 @@ void main() {
       KeputusanServer.boleh,
     );
   });
+
+  test('review R5: server menjawab "dibayar" — dibedakan dari baris yang '
+      'dibaca ulang', () {
+    CekBill cek(KeputusanServer k, [Duration? sisa]) =>
+        (keputusan: k, isi: null, sisaKlaim: sisa);
+    const dibayar = KeputusanServer.sudahDibayar;
+    expect(
+      keputusanSesudahCek(
+        dibayar,
+        cek(KeputusanServer.sedangDibayar, const Duration(minutes: 2)),
+      ).sisaKlaim,
+      const Duration(minutes: 2),
+    );
+    expect(
+      keputusanSesudahCek(dibayar, cek(KeputusanServer.boleh)).keputusan,
+      KeputusanServer.sedangDibayar,
+      reason:
+          'jam HP kecepatan: menurut HP klaimnya hangus, menurut server '
+          'belum — bill tidak boleh disembunyikan',
+    );
+    expect(keputusanSesudahCek(dibayar, cek(dibayar)).keputusan, dibayar);
+    expect(
+      keputusanSesudahCek(dibayar, cek(KeputusanServer.takTerjawab)).keputusan,
+      dibayar,
+    );
+    expect(keputusanSesudahCek(dibayar, null).keputusan, dibayar);
+    expect(
+      keputusanSesudahCek(KeputusanServer.boleh, null).keputusan,
+      KeputusanServer.boleh,
+    );
+  });
 }

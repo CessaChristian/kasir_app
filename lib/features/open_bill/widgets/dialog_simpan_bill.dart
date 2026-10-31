@@ -165,11 +165,14 @@ class _DialogSimpanBillState extends State<_DialogSimpanBill> {
             ),
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: SizedBox(
-                height: 18,
+              // Tinggi minimal tetap supaya dialog tidak melompat; pesan
+              // panjang (bill sedang dibayar HP lain, review R5) boleh
+              // sampai tiga baris — sisa waktunya ada di ujung kalimat.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 18),
                 child: Text(
                   _galat ?? '',
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13, color: WarnaTeras.merah),
                 ),

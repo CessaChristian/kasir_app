@@ -113,6 +113,21 @@ String pesanSedangDibayar(String nama, Duration? sisa) {
       '±$menit menit lagi.';
 }
 
+/// Jawaban fungsi server ([keputusan]) digabung dengan pembacaan ulang
+/// barisnya ([cek]) — lihat `OpenBillRepository._tanyaServer`.
+CekBill keputusanSesudahCek(KeputusanServer keputusan, CekBill? cek) {
+  if (keputusan == KeputusanServer.sudahDibayar &&
+      (cek?.keputusan == KeputusanServer.sedangDibayar ||
+          cek?.keputusan == KeputusanServer.boleh)) {
+    return (
+      keputusan: KeputusanServer.sedangDibayar,
+      isi: null,
+      sisaKlaim: cek!.sisaKlaim,
+    );
+  }
+  return (keputusan: keputusan, isi: null, sisaKlaim: null);
+}
+
 /// Hasil [OpenBillRepository.perbarui].
 enum HasilPerbarui {
   tersimpan,
@@ -276,7 +291,9 @@ class OpenBillRepository {
   /// Panggil fungsi server [fungsi]. Jawaban "dibayar" juga berarti
   /// SEDANG dibayar HP lain, jadi barisnya dibaca sekali lagi untuk
   /// membedakan keduanya — bill yang baru diklaim tidak boleh disembunyikan
-  /// seolah lunas (review R5). Pembacaan itu gagal: tetap "dibayar".
+  /// seolah lunas (review R5). Barisnya belum lunas tapi menurut jam HP ini
+  /// klaimnya sudah hangus (jam HP kecepatan): server yang benar, jadi
+  /// tetap "sedang dibayar". Pembacaan itu gagal: tetap "dibayar".
   Future<CekBill> _tanyaServer(
     String fungsi,
     Map<String, dynamic> param,
@@ -292,11 +309,12 @@ class OpenBillRepository {
     } catch (_) {
       return _takTerjawab;
     }
-    if (keputusan == KeputusanServer.sudahDibayar) {
-      final cek = await cekDiServer(param['p_bill'] as String);
-      if (cek.keputusan == KeputusanServer.sedangDibayar) return cek;
-    }
-    return (keputusan: keputusan, isi: null, sisaKlaim: null);
+    return keputusanSesudahCek(
+      keputusan,
+      keputusan == KeputusanServer.sudahDibayar
+          ? await cekDiServer(param['p_bill'] as String)
+          : null,
+    );
   }
 
   /// Perbarui bill [id] yang dimuat ke keranjang dengan isi [isiAwal].
