@@ -32,6 +32,7 @@ void main() {
 
   Map<String, dynamic> barisServer({
     String pinHash = 'h',
+    String salt = 's',
     String username = 'sari',
     int salah = 0,
     String? kunci,
@@ -40,7 +41,7 @@ void main() {
     'id': 'k-1',
     'username': username,
     'pin_hash': pinHash,
-    'salt': 's',
+    'salt': salt,
     'role': 'cashier',
     'is_active': true,
     'recovery_hash': null,
@@ -113,12 +114,22 @@ void main() {
     expect(u.loginLockedUntil, isNull);
   });
 
-  test('Reset PIN (hash berubah): kunci di HP ini lepas', () async {
+  test('Reset PIN (garam & hash baru): kunci di HP ini lepas', () async {
     await sariTerkunciDiHpIni();
-    await tarik(barisServer(pinHash: 'h-baru'));
+    await tarik(barisServer(pinHash: 'h-baru', salt: 's-baru'));
     final u = await sari();
     expect(u.pinHash, 'h-baru');
     expect(u.loginAttempts, 0);
     expect(u.loginLockedUntil, isNull);
+  });
+
+  test('review C4: hash hanya pindah format di HP lain (garam sama): kunci '
+      'TETAP', () async {
+    await sariTerkunciDiHpIni();
+    await tarik(barisServer(pinHash: 'pbkdf2:baru'));
+    final u = await sari();
+    expect(u.pinHash, 'pbkdf2:baru');
+    expect(u.loginAttempts, 10);
+    expect(u.loginLockedUntil, isNotNull);
   });
 }

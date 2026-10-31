@@ -1309,11 +1309,14 @@ class SyncEngine {
           // begitu owner mengganti namanya (baris tiba dengan hitungan HP
           // owner, 0), dan salah PIN di satu HP mengunci akun di semua HP.
           // Satu-satunya yang melepasnya dari HP lain adalah Reset PIN —
-          // terlihat dari hash PIN yang berubah.
+          // terlihat dari GARAM PIN yang berubah: setiap ganti PIN membuat
+          // garam baru, sedangkan hash format lama yang dipindah ke PBKDF2
+          // saat login di HP lain memakai garam yang sama dan PIN-nya tidak
+          // berubah (review C4).
           final lama = await (_db.select(_db.users)
                 ..where((u) => u.id.equals(r['id'] as String)))
               .getSingleOrNull();
-          final pinDiganti = lama != null && lama.pinHash != r['pin_hash'];
+          final pinDiganti = lama != null && lama.salt != r['salt'];
           await _db.into(_db.users).insertOnConflictUpdate(UsersCompanion(
                 id: Value(r['id'] as String),
                 username: Value(r['username'] as String),
