@@ -273,14 +273,21 @@ class SyncService {
 
   HasilSync? _hasilTerakhir;
 
+  /// Putaran yang sedang atau baru berjalan adalah ulangan dari
+  /// [_ulangiKalauAdaDataBaru].
+  bool _putaranUlangan = false;
+
   /// Data yang ditulis SELAGI putaran berjalan tidak ikut terkirim: tabelnya
   /// mungkin sudah lewat, dan pendengar tulisan sengaja tuli selama sinkron
   /// (SyncOtomatis.perluKirimSetelahTulisan). Dulu data itu menunggu sinkron
   /// berkala sampai 5 menit (QA kedua K10). Sekarang putarannya diulang
   /// sekali — lewat SyncOtomatis, jadi keranjang berisi tetap menahannya.
   Future<void> _ulangiKalauAdaDataBaru(HasilSync h) async {
+    final ulangan = _putaranUlangan;
+    _putaranUlangan = false;
     try {
-      if (!perluUlang(h, await db.jumlahTertunda())) return;
+      if (!perluUlang(h, await db.jumlahTertunda(), ulangan: ulangan)) return;
+      _putaranUlangan = true;
       await SyncOtomatis.instance
           .picu('data baru selama sinkron', abaikanJeda: true);
     } catch (e) {
@@ -289,11 +296,21 @@ class SyncService {
   }
 
   /// Masih ada yang tertunda selain baris yang memang ditolak server, dan
-  /// server bisa dijangkau? Koneksi putus atau Batalkan tidak diulang.
+  /// server bisa dijangkau? Koneksi putus, Batalkan, atau kiriman yang
+  /// jumlah tolakannya tidak diketahui ([HasilSync.ditolak] null) tidak
+  /// diulang.
+  ///
+  /// [ulangan]: putaran ini sendiri sudah ulangan — tidak diulang lagi.
+  /// Pengaman terakhir supaya sinkron tidak pernah mengulang dirinya
+  /// beruntun, sekalipun ada sebab "tertunda tapi tidak terkirim" yang belum
+  /// dikenal (review R1). Sisanya ikut sinkron berikutnya.
   @visibleForTesting
-  static bool perluUlang(HasilSync h, int tertunda) {
+  static bool perluUlang(HasilSync h, int tertunda, {bool ulangan = false}) {
+    final ditolak = h.ditolak;
+    if (ulangan) return false;
     if (!h.bolehRampung || h.dibatalkan || h.koneksiPutus) return false;
-    return tertunda > (h.ditolak ?? 0);
+    if (ditolak == null) return false;
+    return tertunda > ditolak;
   }
 
   Future<HasilSync> _mulai() async {

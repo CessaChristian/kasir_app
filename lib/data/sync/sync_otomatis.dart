@@ -117,10 +117,35 @@ class SyncOtomatis with WidgetsBindingObserver {
   void adaPerubahanLokal() {
     _penggabung?.cancel();
     _penggabung = Timer(jedaGabung, () {
-      final kirim =
-          penggantiPicuUntukTest ?? (a) => picu(a, abaikanJeda: true);
-      kirim('perubahan lokal');
+      final kirim = penggantiPicuUntukTest;
+      if (kirim != null) {
+        kirim('perubahan lokal');
+      } else {
+        unawaited(kirimKalauAdaTertunda());
+      }
     });
+  }
+
+  /// Jalankan sinkron hanya kalau memang ada baris yang menunggu dikirim.
+  /// True kalau dijalankan.
+  ///
+  /// Tidak semua tulisan perlu dikirim: hasil tarikan dari server tercatat
+  /// `synced`. Tarikan di luar putaran sinkron (open bill, cek shift sebelum
+  /// bayar) dan baris di batas penanda yang ditulis ulang tiap tarikan dulu
+  /// memicu sinkron penuh — dan sinkron itu bisa memicu yang berikutnya
+  /// (review R1). Diputuskan dari ISI database, bukan dari kapan tulisannya
+  /// terjadi, jadi tidak bergantung pada urutan kabar tulisan.
+  @visibleForTesting
+  Future<bool> kirimKalauAdaTertunda({
+    Future<int> Function()? hitungTertunda,
+  }) async {
+    try {
+      if (await (hitungTertunda ?? db.jumlahTertunda)() == 0) return false;
+    } catch (e) {
+      debugPrint('[sync] hitung tertunda gagal: $e');
+    }
+    await picu('perubahan lokal', abaikanJeda: true);
+    return true;
   }
 
   /// Bolehkah tulisan yang baru terjadi ditanggapi?

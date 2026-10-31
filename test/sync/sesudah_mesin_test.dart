@@ -123,6 +123,9 @@ void main() {
       expect(SyncService.perluUlang(ditolak, 2), isFalse);
       expect(SyncService.perluUlang(ditolak, 3), isTrue);
     });
+    test('putaran ulangan tidak diulang lagi (review R1)', () {
+      expect(SyncService.perluUlang(bersih, 1, ulangan: true), isFalse);
+    });
     test('koneksi putus atau dibatalkan: tidak diulang', () {
       expect(
         SyncService.perluUlang(

@@ -1020,6 +1020,7 @@ class SyncEngine {
   Future<(int, List<String>)> _dorongSemua() async {
     var didorong = 0;
     var ditolak = 0;
+    var adaGalatLain = false;
     final gagal = <String>[];
     _ditolak = null;
     for (var i = 0; i < _entitas.length; i++) {
@@ -1035,10 +1036,16 @@ class SyncEngine {
         gagal.add('${b.tabel}: ${b.penyebab}');
         return (didorong, gagal);
       } catch (e) {
+        // Bukan penolakan server (mis. isi baris rusak sehingga tidak bisa
+        // dibaca): berapa yang tertunda karenanya tidak diketahui.
+        adaGalatLain = true;
         gagal.add('${_entitas[i].nama}: $e');
       }
     }
-    _ditolak = ditolak;
+    // Null = jumlahnya tidak diketahui; aturan ulang K10 lalu tidak
+    // mengulang. Dulu dihitung 0, dan baris tabel itu dianggap data baru
+    // tiap putaran — sinkron mengulang dirinya tanpa henti (review R1).
+    _ditolak = adaGalatLain ? null : ditolak;
     return (didorong, gagal);
   }
 
