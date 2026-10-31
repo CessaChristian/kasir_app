@@ -429,5 +429,26 @@ void main() {
       await pumpEventQueue();
       expect(lapor, [null]);
     });
+
+    test('review C6: selama menunggu sinkron sudah ada yang masuk dengan '
+        'shift — laporan "dilepas" tidak menghapus shift-nya', () async {
+      final sinkron = Completer<void>();
+      final lapor = <String?>[];
+      sm.tungguSinkronUntukTest = () => sinkron.future;
+      sm.laporLepasShiftUntukTest = () async => lapor.add('dilepas');
+      addTearDown(() {
+        sm.tungguSinkronUntukTest = null;
+        sm.laporLepasShiftUntukTest = null;
+      });
+      await sm.setSession(sesi());
+      final sentuh = DateTime(2026, 10, 30, 9);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15)));
+      await sm.setSession(sesi()); // kasir lain masuk, shift berjalan
+      sinkron.complete();
+      await pumpEventQueue();
+      expect(lapor, isEmpty);
+    });
   });
 }

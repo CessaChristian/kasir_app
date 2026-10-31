@@ -163,8 +163,17 @@ class SessionManager {
     // ia ikut melapor di akhir putarannya dengan shift yang dibacanya
     // sebelum sesi dihapus, dan kalau tiba belakangan, shift-nya terpasang
     // lagi di server (review R2).
+    //
+    // Ditunggu sampai SELESAI, bukan 15 detik seperti keluar biasa: ini
+    // berjalan di latar, tidak ada yang menunggu di layar, dan laporan yang
+    // tiba sebelum putaran lama selesai mengembalikan masalahnya (review
+    // C6). Kalau selama menunggu sudah ada yang masuk dan memegang shift,
+    // laporannya dilewati — login itu sudah melaporkan shift-nya sendiri,
+    // dan "dilepas" akan menghapusnya di server.
     unawaited(() async {
-      await (tungguSinkronUntukTest ?? SyncService.instance.tungguSelesai)();
+      await (tungguSinkronUntukTest ??
+          () => SyncService.instance.tungguSelesai(batas: null))();
+      if (_currentSession?.shiftId != null) return;
       await (laporLepasShiftUntukTest ??
           () => PerangkatRepository.instance.hadir(null))();
     }());
