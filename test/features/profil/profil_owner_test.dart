@@ -9,6 +9,9 @@ import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/auth/recovery/pages/save_recovery_code_page.dart';
 import 'package:kasir_app/features/auth/recovery/widgets/lembar_kode_recovery.dart';
 import 'package:kasir_app/features/auth/repositories/auth_repository.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:kasir_app/features/printer/data/layanan_printer.dart';
+import 'package:kasir_app/features/printer/pages/printer_page.dart';
 import 'package:kasir_app/features/profil/pages/profil_owner_page.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/constants/app_constants.dart';
@@ -96,11 +99,15 @@ void main() {
     }
     expect(find.text('O'), findsOneWidget, reason: 'inisial di kartu akun');
 
-    // Printer belum ada: diketuk tidak membuka apa pun dan tanpa pesan.
+    // Printer Struk membuka halaman pengaturan printer.
+    await initializeDateFormatting('id_ID');
+    final asli = LayananPrinter.instance;
+    LayananPrinter.instance = LayananPrinter.untukTest(_PrinterTiruan());
+    addTearDown(() => LayananPrinter.instance = asli);
     await t.tap(find.text('Printer Struk'));
     await t.pumpAndSettle();
-    expect(find.byType(ProfilOwnerPage), findsOneWidget);
-    expect(find.textContaining('belum tersedia'), findsNothing);
+    expect(find.byType(PrinterPage), findsOneWidget);
+    expect(find.text('RPP02N'), findsOneWidget);
   });
 
   group('Kode Recovery', () {
@@ -193,4 +200,26 @@ void main() {
     await t.tap(tombol);
     expect(selesai, isTrue);
   });
+}
+
+class _PrinterTiruan implements SaluranPrinter {
+  @override
+  Future<bool> bluetoothNyala() async => true;
+  @override
+  Future<bool> izinAda() async => true;
+  @override
+  Future<List<PrinterTerpasang>> terpasang() async =>
+      [(nama: 'RPP02N', mac: '86:67:7A:80:4E:3D')];
+  @override
+  Future<void> bukaPengaturanBluetooth() async {}
+  @override
+  Future<void> bukaPengaturanIzin() async {}
+  @override
+  Future<bool> tersambung() async => false;
+  @override
+  Future<bool> sambung(String mac) async => true;
+  @override
+  Future<bool> kirim(List<int> bytes) async => true;
+  @override
+  Future<void> putus() async {}
 }

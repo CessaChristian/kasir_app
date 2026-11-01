@@ -6,6 +6,8 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/isi_struk.dart';
 import '../repositories/sales_repository.dart';
+import '../../printer/cetak_struk.dart';
+import '../../printer/data/layanan_printer.dart';
 
 /// Struk sesudah pembayaran (desain): isi struk lalu [Cetak Struk]
 /// [Selesai]. Tidak bisa ditutup dengan mengetuk luar — kasir menekan
@@ -14,17 +16,24 @@ Future<void> tampilkanStrukSesudahBayar(
   BuildContext context, {
   required String transaksiId,
   required SalesRepository repo,
+  LayananPrinter? printer,
 }) => showDialog<void>(
   context: context,
   barrierDismissible: false,
-  builder: (_) => _DialogStruk(transaksiId: transaksiId, repo: repo),
+  builder: (_) =>
+      _DialogStruk(transaksiId: transaksiId, repo: repo, printer: printer),
 );
 
 class _DialogStruk extends StatefulWidget {
   final String transaksiId;
   final SalesRepository repo;
+  final LayananPrinter? printer;
 
-  const _DialogStruk({required this.transaksiId, required this.repo});
+  const _DialogStruk({
+    required this.transaksiId,
+    required this.repo,
+    this.printer,
+  });
 
   @override
   State<_DialogStruk> createState() => _DialogStrukState();
@@ -61,6 +70,19 @@ class _DialogStrukState extends State<_DialogStruk> {
     } catch (_) {
       if (mounted) setState(() => _gagal = true);
     }
+  }
+
+  Future<void> _cetak() async {
+    final tx = _tx;
+    final items = _items;
+    if (tx == null || items == null) return;
+    await cetakStrukTransaksi(
+      context,
+      tx: tx,
+      items: items,
+      namaKasir: _namaKasir,
+      layanan: widget.printer,
+    );
   }
 
   Widget _layarGagal() => Padding(
@@ -150,10 +172,7 @@ class _DialogStrukState extends State<_DialogStruk> {
                             warna: Colors.white,
                             tinggi: 42,
                             sudut: 6,
-                            // Fitur printer belum dibuat. Tombolnya tetap
-                            // tampil sesuai desain, tapi belum melakukan
-                            // apa-apa (keputusan owner 2026-10-13).
-                            onPressed: () {},
+                            onPressed: _cetak,
                           ),
                         ),
                         const SizedBox(width: 12),

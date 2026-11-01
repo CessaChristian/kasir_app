@@ -9,6 +9,7 @@ import '../ui/pegang_lembar.dart';
 import '../ui/teks_teras.dart';
 import '../ui/warna_teras.dart';
 import 'isi_struk.dart';
+import '../../features/printer/cetak_struk.dart';
 
 /// Detail transaksi berbentuk STRUK (desain): logo, info, item, total,
 /// pembayaran — lalu "Cetak ulang struk" dan (kalau boleh) "Batalkan
@@ -171,10 +172,16 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     SizedBox(
       height: 44,
       child: FilledButton.icon(
-        // Fitur printer belum dibuat. Tombolnya tetap tampil supaya
-        // sesuai desain, tapi belum melakukan apa-apa (keputusan
-        // owner 2026-10-04) — tanpa pesan.
-        onPressed: () {},
+        // Isinya sama persis dengan struk sesudah bayar — tanpa tanda
+        // cetak ulang (keputusan owner 2026-11-01).
+        onPressed: _items == null
+            ? null
+            : () => cetakStrukTransaksi(
+                  context,
+                  tx: widget.transaction,
+                  items: _items!,
+                  namaKasir: _namaKasir,
+                ),
         style: FilledButton.styleFrom(
           backgroundColor: WarnaTeras.oranye,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),

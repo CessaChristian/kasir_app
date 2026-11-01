@@ -29,7 +29,8 @@ class IsiStruk extends StatelessWidget {
     this.latar = const Color(0xFFF5F5F5),
   });
 
-  static String _tipePesanan(String kode) => switch (kode) {
+  /// Label tipe pesanan.
+  static String tipePesanan(String kode) => switch (kode) {
     'delivery' => 'Delivery',
     _ => 'Dine In',
   };
@@ -73,7 +74,7 @@ class IsiStruk extends StatelessWidget {
           _baris('Tanggal', DateFormat('dd/MM/yyyy').format(tx.createdAt)),
           _baris('Waktu', DateFormat('HH:mm:ss').format(tx.createdAt)),
           _baris('Kasir', namaKasir ?? '-'),
-          _baris('Tipe Pesanan', _tipePesanan(tx.orderType)),
+          _baris('Tipe Pesanan', tipePesanan(tx.orderType)),
           // Nama open bill; penjualan langsung tidak punya nama pelanggan.
           if (tx.billName case final nama? when nama.isNotEmpty)
             _baris('Pelanggan', nama),

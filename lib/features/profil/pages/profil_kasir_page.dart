@@ -17,6 +17,7 @@ import '../../shift/pengelola_shift.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
 import '../../shift/repositories/shift_repository.dart';
 import '../widgets/komponen_profil.dart';
+import '../../printer/pages/printer_page.dart';
 
 /// Profil kasir (desain): kartu akun · kartu shift (Buka/Tutup shift) ·
 /// MENU LAINNYA · PERANGKAT & AKUN · Keluar.
@@ -134,8 +135,12 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
             keterangan: 'Printer Bluetooth',
             warnaIkon: WarnaTeras.hijau,
             latarIkon: WarnaTeras.hijauMuda,
-            // Fitur printer belum dibuat — sama dengan Profil owner.
-            onTap: () {},
+            onTap: () => _buka(
+              const HalamanTurunan(
+                judul: 'Printer Struk',
+                child: PrinterPage(),
+              ),
+            ),
           ),
         ]),
         const TombolKeluarProfil(),

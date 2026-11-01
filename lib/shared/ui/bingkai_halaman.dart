@@ -19,20 +19,43 @@ class BingkaiHalaman extends StatefulWidget {
   /// Tombol tambahan di header, sebelum tombol segarkan (mis. keranjang).
   final List<Widget> aksi;
 
+  /// Pengganti pengendali tombol segarkan, untuk test.
+  @visibleForTesting
+  final PengendaliSegarkan? pengendaliUntukTest;
+
   const BingkaiHalaman({
     super.key,
     required this.judul,
     required this.child,
     this.onKembali,
     this.aksi = const [],
+    this.pengendaliUntukTest,
   });
+
+  /// Pengendali tombol segarkan di header halaman ini — untuk isi yang
+  /// juga punya data di HP sendiri yang perlu dimuat ulang saat tombol itu
+  /// diketuk (mis. daftar printer Bluetooth). Tombolnya sendiri hanya
+  /// menyinkronkan data server.
+  static PengendaliSegarkan? pengendaliDari(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_PengendaliTersedia>()
+      ?.pengendali;
 
   @override
   State<BingkaiHalaman> createState() => _BingkaiHalamanState();
 }
 
+class _PengendaliTersedia extends InheritedWidget {
+  final PengendaliSegarkan pengendali;
+
+  const _PengendaliTersedia({required this.pengendali, required super.child});
+
+  @override
+  bool updateShouldNotify(_PengendaliTersedia lama) =>
+      lama.pengendali != pengendali;
+}
+
 class _BingkaiHalamanState extends State<BingkaiHalaman> {
-  late final _segarkan = PengendaliSegarkan()
+  late final _segarkan = (widget.pengendaliUntukTest ?? PengendaliSegarkan())
     // Gagal ditampilkan sebagai AppToast, bukan di pita (keputusan owner).
     ..onGagal = (pesan, {required sebagian}) {
       if (!mounted) return;
@@ -95,7 +118,10 @@ class _BingkaiHalamanState extends State<BingkaiHalaman> {
                             child: isi,
                           ),
                         ),
-                        child: widget.child,
+                        child: _PengendaliTersedia(
+                          pengendali: _segarkan,
+                          child: widget.child,
+                        ),
                       ),
                     ),
                   ),

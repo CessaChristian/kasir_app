@@ -12,6 +12,7 @@ import '../../perangkat/pages/daftar_perangkat_page.dart';
 import '../../products/pages/kategori_page.dart';
 import '../../report/pages/laporan_page.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
+import '../../printer/pages/printer_page.dart';
 
 /// Profil owner (desain): kartu akun · MENU LAINNYA · MANAJEMEN ·
 /// PERANGKAT & AKUN · Keluar · versi.
@@ -111,10 +112,12 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
             keterangan: 'Printer Bluetooth',
             warnaIkon: WarnaTeras.hijau,
             latarIkon: WarnaTeras.hijauMuda,
-            // Fitur printer belum dibuat. Menu tetap tampil sesuai desain,
-            // tapi belum melakukan apa-apa — tanpa pesan (keputusan owner
-            // 2026-10-04).
-            onTap: () {},
+            onTap: () => _buka(
+              const HalamanTurunan(
+                judul: 'Printer Struk',
+                child: PrinterPage(),
+              ),
+            ),
           ),
           BarisMenu(
             ikon: Icons.devices_rounded,

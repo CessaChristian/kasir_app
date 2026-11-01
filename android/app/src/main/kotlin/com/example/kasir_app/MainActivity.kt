@@ -1,16 +1,49 @@
 package com.example.kasir_app
 
+import android.bluetooth.BluetoothClass
+import android.bluetooth.BluetoothManager
 import android.content.ContentValues
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.UUID
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kasir_app/printer")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "printerTerpasang" -> try {
+                        result.success(printerTerpasang())
+                    } catch (e: SecurityException) {
+                        result.error("IZIN", e.message, null)
+                    }
+                    "bukaPengaturanBluetooth" -> {
+                        startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                        result.success(null)
+                    }
+                    // Halaman izin aplikasi ini — untuk izin "Perangkat di
+                    // sekitar" yang sudah diblokir Android sesudah ditolak
+                    // dua kali (popup izin tidak muncul lagi).
+                    "bukaPengaturanIzin" -> {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", packageName, null),
+                            ),
+                        )
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kasir_app/unduhan")
             .setMethodCallHandler { call, result ->
                 if (call.method != "simpanKeDownload") {
@@ -51,5 +84,26 @@ class MainActivity : FlutterActivity() {
                     result.error("GAGAL", e.message, null)
                 }
             }
+    }
+
+    // Perangkat Bluetooth yang sudah dipasangkan DAN berupa printer.
+    //
+    // Plugin printer hanya memberi nama & alamat, jadi headset, speaker,
+    // dan mobil ikut tampil (tes owner 2026-11-01). Android sendiri tahu
+    // jenisnya — dari situ ikon printer di Pengaturan Bluetooth. Printer
+    // murah yang tidak mengaku jenisnya tetap ikut kalau punya jalur
+    // cetak Bluetooth (SPP); headset tidak punya jalur itu.
+    private fun printerTerpasang(): List<Map<String, String>> {
+        val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
+            ?: return emptyList()
+        val spp = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        return adapter.bondedDevices
+            .filter { d ->
+                val jenis = d.bluetoothClass?.majorDeviceClass
+                jenis == BluetoothClass.Device.Major.IMAGING ||
+                    (jenis == BluetoothClass.Device.Major.UNCATEGORIZED &&
+                        d.uuids?.any { it.uuid == spp } == true)
+            }
+            .map { mapOf("nama" to (it.name ?: ""), "mac" to it.address) }
     }
 }
