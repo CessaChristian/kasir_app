@@ -31,4 +31,39 @@ void main() {
     final jawaban = await klien.get(Uri.parse('https://contoh.test/x'));
     expect(jawaban.body, 'ok');
   });
+
+  test('jawaban yang macet di tengah jalan → TimeoutException, bukan '
+      'menunggu selamanya', () async {
+    final macet = StreamController<List<int>>();
+    final klien = KlienBerbatasWaktu(
+      MockClient.streaming(
+        (_, _) async => http.StreamedResponse(macet.stream, 200),
+      ),
+      batas: const Duration(milliseconds: 50),
+    );
+    macet.add([1, 2, 3]); // sebagian foto sudah sampai, lalu berhenti
+    await expectLater(
+      klien.get(Uri.parse('https://contoh.test/foto.webp')),
+      throwsA(isA<TimeoutException>()),
+    );
+    await macet.close();
+  });
+
+  test('data yang masih mengalir pelan tidak diputus', () async {
+    final pelan = StreamController<List<int>>();
+    final klien = KlienBerbatasWaktu(
+      MockClient.streaming(
+        (_, _) async => http.StreamedResponse(pelan.stream, 200),
+      ),
+      batas: const Duration(milliseconds: 80),
+    );
+    final jawaban = klien.get(Uri.parse('https://contoh.test/foto.webp'));
+    for (var i = 0; i < 4; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      pelan.add([i]);
+    }
+    await pelan.close();
+    expect((await jawaban).bodyBytes, [0, 1, 2, 3],
+        reason: 'total 160 ms > batas, tapi tiap jeda < batas');
+  });
 }
