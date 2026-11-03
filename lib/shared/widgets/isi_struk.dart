@@ -209,7 +209,7 @@ class IsiStruk extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Text(
-                    '**${item.notes}',
+                    item.notes!,
                     style: const TextStyle(
                       fontSize: TeksTeras.kecil,
                       color: WarnaTeras.merah,

@@ -28,17 +28,26 @@ void main() {
 
   test('isi dan pilihan bawaan tiap kelompok sesuai kesepakatan', () {
     expect(KelompokPilihan.pedas.daftar,
-        ['Tidak Pedas', 'Sedang', 'Pedas', 'Ekstra Pedas']);
+        ['Tidak Pedas', 'Sedang Pedas', 'Pedas', 'Ekstra Pedas']);
     expect(KelompokPilihan.manis.daftar,
-        ['Tanpa Gula', 'Sedikit', 'Normal', 'Ekstra Gula']);
+        ['No Sugar', 'Less Sugar', 'Manis', 'Ekstra Sugar']);
     expect(KelompokPilihan.es.daftar,
-        ['Panas', 'Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es']);
+        ['Hot', 'No Ice', 'Less Ice', 'Normal Ice', 'Ekstra Ice']);
     expect(
         [for (final k in KelompokPilihan.values) k.bawaan],
-        ['Tidak Pedas', 'Normal', 'Normal']);
+        ['Tidak Pedas', 'Manis', 'Normal Ice']);
     for (final k in KelompokPilihan.values) {
       expect(k.daftar, contains(k.bawaan));
     }
+    final semua = [for (final k in KelompokPilihan.values) ...k.daftar];
+    expect(semua.toSet().length, semua.length,
+        reason: 'catatan tanpa nama kelompok — pilihan tidak boleh kembar');
+  });
+
+  test('tingkat untuk titik: 0..3, Hot tanpa tingkat', () {
+    const es = KelompokPilihan.es, manis = KelompokPilihan.manis;
+    expect([for (final o in es.daftar) es.tingkat(o)], [null, 0, 1, 2, 3]);
+    expect([for (final o in manis.daftar) manis.tingkat(o)], [0, 1, 2, 3]);
   });
 
   test('hanya kelompok yang dinyalakan di produk yang ditanyakan', () {
@@ -47,19 +56,19 @@ void main() {
         [KelompokPilihan.manis, KelompokPilihan.es]);
   });
 
-  test('catatan menyebut nama kelompok dan urutannya selalu tetap', () {
+  test('catatan hanya pilihannya, dipisah koma, urutannya selalu tetap', () {
     // Keranjang menggabungkan baris berdasarkan catatan ini, jadi pilihan
     // yang sama wajib menghasilkan teks yang sama persis — apa pun urutan
     // kasir mengetuknya.
     final a = catatanDari({
-      KelompokPilihan.es: 'Normal',
-      KelompokPilihan.manis: 'Sedikit',
+      KelompokPilihan.es: 'Normal Ice',
+      KelompokPilihan.manis: 'Less Sugar',
     });
     final b = catatanDari({
-      KelompokPilihan.manis: 'Sedikit',
-      KelompokPilihan.es: 'Normal',
+      KelompokPilihan.manis: 'Less Sugar',
+      KelompokPilihan.es: 'Normal Ice',
     });
-    expect(a, 'Manis: Sedikit · Es: Normal');
+    expect(a, 'Less Sugar, Normal Ice');
     expect(a, b);
   });
 

@@ -73,7 +73,7 @@ List<BarisCetak> susunStruk({
     for (final item in items) ...[
       for (final b in bungkus(item.productName, kolom)) BarisCetak(b),
       if (item.notes case final c? when c.isNotEmpty)
-        for (final b in bungkus('**$c', kolom - 1)) BarisCetak(' $b'),
+        for (final b in bungkus(c, kolom - 1)) BarisCetak(' $b'),
       ..._kiriKanan(
         '${item.qty} x @${formatRupiah(item.priceAtSale)}',
         formatRupiah(item.subtotal),

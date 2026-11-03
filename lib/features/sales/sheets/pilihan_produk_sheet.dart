@@ -117,14 +117,34 @@ class _PilihanProdukSheetState extends State<_PilihanProdukSheet> {
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                spacing: 6,
-                children: [
-                  for (final opsi in k.daftar) Expanded(child: _opsi(k, opsi)),
-                ],
-              ),
+              _bar(k),
             ],
-            const SizedBox(height: 22),
+            const SizedBox(height: 16),
+            // Persis teks yang masuk keranjang, struk, dan nota cetak.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: WarnaTeras.oranyeMuda,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text.rich(
+                TextSpan(
+                  text: 'Pesanan: ',
+                  style: const TextStyle(color: WarnaTeras.teksSamar),
+                  children: [
+                    TextSpan(
+                      text: catatanDari(_pilihan),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: WarnaTeras.teks,
+                      ),
+                    ),
+                  ],
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 14),
             TombolLembar(
               label: 'Tambah ke Keranjang',
               ikon: Icons.add_shopping_cart_rounded,
@@ -153,34 +173,87 @@ class _PilihanProdukSheetState extends State<_PilihanProdukSheet> {
     );
   }
 
-  Widget _opsi(KelompokPilihan k, String opsi) {
-    final dipilih = _pilihan[k] == opsi;
-    return Material(
-      color: dipilih ? WarnaTeras.oranyeMuda : WarnaTeras.kartu,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(
-          color: dipilih ? WarnaTeras.oranye : const Color(0xFFDDD6CF),
+  static const _garisBar = Color(0xFFDDD6CF);
+
+  /// Satu bar bersambung per kelompok (desain A, 2026-11-02): lima pilihan
+  /// Es tetap muat satu baris, dan titik tingkat menunjukkan urutan sedikit
+  /// → banyak tanpa harus membaca tulisannya.
+  Widget _bar(KelompokPilihan k) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        border: Border.all(color: _garisBar),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final (i, opsi) in k.daftar.indexed) ...[
+              if (i > 0) const VerticalDivider(width: 1, color: _garisBar),
+              Expanded(child: _opsi(k, opsi)),
+            ],
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _opsi(KelompokPilihan k, String opsi) {
+    final dipilih = _pilihan[k] == opsi;
+    final warna = dipilih ? Colors.white : WarnaTeras.teks;
+    final tingkat = k.tingkat(opsi);
+    return Material(
+      color: dipilih ? WarnaTeras.oranye : WarnaTeras.kartu,
       child: InkWell(
-        borderRadius: BorderRadius.circular(6),
         onTap: () => setState(() => _pilihan[k] = opsi),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Text(
-                opsi,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.2,
-                  fontWeight: dipilih ? FontWeight.w600 : FontWeight.w400,
-                  color: dipilih ? WarnaTeras.oranye : WarnaTeras.teks,
+          constraints: const BoxConstraints(minHeight: 54),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (tingkat == null)
+                  Icon(
+                    Icons.local_fire_department_rounded,
+                    size: 13,
+                    color: dipilih ? warna : WarnaTeras.merah,
+                  )
+                else
+                  SizedBox(
+                    height: 13,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 3,
+                      children: [
+                        for (var t = 0; t < 3; t++)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: t < tingkat
+                                  ? warna
+                                  : warna.withValues(alpha: 0.25),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  opsi,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.15,
+                    fontWeight: dipilih ? FontWeight.w600 : FontWeight.w400,
+                    color: warna,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),

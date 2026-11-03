@@ -66,7 +66,7 @@ void main() {
       'Kentang Goreng',
       '2 x @12.000               24.000',
       'Es Kopi Susu Gula Aren',
-      ' **less sugar, es dikit',
+      ' less sugar, es dikit',
       '1 x @22.000               22.000',
       '-' * 32,
       'Subtotal (3 item)      Rp 46.000',

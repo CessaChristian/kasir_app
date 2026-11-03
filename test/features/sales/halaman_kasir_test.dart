@@ -205,10 +205,10 @@ void main() {
       await t.tap(find.text('Mie Pedas'));
       await t.pumpAndSettle();
       expect(find.text('Pilih varian pesanan:'), findsOneWidget);
-      await t.tap(find.text('Sedang'));
+      await t.tap(find.text('Sedang Pedas'));
       await t.tap(find.text('Tambah ke Keranjang'));
       await t.pumpAndSettle();
-      expect(k.baris.single.notes, 'Pedas: Sedang');
+      expect(k.baris.single.notes, 'Sedang Pedas');
 
       await t.tap(find.text('Mie Pedas'));
       await t.pumpAndSettle();

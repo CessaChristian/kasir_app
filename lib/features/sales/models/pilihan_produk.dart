@@ -1,11 +1,16 @@
 import '../../../data/app_database.dart';
 
 /// Kelompok pilihan yang bisa dinyalakan per produk.
+///
+/// Isi pilihannya kata-kata owner apa adanya — campuran Inggris & Indonesia
+/// memang disengaja (keputusan owner 2026-11-02). Semua pilihan berbeda satu
+/// sama lain, jadi catatan cukup menyebut pilihannya saja.
 enum KelompokPilihan {
-  pedas('Pedas', ['Tidak Pedas', 'Sedang', 'Pedas', 'Ekstra Pedas'],
+  pedas('Pedas', ['Tidak Pedas', 'Sedang Pedas', 'Pedas', 'Ekstra Pedas'],
       'Tidak Pedas'),
-  manis('Manis', ['Tanpa Gula', 'Sedikit', 'Normal', 'Ekstra Gula'], 'Normal'),
-  es('Es', ['Panas', 'Tanpa Es', 'Sedikit', 'Normal', 'Ekstra Es'], 'Normal');
+  manis('Manis', ['No Sugar', 'Less Sugar', 'Manis', 'Ekstra Sugar'], 'Manis'),
+  es('Es', ['Hot', 'No Ice', 'Less Ice', 'Normal Ice', 'Ekstra Ice'],
+      'Normal Ice');
 
   const KelompokPilihan(this.label, this.daftar, this.bawaan);
 
@@ -15,6 +20,14 @@ enum KelompokPilihan {
   /// Sudah tertanda saat lembar pilihan dibuka — kasir cukup mengubah yang
   /// diminta pelanggan.
   final String bawaan;
+
+  /// Tingkat [opsi] untuk titik di lembar pilihan: 0 (tanpa) sampai 3
+  /// (ekstra). Null untuk "Hot" — bukan tingkat es, ditandai ikon api.
+  int? tingkat(String opsi) {
+    final i = daftar.indexOf(opsi);
+    if (this == es) return i == 0 ? null : i - 1;
+    return i;
+  }
 }
 
 /// Kelompok yang dinyalakan di [p], urut Pedas → Manis → Es.
@@ -32,15 +45,16 @@ String teksRingkasPilihan(List<KelompokPilihan> kelompok) => switch (kelompok) {
       _ => '${kelompok.length} varian',
     };
 
-/// Catatan untuk item struk: "Pedas: Sedang · Manis: Sedikit · Es: Normal".
+/// Catatan untuk item struk: "Less Sugar, Normal Ice" — pilihannya saja,
+/// tanpa nama kelompok (keputusan owner 2026-11-02).
 ///
-/// Nama kelompok sengaja ikut ditulis: "Sedikit" dan "Normal" ada di dua
-/// kelompok, dan tanpa namanya dapur tidak tahu itu gula atau es.
+/// Transaksi & open bill lama tetap menyimpan format lama ("Pedas: Sedang ·
+/// Manis: Sedikit") dan ditampilkan apa adanya.
 ///
 /// Urutannya selalu mengikuti [KelompokPilihan], bukan urutan diketuk —
 /// keranjang menggabungkan baris berdasarkan catatan ini, jadi pilihan yang
 /// sama harus selalu menghasilkan teks yang sama persis.
 String catatanDari(Map<KelompokPilihan, String> pilihan) => [
       for (final k in KelompokPilihan.values)
-        if (pilihan[k] != null) '${k.label}: ${pilihan[k]}',
-    ].join(' · ');
+        if (pilihan[k] case final p?) p,
+    ].join(', ');
