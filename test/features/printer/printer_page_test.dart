@@ -25,9 +25,17 @@ class _Tiruan implements SaluranPrinter {
     izinDiminta++;
     return izin;
   }
+  /// Bacaan daftar berikutnya ditahan sampai ini diselesaikan.
+  Completer<List<PrinterTerpasang>>? tahan;
+
   @override
   Future<List<PrinterTerpasang>> terpasang() async {
     dibaca++;
+    final c = tahan;
+    if (c != null) {
+      tahan = null;
+      return c.future;
+    }
     return printer;
   }
 
@@ -52,9 +60,15 @@ void main() {
   late _Tiruan t;
   late Completer<HasilSync> sinkron;
 
-  Future<void> pasang(WidgetTester tester, {bool izin = true}) async {
+  Future<void> pasang(
+    WidgetTester tester, {
+    bool izin = true,
+    List<PrinterTerpasang> printer = const [],
+  }) async {
     SharedPreferences.setMockInitialValues({});
-    t = _Tiruan()..izin = izin;
+    t = _Tiruan()
+      ..izin = izin
+      ..printer = printer;
     sinkron = Completer<HasilSync>();
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -166,5 +180,60 @@ void main() {
   testWidgets('tanpa keterangan ukuran kertas', (tester) async {
     await pasang(tester);
     expect(find.textContaining('58 mm'), findsNothing);
+  });
+
+  const a = (nama: 'RPP02N', mac: 'AA:AA');
+  const b = (nama: 'Printer Dapur', mac: 'BB:BB');
+
+  testWidgets('dua printer terpasang: tidak ada yang dipilih otomatis, '
+      'kasir memilih sendiri dan bisa pindah', (tester) async {
+    await pasang(tester, printer: [a, b]);
+    expect(find.text('Ketuk untuk memakai'), findsNWidgets(2));
+
+    await tester.tap(find.text('Printer Dapur'));
+    await tester.pumpAndSettle();
+    expect((await LayananPrinter.untukTest(t).muat()).mac, 'BB:BB');
+    expect(find.text('Tersambung · siap mencetak'), findsOneWidget);
+    expect(find.text('Ketuk untuk memakai'), findsOneWidget,
+        reason: 'RPP02N masih bisa dipilih');
+
+    await tester.tap(find.text('RPP02N'));
+    await tester.pumpAndSettle();
+    expect((await LayananPrinter.untukTest(t).muat()).mac, 'AA:AA');
+  });
+
+  testWidgets('daftar lama yang telat datang tidak menimpa daftar baru dan '
+      'printer yang baru dipilih', (tester) async {
+    await pasang(tester);
+
+    // Muatan pertama (sebelum printer kedua dipasangkan) tertahan. Waktu
+    // dimajukan sedikit-sedikit: bacaan daftar menyerah sesudah 7 detik.
+    Future<void> jalan() async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    final lama = t.tahan = Completer();
+    await tester.tap(find.byType(TombolSegarkan));
+    await jalan();
+    sinkron.complete(const HasilSync());
+    await jalan();
+
+    // Muatan berikutnya: dua printer; kasir memilih Printer Dapur.
+    t.printer = [a, b];
+    await tester.tap(find.byType(TombolSegarkan));
+    await jalan();
+    await tester.tap(find.text('Printer Dapur'));
+    await jalan();
+
+    // Daftar lama (satu printer) baru datang.
+    lama.complete([a]);
+    await jalan();
+    expect((await LayananPrinter.untukTest(t).muat()).mac, 'BB:BB',
+        reason: 'dulu ditimpa RPP02N karena daftar lama isinya satu');
+    expect(find.text('RPP02N'), findsOneWidget);
+    expect(find.text('Printer Dapur'), findsOneWidget);
+    await tester.pumpAndSettle();
   });
 }

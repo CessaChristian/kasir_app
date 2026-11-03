@@ -46,6 +46,13 @@ class _PrinterPageState extends State<PrinterPage> with WidgetsBindingObserver {
   /// tengah jalan) diabaikan.
   var _urutPeriksa = 0;
 
+  /// Sama untuk [_muat]: dipicu dari banyak arah (buka halaman, segarkan,
+  /// kembali dari Pengaturan Bluetooth), dan yang selesai belakangan belum
+  /// tentu yang terbaru. Dulu daftar lama yang telat datang menimpa daftar
+  /// baru — dan kalau isinya satu printer, ikut menimpa printer yang baru
+  /// dipilih (review 3 Nov).
+  var _urutMuat = 0;
+
   @override
   void initState() {
     super.initState();
@@ -100,8 +107,8 @@ class _PrinterPageState extends State<PrinterPage> with WidgetsBindingObserver {
   }
 
   Future<void> _muat() async {
+    final urut = ++_urutMuat;
     setState(() => _keadaan = _Keadaan.memuat);
-    var atur = await _l.muat();
     // Izin dulu — lihat LayananPrinter.bluetoothNyala.
     final keadaan = !await _l.izinAda()
         ? _Keadaan.tanpaIzin
@@ -111,6 +118,11 @@ class _PrinterPageState extends State<PrinterPage> with WidgetsBindingObserver {
     final daftar = keadaan == _Keadaan.siap
         ? await _l.terpasang()
         : const <PrinterTerpasang>[];
+    if (!mounted || urut != _urutMuat) return;
+    // Dibaca SESUDAH daftar didapat: pilihan yang dibuat selama menunggu
+    // ikut terhitung.
+    var atur = await _l.muat();
+    if (!mounted || urut != _urutMuat) return;
     // Satu-satunya printer langsung dipakai kalau belum ada pilihan yang
     // masih terpasang — toko biasanya hanya punya satu printer per HP.
     if (daftar.length == 1 && !daftar.any((p) => p.mac == atur.mac)) {
