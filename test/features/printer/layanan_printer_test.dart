@@ -17,6 +17,10 @@ class _Tiruan implements SaluranPrinter {
   /// Sambung tidak pernah selesai (printer mati, Bluetooth menunggu).
   bool sambungMenggantung = false;
 
+  /// Lama sambung & kirim (printer lemot).
+  Duration jedaSambung = Duration.zero;
+  Duration jedaKirim = Duration.zero;
+
   final catatan = <String>[];
   var _kirim = 0;
   bool _tersambung = false;
@@ -40,15 +44,19 @@ class _Tiruan implements SaluranPrinter {
   Future<bool> sambung(String mac) {
     catatan.add('sambung $mac');
     if (sambungMenggantung) return Completer<bool>().future;
-    _tersambung = bisaSambung;
-    return Future.value(bisaSambung);
+    return Future.delayed(jedaSambung, () {
+      _tersambung = bisaSambung;
+      return bisaSambung;
+    });
   }
 
   @override
   Future<bool> kirim(List<int> bytes) async {
     _kirim++;
     catatan.add('kirim ${bytes.length}');
-    return !kirimGagal.contains(_kirim);
+    final ke = _kirim;
+    await Future<void>.delayed(jedaKirim);
+    return !kirimGagal.contains(ke);
   }
 
   @override
@@ -121,24 +129,72 @@ void main() {
     },
   );
 
-  test('printer mati: tidak tersambung', () async {
+  test('printer mati: tidak tersambung, tanpa mencoba sambung lagi — '
+      'kasir cepat tahu', () async {
     t.bisaSambung = false;
     expect(await l.cetak([1]), HasilCetak.takTersambung);
+    expect(t.catatan.where((c) => c.startsWith('sambung')).length, 1);
     expect(
       pesanCetak(HasilCetak.takTersambung),
       contains('Printer tidak tersambung'),
     );
   });
 
-  test('sambungan menggantung: berhenti sesudah 10 detik', () {
+  test('sambungan menggantung: menyerah sesudah batas satu langkah '
+      '(7 detik)', () {
     fakeAsync((w) {
       t.sambungMenggantung = true;
       HasilCetak? h;
       l.cetak([1]).then((x) => h = x);
-      w.elapse(const Duration(seconds: 9));
+      w.elapse(const Duration(seconds: 6));
       expect(h, isNull);
       w.elapse(const Duration(seconds: 2));
       expect(h, HasilCetak.takTersambung);
+    });
+  });
+
+  test('lewat batas waktu: cetakan lama tidak lagi mencetak, dan ketukan '
+      'berikutnya menunggu giliran — tidak ada struk dobel', () {
+    fakeAsync((w) {
+      final lemot = LayananPrinter.untukTest(
+        t,
+        batasCetak: const Duration(seconds: 1),
+      );
+      t.jedaSambung = const Duration(seconds: 3);
+      HasilCetak? pertama;
+      lemot.cetak([1]).then((x) => pertama = x);
+      w.elapse(const Duration(milliseconds: 1100));
+      expect(pertama, HasilCetak.takTersambung);
+
+      // Kasir langsung mengetuk Cetak lagi; printernya kini cepat.
+      HasilCetak? kedua;
+      lemot.cetak([2, 2]).then((x) => kedua = x);
+      t.jedaSambung = Duration.zero;
+      w.elapse(const Duration(seconds: 3));
+      expect(kedua, HasilCetak.berhasil);
+      expect(t.catatan.where((c) => c.startsWith('kirim')), ['kirim 2'],
+          reason: 'cetakan pertama yang akhirnya tersambung tidak mengirim');
+      expect(t.catatan, [
+        'putus', 'sambung 86:67:7A:80:4E:3D', 'putus', // pertama berhenti
+        'putus', 'sambung 86:67:7A:80:4E:3D', 'kirim 2', // baru giliran kedua
+      ], reason: 'sambungan kedua tidak diputus cetakan pertama yang telat');
+    });
+  });
+
+  test('lewat batas waktu saat struk sedang dikirim: "mungkin sudah '
+      'tercetak", bukan "tidak tersambung"', () {
+    fakeAsync((w) {
+      final lemot = LayananPrinter.untukTest(
+        t,
+        batasCetak: const Duration(seconds: 1),
+      );
+      t.jedaKirim = const Duration(seconds: 3);
+      HasilCetak? h;
+      lemot.cetak([1]).then((x) => h = x);
+      w.elapse(const Duration(milliseconds: 1100));
+      expect(h, HasilCetak.mungkinTercetak);
+      expect(pesanCetak(h!), contains('Cek printer sebelum cetak ulang'));
+      w.elapse(const Duration(seconds: 5));
     });
   });
 

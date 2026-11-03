@@ -32,6 +32,8 @@ Future<bool> cetakStrukTransaksi(
   final pesan = pesanCetak(hasil);
   if (pesan == null) {
     AppToast.success(context, 'Struk dicetak');
+  } else if (hasil == HasilCetak.mungkinTercetak) {
+    AppToast.warning(context, pesan);
   } else {
     AppToast.error(context, pesan);
   }

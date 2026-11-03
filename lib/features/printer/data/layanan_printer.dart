@@ -26,6 +26,11 @@ enum HasilCetak {
   tanpaIzin,
   takTersambung,
   gagalKirim,
+
+  /// Batas waktu habis saat struk SEDANG dikirim: sebagian atau seluruhnya
+  /// bisa sudah keluar — byte yang sudah sampai di printer tidak bisa
+  /// ditarik lagi.
+  mungkinTercetak,
 }
 
 /// Pesan untuk kasir, atau null kalau berhasil.
@@ -44,7 +49,17 @@ String? pesanCetak(HasilCetak h) => switch (h) {
   HasilCetak.gagalKirim =>
     'Struk gagal terkirim ke printer. Periksa kertas & printer, lalu '
         'coba lagi.',
+  HasilCetak.mungkinTercetak =>
+    'Struk mungkin sudah tercetak. Cek printer sebelum cetak ulang.',
 };
+
+/// Satu cetakan yang sedang berjalan. [ditinggal]: batas waktunya sudah
+/// habis dan kasir sudah diberi tahu — cetakan ini tidak boleh lagi
+/// mengirim apa pun ke printer.
+class _Cetakan {
+  var ditinggal = false;
+  var mengirim = false;
+}
 
 /// Jembatan ke plugin Bluetooth — diganti tiruan di test.
 abstract class SaluranPrinter {
@@ -107,7 +122,9 @@ class _SaluranPlugin implements SaluranPrinter {
 /// Gagal cetak TIDAK PERNAH menggagalkan penjualan: transaksinya sudah
 /// tersimpan sebelum dicetak, dan struknya bisa dicetak ulang dari Riwayat.
 class LayananPrinter {
-  LayananPrinter._(this._saluran) : jedaSesudahSambung = _jedaSesudahSambung;
+  LayananPrinter._(this._saluran)
+    : jedaSesudahSambung = _jedaSesudahSambung,
+      batasCetak = batasWaktu;
 
   static LayananPrinter _instance = LayananPrinter._(_SaluranPlugin());
   static LayananPrinter get instance => _instance;
@@ -120,6 +137,7 @@ class LayananPrinter {
   LayananPrinter.untukTest(
     this._saluran, {
     this.jedaSesudahSambung = Duration.zero,
+    this.batasCetak = batasWaktu,
   });
 
   final SaluranPrinter _saluran;
@@ -131,10 +149,18 @@ class LayananPrinter {
   final Duration jedaSesudahSambung;
   static const _jedaSesudahSambung = Duration(milliseconds: 600);
 
-  /// Batas satu cetakan dari ketuk sampai selesai. Printer yang mati atau
-  /// terlalu jauh membuat sambungan Bluetooth menunggu lama; kasir tidak
-  /// boleh ikut menunggu (review R1, keputusan owner 2026-11-01).
-  static const batasWaktu = Duration(seconds: 10);
+  /// Batas satu cetakan dari giliran dimulai sampai selesai. Printer yang
+  /// mati atau terlalu jauh membuat sambungan Bluetooth menunggu lama; kasir
+  /// tidak boleh ikut menunggu (review R1, keputusan owner 2026-11-01).
+  ///
+  /// Cukup untuk sambung ulang sekali ketika sambungan lama ternyata putus
+  /// (review 3 Nov: dulu 10 detik, lebih pendek dari langkah-langkahnya,
+  /// jadi sambung ulang hampir tidak pernah sempat). Printer yang mati
+  /// tetap cepat ketahuan: sambungan baru yang gagal tidak diulang.
+  static const batasWaktu = Duration(seconds: 20);
+
+  /// [batasWaktu]; dipendekkan di test.
+  final Duration batasCetak;
 
   /// Batas tiap langkah (sambung, kirim, ...) di dalam [batasWaktu].
   static const batasLangkah = Duration(seconds: 7);
@@ -213,16 +239,40 @@ class LayananPrinter {
   }
 
   /// Kirim [bytes] ke printer yang dipilih di HP ini.
-  Future<HasilCetak> cetak(List<int> bytes) => _giliran(
-    () => _cetak(bytes).timeout(
-      batasWaktu,
-      onTimeout: () {
-        unawaited(_diam(_saluran.putus));
-        _macTersambung = null;
-        return HasilCetak.takTersambung;
-      },
-    ),
-  );
+  ///
+  /// Lewat [batasWaktu], kasir langsung diberi jawaban, tapi pekerjaannya
+  /// sendiri baru berhenti di langkah berikutnya — dan sampai berhenti, ia
+  /// tetap memegang giliran. Dulu giliran dilepas begitu batas waktu habis:
+  /// cetakan lama yang akhirnya tersambung tetap mencetak, berbarengan
+  /// dengan cetakan baru dari ketukan berikutnya — struk dobel atau
+  /// bercampur (review 3 Nov).
+  Future<HasilCetak> cetak(List<int> bytes) {
+    final jawaban = Completer<HasilCetak>();
+    _giliran(() async {
+      final c = _Cetakan();
+      final kerja = _cetak(bytes, c);
+      try {
+        jawaban.complete(
+          await kerja.timeout(
+            batasCetak,
+            onTimeout: () {
+              c.ditinggal = true;
+              return c.mengirim
+                  ? HasilCetak.mungkinTercetak
+                  : HasilCetak.takTersambung;
+            },
+          ),
+        );
+        await kerja;
+      } catch (e) {
+        // Galat tak terduga (mis. pengaturan gagal dibaca): kasir tetap
+        // mendapat jawaban, dan antrean tidak ikut macet.
+        debugPrint('[printer] cetak: $e');
+        if (!jawaban.isCompleted) jawaban.complete(HasilCetak.gagalKirim);
+      }
+    });
+    return jawaban.future;
+  }
 
   /// Apakah printer yang dipilih benar-benar menyala dan terjangkau —
   /// dicoba disambungkan, bukan hanya dilihat dari daftar "pernah
@@ -260,36 +310,51 @@ class LayananPrinter {
     }
   }
 
-  Future<HasilCetak> _cetak(List<int> bytes) async {
+  Future<HasilCetak> _cetak(List<int> bytes, _Cetakan c) async {
     final atur = await muat();
     if (!atur.dipilih) return HasilCetak.belumDipilih;
     if (!await izinAda()) return HasilCetak.tanpaIzin;
     if (!await bluetoothNyala()) return HasilCetak.bluetoothMati;
 
     // Sambungan lama dipakai lagi; kalau ternyata sudah mati (printer
-    // dimatikan sejak cetakan terakhir), sambung ulang sekali.
+    // dimatikan sejak cetakan terakhir), sambung ulang sekali. Sambungan
+    // BARU yang gagal tidak diulang: printernya memang mati atau terlalu
+    // jauh, dan kasir perlu tahu secepatnya.
     //
     // "Tersambung" dari plugin tidak menyebut KE MANA: dulu printer yang
     // baru dipilih diabaikan dan struk tetap keluar di printer lama (tes
     // owner 2026-11-01). Printer berganti = sambung ulang.
     for (var coba = 0; coba < 2; coba++) {
-      if (coba > 0 ||
-          _macTersambung != atur.mac ||
-          !await _aman(_saluran.tersambung)) {
+      final pakaiLama = coba == 0 &&
+          _macTersambung == atur.mac &&
+          await _aman(_saluran.tersambung);
+      if (c.ditinggal) return _tinggalkan();
+      if (!pakaiLama) {
         await _diam(_saluran.putus);
         _macTersambung = null;
         if (!await _aman(() => _saluran.sambung(atur.mac!))) {
-          if (coba == 0) continue;
           return HasilCetak.takTersambung;
         }
         _tersambungBaru(atur.mac!);
       }
       await _tungguSiap();
+      if (c.ditinggal) return _tinggalkan();
+      c.mengirim = true;
       if (await _aman(() => _saluran.kirim(bytes))) return HasilCetak.berhasil;
+      c.mengirim = false;
+      if (!pakaiLama || c.ditinggal) break;
     }
+    return _tinggalkan(HasilCetak.gagalKirim);
+  }
+
+  /// Putuskan sambungan dan berhenti — sambungan yang keadaannya tidak
+  /// pasti tidak dipakai cetakan berikutnya.
+  Future<HasilCetak> _tinggalkan([
+    HasilCetak hasil = HasilCetak.takTersambung,
+  ]) async {
     await _diam(_saluran.putus);
     _macTersambung = null;
-    return HasilCetak.gagalKirim;
+    return hasil;
   }
 
   /// Printer yang sedang tersambung lewat layanan ini.
