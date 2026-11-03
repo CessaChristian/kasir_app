@@ -82,11 +82,13 @@ KeputusanServer keputusanDariBaris(
 
 /// Sisa waktu klaim pembayaran yang masih berlaku di [baris], atau null
 /// kalau tidak diklaim / klaimnya sudah lewat [batasKlaim]. Klaim tanpa
-/// `klaim_pada` (server sebelum open_bill_aman.sql) dianggap berlaku penuh.
+/// `klaim_pada` (dipasang sebelum open_bill_aman.sql) dianggap sudah hangus
+/// — dulu berlaku selamanya dan bill-nya terkunci (review R7,
+/// supabase/klaim_tanpa_waktu.sql).
 Duration? sisaKlaimDariBaris(Map<String, dynamic> baris, {DateTime? sekarang}) {
   if (baris['klaim_tx'] == null) return null;
   final pada = DateTime.tryParse('${baris['klaim_pada']}');
-  if (pada == null) return batasKlaim;
+  if (pada == null) return null;
   final sisa = batasKlaim - (sekarang ?? DateTime.now()).difference(pada);
   return sisa > Duration.zero ? sisa : null;
 }

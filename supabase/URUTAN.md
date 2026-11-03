@@ -73,4 +73,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 41 | `pengetatan_kecil.sql` | PENGETATAN KECIL (revisi QA kedua K12 & K13, 30 Okt 2026) |
 | 42 | `klaim_lima_menit.sql` | KLAIM PEMBAYARAN OPEN BILL HANGUS SESUDAH 5 MENIT (review R5, 1 Nov 2026) |
 | 43 | `status_bill.sql` | STATUS BILL MENURUT JAM SERVER (review C5/R6, 3 Nov 2026) |
-| 44 | `rls.sql` | SISA PENGETATAN AKSES |
+| 44 | `klaim_tanpa_waktu.sql` | KLAIM BILL TANPA WAKTU DIANGGAP HANGUS (review R7, 3 Nov 2026) |
+| 45 | `rls.sql` | SISA PENGETATAN AKSES |

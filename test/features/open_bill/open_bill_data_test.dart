@@ -518,6 +518,7 @@ void main() {
       'transaction_id': tx,
       'deleted_at': hapus,
       'klaim_tx': klaim,
+      'klaim_pada': klaim == null ? null : DateTime.now().toIso8601String(),
     };
     expect(
       keputusanDariBaris(null),
@@ -556,6 +557,12 @@ void main() {
     );
     expect(
       keputusanDariBaris(diklaim(const Duration(minutes: 6)), sekarang: kini),
+      KeputusanServer.boleh,
+    );
+    // Review R7: klaim tanpa waktu (sebelum open_bill_aman.sql) dulu
+    // berlaku selamanya — bill terkunci selamanya.
+    expect(
+      keputusanDariBaris({...diklaim(Duration.zero), 'klaim_pada': null}),
       KeputusanServer.boleh,
     );
   });
