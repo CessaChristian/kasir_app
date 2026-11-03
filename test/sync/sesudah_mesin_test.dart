@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
+import 'package:kasir_app/data/sync/sync_gambar.dart';
 import 'package:kasir_app/data/sync/sync_service.dart';
 
 /// Satu baris yang ditolak server tidak boleh menghentikan kabar "HP ini
@@ -139,6 +140,47 @@ void main() {
             5),
         isFalse,
       );
+    });
+  });
+
+  group('review C7: Batalkan sesudah datanya lengkap', () {
+    Future<HasilSync> rampung({
+      bool batalAwal = false,
+      bool batalSaatFoto = false,
+    }) {
+      var batal = batalAwal;
+      return SyncService.langkahRampung(
+        const HasilSync(tarikSelesai: true),
+        dibatalkan: () => batal,
+        gambar: () async {
+          urutan.add('foto');
+          if (batalSaatFoto) batal = true;
+          return const HasilSyncGambar(diunggah: 2);
+        },
+        cocokkanId: () async => urutan.add('cocokkan id'),
+        buangSampah: () async => urutan.add('buang sampah'),
+        catatBerhasil: () async => urutan.add('catat berhasil'),
+      );
+    }
+
+    test('tanpa batal: semua langkah jalan', () async {
+      final h = await rampung();
+      expect(urutan, ['foto', 'cocokkan id', 'buang sampah', 'catat berhasil']);
+      expect((h.dibatalkan, h.gambarNaik), (false, 2));
+    });
+
+    test('batal sebelum foto: foto & cocokkan id (menunggu server) '
+        'dilewati, "Sinkron terakhir" tetap maju', () async {
+      final h = await rampung(batalAwal: true);
+      expect(urutan, ['buang sampah', 'catat berhasil']);
+      expect(h.dibatalkan, isTrue);
+    });
+
+    test('batal saat foto: cocokkan id dilewati, foto yang sudah naik '
+        'tetap terhitung, "Sinkron terakhir" tetap maju', () async {
+      final h = await rampung(batalSaatFoto: true);
+      expect(urutan, ['foto', 'buang sampah', 'catat berhasil']);
+      expect((h.dibatalkan, h.gambarNaik), (true, 2));
     });
   });
 }

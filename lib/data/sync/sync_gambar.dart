@@ -48,16 +48,12 @@ class HasilSyncGambar {
 
   final String? error;
 
-  /// Dihentikan tombol Batalkan sebelum semua berkas selesai.
-  final bool dibatalkan;
-
   const HasilSyncGambar({
     this.diunggah = 0,
     this.diunduh = 0,
     this.dihapus = 0,
     this.dihapusLokal = 0,
     this.error,
-    this.dibatalkan = false,
   });
 
   bool get berhasil => error == null;
@@ -220,35 +216,28 @@ class SyncGambar {
       }, () => _lapor(++selesai, total), berhenti: berhenti);
 
       // Dibatalkan: pembersihan juga menunggu sinkron berikutnya.
-      if (berhenti()) {
-        return HasilSyncGambar(
-          diunggah: diunggah,
-          diunduh: diunduh,
-          dibatalkan: true,
-          error: gagal.isEmpty
-              ? null
-              : '${gagal.length} foto gagal dipindahkan: ${gagal.first}',
-        );
-      }
-
       var dihapus = 0;
-      if (buang.isNotEmpty) {
-        await _client.storage.from(bucket).remove(buang);
-        dihapus = buang.length;
-        selesai += buang.length;
-        _lapor(selesai, total);
-      }
+      var dihapusLokal = 0;
+      if (!berhenti()) {
+        if (buang.isNotEmpty) {
+          await _client.storage.from(bucket).remove(buang);
+          dihapus = buang.length;
+          selesai += buang.length;
+          _lapor(selesai, total);
+        }
 
-      for (final p in buangLokal) {
-        await _berkas.hapus(p);
-        _lapor(++selesai, total);
+        for (final p in buangLokal) {
+          await _berkas.hapus(p);
+          _lapor(++selesai, total);
+        }
+        dihapusLokal = buangLokal.length;
       }
 
       return HasilSyncGambar(
         diunggah: diunggah,
         diunduh: diunduh,
         dihapus: dihapus,
-        dihapusLokal: buangLokal.length,
+        dihapusLokal: dihapusLokal,
         error: gagal.isEmpty
             ? null
             : '${gagal.length} foto gagal dipindahkan: ${gagal.first}',

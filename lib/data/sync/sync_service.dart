@@ -222,37 +222,56 @@ class SyncService {
     return lengkap;
   }
 
-  Future<HasilSync> _rampungkan(HasilSync hasil) async {
-    // Berkas gambar menyusul SETELAH barisnya selesai, dan kegagalannya
-    // tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
-    // bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
-    // belum sampai cuma berarti produknya tampil tanpa foto sementara.
-    final klien = SupabaseService.instance.client;
-    var lengkap = hasil;
-    if (klien != null) {
-      final g = await SyncGambar(db, klien,
+  /// Langkah sesudah putaran yang boleh dirampungkan, berurutan: foto,
+  /// pencocokan id, buang sampah lokal, catatan "terakhir berhasil".
+  ///
+  /// Berkas gambar menyusul SETELAH barisnya selesai, dan kegagalannya
+  /// tidak membatalkan apa pun. Kalau digabung, satu gambar yang gagal naik
+  /// bisa menahan transaksi yang jauh lebih mendesak — padahal gambar yang
+  /// belum sampai cuma berarti produknya tampil tanpa foto sementara.
+  ///
+  /// Batalkan (review C7): foto dan pencocokan id — dua-duanya menunggu
+  /// server — dilewati (atau foto berhenti di sela berkas) dan menyusul di
+  /// putaran berikutnya. Datanya sendiri sudah lengkap, jadi "Sinkron
+  /// terakhir" tetap maju: foto tidak pernah ikut menentukan berhasil.
+  /// [gambar] menjawab null kalau tidak ada klien server.
+  @visibleForTesting
+  static Future<HasilSync> langkahRampung(
+    HasilSync hasil, {
+    required bool Function() dibatalkan,
+    required Future<HasilSyncGambar?> Function() gambar,
+    required Future<void> Function() cocokkanId,
+    required Future<void> Function() buangSampah,
+    required Future<void> Function() catatBerhasil,
+  }) async {
+    final g = dibatalkan() ? null : await gambar();
+    if (!dibatalkan()) await cocokkanId();
+    await buangSampah();
+    await catatBerhasil();
+    return hasil.denganGambar(
+      naik: g?.diunggah ?? 0,
+      turun: g?.diunduh ?? 0,
+      hapus: g?.dihapus ?? 0,
+      hapusLokal: g?.dihapusLokal ?? 0,
+      error: g?.error,
+      dibatalkan: dibatalkan(),
+    );
+  }
+
+  Future<HasilSync> _rampungkan(HasilSync hasil) => langkahRampung(
+    hasil,
+    dibatalkan: () => _dibatalkan,
+    gambar: () async {
+      final klien = SupabaseService.instance.client;
+      if (klien == null) return null;
+      return SyncGambar(db, klien,
               onKemajuan: (k) => kemajuan.value = k,
               berhenti: () => _dibatalkan)
           .jalankan();
-      lengkap = hasil.denganGambar(
-        naik: g.diunggah,
-        turun: g.diunduh,
-        hapus: g.dihapus,
-        hapusLokal: g.dihapusLokal,
-        error: g.error,
-        dibatalkan: g.dibatalkan || _dibatalkan,
-      );
-    }
-    // Dibatalkan: pembersihan dan catatan "terakhir berhasil" menunggu
-    // putaran berikutnya.
-    if (lengkap.dibatalkan) return lengkap;
-
-    // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
-    // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
-    // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
-    // tempat, dan putaran berikutnya mencoba lagi.
+    },
     // Sebelum buang sampah lokal: yang disembunyikan di sini ikut terbuang.
-    if (await perluCocokkanId()) {
+    cocokkanId: () async {
+      if (!await perluCocokkanId()) return;
       try {
         final n = await SyncEngine(db).cocokkanId();
         if (n == null) {
@@ -266,17 +285,20 @@ class SyncService {
       } catch (e) {
         debugPrint('[sync] cocokkan id gagal: $e');
       }
-    }
-
-    try {
-      await db.buangSampahLokal();
-    } catch (e) {
-      debugPrint('[sync] buang sampah lokal gagal: $e');
-    }
-
-    await _catatBerhasil();
-    return lengkap;
-  }
+    },
+    // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
+    // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
+    // tidak mengubah hasil sinkron: sisa sampah cuma memakan sedikit
+    // tempat, dan putaran berikutnya mencoba lagi.
+    buangSampah: () async {
+      try {
+        await db.buangSampahLokal();
+      } catch (e) {
+        debugPrint('[sync] buang sampah lokal gagal: $e');
+      }
+    },
+    catatBerhasil: _catatBerhasil,
+  );
 
   Future<void> _periksaSesudahSinkron(HasilSync hasil) async {
     // Izin kasir ikut disinkronkan sejak v20, tapi sesi yang sedang berjalan
