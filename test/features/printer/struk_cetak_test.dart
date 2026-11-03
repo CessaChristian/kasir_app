@@ -15,6 +15,7 @@ void main() {
     int? diterima = 50000,
     String? bill = 'Meja 4',
     DateTime? batal,
+    String jenis = 'dine_in',
   }) => Transaction(
     id: 't-1',
     invoiceNo: 'CS/01/231026/I-0001',
@@ -22,7 +23,7 @@ void main() {
     total: 46000,
     paymentMethod: metode,
     cashReceived: diterima,
-    orderType: 'dine_in',
+    orderType: jenis,
     billName: bill,
     updatedAt: waktu,
     deletedAt: batal,
@@ -59,7 +60,7 @@ void main() {
       '',
       'Kasir    : sari',
       'No. Nota : CS/01/231026/I-0001',
-      'Pelanggan: Meja 4',
+      'Pesanan  : Dine In',
       '',
       '2026-11-01              00:49:07',
       '=' * 32,
@@ -102,10 +103,22 @@ void main() {
     ));
     expect(t, contains('Dibayar (QRIS)         Rp 46.000'));
     expect(t.where((x) => x.contains('Kembalian')), isEmpty);
-    expect(t.where((x) => x.contains('Pelanggan')), isEmpty,
-        reason: 'penjualan langsung tanpa nama bill');
+    expect(t, contains('Pesanan  : Dine In'),
+        reason: 'tipe pesanan selalu dicetak, dengan atau tanpa open bill');
     expect(t.where((x) => x.contains('BATAL') || x.contains('ULANG')), isEmpty,
         reason: 'keputusan owner 2026-11-01');
+  });
+
+  test('tipe pesanan menggantikan nama open bill (keputusan owner '
+      '2026-11-03)', () {
+    final t = teks(susunStruk(
+      tx: tx(jenis: 'delivery', bill: 'Meja 4'),
+      items: items,
+      namaKasir: 'sari',
+    ));
+    expect(t, contains('Pesanan  : Delivery'));
+    expect(t.where((x) => x.contains('Pelanggan') || x.contains('Meja 4')),
+        isEmpty);
   });
 
   test('nama menu, catatan, dan nama kasir panjang dibungkus; angka utuh', () {

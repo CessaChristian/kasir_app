@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
 import '../../../shared/constants/app_constants.dart';
+import '../../../shared/widgets/isi_struk.dart';
 import '../../../utils/currency_formatter.dart';
 
 /// Satu baris nota cetak. Disusun dulu sebagai teks supaya isi dan tata
@@ -39,8 +40,8 @@ const kolomNota = titikKertas ~/ 12;
 const kolomKecil = titikKertas ~/ 9;
 
 /// Isi nota transaksi [tx], mengikuti nota Kasir Pintar Pro yang dipakai
-/// Teras Inn (keputusan owner 2026-11-01): logo, alamat, kasir & nomor nota,
-/// tanggal-jam satu baris, item dengan harga satuan "@", subtotal, total,
+/// Teras Inn (keputusan owner 2026-11-01): logo, alamat, kasir, nomor nota &
+/// tipe pesanan, tanggal-jam satu baris, item dengan harga satuan "@", subtotal, total,
 /// pembayaran, ucapan, lalu WiFi pelanggan di tengah.
 ///
 /// Logonya bukan bagian dari sini — gambar, lihat `logo_cetak.dart`.
@@ -60,8 +61,9 @@ List<BarisCetak> susunStruk({
     const BarisCetak(''),
     ..._label('Kasir', namaKasir ?? '-', kolom),
     ..._label('No. Nota', tx.invoiceNo, kolom),
-    if (tx.billName case final nama? when nama.isNotEmpty)
-      ..._label('Pelanggan', nama, kolom),
+    // Tipe pesanan, selalu — menggantikan nama open bill yang dulu hanya
+    // muncul untuk bill (keputusan owner 2026-11-03).
+    ..._label('Pesanan', IsiStruk.tipePesanan(tx.orderType), kolom),
     const BarisCetak(''),
     ..._kiriKanan(
       DateFormat('yyyy-MM-dd').format(tx.createdAt),
