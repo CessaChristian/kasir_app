@@ -8,15 +8,19 @@ import 'kemajuan_sync.dart';
 /// Hasil satu putaran sinkronisasi gambar.
 /// Jalankan [kerja] untuk setiap berkas; yang gagal dicatat ke [gagal] dan
 /// dilewati. Mengembalikan jumlah yang berhasil. [maju] dipanggil sesudah
-/// setiap berkas, berhasil atau tidak.
+/// setiap berkas, berhasil atau tidak. [berhenti] diperiksa sebelum setiap
+/// berkas: tombol Batalkan (review C7) — sisanya menyusul di sinkron
+/// berikutnya.
 Future<int> kerjakanPerBerkas(
   Iterable<String> berkas,
   List<String> gagal,
   Future<void> Function(String path) kerja,
-  void Function() maju,
-) async {
+  void Function() maju, {
+  bool Function()? berhenti,
+}) async {
   var berhasil = 0;
   for (final p in berkas) {
+    if (berhenti?.call() ?? false) break;
     try {
       await kerja(p);
       berhasil++;
@@ -44,12 +48,16 @@ class HasilSyncGambar {
 
   final String? error;
 
+  /// Dihentikan tombol Batalkan sebelum semua berkas selesai.
+  final bool dibatalkan;
+
   const HasilSyncGambar({
     this.diunggah = 0,
     this.diunduh = 0,
     this.dihapus = 0,
     this.dihapusLokal = 0,
     this.error,
+    this.dibatalkan = false,
   });
 
   bool get berhasil => error == null;
@@ -106,12 +114,21 @@ class SyncGambar {
   final ImageStorageService _berkas;
   final void Function(KemajuanSync)? onKemajuan;
 
+  /// Tombol Batalkan sudah ditekan? Diperiksa di sela berkas (review C7):
+  /// dulu tahap foto jalan terus sampai habis, dan tombolnya menggantung di
+  /// "Menghentikan…" beberapa menit di sinyal lemot.
+  final bool Function() berhenti;
+
   SyncGambar(
     this._db,
     this._client, {
     ImageStorageService? berkas,
     this.onKemajuan,
-  }) : _berkas = berkas ?? ImageStorageService();
+    bool Function()? berhenti,
+  }) : _berkas = berkas ?? ImageStorageService(),
+       berhenti = berhenti ?? _takPernah;
+
+  static bool _takPernah() => false;
 
   /// Berkas semuda ini tidak pernah dibuang, walau belum dirujuk siapa pun.
   ///
@@ -195,12 +212,24 @@ class SyncGambar {
               f,
               fileOptions: const FileOptions(upsert: true),
             );
-      }, () => _lapor(++selesai, total));
+      }, () => _lapor(++selesai, total), berhenti: berhenti);
 
       final diunduh = await kerjakanPerBerkas(turun, gagal, (p) async {
         final data = await _client.storage.from(bucket).download(p);
         await _berkas.simpanBytes(p, data);
-      }, () => _lapor(++selesai, total));
+      }, () => _lapor(++selesai, total), berhenti: berhenti);
+
+      // Dibatalkan: pembersihan juga menunggu sinkron berikutnya.
+      if (berhenti()) {
+        return HasilSyncGambar(
+          diunggah: diunggah,
+          diunduh: diunduh,
+          dibatalkan: true,
+          error: gagal.isEmpty
+              ? null
+              : '${gagal.length} foto gagal dipindahkan: ${gagal.first}',
+        );
+      }
 
       var dihapus = 0;
       if (buang.isNotEmpty) {

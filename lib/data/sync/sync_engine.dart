@@ -106,6 +106,7 @@ class HasilSync {
     int hapus = 0,
     int hapusLokal = 0,
     String? error,
+    bool dibatalkan = false,
   }) =>
       HasilSync(
         diperiksa: diperiksa,
@@ -119,7 +120,7 @@ class HasilSync {
         errorGambar: error,
         sebabTerputus: sebabTerputus,
         tarikSelesai: tarikSelesai,
-        dibatalkan: dibatalkan,
+        dibatalkan: this.dibatalkan || dibatalkan,
         koneksiPutus: koneksiPutus,
         ditolak: ditolak,
         galatKirimLain: galatKirimLain,

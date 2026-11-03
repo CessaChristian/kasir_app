@@ -79,7 +79,10 @@ class PengendaliSegarkan extends ChangeNotifier {
     if (_dibuang) return;
     _membatalkan = false;
     _hasil = hasil;
-    if (hasil.berhasil) {
+    // Dibatalkan sesudah semua data terkirim (mis. saat foto): datanya
+    // memang lengkap, tapi kasir menekan Batalkan dan perlu tahu putarannya
+    // benar-benar berhenti (review C7).
+    if (hasil.berhasil && !hasil.dibatalkan) {
       _ubah(KeadaanSegarkan.selesai);
       _tutup = Timer(lamaHasil, () => _ubah(KeadaanSegarkan.diam));
     } else {

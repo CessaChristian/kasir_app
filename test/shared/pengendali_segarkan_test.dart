@@ -70,6 +70,21 @@ void main() {
     });
   });
 
+  test('review C7: dibatalkan sesudah datanya lengkap (saat foto) tetap '
+      'dikabarkan dihentikan, bukan "Data sudah terbaru"', () {
+    fakeAsync((waktu) {
+      final pesan = <String>[];
+      final p = PengendaliSegarkan(
+        jalankan: () async =>
+            const HasilSync(tarikSelesai: true, dibatalkan: true),
+      )..onGagal = (m, {required sebagian}) => pesan.add(m);
+      p.segarkan();
+      waktu.flushMicrotasks();
+      expect(p.keadaan, KeadaanSegarkan.diam);
+      expect(pesan.single, startsWith('Sinkron dihentikan'));
+    });
+  });
+
   test('belum tersambung dalam 5 detik → gagal, layar dilepas', () {
     fakeAsync((waktu) {
       final pesan = <String>[];

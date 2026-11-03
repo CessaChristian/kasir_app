@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/data/sync/sync_gambar.dart';
 import 'package:kasir_app/features/products/sheets/product_form_sheet.dart';
 import 'package:kasir_app/shared/services/image_storage_service.dart';
@@ -130,6 +131,35 @@ void main() {
       expect(dikerjakan, ['a.webp', 'c.webp']);
       expect(gagal.single, startsWith('rusak.heic'));
       expect(maju, 3);
+    });
+
+    test('review C7: Batalkan berhenti di sela berkas, sisanya menyusul',
+        () async {
+      final dikerjakan = <String>[];
+      var batal = false;
+      final berhasil = await kerjakanPerBerkas(
+        ['a.webp', 'b.webp', 'c.webp'],
+        [],
+        (path) async {
+          dikerjakan.add(path);
+          if (path == 'a.webp') batal = true; // ditekan saat a diunggah
+        },
+        () {},
+        berhenti: () => batal,
+      );
+      expect(berhasil, 1);
+      expect(dikerjakan, ['a.webp'],
+          reason: 'dulu jalan terus sampai semua foto selesai');
+    });
+
+    test('review C7: dibatalkan di tahap foto tetap terbaca dibatalkan', () {
+      const h = HasilSync(tarikSelesai: true);
+      expect(h.denganGambar(naik: 1, dibatalkan: true).dibatalkan, isTrue);
+      expect(h.denganGambar(naik: 1).dibatalkan, isFalse);
+      expect(
+        const HasilSync(dibatalkan: true).denganGambar().dibatalkan,
+        isTrue,
+      );
     });
   });
 }

@@ -140,6 +140,7 @@ class SyncService {
     final b = _berjalan;
     if (b != null) return b;
     _putaranUlangan = ulangan;
+    _dibatalkan = false;
     return _berjalan = _mulai();
   }
 
@@ -149,10 +150,22 @@ class SyncService {
   /// Mesin putaran yang sedang berjalan — untuk [batalkan].
   SyncEngine? _mesin;
 
+  /// Tombol Batalkan sudah ditekan di putaran yang sedang berjalan.
+  bool _dibatalkan = false;
+
   /// Tombol Batalkan: hentikan putaran yang sedang berjalan di titik aman
-  /// berikutnya (lihat [SyncEngine.batalkan]). Tahap foto sesudahnya tidak
-  /// ikut jalan, karena hasilnya tidak lagi "berhasil".
-  void batalkan() => _mesin?.batalkan();
+  /// berikutnya — di tahap mana pun (review C7). Dulu hanya mesin sinkron
+  /// yang mendengar: ditekan saat pemeriksaan awal atau saat foto sedang
+  /// diunggah, putarannya jalan terus sampai habis dan tombolnya menggantung
+  /// di "Menghentikan…".
+  ///
+  /// Pemeriksaan sesudah sinkron (kabar "HP ini masih aktif", akun, izin)
+  /// tetap jalan: cepat, dan tanpanya HP lain bisa menganggap HP ini mati.
+  void batalkan() {
+    if (_berjalan == null) return;
+    _dibatalkan = true;
+    _mesin?.batalkan();
+  }
 
   /// Tunggu putaran yang sedang berjalan selesai, kalau ada. Hasilnya tidak
   /// dipedulikan, dan paling lama [_batasTunggu] — keluar dari akun tidak
@@ -218,7 +231,8 @@ class SyncService {
     var lengkap = hasil;
     if (klien != null) {
       final g = await SyncGambar(db, klien,
-              onKemajuan: (k) => kemajuan.value = k)
+              onKemajuan: (k) => kemajuan.value = k,
+              berhenti: () => _dibatalkan)
           .jalankan();
       lengkap = hasil.denganGambar(
         naik: g.diunggah,
@@ -226,8 +240,12 @@ class SyncService {
         hapus: g.dihapus,
         hapusLokal: g.dihapusLokal,
         error: g.error,
+        dibatalkan: g.dibatalkan || _dibatalkan,
       );
     }
+    // Dibatalkan: pembersihan dan catatan "terakhir berhasil" menunggu
+    // putaran berikutnya.
+    if (lengkap.dibatalkan) return lengkap;
 
     // Sampah di HP ini dibuang SESUDAH sinkron, supaya status `synced`
     // yang jadi syaratnya sudah mencerminkan kiriman terbaru. Gagalnya
@@ -374,6 +392,8 @@ class SyncService {
 
       final mesin = _mesin =
           SyncEngine(db, onKemajuan: (k) => kemajuan.value = k);
+      // Ditekan selama pemeriksaan awal: mesinnya langsung berhenti.
+      if (_dibatalkan) mesin.batalkan();
       final HasilSync hasil;
       try {
         hasil = await mesin.jalankan();
