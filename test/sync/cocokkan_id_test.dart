@@ -69,9 +69,10 @@ void main() {
   });
 
   test('server menjawab kosong padahal HP punya data: tidak ada yang '
-      'disentuh', () async {
+      'disentuh, dan pencocokannya belum selesai — diulang di sinkron '
+      'berikutnya, bukan seminggu lagi', () async {
     await produk('latte');
-    expect(await mesin({}).cocokkanId(), 0);
+    expect(await mesin({}).cocokkanId(), isNull);
     expect((await baca('latte')).deletedAt, isNull);
   });
 

@@ -795,7 +795,19 @@ class SyncEngine {
         lengkap = false;
         continue;
       }
-      if (daftar.isEmpty) continue;
+      if (daftar.isEmpty) {
+        // Kosong padahal HP punya data: jawaban yang salah (mis. akses
+        // ditolak), bukan "semuanya sudah dibuang". Dulu tetap dicatat
+        // selesai dan baru diulang seminggu lagi (review 3 Nov).
+        final punya = await _db
+            .customSelect(
+              'SELECT 1 FROM $tabel WHERE deleted_at IS NULL '
+              "AND sync_status = 'synced' LIMIT 1",
+            )
+            .get();
+        if (punya.isNotEmpty) lengkap = false;
+        continue;
+      }
       final diServer = daftar.toSet();
       disembunyikan += await _db.customUpdate(
         'UPDATE $tabel SET deleted_at = ?, sync_status = \'synced\' '
