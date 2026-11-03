@@ -560,6 +560,55 @@ void main() {
     );
   });
 
+  test('review C5/R6: klaim dinilai dengan jam SERVER, bukan jam HP', () {
+    // Jam server 10:00:00; HP B mengklaim 1 menit lalu.
+    Map<String, dynamic> status({
+      bool berlaku = true,
+      Object? klaim = 't-b',
+      Object? tx,
+      Object? hapus,
+      bool adaBaris = true,
+    }) => {
+      'baris': adaBaris
+          ? {
+              'transaction_id': tx,
+              'deleted_at': hapus,
+              'klaim_tx': klaim,
+              'klaim_pada': '2026-11-03T09:59:00+00:00',
+              'items': [
+                {'p': 'teh', 'q': 1},
+              ],
+            }
+          : null,
+      'klaim_berlaku': berlaku,
+      'sekarang': '2026-11-03T10:00:00+00:00',
+    };
+
+    // HP A yang jamnya kecepatan 6 menit dulu menilai klaim ini hangus,
+    // menyimpan, dan perubahannya dibuang server. Sekarang jam HP tidak
+    // dipakai sama sekali.
+    final c = cekDariStatus(status());
+    expect(c.keputusan, KeputusanServer.sedangDibayar);
+    expect(c.sisaKlaim, const Duration(minutes: 4),
+        reason: 'sisa dihitung dengan jam server');
+    expect(c.isi, isNotNull);
+
+    expect(cekDariStatus(status(berlaku: false)).keputusan,
+        KeputusanServer.boleh,
+        reason: 'server bilang klaimnya sudah hangus');
+    expect(cekDariStatus(status(klaim: null, berlaku: false)).keputusan,
+        KeputusanServer.boleh);
+    expect(cekDariStatus(status(tx: 'tx-1')).keputusan,
+        KeputusanServer.sudahDibayar);
+    expect(cekDariStatus(status(hapus: '2026-11-03')).keputusan,
+        KeputusanServer.sudahDihapus);
+    expect(
+      cekDariStatus(status(adaBaris: false, berlaku: false)).keputusan,
+      KeputusanServer.boleh,
+      reason: 'bill belum pernah terkirim',
+    );
+  });
+
   test('review R5: server menjawab "dibayar" — dibedakan dari baris yang '
       'dibaca ulang', () {
     CekBill cek(KeputusanServer k, [Duration? sisa]) =>

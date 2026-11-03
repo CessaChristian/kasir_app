@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
+import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/sync/sync_engine.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -103,8 +104,35 @@ typedef CekBill = ({
   Duration? sisaKlaim,
 });
 
-/// Pesan untuk bill yang sedang dibayar HP lain. [sisa] menurut jam HP ini,
-/// jadi hanya perkiraan.
+/// Jawaban `status_bill` (supabase/status_bill.sql) → keputusan, isi, dan
+/// sisa klaim. Berlaku-tidaknya klaim diputuskan SERVER dengan jamnya
+/// sendiri, dan sisa waktunya dihitung dengan jam server — HP yang jamnya
+/// kecepatan dulu menganggap klaim yang masih berlaku sudah hangus, lalu
+/// perubahannya dibuang server diam-diam (review C5/R6).
+CekBill cekDariStatus(Map<String, dynamic> jawaban) {
+  final baris = (jawaban['baris'] as Map?)?.cast<String, dynamic>();
+  final items = baris?['items'];
+  final isi = items == null ? null : jsonEncode(items);
+  final jamServer = DateTime.tryParse('${jawaban['sekarang']}');
+  final keputusan = keputusanDariBaris(baris, sekarang: jamServer);
+  if (keputusan != KeputusanServer.boleh &&
+      keputusan != KeputusanServer.sedangDibayar) {
+    return (keputusan: keputusan, isi: isi, sisaKlaim: null);
+  }
+  if (jawaban['klaim_berlaku'] != true) {
+    return (keputusan: KeputusanServer.boleh, isi: isi, sisaKlaim: null);
+  }
+  return (
+    keputusan: KeputusanServer.sedangDibayar,
+    isi: isi,
+    // Server bilang masih berlaku: paling sedikit "±1 menit lagi".
+    sisaKlaim:
+        sisaKlaimDariBaris(baris!, sekarang: jamServer) ??
+        const Duration(minutes: 1),
+  );
+}
+
+/// Pesan untuk bill yang sedang dibayar HP lain. [sisa] hanya perkiraan.
 String pesanSedangDibayar(String nama, Duration? sisa) {
   final awal = 'Bill $nama lagi dibayar di perangkat lain.';
   if (sisa == null) return '$awal Tunggu sebentar lalu coba lagi.';
@@ -237,7 +265,26 @@ class OpenBillRepository {
   /// HP ini digabungkan ke situ (lihat [simpan]). Hanya membaca: penjaga
   /// status di server (`jaga_status_bill`) yang menolak kiriman ke bill yang
   /// sudah lunas/terhapus; ini supaya kasir langsung tahu.
+  ///
+  /// Ditanyakan ke `status_bill` supaya klaim dinilai dengan jam server
+  /// (review C5/R6). Server yang belum memasang fungsi itu: barisnya dibaca
+  /// langsung dan klaimnya dinilai dengan jam HP, seperti dulu.
   Future<CekBill> cekDiServer(String billId) async {
+    try {
+      final k = SupabaseService.instance;
+      if (!k.online) return _takTerjawab;
+      final jawaban = await k.client!
+          .rpc('status_bill', params: {'p_bill': billId})
+          .timeout(batasTungguServer);
+      if (jawaban is! Map) return _takTerjawab;
+      return cekDariStatus(jawaban.cast<String, dynamic>());
+    } catch (e) {
+      if (!PerangkatRepository.belumDisiapkan(e)) return _takTerjawab;
+    }
+    return _cekDariBarisLangsung(billId);
+  }
+
+  Future<CekBill> _cekDariBarisLangsung(String billId) async {
     try {
       final k = SupabaseService.instance;
       if (!k.online) return _takTerjawab;
