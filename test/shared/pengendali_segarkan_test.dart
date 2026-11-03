@@ -85,6 +85,17 @@ void main() {
     });
   });
 
+  test('review C7: tarik-untuk-refresh (SyncRefresh) dan tombol header '
+      'memakai penilaian yang sama', () {
+    expect(const HasilSync().selesaiUtuh, isTrue);
+    expect(
+      const HasilSync(tarikSelesai: true, dibatalkan: true).selesaiUtuh,
+      isFalse,
+      reason: 'dibatalkan saat foto: bukan "Sudah yang terbaru"',
+    );
+    expect(const HasilSync(error: 'x').selesaiUtuh, isFalse);
+  });
+
   test('belum tersambung dalam 5 detik → gagal, layar dilepas', () {
     fakeAsync((waktu) {
       final pesan = <String>[];

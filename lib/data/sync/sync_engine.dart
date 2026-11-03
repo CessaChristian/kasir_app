@@ -99,6 +99,12 @@ class HasilSync {
 
   bool get berhasil => error == null;
 
+  /// Boleh dikabarkan "selesai" ke kasir: berhasil dan tidak dihentikan
+  /// Batalkan. Dibatalkan sesudah datanya lengkap (mis. saat foto) tetap
+  /// [berhasil], tapi kasir menekan Batalkan dan perlu tahu putarannya
+  /// benar-benar berhenti (review C7).
+  bool get selesaiUtuh => berhasil && !dibatalkan;
+
   /// Salin hasil ini sambil menambahkan hasil tahap gambar.
   HasilSync denganGambar({
     int naik = 0,

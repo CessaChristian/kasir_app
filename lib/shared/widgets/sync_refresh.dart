@@ -33,7 +33,7 @@ class SyncRefresh extends StatelessWidget {
         await sesudah?.call();
         if (!context.mounted) return;
 
-        if (hasil.berhasil) {
+        if (hasil.selesaiUtuh) {
           // Sengaja `berubah`, BUKAN `diperiksa` — lihat catatan HasilSync.
           if (hasil.berubah > 0) {
             AppToast.success(context, '${hasil.berubah} data diperbarui');
