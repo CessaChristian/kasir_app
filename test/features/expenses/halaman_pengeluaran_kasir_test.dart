@@ -225,4 +225,30 @@ void main() {
     expect(find.text('Riwayat Pengeluaran'), findsNothing);
     await lepas(t);
   });
+
+  testWidgets('review C1: izin Lihat Riwayat Lengkap dicabut selagi halaman '
+      'terbuka → riwayat langsung hilang', (t) async {
+    await t.runAsync(() async {
+      await shift(
+        's-lama',
+        mulai: hariIni.subtract(const Duration(days: 1, hours: 8)),
+        selesai: hariIni.subtract(const Duration(days: 1)),
+      );
+      await shift('s-1', mulai: hariIni);
+      await keluar('e-1', 's-lama', 'Plastik', 7000);
+      await masuk(shiftId: 's-1');
+    });
+    await buka(t);
+    expect(find.text('Riwayat Pengeluaran'), findsOneWidget);
+
+    // Owner mencabut izinnya; kabarnya sampai lewat sinkron.
+    await t.runAsync(() async {
+      await masuk(shiftId: 's-1', riwayat: false);
+      SessionManager.instance.sesiBerubah.value++;
+    });
+    await t.pump();
+    expect(find.text('Riwayat Pengeluaran'), findsNothing,
+        reason: 'dulu tetap tampil sampai halamannya ditutup');
+    await lepas(t);
+  });
 }

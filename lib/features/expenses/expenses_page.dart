@@ -86,7 +86,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
   Stream<List<Expense>>? _aliranAktif;
   Stream<RingkasanShift?>? _aliranShift;
 
-  final _cakupan = CakupanRiwayat.dariSesi();
+  // Ikut berubah saat izin berubah selagi halaman terbuka — dulu dibaca
+  // sekali, jadi riwayat pengeluaran tetap tampil sesudah izin Lihat
+  // Riwayat Lengkap dicabut (review C1, sama dengan Riwayat di QA K5).
+  var _cakupan = CakupanRiwayat.dariSesi();
   List<ShiftEntry> _riwayat = const [];
   Map<String, List<Expense>> _perShift = const {};
   StreamSubscription<void>? _langgananRiwayat;
@@ -106,35 +109,66 @@ class _ExpensesPageState extends State<ExpensesPage> {
       _aliranShift = _repoShift.watchShiftTerakhirSelesai(sesi.userId);
     }
     _langgananRiwayat = _repo.perubahanRiwayat().listen((_) => _muat());
+    SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
   }
 
   @override
   void dispose() {
+    SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     _langgananRiwayat?.cancel();
     super.dispose();
   }
 
+  void _sesiBerubah() {
+    final baru = CakupanRiwayat.dariSesi();
+    if (!mounted || baru == _cakupan) return;
+    setState(() {
+      _cakupan = baru;
+      // Langsung disembunyikan, tidak menunggu muatan berikutnya.
+      if (!_bolehLihatRiwayat) {
+        _riwayat = const [];
+        _perShift = const {};
+      }
+    });
+    _muat();
+  }
+
+  /// Muatan yang sudah usang diabaikan: sinkron bisa menulis beberapa kali
+  /// beruntun, dan muatan lama yang selesai belakangan dulu menimpa yang
+  /// baru (review C3).
+  var _urutMuat = 0;
+
   /// Nama akun dan riwayat; dimuat ulang tiap ada perubahan (termasuk dari
   /// sinkron).
   Future<void> _muat() async {
-    final nama = await _repo.namaAkun();
+    final urut = ++_urutMuat;
+    final cakupan = _cakupan;
+    final Map<String, String> nama;
     var riwayat = const <ShiftEntry>[];
     var perShift = const <String, List<Expense>>{};
-    if (_bolehLihatRiwayat) {
-      final semua = await _repoShift.getShiftsWithUser(
-        userId: _cakupan.jenis == JenisCakupan.semua ? null : _cakupan.userId,
-      );
-      final kandidat = semua.where((e) => e.shift.id != _shiftId).toList();
-      perShift = await _repo.getExpensesForShifts(
-        kandidat.map((e) => e.shift.id).toList(),
-      );
-      riwayat = riwayatLayakTampil(
-        semua: semua,
-        perShift: perShift,
-        shiftAktifSaya: _shiftId,
-      );
+    try {
+      nama = await _repo.namaAkun();
+      if (cakupan.jenis != JenisCakupan.shiftAktif) {
+        final semua = await _repoShift.getShiftsWithUser(
+          userId: cakupan.jenis == JenisCakupan.semua ? null : cakupan.userId,
+        );
+        final kandidat = semua.where((e) => e.shift.id != _shiftId).toList();
+        perShift = await _repo.getExpensesForShifts(
+          kandidat.map((e) => e.shift.id).toList(),
+        );
+        riwayat = riwayatLayakTampil(
+          semua: semua,
+          perShift: perShift,
+          shiftAktifSaya: _shiftId,
+        );
+      }
+    } catch (e) {
+      // Dulu lolos sebagai galat tak tertangani. Yang tampil tetap yang
+      // terakhir berhasil; perubahan berikutnya mencoba lagi.
+      debugPrint('[pengeluaran] gagal memuat riwayat: $e');
+      return;
     }
-    if (!mounted) return;
+    if (!mounted || urut != _urutMuat) return;
     setState(() {
       _nama = nama;
       _riwayat = riwayat;
