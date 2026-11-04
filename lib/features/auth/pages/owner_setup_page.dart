@@ -43,20 +43,27 @@ class _OwnerSetupPageState extends State<OwnerSetupPage> {
     try {
       final authRepo = AuthRepository(db);
 
-      final owner = await authRepo.bootstrapOwner(
-        username: _usernameController.text.trim(),
-        pin: _pinController.text,
-      );
-
-      final recoveryCode =
-          await authRepo.generateAndStoreRecoveryCodeForOwner(owner.id);
+      final (owner: _, kodeRecovery: recoveryCode) =
+          await authRepo.buatOwnerPertama(
+            username: _usernameController.text.trim(),
+            pin: _pinController.text,
+          );
 
       final session = await authRepo.login(
         username: _usernameController.text.trim(),
         pin: _pinController.text,
       );
 
-      if (session != null) {
+      if (session == null) {
+        // Akunnya sudah tersimpan; tanpa pesan ini halaman diam saja.
+        if (mounted) {
+          AppToast.error(
+            context,
+            'Akun owner sudah dibuat, tapi gagal masuk. Tutup lalu buka '
+            'lagi aplikasinya.',
+          );
+        }
+      } else {
         await SessionManager.instance.setSession(session);
         if (!mounted) return;
 

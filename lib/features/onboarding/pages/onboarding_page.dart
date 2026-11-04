@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../repositories/onboarding_repository.dart';
 import '../widgets/owner_setup_step.dart';
-import '../../../utils/crypto_utils.dart';
 import '../../../data/db.dart';
 import '../../auth/repositories/auth_repository.dart';
 import '../../auth/recovery/pages/save_recovery_code_page.dart';
@@ -19,7 +17,6 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  final _repo = OnboardingRepository();
 
   bool _isSubmitting = false;
 
@@ -31,22 +28,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Menggunakan CryptoUtils (PBKDF2-HMAC-SHA256, 120.000 iterasi)
-      // — sama dengan pattern di auth_repository.dart + cashier_repository.dart.
-      final salt = CryptoUtils.generateSalt();
-      final pinHash = await CryptoUtils.hashPinDiLatar(pin, salt);
-
-      final userId = await _repo.setupFirstOwner(
-        username: username,
-        pinHash: pinHash,
-        salt: salt,
-      );
-
+      // Akun + kode recovery dalam satu transaksi, lewat aturan yang sama
+      // dengan halaman setup owner (cek owner sudah ada, aturan username).
       // Recovery code WAJIB ditampilkan sekali di sini — tanpa ini,
       // owner yang lupa PIN tidak akan pernah bisa akses datanya lagi.
-      final authRepo = AuthRepository(db);
-      final recoveryCode =
-          await authRepo.generateAndStoreRecoveryCodeForOwner(userId);
+      final (owner: _, kodeRecovery: recoveryCode) = await AuthRepository(
+        db,
+      ).buatOwnerPertama(username: username, pin: pin);
 
       if (!mounted) return;
       await Navigator.of(context).push(

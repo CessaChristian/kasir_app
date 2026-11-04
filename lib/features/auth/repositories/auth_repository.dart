@@ -90,6 +90,20 @@ class AuthRepository {
     return created;
   }
 
+  /// Akun owner pertama BESERTA kode recovery-nya, dalam satu transaksi:
+  /// gagal di tengah = tidak ada yang tersimpan, dan owner bisa langsung
+  /// mencoba lagi. Dulu akun sudah tersimpan saat kode recovery gagal
+  /// dibuat — percobaan ulang ditolak "Akun owner sudah ada" dan owner
+  /// tidak pernah melihat kode recovery-nya (review 3 Nov).
+  Future<({User owner, String kodeRecovery})> buatOwnerPertama({
+    required String username,
+    required String pin,
+  }) => _db.transaction(() async {
+    final owner = await bootstrapOwner(username: username, pin: pin);
+    final kode = await generateAndStoreRecoveryCodeForOwner(owner.id);
+    return (owner: owner, kodeRecovery: kode);
+  });
+
   /// Salah PIN berturut-turut sebanyak ini mengunci akun sampai PIN-nya
   /// dibuat ulang. Lihat [login].
   static const batasSalahPin = 10;
