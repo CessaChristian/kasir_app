@@ -122,24 +122,32 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
+  // Dibuat sekali. Dulu dibuat di build: setiap huruf di kotak cari dan
+  // setiap ganti chip memasang ulang dua pengamatan database dan menjalankan
+  // ulang kuerinya (review E4).
+  late final _aliranKategori = _productRepo.watchCategories();
+  late var _aliranProduk = _productRepo.watchProducts();
+
   @override
   Widget build(BuildContext context) {
     // Tanpa tarik-untuk-refresh: refresh lewat tombol di header, dan daftar
     // ini mendengarkan database sehingga ikut berubah sendiri.
     return StreamBuilder<List<Category>>(
-      stream: _productRepo.watchCategories(),
+      stream: _aliranKategori,
       builder: (context, catSnap) {
         final kategori = catSnap.data ?? const <Category>[];
         final byId = {for (final c in kategori) c.id: c};
         return Stack(
           children: [
             StreamBuilder<List<Product>>(
-              stream: _productRepo.watchProducts(),
+              stream: _aliranProduk,
               builder: (context, snap) {
                 if (snap.hasError) {
                   return ErrorStateWidget(
                     title: 'Gagal memuat produk',
-                    onRetry: () => setState(() {}),
+                    onRetry: () => setState(
+                      () => _aliranProduk = _productRepo.watchProducts(),
+                    ),
                   );
                 }
                 final semua = snap.data;
