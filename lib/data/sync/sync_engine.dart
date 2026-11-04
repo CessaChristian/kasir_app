@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:supabase_flutter/supabase_flutter.dart'
     show CountOption, PostgrestException, SupabaseClient;
 
+import '../../shared/services/image_storage_service.dart';
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
 import '../supabase/supabase_service.dart';
@@ -1473,7 +1474,7 @@ class SyncEngine {
                 'has_spicy_option': p.hasSpicyOption,
                 'has_sweet_option': p.hasSweetOption,
                 'has_ice_option': p.hasIceOption,
-                'image_path': p.imagePath,
+                'image_path': ImageStorageService.jalurAman(p.imagePath),
                 'created_at': _iso(p.createdAt),
                 'updated_at': _iso(p.updatedAt),
                 'deleted_at': _iso(p.deletedAt),
@@ -1492,7 +1493,9 @@ class SyncEngine {
                 hasSweetOption:
                     Value((r['has_sweet_option'] as bool?) ?? false),
                 hasIceOption: Value((r['has_ice_option'] as bool?) ?? false),
-                imagePath: Value(r['image_path'] as String?),
+                imagePath: Value(
+                  ImageStorageService.jalurAman(r['image_path'] as String?),
+                ),
                 createdAt: Value(_dt(r['created_at'])!),
                 updatedAt: Value(_dt(r['updated_at'])!),
                 deletedAt: Value(_dt(r['deleted_at'])),

@@ -315,7 +315,7 @@ class SyncGambar {
         .get();
     return {
       for (final p in baris)
-        if ((p.imagePath ?? '').isNotEmpty) p.imagePath!,
+        if (ImageStorageService.jalurSah(p.imagePath)) p.imagePath!,
     };
   }
 

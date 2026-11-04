@@ -63,6 +63,21 @@ class ImageStorageService {
   /// Subfolder gambar produk, relatif terhadap folder dokumen aplikasi.
   static const String folderProduk = 'products';
 
+  /// Bentuk `image_path` yang boleh dipakai. Ekstensi lama (jpeg, png) tetap
+  /// diterima supaya foto versi terdahulu tidak hilang.
+  static final _polaJalur = RegExp(
+    r'^products/[A-Za-z0-9_-]{1,64}\.(webp|jpg|jpeg|png)$',
+  );
+
+  /// `image_path` datang dari server, jadi tidak boleh dipercaya. Tanpa
+  /// pemeriksaan ini, nilai `kasir_app.sqlite` bisa menghapus database HP saat
+  /// fotonya diganti, atau ikut terunggah ke Storage (audit nomor 9).
+  static bool jalurSah(String? jalur) =>
+      jalur != null && _polaJalur.hasMatch(jalur);
+
+  /// [jalur] kalau sah, selain itu null. Dipakai saat keluar-masuk server.
+  static String? jalurAman(String? jalur) => jalurSah(jalur) ? jalur : null;
+
   /// Folder dokumen aplikasi, di-cache sekali lewat [init].
   ///
   /// Perlu di-cache karena `build()` widget tidak bisa menunggu Future —
@@ -97,8 +112,8 @@ class ImageStorageService {
 
   /// Apakah file gambarnya ada — versi sinkron untuk `build()`.
   static bool adaSync(String? relatif) {
-    if (relatif == null || relatif.isEmpty) return false;
-    final penuh = lokasiPenuhSync(relatif);
+    if (!jalurSah(relatif)) return false;
+    final penuh = lokasiPenuhSync(relatif!);
     return penuh.isNotEmpty && File(penuh).existsSync();
   }
 
@@ -143,7 +158,14 @@ class ImageStorageService {
   }
 
   /// Objek [File] untuk path relatif, untuk diserahkan ke pengunggah.
-  Future<File> fileDari(String relatif) async => File(await lokasiPenuh(relatif));
+  Future<File> fileDari(String relatif) async {
+    _wajibSah(relatif);
+    return File(await lokasiPenuh(relatif));
+  }
+
+  static void _wajibSah(String relatif) {
+    if (!jalurSah(relatif)) throw StateError('Jalur foto tidak sah.');
+  }
 
   /// Tulis gambar yang diunduh dari server ke lokasinya di [relatif].
   ///
@@ -152,6 +174,7 @@ class ImageStorageService {
   /// perangkat yang belum pernah menyimpan gambar sendiri belum punya
   /// `products/`.
   Future<void> simpanBytes(String relatif, Uint8List data) async {
+    _wajibSah(relatif);
     final penuh = await lokasiPenuh(relatif);
     final file = File(penuh);
     await file.parent.create(recursive: true);
@@ -190,6 +213,7 @@ class ImageStorageService {
 
   /// Hapus file gambar. Aman dipanggil untuk path yang sudah tidak ada.
   Future<void> hapus(String relatif) async {
+    if (!jalurSah(relatif)) return;
     final penuh = await lokasiPenuh(relatif);
     final file = File(penuh);
     if (file.existsSync()) await file.delete();
@@ -197,7 +221,7 @@ class ImageStorageService {
 
   /// Apakah file gambarnya benar-benar ada di disk.
   Future<bool> ada(String? relatif) async {
-    if (relatif == null || relatif.isEmpty) return false;
-    return File(await lokasiPenuh(relatif)).existsSync();
+    if (!jalurSah(relatif)) return false;
+    return File(await lokasiPenuh(relatif!)).existsSync();
   }
 }
