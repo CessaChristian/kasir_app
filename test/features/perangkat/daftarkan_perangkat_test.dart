@@ -134,7 +134,8 @@ void main() {
       hasLength(1),
       reason: 'ketukan kedua diabaikan',
     );
-
+    jawabanKunci.complete(HasilKunci.salah);
+    await t.pumpAndSettle();
   });
 
   testWidgets('Berhasil: toast baru muncul setelah halaman Login tampil', (
@@ -244,6 +245,68 @@ void main() {
     expect(catatan, ['periksa:kunci-baru', 'buat', 'periksa:kunci-baru']);
     expect(lanjut, isTrue);
     await t.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('review B6: identitas dilepas karena kunci salah → percobaan '
+      'berikutnya membuat identitas baru', (t) async {
+    final jawaban = [
+      HasilKunci.identitasHilang, // HP dilupakan pemilik
+      HasilKunci.salah, // salah ketik dengan identitas baru → dilepas
+      HasilKunci.diterima,
+    ];
+    await t.pumpWidget(
+      MaterialApp(
+        home: DaftarkanPerangkatPage(
+          lengkapiSaja: true,
+          sesudahBerhasil: () async => lanjut = true,
+          buatIdentitas: () async {
+            catatan.add('buat');
+            return HasilDaftarPerangkat.berhasil;
+          },
+          periksaKunci: (k) async {
+            catatan.add('periksa:$k');
+            return jawaban.removeAt(0);
+          },
+          lepaskanIdentitas: () async => catatan.add('lepas'),
+        ),
+      ),
+    );
+    await isi(t, 'salah');
+    await tekan(t);
+    await t.pumpAndSettle();
+    expect(find.text('Kunci pemasangan tidak valid'), findsOneWidget);
+
+    catatan.clear();
+    await isi(t, 'benar');
+    await tekan(t);
+    await t.pumpAndSettle();
+    expect(catatan, ['buat', 'periksa:benar'],
+        reason: 'dulu mendaftar tanpa identitas dan selalu gagal');
+    expect(lanjut, isTrue);
+    await t.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('review B7: kunci tidak sampai ke server dalam 15 detik → '
+      'dibatalkan, tombol aktif lagi', (t) async {
+    await pasang(t);
+    await isi(t, 'benar');
+    await tekan(t);
+    await t.pump(const Duration(seconds: 16)); // jawabanKunci tidak pernah datang
+    await t.pump();
+    expect(find.textContaining('Periksa koneksi'), findsOneWidget);
+    expect(catatan.last, 'lepas');
+  });
+
+  testWidgets('review B7: data toko gagal ditarik sesudah terdaftar → pesan, '
+      'tombol aktif lagi (dulu menggantung di "Mendaftarkan…")', (t) async {
+    await pasang(t, sesudahBerhasil: () async => throw Exception('putus'));
+    await isi(t, 'benar');
+    await tekan(t);
+    jawabanKunci.complete(HasilKunci.diterima);
+    await t.pumpAndSettle();
+    expect(find.text('Data toko gagal diambil. Periksa koneksi lalu coba lagi.'),
+        findsOneWidget);
+    expect(find.text('Daftarkan Perangkat'), findsWidgets);
   });
 
   test('jawaban server → HasilKunci (termasuk server lama)', () {

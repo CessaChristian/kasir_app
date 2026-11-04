@@ -68,6 +68,18 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
   bool _sedangMendaftar = false;
   String? _galat;
 
+  /// HP ini tidak punya identitas yang bisa dipakai lagi: pemasangan baru,
+  /// atau identitas percobaan sebelumnya sudah dilepas karena kuncinya
+  /// salah. Dulu "Lengkapi Pendaftaran" yang salah kunci sekali melepas
+  /// identitas barunya, lalu percobaan berikutnya mendaftar TANPA identitas
+  /// dan selalu gagal sampai aplikasi ditutup (review B6).
+  late bool _perluIdentitasBaru = !widget.lengkapiSaja;
+
+  /// Batas menunggu kunci sampai di server dan data awal toko tertarik
+  /// (keputusan owner 2026-11-04): lewat dari ini dibatalkan, tombolnya
+  /// aktif lagi.
+  static const batasTunggu = Duration(seconds: 15);
+
   @override
   void dispose() {
     _kunciC.dispose();
@@ -88,12 +100,15 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     // Identitas dibuat hanya kalau HP ini memang belum punya. Yang sudah punya
     // cukup dicatatkan — membuat identitas baru berarti meninggalkan yang lama
     // sebagai baris yatim di daftar pengguna server.
-    var identitasBaru = !widget.lengkapiSaja;
+    var identitasBaru = _perluIdentitasBaru;
     if (identitasBaru && !await _buatIdentitas()) return;
 
     // Di sinilah kuncinya benar-benar diperiksa, oleh server.
-    final periksa =
+    final pemeriksa =
         widget.periksaKunci ?? PerangkatRepository.instance.daftarkanIdentitasIni;
+    Future<HasilKunci> periksa(String kunci) => pemeriksa(
+      kunci,
+    ).timeout(batasTunggu, onTimeout: () => HasilKunci.gagal);
     var hasil = await periksa(_kunciC.text);
     if (!mounted) return;
 
@@ -111,6 +126,7 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
       if (identitasBaru) {
         await (widget.lepaskanIdentitas ??
             SupabaseService.instance.lepaskanPerangkat)();
+        _perluIdentitasBaru = true;
       }
       if (!mounted) return;
       setState(() {
@@ -125,7 +141,21 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
     // hilang sebelum Login terlihat. Lapisannya diambil sekarang karena
     // halaman ini sudah tertutup saat itu.
     final lapisan = Overlay.of(context);
-    await widget.sesudahBerhasil();
+    _perluIdentitasBaru = false; // sudah diterima — dipakai lagi kalau diulang
+    try {
+      await widget.sesudahBerhasil().timeout(batasTunggu);
+    } catch (e) {
+      // Dulu galatnya lolos dan tombol menggantung di "Mendaftarkan…"
+      // (review B7). HP-nya sudah terdaftar; mengetuk lagi cukup menarik
+      // ulang datanya.
+      debugPrint('[perangkat] sesudah terdaftar: $e');
+      if (!mounted) return;
+      setState(() {
+        _sedangMendaftar = false;
+        _galat = 'Data toko gagal diambil. Periksa koneksi lalu coba lagi.';
+      });
+      return;
+    }
     AppToast.successDi(lapisan, 'Perangkat berhasil didaftarkan');
   }
 
