@@ -1,3 +1,5 @@
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import 'package:kasir_app/utils/pesan_galat.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -27,8 +29,14 @@ class _RepoPalsu extends PerangkatRepository {
   @override
   String? get idSaya => 'hp-owner';
 
+  /// Diisi test: daftarnya gagal dimuat.
+  Object? gagalMuat;
+
   @override
-  Future<List<Perangkat>> semua() async => daftar;
+  Future<List<Perangkat>> semua() async {
+    if (gagalMuat case final g?) throw g;
+    return daftar;
+  }
 
   Perangkat _ganti(String id, Perangkat Function(Perangkat) ubah) {
     final i = daftar.indexWhere((p) => p.id == id);
@@ -519,6 +527,30 @@ void main() {
       await tunggu(t);
       expect(repo.panggilan, isEmpty);
       await lepas(t);
+    });
+
+    testWidgets('server menolak: bukan "butuh internet", dan bisa dicoba lagi', (
+      t,
+    ) async {
+      final repo = _RepoPalsu([])
+        ..gagalMuat = const PostgrestException(
+          message: 'permission denied for table perangkat',
+          code: '42501',
+        );
+      await t.pumpWidget(
+        MaterialApp(
+          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => true),
+        ),
+      );
+      await t.pump();
+      await t.pump();
+      expect(find.textContaining('hanya bisa dibuka saat online'), findsNothing);
+      expect(find.text(pesanAksesDitolak), findsOneWidget);
+      repo.gagalMuat = null;
+      await t.tap(find.text('Coba lagi'));
+      await t.pump();
+      await t.pump();
+      expect(find.text('Belum ada perangkat terdaftar'), findsOneWidget);
     });
 
     testWidgets('tanpa internet: layar offline, Coba lagi memuat daftar', (

@@ -18,6 +18,7 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/pesan_galat.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../owner/repositories/cashier_repository.dart'
     show pesanButuhInternet;
 
@@ -105,7 +106,7 @@ class DaftarPerangkatPage extends StatefulWidget {
   State<DaftarPerangkatPage> createState() => _DaftarPerangkatPageState();
 }
 
-enum _Keadaan { memuat, offline, belumDisiapkan, siap }
+enum _Keadaan { memuat, offline, belumDisiapkan, gagal, siap }
 
 class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
   late final _repo = widget.repo ?? PerangkatRepository.instance;
@@ -114,6 +115,9 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
   var _keadaan = _Keadaan.memuat;
   var _memeriksa = false;
   List<Perangkat> _daftar = const [];
+
+  /// Penyebab keadaan [_Keadaan.gagal].
+  Object? _galatMuat;
 
   @override
   void initState() {
@@ -156,9 +160,14 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         daftar = await _repo.semua();
         keadaan = _Keadaan.siap;
       } catch (e) {
+        // Koneksi ternyata sehat, jadi galat selain putus koneksi tidak boleh
+        // terbaca "butuh online" (audit nomor 5).
+        _galatMuat = e;
         keadaan = PerangkatRepository.belumDisiapkan(e)
             ? _Keadaan.belumDisiapkan
-            : _Keadaan.offline;
+            : galatTakTersambung(e)
+            ? _Keadaan.offline
+            : _Keadaan.gagal;
       }
     }
     if (!mounted) return;
@@ -287,6 +296,13 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
         _Keadaan.belumDisiapkan => const _PesanTengah(
           'Daftar perangkat belum disiapkan di server. Jalankan '
           'supabase/perangkat.sql lebih dulu.',
+        ),
+        _Keadaan.gagal => Center(
+          child: GalatMuat(
+            galat: _galatMuat ?? 'Daftar perangkat gagal dimuat',
+            awalan: 'Daftar perangkat gagal dimuat',
+            onCobaLagi: _muat,
+          ),
         ),
         _Keadaan.siap => _isi(),
       },

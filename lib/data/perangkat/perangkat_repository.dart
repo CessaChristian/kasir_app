@@ -596,9 +596,9 @@ class PerangkatRepository {
 
   /// Semua perangkat, yang terbaru dipakai di atas.
   Future<List<Perangkat>> semua() async {
-    final k = _klien;
-    if (k == null) return const [];
-    final baris = await k
+    // Tanpa klien melempar, bukan daftar kosong: dulu terbaca "Belum ada
+    // perangkat terdaftar" (audit nomor 5).
+    final baris = await _klienWajib
         .from('perangkat')
         .select()
         .order('terakhir_aktif', ascending: false);
