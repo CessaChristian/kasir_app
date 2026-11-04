@@ -129,8 +129,10 @@ revoke all on function public.jaga_akun_owner()
 --  server — dibuat offline; aplikasinya boleh lanjut, barisnya nanti
 --  dikirim sebagai baris baru).
 --
---  Hak pemanggil (security invoker): hanya HP yang terdaftar & aktif yang
---  bisa membaca dan mengubah baris users (rls.sql).
+--  Berjalan dengan hak pemilik fungsi (security definer) supaya bisa
+--  memakai cocok_pin, yang tertutup untuk aplikasi. Karena itu syarat
+--  "HP terdaftar & aktif" diperiksa di sini secara tertulis — sama dengan
+--  aturan RLS tabel users.
 -- ---------------------------------------------------------------------
 create or replace function public.ubah_kredensial_owner(
   p_bukti text,
@@ -142,13 +144,18 @@ create or replace function public.ubah_kredensial_owner(
 )
 returns text
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare
   o public.users;
   cocok boolean;
 begin
+  if not public.perangkat_aktif() then
+    raise exception 'perangkat tidak terdaftar atau dicabut'
+      using errcode = '42501';
+  end if;
+
   select * into o from public.users
    where role = 'owner' and deleted_at is null
    order by created_at
@@ -193,6 +200,6 @@ grant execute on function public.ubah_kredensial_owner(text, text, text, text, t
 --
 --    select count(*) from pg_trigger where tgname = 'trg_users_jaga_owner';
 --    -- 1
---    select public.ubah_kredensial_owner('000000', 'pin');
---    -- salah   (dari SQL Editor; kecuali PIN owner memang 000000)
+--    select prosecdef from pg_proc where proname = 'ubah_kredensial_owner';
+--    -- true
 -- =====================================================================
