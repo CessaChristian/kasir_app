@@ -242,6 +242,21 @@ void main() {
       expect(r.grafik, hasLength(3), reason: '13, 14, 15');
     });
 
+    test('review D3: shift lewat tengah malam dipotong di batas hari', () {
+      final besok = DateTime(2026, 10, 2, 2);
+      final r = ringkas(shiftHari: [shift(jam(18), besok)]);
+      expect(label(r).first, '18', reason: 'dulu 02 sampai 23');
+      expect(r.grafik, hasLength(6), reason: '18 sampai 23');
+
+      // Shift lama yang tidak pernah ditutup: sampai akhir hari itu, bukan
+      // ikut jam saat laporan dibuka.
+      final lama = ringkas(
+        shiftHari: [shift(jam(18))],
+        sekarang: DateTime(2026, 10, 5, 9),
+      );
+      expect((label(lama).first, lama.grafik.length), ('18', 6));
+    });
+
     test('transaksi di luar jam shift tetap masuk grafik', () {
       final r = ringkas(
         shiftHari: [shift(jam(8), jam(10))],

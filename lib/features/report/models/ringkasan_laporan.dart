@@ -253,7 +253,12 @@ RingkasanLaporan ringkasLaporan({
     // shift terakhir ditutup (yang masih berjalan: sampai sekarang).
     // Transaksi di luar rentang itu tetap ikut supaya tidak ada penjualan
     // yang hilang dari grafik.
-    final rentang = _rentangJam(shift, sah.map((t) => t.createdAt), sekarang);
+    final rentang = _rentangJam(
+      shift,
+      sah.map((t) => t.createdAt),
+      sekarang,
+      hari: hari.single,
+    );
     if (rentang == null) return ('Pendapatan per jam', const [], true);
     final (awal, akhir) = rentang;
     return (
@@ -314,18 +319,33 @@ RingkasanLaporan ringkasLaporan({
   );
 }
 
-/// Rentang jam satu hari: dari shift pertama dibuka sampai shift terakhir
+/// Rentang jam satu [hari]: dari shift pertama dibuka sampai shift terakhir
 /// ditutup (yang masih berjalan: sampai [sekarang]), diperlebar oleh
 /// [waktuLain] yang jatuh di luarnya. Null = tidak ada shift maupun data.
+///
+/// Shift dipotong di batas hari itu. Dulu hanya jamnya yang dibandingkan:
+/// shift 18:00–02:00 menjadi rentang 02–23 dengan 16 batang kosong, dan
+/// shift lama yang tidak pernah ditutup ikut jam saat laporan dibuka
+/// (review D3).
 (int, int)? _rentangJam(
   List<Shift> shift,
   Iterable<DateTime> waktuLain,
-  DateTime sekarang,
-) {
+  DateTime sekarang, {
+  required DateTime hari,
+}) {
+  final awalHari = DateTime(hari.year, hari.month, hari.day);
+  final akhirHari = awalHari
+      .add(const Duration(days: 1))
+      .subtract(const Duration(microseconds: 1));
+  DateTime potong(DateTime w) => w.isBefore(awalHari)
+      ? awalHari
+      : w.isAfter(akhirHari)
+      ? akhirHari
+      : w;
   final jam = <int>[
     for (final s in shift) ...[
-      s.startAt.toLocal().hour,
-      (s.endAt ?? sekarang).toLocal().hour,
+      potong(s.startAt.toLocal()).hour,
+      potong((s.endAt ?? sekarang).toLocal()).hour,
     ],
     for (final w in waktuLain) w.toLocal().hour,
   ];
