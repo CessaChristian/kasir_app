@@ -11,6 +11,7 @@ import 'package:kasir_app/features/report/repositories/laporan_repository.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
+import 'package:kasir_app/utils/pesan_galat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Izin yang dulu cuma dijaga di tampilan (revisi QA C9): menunya memang
@@ -101,6 +102,17 @@ void main() {
     expect(() => repo.ubahNama('hp-1', 'x'), ditolak);
     expect(() => repo.ubahStatus('hp-1', aktif: false), ditolak);
     expect(() => repo.lupakan('hp-1'), ditolak);
+  });
+
+  test('review B8: owner tanpa koneksi server → mencabut GAGAL, bukan diam-diam '
+      '"berhasil"', () async {
+    await masuk('owner', 'owner');
+    final repo = PerangkatRepository.untukTest();
+    final takTersambung = throwsA(isA<StateError>().having(
+        (e) => e.message, 'pesan', pesanTakTersambung));
+    await expectLater(repo.ubahStatus('hp-1', aktif: false), takTersambung);
+    await expectLater(repo.lupakan('hp-1'), takTersambung);
+    await expectLater(repo.ubahNama('hp-1', 'x'), takTersambung);
   });
 
   test('kasir tanpa izin Laporan tidak bisa memuatnya', () async {

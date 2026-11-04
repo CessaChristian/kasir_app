@@ -613,18 +613,29 @@ class PerangkatRepository {
   /// boleh untuk diri sendiri). Dipisah jadi dua fungsi, syaratnya jadi jelas.
   Future<void> ubahNama(String id, String nama) async {
     SessionManager.instance.requireOwner();
-    await _klien
-        ?.rpc('ubah_nama_perangkat', params: {'p_id': id, 'p_nama': nama});
+    await _klienWajib.rpc(
+      'ubah_nama_perangkat',
+      params: {'p_id': id, 'p_nama': nama},
+    );
   }
 
   Future<void> ubahStatus(String id, {required bool aktif}) async {
     SessionManager.instance.requireOwner();
-    await _klien
-        ?.rpc('ubah_status_perangkat', params: {'p_id': id, 'p_aktif': aktif});
+    await _klienWajib.rpc(
+      'ubah_status_perangkat',
+      params: {'p_id': id, 'p_aktif': aktif},
+    );
   }
 
   Future<void> lupakan(String id) async {
     SessionManager.instance.requireOwner();
-    await _klien?.rpc('lupakan_perangkat', params: {'p_id': id});
+    await _klienWajib.rpc('lupakan_perangkat', params: {'p_id': id});
   }
+
+  /// Klien server untuk aksi yang HARUS sampai. Dulu `_klien?.rpc(...)`:
+  /// tanpa koneksi, aksinya diam-diam tidak dikirim dan layar tetap
+  /// menampilkan "HP dicabut" — padahal HP itu masih bisa berjualan
+  /// (review B8).
+  SupabaseClient get _klienWajib =>
+      _klien ?? (throw StateError(pesanTakTersambung));
 }
