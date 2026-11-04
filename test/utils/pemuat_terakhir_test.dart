@@ -28,4 +28,15 @@ void main() {
     await pemuat.jalankan(() async => 2, terpakai.add);
     expect(terpakai, [1, 2]);
   });
+
+  test('review D2: galat tidak lolos — dikabarkan lewat gagal', () async {
+    final pemuat = PemuatTerakhir();
+    Object? galat;
+    await pemuat.jalankan<int>(
+      () async => throw StateError('database sibuk'),
+      (_) {},
+      gagal: (e) => galat = e,
+    );
+    expect(galat, isA<StateError>());
+  });
 }

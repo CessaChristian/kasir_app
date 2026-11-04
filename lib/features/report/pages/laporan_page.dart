@@ -11,6 +11,7 @@ import '../../../shared/constants/app_constants.dart';
 import '../../../shared/services/simpan_berkas.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../shared/ui/bar_segmen.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../../shared/ui/judul_bagian.dart';
 import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/periode/kartu_periode.dart';
@@ -218,7 +219,13 @@ class _LaporanPageState extends State<LaporanPage> {
           children: [
             KartuPeriode(periode: _periode, onBerubah: _ubahPeriode),
             const SizedBox(height: 14),
-            if (r == null)
+            if (r == null && snap.hasError)
+              GalatMuat(
+                galat: snap.error!,
+                awalan: 'Laporan gagal dimuat',
+                onCobaLagi: () => _ubahPeriode(_periode),
+              )
+            else if (r == null)
               const Padding(
                 padding: EdgeInsets.only(top: 60),
                 child: Center(child: CircularProgressIndicator()),

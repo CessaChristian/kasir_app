@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Pemuatan yang bisa tumpang tindih, tapi hanya hasil yang TERAKHIR
 /// dimulai yang dipakai.
 ///
@@ -8,14 +10,23 @@
 class PemuatTerakhir {
   var _ke = 0;
 
-  /// Jalankan [muat]; [pakai] hanya dipanggil kalau tidak ada pemuatan lain
-  /// yang dimulai sesudahnya.
+  /// Jalankan [muat]; [pakai] — atau [gagal] kalau [muat] melempar — hanya
+  /// dipanggil kalau tidak ada pemuatan lain yang dimulai sesudahnya.
+  ///
+  /// Galat tidak pernah lolos: pemanggilnya timer dan aliran database, jadi
+  /// dulu galatnya tak tertangani dan layar berputar selamanya (review D2).
   Future<void> jalankan<T>(
     Future<T> Function() muat,
-    void Function(T hasil) pakai,
-  ) async {
+    void Function(T hasil) pakai, {
+    void Function(Object galat)? gagal,
+  }) async {
     final ke = ++_ke;
-    final hasil = await muat();
-    if (ke == _ke) pakai(hasil);
+    try {
+      final hasil = await muat();
+      if (ke == _ke) pakai(hasil);
+    } catch (e) {
+      debugPrint('[pemuat] $e');
+      if (ke == _ke) gagal?.call(e);
+    }
   }
 }

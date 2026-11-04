@@ -493,6 +493,18 @@ void main() {
     double y(WidgetTester t, String teks) =>
         t.getTopLeft(find.text(teks).first).dy;
 
+    testWidgets('review D1: laporan gagal dimuat (izin sudah dicabut) → '
+        'pesan dan Coba lagi, bukan berputar selamanya', (t) async {
+      await buka(t, owner: false, izinKasir: const []);
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await t.pump();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Coba lagi'), findsOneWidget);
+      await lepas(t);
+    });
+
     testWidgets('owner: semua bagian sesuai urutan desain', (t) async {
       await buka(t, owner: true);
       final urutan = [

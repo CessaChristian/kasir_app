@@ -119,7 +119,8 @@ void main() {
     final repo = LaporanRepository(db);
     final p = Periode.hari(DateTime(2026, 10, 28));
     await expectLater(repo.muat(p), ditolak);
-    expect(() => repo.watchLaporan(p), ditolak);
+    // Ditolak lewat alirannya (halaman menampilkan pesan, review D1).
+    await expectLater(repo.watchLaporan(p), emitsError(isA<IzinDitolak>()));
 
     await masuk('sari', 'cashier', izin: ['view_report'], shiftId: 's-sari');
     await repo.muat(p, sekarang: DateTime(2026, 10, 28, 12));

@@ -7,6 +7,7 @@ import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/bar_rasio.dart';
 import '../../../shared/ui/baris_angka.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../../shared/ui/kartu_teras.dart';
 import '../../../shared/ui/kepala_sapaan.dart';
 import '../../../shared/ui/tombol_lembut.dart';
@@ -69,9 +70,24 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
 
   final _pemuat = PemuatTerakhir();
 
-  Future<void> _muat() => _pemuat.jalankan(_repo.muat, (data) {
-    if (mounted) setState(() => _data = data);
-  });
+  /// Pemuatan terakhir gagal. Angka yang sudah tampil tetap dipakai;
+  /// pesan hanya muncul kalau belum ada angka sama sekali.
+  Object? _galat;
+
+  Future<void> _muat() => _pemuat.jalankan(
+    _repo.muat,
+    (data) {
+      if (mounted) {
+        setState(() {
+          _data = data;
+          _galat = null;
+        });
+      }
+    },
+    gagal: (e) {
+      if (mounted) setState(() => _galat = e);
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +97,13 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       children: [
-        if (data == null)
+        if (data == null && _galat != null)
+          GalatMuat(
+            galat: _galat!,
+            awalan: 'Dashboard gagal dimuat',
+            onCobaLagi: _muat,
+          )
+        else if (data == null)
           const Padding(
             padding: EdgeInsets.only(top: 80),
             child: Center(child: CircularProgressIndicator()),

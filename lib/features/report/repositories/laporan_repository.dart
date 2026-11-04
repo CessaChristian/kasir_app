@@ -13,8 +13,16 @@ class LaporanRepository {
 
   /// Ikut berubah setiap kali transaksi, pengeluaran, shift, produk, atau
   /// kategori berubah — mis. sesudah refresh menarik data baru dari server.
+  ///
+  /// Tanpa izin: aliran berisi galat, bukan lemparan saat dipanggil —
+  /// halamannya dibangun ulang dengan aliran baru, dan lemparan di tengah
+  /// build membuat halamannya rusak (review D1).
   Stream<RingkasanLaporan> watchLaporan(Periode periode) {
-    SessionManager.instance.requirePermission('view_report');
+    try {
+      SessionManager.instance.requirePermission('view_report');
+    } catch (e) {
+      return Stream.error(e);
+    }
     return _db
       .customSelect(
         'SELECT 1',
