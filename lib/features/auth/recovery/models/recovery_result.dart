@@ -7,6 +7,10 @@ enum RecoveryResultType {
   locked,
   ownerNotFound,
   pinMismatch,
+
+  /// Server tidak terjangkau: kredensial owner hanya bisa diganti online
+  /// (supabase/kredensial_owner.sql).
+  butuhInternet,
 }
 
 /// Result of a recovery operation
@@ -66,6 +70,17 @@ class RecoveryResult {
     return const RecoveryResult(
       type: RecoveryResultType.locked,
       message: AuthRepository.pesanOwnerTerkunci,
+    );
+  }
+
+  /// PIN atau kode recovery owner hanya bisa diganti dengan internet —
+  /// server sendiri yang memeriksa buktinya (review A1).
+  factory RecoveryResult.butuhInternet() {
+    return const RecoveryResult(
+      type: RecoveryResultType.butuhInternet,
+      message:
+          'Butuh internet untuk mengganti PIN atau kode recovery owner. '
+          'Sambungkan HP ke internet lalu coba lagi.',
     );
   }
 

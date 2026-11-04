@@ -22,12 +22,59 @@ class AuthRepository {
   final Future<void> Function()? _tungguSinkron;
   final Future<void> Function(String? shiftId)? _lapor;
 
+  /// Diisi test. Bawaan: [_ubahKredensialDiServer].
+  final Future<String?> Function(Map<String, dynamic> param)? _kirimKredensial;
+
   AuthRepository(
     this._db, {
     Future<void> Function()? tungguSinkron,
     Future<void> Function(String? shiftId)? lapor,
+    Future<String?> Function(Map<String, dynamic> param)? kirimKredensial,
   }) : _tungguSinkron = tungguSinkron,
-       _lapor = lapor;
+       _lapor = lapor,
+       _kirimKredensial = kirimKredensial;
+
+  /// PIN, garam, dan kode recovery OWNER hanya berubah lewat server, yang
+  /// memeriksa sendiri [bukti] — PIN saat ini ([jenis] 'pin') atau kode
+  /// recovery tanpa strip ('recovery'). Server menolak perubahan lewat
+  /// sinkron biasa: dulu HP terdaftar mana pun bisa menimpa PIN owner
+  /// (review A1, supabase/kredensial_owner.sql).
+  ///
+  /// 'ok' / 'salah' / 'belum_ada' (owner belum sampai ke server, atau server
+  /// belum memasang fungsinya — boleh lanjut seperti dulu), atau null kalau
+  /// server tidak terjangkau.
+  Future<String?> _gantiKredensialOwner({
+    required String bukti,
+    required String jenis,
+    String? pinHash,
+    String? salt,
+    String? recoveryHash,
+    String? recoverySalt,
+  }) => (_kirimKredensial ?? _ubahKredensialDiServer)({
+    'p_bukti': bukti,
+    'p_jenis': jenis,
+    'p_pin_hash': pinHash,
+    'p_salt': salt,
+    'p_recovery_hash': recoveryHash,
+    'p_recovery_salt': recoverySalt,
+  });
+
+  static Future<String?> _ubahKredensialDiServer(
+    Map<String, dynamic> param,
+  ) async {
+    try {
+      final k = SupabaseService.instance;
+      if (!k.online) return null;
+      final jawaban = await k.client!.rpc(
+        'ubah_kredensial_owner',
+        params: param,
+      );
+      return '$jawaban';
+    } catch (e) {
+      if (PerangkatRepository.belumDisiapkan(e)) return 'belum_ada';
+      return null;
+    }
+  }
 
   /// Check if an owner account exists
   Future<bool> hasOwner() async {
@@ -189,13 +236,28 @@ class AuthRepository {
     // re-hash dengan PBKDF2 dan update DB.
     var pinHash = user.pinHash;
     if (CryptoUtils.needsRehash(user.pinHash)) {
-      final newHash = pinHash = await CryptoUtils.hashPinDiLatar(pin, user.salt);
-      await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
-          .write(UsersCompanion(
-        pinHash: Value(newHash),
-        updatedAt: Value(DateTime.now()),
-        syncStatus: const Value('pending'),
-      ));
+      final newHash = await CryptoUtils.hashPinDiLatar(pin, user.salt);
+      // Akun owner: server dulu (review A1). Tanpa internet dicoba lagi di
+      // login berikutnya — format lama tetap bisa dipakai masuk.
+      final boleh = user.role != 'owner' ||
+          switch (await _gantiKredensialOwner(
+            bukti: pin,
+            jenis: 'pin',
+            pinHash: newHash,
+            salt: user.salt,
+          )) {
+            'ok' || 'belum_ada' => true,
+            _ => false,
+          };
+      if (boleh) {
+        pinHash = newHash;
+        await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
+            .write(UsersCompanion(
+          pinHash: Value(newHash),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value('pending'),
+        ));
+      }
     }
     // Patokan untuk mengenali Reset PIN selagi akun ini masuk (QA kedua K2).
     await SessionManager.instance
@@ -375,17 +437,25 @@ class AuthRepository {
       throw StateError('Akun ini bukan owner.');
     }
 
-    // Generate recovery code (formatted with dashes)
-    final recoveryCode = _generateRecoveryCode();
-    
-    // Normalize for hashing (remove dashes)
-    final normalizedCode = _normalizeRecoveryCode(recoveryCode);
+    final (:kode, :hash, :salt) = await _kodeRecoveryBaru();
+    await _simpanRecovery(userId, hash: hash, salt: salt);
+    return kode;
+  }
 
-    // Generate salt and hash
+  /// Kode recovery baru (berstrip, untuk ditampilkan) beserta hash & garam
+  /// dari bentuk tanpa strip-nya.
+  Future<({String kode, String hash, String salt})> _kodeRecoveryBaru() async {
+    final kode = _generateRecoveryCode();
     final salt = _generateRecoverySalt();
-    final hash = await _hashRecoveryCode(normalizedCode, salt);
+    final hash = await _hashRecoveryCode(_normalizeRecoveryCode(kode), salt);
+    return (kode: kode, hash: hash, salt: salt);
+  }
 
-    // Update owner with recovery data
+  Future<void> _simpanRecovery(
+    String userId, {
+    required String hash,
+    required String salt,
+  }) async {
     await (_db.update(_db.users)..where((u) => u.id.equals(userId))).write(
       UsersCompanion(
         recoveryHash: Value(hash),
@@ -398,8 +468,6 @@ class AuthRepository {
         syncStatus: const Value('pending'),
       ),
     );
-
-    return recoveryCode;
   }
 
   /// Check if owner recovery is currently locked
@@ -493,6 +561,22 @@ class AuthRepository {
         newRecoverySalt,
       );
 
+      // Server dulu — ia memeriksa sendiri kode recovery-nya (review A1).
+      switch (await _gantiKredensialOwner(
+        bukti: normalized,
+        jenis: 'recovery',
+        pinHash: newPinHash,
+        salt: newSalt,
+        recoveryHash: newRecoveryHash,
+        recoverySalt: newRecoverySalt,
+      )) {
+        case null:
+          return RecoveryResult.butuhInternet();
+        case 'salah':
+          // Kode di HP ini sudah usang (diganti dari HP lain).
+          return RecoveryResult.invalidCode();
+      }
+
       await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
         UsersCompanion(
           pinHash: Value(newPinHash),
@@ -548,11 +632,24 @@ class AuthRepository {
     // owner terkunci (review 3 Nov).
     await _pinBenar(owner);
 
-    // Generate new recovery code
-    final newRecoveryCode = await generateAndStoreRecoveryCodeForOwner(owner.id);
+    // Server dulu — ia memeriksa sendiri PIN-nya (review A1).
+    final (:kode, :hash, :salt) = await _kodeRecoveryBaru();
+    switch (await _gantiKredensialOwner(
+      bukti: currentPin,
+      jenis: 'pin',
+      recoveryHash: hash,
+      recoverySalt: salt,
+    )) {
+      case null:
+        return RecoveryResult.butuhInternet();
+      case 'salah':
+        // PIN di HP ini sudah usang (diganti dari HP lain).
+        return RecoveryResult.pinMismatch();
+    }
+    await _simpanRecovery(owner.id, hash: hash, salt: salt);
 
     return RecoveryResult.success(
-      newRecoveryCode: newRecoveryCode,
+      newRecoveryCode: kode,
       message: 'Recovery code regenerated',
     );
   }

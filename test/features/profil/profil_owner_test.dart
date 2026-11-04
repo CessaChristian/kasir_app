@@ -145,7 +145,12 @@ void main() {
                 context: context,
                 isScrollControlled: true,
                 builder: (_) =>
-                    LembarPerbaruiRecovery(authRepo: AuthRepository(db)),
+                    LembarPerbaruiRecovery(
+                      authRepo: AuthRepository(
+                        db,
+                        kirimKredensial: (_) async => 'ok',
+                      ),
+                    ),
               ),
               child: const Text('buka'),
             ),

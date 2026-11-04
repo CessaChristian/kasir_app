@@ -28,7 +28,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     SessionManager.dbOverride = db;
-    repo = AuthRepository(db);
+    // Server kredensial owner (review A1) menjawab ok.
+    repo = AuthRepository(db, kirimKredensial: (_) async => 'ok');
     final salt = CryptoUtils.generateSalt();
     await db
         .into(db.users)

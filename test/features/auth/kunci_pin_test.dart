@@ -22,6 +22,10 @@ void main() {
 
   late AppDatabase db;
   late AuthRepository repo;
+
+  /// Jawaban server kredensial owner (review A1); null = tidak terjangkau.
+  String? jawabanServer;
+  late List<Map<String, dynamic>> dikirim;
   const pinOwner = '135790';
   const pinKasir = '246810';
 
@@ -30,7 +34,15 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     SessionManager.dbOverride = db;
-    repo = AuthRepository(db);
+    jawabanServer = 'ok';
+    dikirim = [];
+    repo = AuthRepository(
+      db,
+      kirimKredensial: (p) async {
+        dikirim.add(p);
+        return jawabanServer;
+      },
+    );
     for (final (id, nama, role, pin) in [
       ('o-1', 'owner', 'owner', pinOwner),
       ('k-1', 'sari', 'cashier', pinKasir),
@@ -179,6 +191,81 @@ void main() {
         throwsA(isA<StateError>().having(
             (e) => e.message, 'pesan', 'Akun Anda dinonaktifkan oleh pemilik.')),
       );
+    });
+  });
+
+  group('review A1: kredensial owner diganti lewat server', () {
+    test('reset PIN dengan kode recovery: server dulu, membawa bukti & '
+        'kredensial baru', () async {
+      final kode = await repo.generateAndStoreRecoveryCodeForOwner('o-1');
+      final hasil = await repo.resetOwnerPinWithRecoveryCode(
+        recoveryCode: kode,
+        newPin: '975310',
+      );
+      expect(hasil.isSuccess, isTrue);
+      final p = dikirim.single;
+      expect(p['p_jenis'], 'recovery');
+      expect(p['p_bukti'], kode.replaceAll('-', ''));
+      expect(p['p_pin_hash'], (await akun('o-1')).pinHash,
+          reason: 'yang disimpan di HP = yang dikirim ke server');
+      expect(p['p_recovery_hash'], (await akun('o-1')).recoveryHash);
+    });
+
+    test('tanpa internet: PIN owner TIDAK diganti, pesan butuh internet',
+        () async {
+      final kode = await repo.generateAndStoreRecoveryCodeForOwner('o-1');
+      final sebelum = (await akun('o-1')).pinHash;
+      jawabanServer = null;
+      final hasil = await repo.resetOwnerPinWithRecoveryCode(
+        recoveryCode: kode,
+        newPin: '975310',
+      );
+      expect(hasil.type, RecoveryResultType.butuhInternet);
+      expect(hasil.message, contains('Butuh internet'));
+      expect((await akun('o-1')).pinHash, sebelum);
+      expect(await repo.login(username: 'owner', pin: pinOwner), isNotNull);
+    });
+
+    test('server bilang kode/PIN salah (diganti dari HP lain): tidak diubah',
+        () async {
+      final kode = await repo.generateAndStoreRecoveryCodeForOwner('o-1');
+      jawabanServer = 'salah';
+      expect(
+        (await repo.resetOwnerPinWithRecoveryCode(
+          recoveryCode: kode,
+          newPin: '975310',
+        )).type,
+        RecoveryResultType.invalidCode,
+      );
+      final sebelum = (await akun('o-1')).recoveryHash;
+      expect((await repo.regenerateOwnerRecoveryCode(pinOwner)).type,
+          RecoveryResultType.pinMismatch);
+      expect((await akun('o-1')).recoveryHash, sebelum);
+    });
+
+    test('buat kode recovery baru: server dulu; tanpa internet ditolak',
+        () async {
+      jawabanServer = null;
+      expect((await repo.regenerateOwnerRecoveryCode(pinOwner)).type,
+          RecoveryResultType.butuhInternet);
+      jawabanServer = 'ok';
+      final r = await repo.regenerateOwnerRecoveryCode(pinOwner);
+      expect(r.isSuccess, isTrue);
+      expect(dikirim.last['p_jenis'], 'pin');
+      expect(dikirim.last['p_bukti'], pinOwner);
+      expect(dikirim.last['p_recovery_hash'], (await akun('o-1')).recoveryHash);
+    });
+
+    test('server lama / owner belum terkirim ("belum_ada"): jalan seperti '
+        'dulu', () async {
+      jawabanServer = 'belum_ada';
+      expect((await repo.regenerateOwnerRecoveryCode(pinOwner)).isSuccess,
+          isTrue);
+    });
+
+    test('kasir tidak lewat server', () async {
+      await repo.login(username: 'sari', pin: pinKasir);
+      expect(dikirim, isEmpty);
     });
   });
 }
