@@ -118,11 +118,15 @@ void main() {
     addTearDown(t.view.reset);
   }
 
+  /// Dua putaran: daftar hari dulu, lalu isinya (data saringan lama tidak
+  /// lagi ditampilkan selagi menunggu — review D6).
   Future<void> tunggu(WidgetTester t) async {
-    await t.pump();
-    await t.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 150)),
-    );
+    for (var i = 0; i < 2; i++) {
+      await t.pump();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 150)),
+      );
+    }
     await t.pump();
   }
 
@@ -172,6 +176,9 @@ void main() {
     );
 
     await t.tap(find.text('QRIS'));
+    await t.pump();
+    expect(find.text('TRX/A1'), findsNothing,
+        reason: 'review D6: transaksi tunai tidak tampil selagi QRIS dimuat');
     await tunggu(t); // disaring di database (QA kedua K8)
     expect(find.text('TRX/A2'), findsOneWidget);
     expect(find.text('TRX/A1'), findsNothing);

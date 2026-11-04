@@ -65,12 +65,18 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
   Stream<List<Transaction>>? _isi;
   String? _kunciIsi;
 
+  /// Saringan baru dipilih, dan isi untuknya belum datang. Hanya saat itu
+  /// isi lama disembunyikan — membuka/melipat hari tetap menampilkan baris
+  /// yang sudah ada supaya tidak berkedip.
+  var _isiUsang = false;
+
   @override
   void didUpdateWidget(DaftarRiwayat lama) {
     super.didUpdateWidget(lama);
     if (lama.saringan != widget.saringan) {
       _hari = widget.repo.watchHariRiwayat(widget.saringan);
       _kunciIsi = null;
+      _isiUsang = true;
     }
   }
 
@@ -93,7 +99,14 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
     return StreamBuilder<List<RingkasanHari>>(
       stream: _hari,
       builder: (context, snapHari) {
-        final hari = snapHari.data;
+        // Selagi aliran saringan BARU belum menjawab, StreamBuilder masih
+        // memegang data saringan LAMA. Dulu transaksi tunai tetap tampil
+        // (dan bisa diketuk, bahkan dibatalkan) sesaat sesudah memilih QRIS
+        // (review D6, sama dengan Laporan S14). Disembunyikan sampai yang
+        // baru datang.
+        final hari = snapHari.connectionState == ConnectionState.waiting
+            ? null
+            : snapHari.data;
         if (hari == null || hari.isEmpty) {
           return _daftar([
             ...widget.kepala,
@@ -116,12 +129,21 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
             stream: _nama,
             builder: (context, snapNama) => _daftar([
               ...widget.kepala,
-              ..._baris(hari, snapIsi.data, snapNama.data ?? const {}),
+              ..._baris(
+                hari,
+                _isiTerkini(snapIsi),
+                snapNama.data ?? const {},
+              ),
             ]),
           ),
         );
       },
     );
+  }
+
+  List<Transaction>? _isiTerkini(AsyncSnapshot<List<Transaction>> snap) {
+    if (snap.connectionState != ConnectionState.waiting) _isiUsang = false;
+    return _isiUsang ? null : snap.data;
   }
 
   Widget _daftar(List<Widget> isi) => ListView.builder(
