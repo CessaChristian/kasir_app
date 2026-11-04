@@ -131,10 +131,11 @@ class CashierRepository {
       final created = await (_db.select(
         _db.users,
       )..where((u) => u.id.equals(userId))).getSingleOrNull();
+      // Melempar di sini membatalkan seluruh transaksinya: akunnya memang
+      // tidak jadi dibuat. Dulu pesannya "Akun kasir berhasil dibuat…"
+      // (review B9).
       if (created == null) {
-        throw StateError(
-          'Akun kasir berhasil dibuat. Kasir dapat login menggunakan username dan PIN yang baru.',
-        );
+        throw StateError('Akun kasir gagal dibuat. Coba lagi.');
       }
       return created;
     });

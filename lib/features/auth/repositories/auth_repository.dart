@@ -80,12 +80,12 @@ class AuthRepository {
     // Jika insert throw → data TIDAK masuk DB, error valid
     await _db.into(_db.users).insert(ownerCompanion);
 
-    // Jika getSingleOrNull null → insert BERHASIL tapi gagal baca kembali (sangat jarang)
-    // Data sudah ada di DB — user bisa langsung login
+    // Gagal dibaca kembali (sangat jarang): dilempar sebagai GAGAL —
+    // buatOwnerPertama membatalkan seluruh transaksinya (review B9).
     final created = await (_db.select(_db.users)..where((u) => u.id.equals(userId)))
         .getSingleOrNull();
     if (created == null) {
-      throw StateError('Akun berhasil dibuat. Silakan login dengan username dan PIN yang baru dibuat.');
+      throw StateError('Akun owner gagal dibuat. Coba lagi.');
     }
     return created;
   }
