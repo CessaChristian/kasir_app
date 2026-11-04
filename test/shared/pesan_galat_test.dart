@@ -43,6 +43,28 @@ void main() {
       );
     });
 
+    test('penolakan bawaan Postgres tidak tampil mentah', () {
+      for (final mentah in const [
+        'new row violates row-level security policy for table "products"',
+        'permission denied for table products',
+        'permission denied for function cocok_pin',
+      ]) {
+        final pesan = pesanGalat(
+          PostgrestException(message: mentah, code: '42501'),
+          awalan: 'Gagal menyimpan',
+        );
+        expect(pesan, pesanAksesDitolak, reason: mentah);
+      }
+    });
+
+    test('galat bawaan Dart tidak tampil mentah', () {
+      expect(
+        pesanGalat(StateError('Too many elements'), awalan: 'Gagal menyimpan'),
+        'Gagal menyimpan. Coba lagi.',
+      );
+      expect(pesanGalat(StateError('No element')), 'Terjadi kesalahan. Coba lagi.');
+    });
+
     test('galat lain → awalan + "Coba lagi", tanpa isi mentahnya', () {
       final pesan = pesanGalat(
         const PostgrestException(

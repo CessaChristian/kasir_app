@@ -10,6 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 const pesanTakTersambung =
     'Tidak tersambung ke server. Periksa internet lalu coba lagi.';
 
+/// Server menolak lewat aturan aksesnya sendiri, bukan lewat fungsi kita.
+const pesanAksesDitolak =
+    'Server menolak akses perangkat ini. Minta owner memeriksa Daftar Perangkat.';
+
 /// Galat → kalimat yang bisa dibaca kasir dan owner.
 ///
 /// Dulu halaman menampilkan galat apa adanya: "Gagal: Bad state: Permission
@@ -19,22 +23,36 @@ const pesanTakTersambung =
 /// - Galat aturan aplikasi ([StateError], [ArgumentError]) sudah berupa
 ///   kalimat untuk pengguna: dipakai apa adanya.
 /// - Putus koneksi atau server lambat → [pesanTakTersambung].
-/// - Penolakan dari fungsi server (`raise exception`) → pesannya.
+/// - Penolakan dari fungsi server (`raise exception`) → pesannya. Penolakan
+///   bawaan Postgres berbahasa Inggris dan menyebut nama tabel, jadi diganti
+///   [pesanAksesDitolak].
 /// - Selain itu → "[awalan]. Coba lagi."; galat aslinya hanya dicatat di log.
 String pesanGalat(Object e, {String awalan = 'Terjadi kesalahan'}) {
   if (galatTakTersambung(e)) return pesanTakTersambung;
   switch (e) {
-    case StateError(:final message):
+    case StateError(:final message) when !_galatDart.contains(message):
       return message;
     case ArgumentError(:final message):
       return '$message';
     case PostgrestException(:final code, :final message)
         when const {'28000', '42501', 'P0001'}.contains(code):
-      return _kalimat(message);
+      return _penolakanBawaan.hasMatch(message)
+          ? pesanAksesDitolak
+          : _kalimat(message);
   }
   debugPrint('[galat] $awalan: $e');
   return '$awalan. Coba lagi.';
 }
+
+/// Pesan [StateError] dari Dart sendiri (`.single`, `.first`), bukan kalimat
+/// aturan aplikasi.
+const _galatDart = {'No element', 'Too many elements'};
+
+/// Pesan bawaan Postgres untuk kode 28000/42501.
+final _penolakanBawaan = RegExp(
+  r'permission denied|row-level security|must be owner|role ".*" does not exist',
+  caseSensitive: false,
+);
 
 /// Putus koneksi atau server tidak menjawab — bukan penolakan dari server.
 bool galatTakTersambung(Object e) =>
