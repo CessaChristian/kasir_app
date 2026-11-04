@@ -59,7 +59,11 @@ class _RiwayatShiftPageState extends State<RiwayatShiftPage> {
   /// Izin dicabut/diberikan selagi halaman terbuka: langsung berlaku, tidak
   /// menunggu halamannya ditutup (QA kedua K5).
   void _sesiBerubah() {
-    if (!mounted || _bolehSemua() == _semua) return;
+    // Sudah keluar: tidak ada akun untuk dimuat. Dulu tetap memuat ulang —
+    // tanpa akun, permintaan "semua shift" ditolak dan aplikasi galat
+    // (review C4).
+    if (!mounted || !SessionManager.instance.isLoggedIn) return;
+    if (_bolehSemua() == _semua) return;
     setState(() => _aliran = _pantau(_periode));
   }
 

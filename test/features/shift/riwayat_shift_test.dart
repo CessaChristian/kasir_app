@@ -368,6 +368,25 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('review C4: keluar selagi Riwayat Shift terbuka → tidak '
+        'galat', (t) async {
+      layarHp(t);
+      SharedPreferences.setMockInitialValues({});
+      await masuk(owner: false, izin: const ['view_all_shifts']);
+      await t.runAsync(() async {
+        await t.pumpWidget(MaterialApp(home: RiwayatShiftPage(repo: repo)));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await t.pump();
+
+      await t.runAsync(SessionManager.instance.clearSession);
+      SessionManager.instance.sesiBerubah.value++;
+      await t.pump();
+      expect(t.takeException(), isNull,
+          reason: 'dulu StateError "Sesi sudah berakhir"');
+      await lepas(t);
+    });
+
     testWidgets('QA K5: izin "lihat semua shift" dicabut selagi halaman '
         'terbuka — langsung berlaku', (t) async {
       layarHp(t);
