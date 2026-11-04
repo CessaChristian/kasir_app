@@ -407,8 +407,11 @@ class _LaporanPageState extends State<LaporanPage> {
         for (final t in r.transaksiBatal)
           BarisDibatalkan(
             judul: t.invoiceNo,
+            // Tanggal & jam sama-sama waktu PEMBATALAN. Dulu tanggal
+            // transaksi digabung jam batal: dibuat 01/11 23:50, dibatalkan
+            // 02/11 08:15, tampil "01/11 · 08:15" (review D5).
             keterangan: [
-              DateFormat('dd/MM').format(t.createdAt.toLocal()),
+              DateFormat('dd/MM').format(t.deletedAt!.toLocal()),
               DateFormat('HH:mm').format(t.deletedAt!.toLocal()),
               'oleh ${t.namaPembatal(_nama) ?? '-'}',
             ].join(' · '),
@@ -432,6 +435,7 @@ class _LaporanPageState extends State<LaporanPage> {
             judul: e.qty > 1 ? '${e.description} (${e.qty}x)' : e.description,
             keterangan: [
               KategoriBiaya.labelDari(e.category),
+              DateFormat('dd/MM').format(e.deletedAt!.toLocal()),
               DateFormat('HH:mm').format(e.deletedAt!.toLocal()),
               'oleh ${e.namaPembatal(_nama) ?? '-'}',
             ].join(' · '),
