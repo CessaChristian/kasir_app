@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -24,11 +25,15 @@ abstract final class SimpanBerkas {
         'bita': bita,
       });
     } on PlatformException catch (e) {
-      throw BerkasTidakTersimpan(
-        e.code == 'TIDAK_DIDUKUNG'
-            ? 'Simpan ke HP butuh Android 10 ke atas. Pakai Bagikan.'
-            : 'Gagal menyimpan laporan: ${e.message ?? e.code}',
-      );
+      debugPrint('[simpan berkas] ${e.code}: ${e.message}');
+      final isi = '${e.code} ${e.message}'.toUpperCase();
+      throw BerkasTidakTersimpan(switch (e.code) {
+        'TIDAK_DIDUKUNG' =>
+          'Simpan ke HP butuh Android 10 ke atas. Pakai Bagikan.',
+        _ when isi.contains('ENOSPC') || isi.contains('NO SPACE') =>
+          'Memori HP penuh. Kosongkan dulu atau pakai Bagikan.',
+        _ => 'Laporan gagal disimpan ke HP. Coba lagi atau pakai Bagikan.',
+      });
     } on MissingPluginException {
       // Kode Android-nya tidak ada di aplikasi yang terpasang (versi lama,
       // atau di pengembangan: belum dipasang ulang setelah kodenya berubah).
