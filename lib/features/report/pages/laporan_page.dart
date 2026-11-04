@@ -108,7 +108,11 @@ class _LaporanPageState extends State<LaporanPage> {
   /// Alur unduh (desain): pilih format → file dibuat → "Laporan siap" →
   /// Simpan ke HP atau Bagikan.
   Future<void> _unduh(RingkasanLaporan r) async {
-    if (_periode.lebihDari12Bulan) {
+    // Periode [r] dikunci saat tombol ditekan. Dulu dibaca lagi sesudah
+    // lembar format ditutup: lewat tengah malam di sela itu, file berlabel
+    // hari baru tapi berisi angka hari sebelumnya (review D4).
+    final periode = _periode;
+    if (periode.lebihDari12Bulan) {
       AppToast.warning(
         context,
         'Periode terlalu panjang. Unduh maksimal 12 bulan sekali — '
@@ -122,7 +126,7 @@ class _LaporanPageState extends State<LaporanPage> {
     }
     final format = await pilihFormatLaporan(
       context,
-      labelPeriode: labelPeriodeUnduhan(_periode),
+      labelPeriode: labelPeriodeUnduhan(periode),
     );
     if (format == null || !mounted) return;
 
@@ -132,7 +136,7 @@ class _LaporanPageState extends State<LaporanPage> {
     try {
       dok = susunDokumenLaporan(
         namaToko: AppConstants.storeName,
-        periode: _periode,
+        periode: periode,
         r: r,
         nama: _nama,
         denganPengeluaran: _lihatPengeluaran,
