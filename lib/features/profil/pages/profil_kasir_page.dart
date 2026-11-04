@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
+import '../../../shared/auth/penjaga_izin.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/baris_menu.dart';
 import '../../../shared/ui/halaman_turunan.dart';
@@ -107,7 +108,11 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
               judul: 'Produk',
               keterangan: 'Kelola produk',
               onTap: () => _buka(
-                const HalamanTurunan(judul: 'Produk', child: ProductsPage()),
+                const PenjagaIzin(
+                  izin: 'manage_products',
+                  namaFitur: 'Produk',
+                  child: HalamanTurunan(judul: 'Produk', child: ProductsPage()),
+                ),
               ),
             ),
           if (sm.hasPermission('manage_categories'))
@@ -115,7 +120,13 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
               ikon: Icons.category_rounded,
               judul: 'Kategori',
               keterangan: 'Atur kategori & tampilan di Kasir',
-              onTap: () => _buka(const KategoriPage()),
+              onTap: () => _buka(
+                const PenjagaIzin(
+                  izin: 'manage_categories',
+                  namaFitur: 'Kategori',
+                  child: KategoriPage(),
+                ),
+              ),
             ),
           if (sm.hasPermission('view_report'))
             BarisMenu(
@@ -123,7 +134,11 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
               judul: 'Laporan',
               keterangan: 'Pendapatan & produk terlaris',
               onTap: () => _buka(
-                const HalamanTurunan(judul: 'Laporan', child: LaporanPage()),
+                const PenjagaIzin(
+                  izin: 'view_report',
+                  namaFitur: 'Laporan',
+                  child: HalamanTurunan(judul: 'Laporan', child: LaporanPage()),
+                ),
               ),
             ),
         ]),
