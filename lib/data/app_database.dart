@@ -2235,16 +2235,6 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Shifts milik seorang user, terurut terbaru di atas
-  Future<List<Shift>> getShiftsByUser(String userId) async {
-    return (select(shifts)
-          ..where((s) =>
-              s.userId.equals(userId) &
-              s.deletedAt.isNull())
-          ..orderBy([(s) => OrderingTerm.desc(s.startAt)]))
-        .get();
-  }
-
   /// Shift beserta nama kasirnya, terbaru dulu.
   ///
   /// [userId] null berarti SEMUA kasir — itulah yang dilihat owner di halaman

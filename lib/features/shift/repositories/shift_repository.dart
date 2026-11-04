@@ -23,19 +23,10 @@ class ShiftRepository {
   Future<List<ShiftEntry>> getShiftsWithUser({String? userId}) =>
       _db.getShiftsWithUser(userId: userId);
 
-  Future<List<Shift>> getShiftsByUser(String userId) =>
-      _db.getShiftsByUser(userId);
-
   /// Ambil satu shift berdasarkan id. Null kalau tidak ada.
   Future<Shift?> getById(String shiftId) =>
       (_db.select(_db.shifts)..where((s) => s.id.equals(shiftId)))
           .getSingleOrNull();
-
-  /// Transaksi milik satu shift. Yang sudah dihapus tidak ikut.
-  Future<List<Transaction>> getTransactionsForShift(String shiftId) =>
-      (_db.select(_db.transactions)
-            ..where((t) => t.shiftId.equals(shiftId) & t.deletedAt.isNull()))
-          .get();
 
   /// Shift yang DIMULAI dalam [periode], terbaru dulu, beserta transaksi dan
   /// pengeluarannya (termasuk yang dibatalkan). [hanyaUserId] diisi untuk
@@ -252,14 +243,4 @@ class ShiftRepository {
 
   /// [namaAkun] yang ikut berubah saat sinkron membawa akun/nama baru.
   Stream<Map<String, String>> watchNamaAkun() => _db.watchNamaAkun();
-
-  /// Total pendapatan satu shift — dipakai dialog tutup shift.
-  ///
-  /// Filter `deletedAt` WAJIB. Sebelum dipindah ke sini, query ini ditulis
-  /// langsung di dashboard_page tanpa filter tersebut, sehingga transaksi
-  /// yang sudah dihapus kasir tetap terhitung sebagai pendapatan shift.
-  Future<int> getShiftRevenue(String shiftId) async {
-    final transactions = await getTransactionsForShift(shiftId);
-    return transactions.fold<int>(0, (sum, tx) => sum + tx.total);
-  }
 }

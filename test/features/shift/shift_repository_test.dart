@@ -84,18 +84,18 @@ void main() {
     expect(await repo.getById('tidak-ada'), isNull);
   });
 
-  test('getShiftRevenue menjumlahkan transaksi shift', () async {
+  test('pendapatan shift menjumlahkan transaksinya', () async {
     await jual(invoiceNo: 'A1');
     await jual(invoiceNo: 'A2', qty: 2);
 
-    expect(await repo.getShiftRevenue('shift-1'), 45000);
+    expect((await repo.watchShift('shift-1').first)!.pendapatan, 45000);
   });
 
   test('transaksi yang dihapus TIDAK ikut dihitung', () async {
     await jual(invoiceNo: 'A1');
     final dibuang = await jual(invoiceNo: 'A2');
 
-    expect(await repo.getShiftRevenue('shift-1'), 30000,
+    expect((await repo.watchShift('shift-1').first)!.pendapatan, 30000,
         reason: 'prasyarat: dua transaksi terhitung');
 
     await db.batalkanTransaksi(dibuang,
@@ -103,17 +103,9 @@ void main() {
 
     // Inilah bug yang diperbaiki: tanpa filter deletedAt, hasilnya tetap 30000
     // dan kasir melihat pendapatan shift lebih besar dari kenyataan.
-    expect(await repo.getShiftRevenue('shift-1'), 15000,
+    expect((await repo.watchShift('shift-1').first)!.pendapatan, 15000,
         reason: 'transaksi terhapus tidak boleh menambah pendapatan shift');
 
-    expect(await repo.getTransactionsForShift('shift-1'), hasLength(1));
-  });
-
-  test('getShiftsByUser hanya membawa shift milik kasir itu', () async {
-    final shifts = await repo.getShiftsByUser('kasir-1');
-    expect(shifts, hasLength(1));
-    expect(shifts.single.id, 'shift-1');
-
-    expect(await repo.getShiftsByUser('entah-siapa'), isEmpty);
+    expect((await repo.watchShift('shift-1').first)!.jumlahTransaksi, 1);
   });
 }
