@@ -190,6 +190,8 @@ void main() {
     await tunggu(t);
     expect(find.text('TRX/A1'), findsOneWidget);
     expect(find.text('TRX/A2'), findsNothing);
+    expect(find.text('latte'), findsOneWidget,
+        reason: 'tulisan di kotak cari tetap ada selagi hasilnya dimuat');
 
     await t.enterText(find.byType(TextField), 'tidak ada');
     await t.pump(const Duration(milliseconds: 300)); // jeda cari (E1)

@@ -107,33 +107,33 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
         final hari = snapHari.connectionState == ConnectionState.waiting
             ? null
             : snapHari.data;
-        if (hari == null || hari.isEmpty) {
-          return _daftar([
-            ...widget.kepala,
-            if (hari == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 60),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              widget.kosong(widget.saringan.disaring),
-          ]);
-        }
         final terbuka = [
-          for (final (i, h) in hari.indexed)
+          for (final (i, h) in (hari ?? const <RingkasanHari>[]).indexed)
             if (_terbuka(i, h.tanggal)) h.tanggal,
         ];
+        // Susunannya SELALU sama, dimuat atau tidak: dulu daftar "memuat"
+        // dibangun di luar dua StreamBuilder di bawah, jadi setiap ganti
+        // saringan kotak cari di [DaftarRiwayat.kepala] dibuat ulang —
+        // tulisannya hilang dan keyboard tertutup.
         return StreamBuilder<List<Transaction>>(
-          stream: _isiUntuk(terbuka),
+          stream: terbuka.isEmpty ? null : _isiUntuk(terbuka),
           builder: (context, snapIsi) => StreamBuilder<Map<String, String>>(
             stream: _nama,
             builder: (context, snapNama) => _daftar([
               ...widget.kepala,
-              ..._baris(
-                hari,
-                _isiTerkini(snapIsi),
-                snapNama.data ?? const {},
-              ),
+              if (hari == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (hari.isEmpty)
+                widget.kosong(widget.saringan.disaring)
+              else
+                ..._baris(
+                  hari,
+                  _isiTerkini(snapIsi),
+                  snapNama.data ?? const {},
+                ),
             ]),
           ),
         );
