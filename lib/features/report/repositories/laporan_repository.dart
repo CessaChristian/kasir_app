@@ -24,19 +24,15 @@ class LaporanRepository {
       return Stream.error(e);
     }
     return _db
-      .customSelect(
-        'SELECT 1',
-        readsFrom: {
+        .pemicuTabel({
           _db.transactions,
           _db.transactionItems,
           _db.expenses,
           _db.shifts,
           _db.products,
           _db.categories,
-        },
-      )
-      .watch()
-      .asyncMap((_) => muat(periode));
+        })
+        .asyncMap((_) => muat(periode));
   }
 
   /// Owner dan pemegang `view_report` saja — dulu cuma halamannya yang

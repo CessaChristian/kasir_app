@@ -119,12 +119,8 @@ class ExpenseRepository {
 
   /// Berbunyi tiap shift, pengeluaran, atau nama akun berubah — termasuk
   /// sesudah sinkron. Dipakai riwayat pengeluaran kasir untuk memuat ulang.
-  Stream<void> perubahanRiwayat() => _db
-      .customSelect(
-        'SELECT 1',
-        readsFrom: {_db.shifts, _db.expenses, _db.users},
-      )
-      .watch();
+  Stream<void> perubahanRiwayat() =>
+      _db.pemicuTabel({_db.shifts, _db.expenses, _db.users});
 
   /// Pengeluaran satu periode untuk halaman Pengeluaran owner — TERMASUK
   /// yang dibatalkan. Berbunyi lagi tiap ada perubahan, termasuk dari sinkron.

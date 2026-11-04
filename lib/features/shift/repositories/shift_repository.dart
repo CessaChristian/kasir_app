@@ -64,16 +64,8 @@ class ShiftRepository {
 
   /// Muat ulang setiap kali shift, transaksi, pengeluaran, atau nama akun
   /// berubah.
-  ///
-  /// Kueri pantau drift, bukan `async*` + `await for` pada `tableUpdates`:
-  /// generator seperti itu tidak selesai saat pendengarnya berhenti (halaman
-  /// ditutup), jadi pembatalannya menggantung.
   Stream<T> _pantau<T>(Future<T> Function() muat) => _db
-      .customSelect(
-        'SELECT 1',
-        readsFrom: {_db.shifts, _db.transactions, _db.expenses, _db.users},
-      )
-      .watch()
+      .pemicuTabel({_db.shifts, _db.transactions, _db.expenses, _db.users})
       .asyncMap((_) => muat());
 
   Future<List<RingkasanShift>> _ringkas(

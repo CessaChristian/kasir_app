@@ -154,16 +154,12 @@ class CashierRepository {
   /// masing-masing terbaru dulu. Ikut berubah setiap kali akun, shift, atau
   /// izin berubah — termasuk yang datang dari sinkron.
   Stream<List<RingkasanKasir>> watchDaftarKasir() => _db
-      .customSelect(
-        'SELECT 1',
-        readsFrom: {
-          _db.users,
-          _db.shifts,
-          _db.userPermissions,
-          _db.permissions,
-        },
-      )
-      .watch()
+      .pemicuTabel({
+        _db.users,
+        _db.shifts,
+        _db.userPermissions,
+        _db.permissions,
+      })
       .asyncMap((_) => _daftarKasir());
 
   Future<List<RingkasanKasir>> _daftarKasir() async {

@@ -2075,6 +2075,17 @@ class AppDatabase extends _$AppDatabase {
     return u?.username;
   }
 
+  /// Berbunyi sekali saat didengarkan lalu setiap kali salah satu [tabel]
+  /// berubah — termasuk yang datang dari sinkron. Pemicu muat ulang untuk
+  /// halaman yang menghitung dari banyak tabel (dulu ditulis ulang di empat
+  /// repository, review E5).
+  ///
+  /// Kueri pantau drift, bukan `async*` + `await for` pada `tableUpdates`:
+  /// generator seperti itu tidak selesai saat pendengarnya berhenti
+  /// (halaman ditutup), jadi pembatalannya menggantung.
+  Stream<void> pemicuTabel(Set<ResultSetImplementation> tabel) =>
+      customSelect('SELECT 1', readsFrom: tabel).watch();
+
   /// Nama akun per id — untuk menampilkan siapa yang membatalkan.
   Future<Map<String, String>> namaAkun() async => {
         for (final u in await select(users).get()) u.id: u.username,
