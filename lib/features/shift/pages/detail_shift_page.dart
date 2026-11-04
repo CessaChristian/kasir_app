@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
+import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/chip_status.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/kartu_teras.dart';
@@ -44,7 +45,9 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
   late final _repo = widget.repo ?? ShiftRepository(db);
   late final _sales = SalesRepository(db);
   late final _aliran = _repo.watchShift(widget.shiftId);
-  late final _cakupan = CakupanRiwayat.dariSesi();
+  // Dibaca ulang tiap sesi berubah: izin dicabut selagi halaman terbuka,
+  // daftar transaksi & pengeluaran shift lama langsung tertutup (review C2).
+  var _cakupan = CakupanRiwayat.dariSesi();
   Map<String, String> _nama = const {};
 
   /// 0 = Transaksi, 1 = Pengeluaran.
@@ -59,12 +62,19 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
     _langgananNama = _repo.watchNamaAkun().listen((m) {
       if (mounted) setState(() => _nama = m);
     });
+    SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
   }
 
   @override
   void dispose() {
+    SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     _langgananNama?.cancel();
     super.dispose();
+  }
+
+  void _sesiBerubah() {
+    final baru = CakupanRiwayat.dariSesi();
+    if (mounted && baru != _cakupan) setState(() => _cakupan = baru);
   }
 
   @override

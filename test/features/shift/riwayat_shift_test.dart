@@ -489,6 +489,23 @@ void main() {
         await lepas(t);
       });
 
+      testWidgets('review C2: izin dicabut selagi Detail Shift terbuka → isi '
+          'shift lama langsung tertutup', (t) async {
+        await masuk(owner: false, izin: ['view_history']);
+        await bukaDetail(t, 's-budi');
+        expect(find.text('Transaksi (3)'), findsOneWidget);
+
+        await t.runAsync(() async {
+          await masuk(owner: false);
+          SessionManager.instance.sesiBerubah.value++;
+        });
+        await t.pump();
+        expect(find.text('Transaksi (3)'), findsNothing,
+            reason: 'dulu tetap tampil sampai halamannya ditutup');
+        expect(find.text(catatan), findsOneWidget);
+        await lepas(t);
+      });
+
       test('izin Lihat Riwayat Lengkap hanya untuk shift sendiri', () async {
         await masuk(owner: false, izin: ['view_history']);
         final cakupan = CakupanRiwayat.dariSesi();
