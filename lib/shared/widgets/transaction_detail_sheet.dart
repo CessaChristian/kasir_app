@@ -6,6 +6,7 @@ import '../../data/db.dart';
 import '../../features/sales/repositories/sales_repository.dart';
 import '../ui/header_teras.dart';
 import '../ui/pegang_lembar.dart';
+import '../ui/galat_muat.dart';
 import '../ui/teks_teras.dart';
 import '../ui/warna_teras.dart';
 import 'isi_struk.dart';
@@ -69,14 +70,25 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
     _muat();
   }
 
+  /// Pemuatan terakhir gagal: tanpa ini isi struk berputar selamanya.
+  Object? _galatMuat;
+
   Future<void> _muat() async {
     final tx = widget.transaction;
     // Struk yang dibatalkan tetap menampilkan isinya sebagai bukti.
-    final items = await _salesRepo.getTransactionItems(
-      tx.id,
-      termasukBatal: tx.deletedAt != null,
-    );
-    final nama = await _salesRepo.namaAkun();
+    if (_galatMuat != null) setState(() => _galatMuat = null);
+    final List<TransactionItem> items;
+    final Map<String, String> nama;
+    try {
+      items = await _salesRepo.getTransactionItems(
+        tx.id,
+        termasukBatal: tx.deletedAt != null,
+      );
+      nama = await _salesRepo.namaAkun();
+    } catch (e) {
+      if (mounted) setState(() => _galatMuat = e);
+      return;
+    }
     if (mounted) {
       setState(() {
         _items = items;
@@ -132,11 +144,17 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                     onNotification: (n) => _perbaruiBayangan(n.metrics),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: IsiStruk(
-                        transaksi: tx,
-                        items: _items,
-                        namaKasir: _namaKasir,
-                      ),
+                      child: _galatMuat != null
+                          ? GalatMuat(
+                              galat: _galatMuat!,
+                              awalan: 'Isi struk gagal dimuat',
+                              onCobaLagi: _muat,
+                            )
+                          : IsiStruk(
+                              transaksi: tx,
+                              items: _items,
+                              namaKasir: _namaKasir,
+                            ),
                     ),
                   ),
                 ),

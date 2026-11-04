@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/app_database.dart';
 import '../../../data/nama_tercatat.dart';
 import '../../../shared/ui/pita_hari.dart';
@@ -121,7 +122,22 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
             stream: _nama,
             builder: (context, snapNama) => _daftar([
               ...widget.kepala,
-              if (hari == null)
+              if (snapHari.hasError)
+                GalatMuat(
+                  galat: snapHari.error!,
+                  awalan: 'Riwayat gagal dimuat',
+                  onCobaLagi: () => setState(() {
+                    _hari = widget.repo.watchHariRiwayat(widget.saringan);
+                    _kunciIsi = null;
+                  }),
+                )
+              else if (snapIsi.hasError)
+                GalatMuat(
+                  galat: snapIsi.error!,
+                  awalan: 'Riwayat gagal dimuat',
+                  onCobaLagi: () => setState(() => _kunciIsi = null),
+                )
+              else if (hari == null)
                 const Padding(
                   padding: EdgeInsets.only(top: 60),
                   child: Center(child: CircularProgressIndicator()),

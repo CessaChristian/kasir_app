@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -137,7 +138,13 @@ class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
                   onBerubahPilihan: (k) => setState(() => _kategori = k),
                 ),
                 const SizedBox(height: 14),
-                if (r == null)
+                if (snap.hasError)
+                  GalatMuat(
+                    galat: snap.error!,
+                    awalan: 'Pengeluaran gagal dimuat',
+                    onCobaLagi: () => _ubahPeriode(_periode),
+                  )
+                else if (r == null)
                   const Padding(
                     padding: EdgeInsets.only(top: 60),
                     child: Center(child: CircularProgressIndicator()),

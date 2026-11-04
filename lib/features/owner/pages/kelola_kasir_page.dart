@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../shared/ui/halaman_turunan.dart';
@@ -45,7 +46,7 @@ class KelolaKasirPage extends StatefulWidget {
 
 class _KelolaKasirPageState extends State<KelolaKasirPage> {
   late final _repo = widget.repo ?? CashierRepository(db);
-  late final _aliran = _repo.watchDaftarKasir();
+  late var _aliran = _repo.watchDaftarKasir();
 
   /// null = sedang memeriksa koneksi; false = tanpa internet.
   bool? _terhubung;
@@ -219,7 +220,14 @@ class _KelolaKasirPageState extends State<KelolaKasirPage> {
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
               children: [
-                if (daftar == null)
+                if (snap.hasError)
+                  GalatMuat(
+                    galat: snap.error!,
+                    awalan: 'Daftar kasir gagal dimuat',
+                    onCobaLagi: () =>
+                        setState(() => _aliran = _repo.watchDaftarKasir()),
+                  )
+                else if (daftar == null)
                   const Padding(
                     padding: EdgeInsets.only(top: 60),
                     child: Center(child: CircularProgressIndicator()),

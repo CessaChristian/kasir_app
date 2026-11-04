@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../shared/ui/halaman_turunan.dart';
@@ -55,9 +56,20 @@ class _HakAksesPageState extends State<HakAksesPage> {
     _muat();
   }
 
+  /// Pemuatan terakhir gagal: tanpa ini halamannya berputar selamanya.
+  Object? _galatMuat;
+
   Future<void> _muat() async {
-    final semua = await _repo.getAllPermissions();
-    final milik = await _repo.getUserPermissions(widget.akun.id);
+    if (_galatMuat != null) setState(() => _galatMuat = null);
+    final List<Permission> semua;
+    final Map<String, bool> milik;
+    try {
+      semua = await _repo.getAllPermissions();
+      milik = await _repo.getUserPermissions(widget.akun.id);
+    } catch (e) {
+      if (mounted) setState(() => _galatMuat = e);
+      return;
+    }
     if (!mounted) return;
     final kelompok = kelompokIzinDari(semua);
     final awal = {
@@ -127,7 +139,15 @@ class _HakAksesPageState extends State<HakAksesPage> {
       },
       child: HalamanTurunan(
         judul: 'Hak Akses',
-        child: _kelompok == null
+        child: _galatMuat != null
+            ? Center(
+                child: GalatMuat(
+                  galat: _galatMuat!,
+                  awalan: 'Hak akses gagal dimuat',
+                  onCobaLagi: _muat,
+                ),
+              )
+            : _kelompok == null
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/baris_angka.dart';
@@ -147,7 +148,13 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            if (!siap)
+            if (snap.hasError)
+              GalatMuat(
+                galat: snap.error!,
+                awalan: 'Dashboard gagal dimuat',
+                onCobaLagi: () => setState(() => _kunciShift = null),
+              )
+            else if (!siap)
               const Padding(
                 padding: EdgeInsets.only(top: 80),
                 child: Center(child: CircularProgressIndicator()),
@@ -156,7 +163,7 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
               _kartuBerjalan(sesi.username, r, sekarang)
             else
               _kartuSelesai(sesi.username, r, sekarang),
-            if (siap && !berjalan && r != null)
+            if (siap && !snap.hasError && !berjalan && r != null)
               _terlarisShiftTerakhir(r, sekarang),
             StreamBuilder<List<ProdukLaris>>(
               stream: _laris(sekarang),

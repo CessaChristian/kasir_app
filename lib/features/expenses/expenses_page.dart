@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../shared/ui/galat_muat.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../data/nama_tercatat.dart';
@@ -249,6 +250,17 @@ class _ExpensesPageState extends State<ExpensesPage> {
     StreamBuilder<List<Expense>>(
       stream: _aliranAktif,
       builder: (context, snap) {
+        if (snap.hasError) {
+          return GalatMuat(
+            galat: snap.error!,
+            awalan: 'Pengeluaran gagal dimuat',
+            onCobaLagi: () {
+              final id = _shiftId;
+              if (id == null) return;
+              setState(() => _aliranAktif = _repo.watchExpensesByShift(id));
+            },
+          );
+        }
         final r = ringkasPengeluaran(snap.data ?? const []);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

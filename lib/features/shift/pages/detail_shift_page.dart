@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/nama_tercatat.dart';
 import 'package:intl/intl.dart';
 
@@ -44,7 +45,7 @@ class DetailShiftPage extends StatefulWidget {
 class _DetailShiftPageState extends State<DetailShiftPage> {
   late final _repo = widget.repo ?? ShiftRepository(db);
   late final _sales = SalesRepository(db);
-  late final _aliran = _repo.watchShift(widget.shiftId);
+  late var _aliran = _repo.watchShift(widget.shiftId);
   // Dibaca ulang tiap sesi berubah: izin dicabut selagi halaman terbuka,
   // daftar transaksi & pengeluaran shift lama langsung tertutup (review C2).
   var _cakupan = CakupanRiwayat.dariSesi();
@@ -84,6 +85,18 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
       child: StreamBuilder<RingkasanShift?>(
         stream: _aliran,
         builder: (context, snap) {
+          // Dulu terbaca "Shift tidak ditemukan".
+          if (snap.hasError) {
+            return Center(
+              child: GalatMuat(
+                galat: snap.error!,
+                awalan: 'Detail shift gagal dimuat',
+                onCobaLagi: () => setState(
+                  () => _aliran = _repo.watchShift(widget.shiftId),
+                ),
+              ),
+            );
+          }
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }

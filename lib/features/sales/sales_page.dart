@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../shared/ui/galat_muat.dart';
 import '../../data/app_database.dart';
 import '../../data/db.dart';
 import '../../data/sync/sync_otomatis.dart';
@@ -37,7 +38,7 @@ class SalesPage extends StatefulWidget {
 
 class _SalesPageState extends State<SalesPage> {
   late final _productRepo = widget.repo ?? ProductRepository(db);
-  late final _aliranProduk = _productRepo.watchProducts();
+  late var _aliranProduk = _productRepo.watchProducts();
   var _kata = '';
   final Set<String> _sedangDitambah = {};
 
@@ -149,7 +150,15 @@ class _SalesPageState extends State<SalesPage> {
               _kisiKategori(adaProdukTanpaKategori(semua, _kategori), pilihan),
               if (pilihan != null) _barisFilter(pilihan, produk.length),
               const SizedBox(height: 14),
-              if (!snap.hasData)
+              if (snap.hasError)
+                GalatMuat(
+                  galat: snap.error!,
+                  awalan: 'Produk gagal dimuat',
+                  onCobaLagi: () => setState(
+                    () => _aliranProduk = _productRepo.watchProducts(),
+                  ),
+                )
+              else if (!snap.hasData)
                 const Padding(
                   padding: EdgeInsets.only(top: 40),
                   child: Center(child: CircularProgressIndicator()),

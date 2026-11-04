@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/halaman_turunan.dart';
@@ -101,7 +102,13 @@ class _RiwayatShiftPageState extends State<RiwayatShiftPage> {
             children: [
               KartuPeriode(periode: _periode, onBerubah: _ubahPeriode),
               const SizedBox(height: 14),
-              if (daftar == null)
+              if (snap.hasError)
+                GalatMuat(
+                  galat: snap.error!,
+                  awalan: 'Riwayat shift gagal dimuat',
+                  onCobaLagi: () => setState(() => _aliran = _pantau(_periode)),
+                )
+              else if (daftar == null)
                 const Padding(
                   padding: EdgeInsets.only(top: 60),
                   child: Center(child: CircularProgressIndicator()),

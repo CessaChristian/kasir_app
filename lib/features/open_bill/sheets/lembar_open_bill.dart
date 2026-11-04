@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/app_database.dart';
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
@@ -70,10 +71,10 @@ class _LembarOpenBill extends StatefulWidget {
 }
 
 class _LembarOpenBillState extends State<_LembarOpenBill> {
-  late final _aliranBill = widget.repo.watchTerbuka(
+  late var _aliranBill = widget.repo.watchTerbuka(
     SessionManager.instance.currentSession?.shiftId,
   );
-  late final _aliranProduk = widget.repoProduk.watchProducts();
+  late var _aliranProduk = widget.repoProduk.watchProducts();
 
   Keranjang get _k => widget.keranjang;
 
@@ -284,7 +285,20 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
                   ),
                 ),
                 Expanded(
-                  child: !siap
+                  child: snapProduk.hasError || snapBill.hasError
+                      ? Center(
+                          child: GalatMuat(
+                            galat: snapProduk.error ?? snapBill.error!,
+                            awalan: 'Tagihan gagal dimuat',
+                            onCobaLagi: () => setState(() {
+                              _aliranProduk = widget.repoProduk.watchProducts();
+                              _aliranBill = widget.repo.watchTerbuka(
+                                SessionManager.instance.currentSession?.shiftId,
+                              );
+                            }),
+                          ),
+                        )
+                      : !siap
                       ? const Center(child: CircularProgressIndicator())
                       : isi.isEmpty
                       ? const _Kosong()

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../data/app_database.dart' show Category, Product;
+import '../../../shared/ui/galat_muat.dart';
 import '../../../data/db.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../shared/ui/halaman_turunan.dart';
@@ -81,11 +83,22 @@ class _KategoriPageState extends State<KategoriPage> {
     super.dispose();
   }
 
+  /// Pemuatan terakhir gagal: tanpa ini halamannya berputar selamanya.
+  Object? _galatMuat;
+
   Future<void> _muat() async {
-    final (kategori, produk) = await (
-      _repo.watchCategories().first,
-      _repo.watchProducts().first,
-    ).wait;
+    if (_galatMuat != null) setState(() => _galatMuat = null);
+    final List<Category> kategori;
+    final List<Product> produk;
+    try {
+      (kategori, produk) = await (
+        _repo.watchCategories().first,
+        _repo.watchProducts().first,
+      ).wait;
+    } catch (e) {
+      if (mounted) setState(() => _galatMuat = e);
+      return;
+    }
     if (!mounted) return;
     final ada = {for (final c in kategori) c.id};
     final per = <String, int>{};
@@ -256,7 +269,15 @@ class _KategoriPageState extends State<KategoriPage> {
       },
       child: HalamanTurunan(
         judul: 'Kategori',
-        child: _awal == null
+        child: _galatMuat != null
+            ? Center(
+                child: GalatMuat(
+                  galat: _galatMuat!,
+                  awalan: 'Kategori gagal dimuat',
+                  onCobaLagi: _muat,
+                ),
+              )
+            : _awal == null
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
