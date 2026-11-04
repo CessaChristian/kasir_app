@@ -169,17 +169,7 @@ class AuthRepository {
     }
 
     // S5: PIN benar → reset login attempts + clear lock.
-    if (user.loginAttempts > 0 || user.loginLockedUntil != null) {
-      // updatedAt SENGAJA tidak dinaikkan. Counter rate-limit bersifat
-      // device-local: menaikkannya membuat baris user terlihat "lebih baru"
-      // setiap kali salah ketik PIN, sehingga bisa menimpa perubahan sah dari
-      // device lain saat sync. Lihat catatan yang sama di _lockUser().
-      await (_db.update(_db.users)..where((u) => u.id.equals(user.id)))
-          .write(const UsersCompanion(
-        loginAttempts: Value(0),
-        loginLockedUntil: Value(null),
-      ));
-    }
+    await _pinBenar(user);
 
     // 3b. Migrasi transparan: kalau hash masih format lama (SHA-256),
     // re-hash dengan PBKDF2 dan update DB.
@@ -504,8 +494,13 @@ class AuthRepository {
       final newPinHash = await CryptoUtils.hashPinDiLatar(newPin, newSalt);
       final newRecoveryCode = _generateRecoveryCode();
       final newRecoverySalt = _generateRecoverySalt();
-      final newRecoveryHash =
-          await _hashRecoveryCode(newRecoveryCode, newRecoverySalt);
+      // Tanpa strip, sama seperti saat diperiksa: dulu disimpan lengkap
+      // dengan strip, jadi kode yang ditampilkan ke owner tidak pernah cocok
+      // dan reset berikutnya selalu "kode salah" (review 3 Nov).
+      final newRecoveryHash = await _hashRecoveryCode(
+        _normalizeRecoveryCode(newRecoveryCode),
+        newRecoverySalt,
+      );
 
       await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
         UsersCompanion(
@@ -557,6 +552,10 @@ class AuthRepository {
       await _incrementLoginAttempts(owner.id);
       return RecoveryResult.pinMismatch();
     }
+    // Sama dengan login: PIN benar menghapus hitungan salah. Dulu tidak —
+    // salah 9× di sini lalu benar, besoknya salah sekali di login dan akun
+    // owner terkunci (review 3 Nov).
+    await _pinBenar(owner);
 
     // Generate new recovery code
     final newRecoveryCode = await generateAndStoreRecoveryCodeForOwner(owner.id);
@@ -609,6 +608,22 @@ class AuthRepository {
   /// S5: Increment login attempts dan lock dengan exponential backoff yang sama
   /// dengan recovery (cycle 1=60s, 2=5min, 3=30min, 4=1h, 5+=24h).
   /// Pakai atomic SQL agar aman dari race condition.
+  /// PIN [user] terbukti benar: hitungan salah dan kunci waktunya dihapus.
+  /// Satu tempat untuk setiap halaman yang memeriksa PIN.
+  Future<void> _pinBenar(User user) async {
+    if (user.loginAttempts == 0 && user.loginLockedUntil == null) return;
+    // updatedAt SENGAJA tidak dinaikkan. Counter rate-limit bersifat
+    // device-local: menaikkannya membuat baris user terlihat "lebih baru"
+    // setiap kali salah ketik PIN, sehingga bisa menimpa perubahan sah dari
+    // device lain saat sync.
+    await (_db.update(_db.users)..where((u) => u.id.equals(user.id))).write(
+      const UsersCompanion(
+        loginAttempts: Value(0),
+        loginLockedUntil: Value(null),
+      ),
+    );
+  }
+
   Future<void> _incrementLoginAttempts(String userId) async {
     await _db.customUpdate(
       'UPDATE users SET login_attempts = login_attempts + 1 WHERE id = ?',

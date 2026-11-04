@@ -122,6 +122,35 @@ void main() {
         reason: 'langsung bisa masuk, tidak menunggu kunci habis');
   });
 
+  test('review 3 Nov: kode recovery BARU dari reset bisa dipakai reset '
+      'berikutnya', () async {
+    final kode = await repo.generateAndStoreRecoveryCodeForOwner('o-1');
+    final pertama = await repo.resetOwnerPinWithRecoveryCode(
+      recoveryCode: kode,
+      newPin: '975310',
+    );
+    expect(pertama.isSuccess, isTrue);
+    // Bulan depan owner lupa lagi, dan memakai kode yang ditampilkan tadi.
+    final kedua = await repo.resetOwnerPinWithRecoveryCode(
+      recoveryCode: pertama.newRecoveryCode!,
+      newPin: '864200',
+    );
+    expect(kedua.isSuccess, isTrue,
+        reason: 'dulu disimpan dengan strip, jadi selalu "kode salah"');
+    expect(await repo.login(username: 'owner', pin: '864200'), isNotNull);
+  });
+
+  test('review 3 Nov: PIN benar di "Buat kode recovery baru" menghapus '
+      'hitungan salah — tidak terbawa ke layar login', () async {
+    for (var i = 0; i < AuthRepository.batasSalahPin - 1; i++) {
+      await repo.regenerateOwnerRecoveryCode('000000');
+    }
+    final r = await repo.regenerateOwnerRecoveryCode(pinOwner);
+    expect(r.isSuccess, isTrue);
+    expect((await akun('o-1')).loginAttempts, 0);
+    expect((await akun('o-1')).loginLockedUntil, isNull);
+  });
+
   test('"Buat kode recovery baru" ikut menghitung salah PIN owner', () async {
     for (var i = 0; i < AuthRepository.batasSalahPin; i++) {
       final r = await repo.regenerateOwnerRecoveryCode('000000');
