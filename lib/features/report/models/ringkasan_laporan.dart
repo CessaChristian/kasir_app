@@ -78,17 +78,24 @@ class PenjualanProduk {
   final int terjual;
   final int nilai;
 
+  /// Produk ini tidak punya kategori ([kategori] berisi "Tanpa Kategori").
+  /// Ditandai terpisah, bukan dari namanya: kategori sungguhan yang dinamai
+  /// "Tanpa Kategori" dulu tergabung dengannya dan kehilangan ikonnya
+  /// (review D7).
+  final bool tanpaKategori;
+
   const PenjualanProduk({
     required this.nama,
     required this.foto,
     required this.kategori,
     required this.terjual,
     required this.nilai,
+    this.tanpaKategori = false,
   });
 
   /// False untuk produk tanpa kategori — di baris produk Laporan cukup
   /// "N terjual", tanpa tulisan kategori.
-  bool get punyaKategori => kategori != _tanpaKategori;
+  bool get punyaKategori => !tanpaKategori;
 }
 
 /// Isi halaman Laporan untuk satu periode (desain). Semua angka hanya
@@ -459,6 +466,7 @@ List<PenjualanProduk> _perProduk(
         kategori: namaKategori[produkPerId[i]?.categoryId] ?? _tanpaKategori,
         terjual: terjual[i]?.$2 ?? 0,
         nilai: terjual[i]?.$3 ?? 0,
+        tanpaKategori: !namaKategori.containsKey(produkPerId[i]?.categoryId),
       ),
   ];
 }
@@ -476,17 +484,18 @@ List<PendapatanKategori> _perKategori(
   for (final k in kategori) {
     ikon[k.name] ??= k.iconCodepoint;
   }
-  final nilai = <String, int>{};
+  final nilai = <(String, bool), int>{};
   for (final p in perProduk) {
-    nilai[p.kategori] = (nilai[p.kategori] ?? 0) + p.nilai;
+    final kunci = (p.kategori, p.tanpaKategori);
+    nilai[kunci] = (nilai[kunci] ?? 0) + p.nilai;
   }
   return [
-    for (final e in nilai.entries)
+    for (final MapEntry(key: (nama, tanpa), :value) in nilai.entries)
       PendapatanKategori(
-        e.key,
-        e.key == _tanpaKategori ? null : ikon[e.key],
-        e.value,
-        tanpaKategori: e.key == _tanpaKategori,
+        nama,
+        tanpa ? null : ikon[nama],
+        value,
+        tanpaKategori: tanpa,
       ),
   ]..sort((a, b) => b.nilai.compareTo(a.nilai));
 }

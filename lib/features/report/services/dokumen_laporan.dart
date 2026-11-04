@@ -232,10 +232,11 @@ DokumenLaporan susunDokumenLaporan({
   );
 
   // 4. Kategori
-  final terjualPerKategori = <String, int>{};
+  // Kunci (nama, tanpa kategori): lihat PenjualanProduk.tanpaKategori.
+  final terjualPerKategori = <(String, bool), int>{};
   for (final p in r.perProduk) {
-    terjualPerKategori[p.kategori] =
-        (terjualPerKategori[p.kategori] ?? 0) + p.terjual;
+    final kunci = (p.kategori, p.tanpaKategori);
+    terjualPerKategori[kunci] = (terjualPerKategori[kunci] ?? 0) + p.terjual;
   }
   final kategori = TabelLaporan(
     judul: 'Kategori',
@@ -245,7 +246,7 @@ DokumenLaporan susunDokumenLaporan({
       for (final k in r.perKategori)
         [
           SelTeks(k.nama),
-          SelAngka(terjualPerKategori[k.nama] ?? 0),
+          SelAngka(terjualPerKategori[(k.nama, k.tanpaKategori)] ?? 0),
           SelRupiah(k.nilai),
           SelAngka(persen(k.nilai, r.pendapatan)),
         ],

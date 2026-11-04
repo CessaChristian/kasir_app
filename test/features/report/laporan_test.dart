@@ -214,6 +214,37 @@ void main() {
     }
   });
 
+  test('review D7: kategori sungguhan bernama "Tanpa Kategori" tidak '
+      'tergabung dengan produk tanpa kategori', () {
+    final kat = Category(
+      id: 'k-x',
+      name: 'Tanpa Kategori',
+      iconCodepoint: 983304,
+      tampilDiKasir: true,
+      createdAt: hari,
+      updatedAt: hari,
+      syncStatus: 'synced',
+    );
+    final r = ringkasLaporan(
+      periode: Periode.hari(hari),
+      transaksi: [trx('a', jam(9), 30000)],
+      item: {
+        'a': [item('a', 'p1', 1, 10000), item('a', 'p2', 2, 20000)],
+      },
+      pengeluaran: const [],
+      shift: const [],
+      produk: [produk('p1', 'k-x'), produk('p2', null)],
+      kategori: [kat],
+      sekarang: jam(23),
+    );
+    expect(r.perKategori, hasLength(2), reason: 'dulu jadi satu baris');
+    final sungguhan = r.perKategori.firstWhere((k) => !k.tanpaKategori);
+    expect((sungguhan.nilai, sungguhan.ikon), (10000, 983304));
+    final nama = {for (final p in r.perProduk) p.nama: p};
+    expect(nama['Produk p1']!.punyaKategori, isTrue);
+    expect(nama['Produk p2']!.punyaKategori, isFalse);
+  });
+
   group('grafik', () {
     List<String> label(RingkasanLaporan r) => [
       for (final b in r.grafik) b.label,
