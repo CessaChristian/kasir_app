@@ -75,4 +75,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 43 | `status_bill.sql` | STATUS BILL MENURUT JAM SERVER (review C5/R6, 3 Nov 2026) |
 | 44 | `klaim_tanpa_waktu.sql` | KLAIM BILL TANPA WAKTU DIANGGAP HANGUS (review R7, 3 Nov 2026) |
 | 45 | `kredensial_owner.sql` | KREDENSIAL OWNER HANYA BISA DIGANTI DENGAN BUKTI (review A1, 4 Nov 2026) |
-| 46 | `rls.sql` | SISA PENGETATAN AKSES |
+| 46 | `angka_wajar.sql` | ANGKA DAN JALUR FOTO YANG WAJAR (audit nomor 9 & 10, 4 Nov 2026) |
+| 47 | `rls.sql` | SISA PENGETATAN AKSES |
