@@ -10,6 +10,7 @@ import '../../shared/widgets/app_toast.dart';
 import '../../utils/currency_formatter.dart';
 import '../open_bill/repositories/open_bill_repository.dart';
 import 'pengelola_shift.dart';
+import 'models/ringkasan_shift.dart';
 import 'repositories/shift_repository.dart';
 import 'widgets/dialog_buka_shift.dart';
 import '../../utils/pesan_galat.dart';
@@ -71,16 +72,32 @@ Future<void> tutupShiftLewatDialog(
   if (shiftId == null) return;
   final p = pengelola ?? PengelolaShift(db);
   final rb = repoBill ?? OpenBillRepository(db);
-  final (jumlahBill, halangan, ringkasan) = await jalankanDenganMemuat(
-    context,
-    () => (
-      // Bill dari HP lain di shift yang sama ikut terhitung.
-      rb.segarkanDariServer().then((_) => rb.jumlahTerbuka(shiftId)),
-      p.halanganMenutup(shiftId),
-      (repo ?? ShiftRepository(db)).watchShift(shiftId).first,
-    ).wait,
-    pesan: 'Memeriksa shift…',
-  );
+  final int jumlahBill;
+  final String? halangan;
+  final RingkasanShift? ringkasan;
+  try {
+    (jumlahBill, halangan, ringkasan) = await jalankanDenganMemuat(
+      context,
+      () => (
+        // Bill dari HP lain di shift yang sama ikut terhitung.
+        rb.segarkanDariServer().then((_) => rb.jumlahTerbuka(shiftId)),
+        p.halanganMenutup(shiftId),
+        (repo ?? ShiftRepository(db)).watchShift(shiftId).first,
+      ).wait,
+      pesan: 'Memeriksa shift…',
+    );
+  } catch (e) {
+    // Dulu galatnya lolos: kartu "Memeriksa shift…" hilang, tidak ada pesan
+    // apa pun, dan shift-nya tidak tertutup (review C5).
+    debugPrint('[shift] pemeriksaan tutup shift gagal: $e');
+    if (context.mounted) {
+      AppToast.error(
+        context,
+        'Gagal memeriksa shift. Periksa koneksi lalu coba lagi.',
+      );
+    }
+    return;
+  }
   if (!context.mounted) return;
 
   if (jumlahBill > 0) {

@@ -1002,6 +1002,35 @@ void main() {
     await lepas(t);
   });
 
+  testWidgets('review C5: pemeriksaan tutup shift gagal → ada pesan, shift '
+      'tidak tertutup', (t) async {
+    await t.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (c) => TextButton(
+            onPressed: () => tutupShiftLewatDialog(
+              c,
+              repo: ShiftRepository(db),
+              repoBill: _BillGalat(db),
+            ),
+            child: const Text('tutup'),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('tutup'));
+    await tunggu(t);
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull, reason: 'dulu galatnya lolos');
+    expect(
+      find.text('Gagal memeriksa shift. Periksa koneksi lalu coba lagi.'),
+      findsOneWidget,
+    );
+    expect(SessionManager.instance.currentSession!.shiftId, 's-1');
+    await t.pump(const Duration(seconds: 5));
+    await lepas(t);
+  });
+
   testWidgets('tutup shift ditolak selama masih ada open bill', (t) async {
     await t.runAsync(() async {
       await repo.simpan(nama: 'Meja 1', baris: [baris('teh', 1)]);
@@ -1198,6 +1227,18 @@ class _ServerTiruan extends OpenBillRepository {
     catatan.add('segarkan');
     await _tarikan.future;
   }
+}
+
+/// Open bill yang gagal dibaca (mis. database sibuk).
+class _BillGalat extends OpenBillRepository {
+  _BillGalat(super.db);
+
+  @override
+  Future<void> segarkanDariServer() async {}
+
+  @override
+  Future<int> jumlahTerbuka(String shiftId) async =>
+      throw StateError('database sibuk');
 }
 
 /// Penjualan dengan jawaban "shift sudah ditutup?" yang diatur test.
