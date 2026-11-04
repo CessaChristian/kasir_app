@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasir_app/shared/ui/periode/periode.dart';
+import 'package:kasir_app/features/report/repositories/laporan_repository.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/dashboard/repositories/dasbor_owner_repository.dart';
 import 'package:kasir_app/utils/currency_formatter.dart';
@@ -88,6 +90,22 @@ void main() {
     expect(r.qris, 1);
     expect(r.pengeluaran, 60000);
     expect(r.labaKotor, -10000);
+
+    // Review E2: dashboard hanya membaca angka totalnya — tetap sama persis
+    // dengan Laporan lengkap.
+    final lengkap = await LaporanRepository(
+      db,
+    ).muat(Periode.hari(sekarang), sekarang: sekarang);
+    expect(
+      (r.pendapatan, r.transaksi, r.pengeluaran, r.tunai, r.qris),
+      (
+        lengkap.pendapatan,
+        lengkap.jumlahTransaksi,
+        lengkap.pengeluaran,
+        lengkap.tunai.jumlah,
+        lengkap.qris.jumlah,
+      ),
+    );
   });
 
   test('pembanding kemarin hanya sampai jam yang sama dengan sekarang',

@@ -41,7 +41,17 @@ class LaporanRepository {
 
   /// Owner dan pemegang `view_report` saja — dulu cuma halamannya yang
   /// memeriksa.
-  Future<RingkasanLaporan> muat(Periode periode, {DateTime? sekarang}) async {
+  ///
+  /// [ringkas]: hanya angka total (pendapatan, transaksi, pengeluaran, tunai
+  /// & QRIS) — item, produk, dan kategori tidak dibaca, jadi rincian per
+  /// produk/kategori kosong. Dihitung fungsi yang SAMA, jadi angkanya tetap
+  /// sama dengan Laporan. Untuk Dashboard owner, yang memuat ulang tiap
+  /// menit dan tiap ada perubahan (review E2).
+  Future<RingkasanLaporan> muat(
+    Periode periode, {
+    DateTime? sekarang,
+    bool ringkas = false,
+  }) async {
     SessionManager.instance.requirePermission('view_report');
     final dari = periode.dari;
     final sampai = periode.batasAkhir;
@@ -69,11 +79,13 @@ class LaporanRepository {
             tx.createdAt.isSmallerThanValue(sampai) &
             tx.deletedAt.isNull(),
       );
-    final item =
-        await (_db.select(_db.transactionItems)..where(
-              (i) => i.transactionId.isInQuery(idSah) & i.deletedAt.isNull(),
-            ))
-            .get();
+    final item = ringkas
+        ? const <TransactionItem>[]
+        : await (_db.select(_db.transactionItems)..where(
+                (i) =>
+                    i.transactionId.isInQuery(idSah) & i.deletedAt.isNull(),
+              ))
+              .get();
     final itemPerTransaksi = <String, List<TransactionItem>>{};
     for (final i in item) {
       itemPerTransaksi.putIfAbsent(i.transactionId, () => []).add(i);
@@ -103,8 +115,8 @@ class LaporanRepository {
       item: itemPerTransaksi,
       pengeluaran: pengeluaran,
       shift: shift,
-      produk: await _db.select(_db.products).get(),
-      kategori: await _db.select(_db.categories).get(),
+      produk: ringkas ? const [] : await _db.select(_db.products).get(),
+      kategori: ringkas ? const [] : await _db.select(_db.categories).get(),
       sekarang: sekarang ?? DateTime.now(),
     );
   }

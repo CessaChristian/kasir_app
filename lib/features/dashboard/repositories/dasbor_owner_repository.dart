@@ -84,8 +84,11 @@ class DasborOwnerRepository {
         now.minute, now.second);
 
     // Hitungan yang sama dengan Laporan, supaya angka keduanya pasti sama.
-    final hariIni =
-        await LaporanRepository(_db).muat(Periode.hari(now), sekarang: now);
+    // Hanya angka totalnya: dulu seluruh laporan (item, produk, kategori,
+    // grafik) dihitung tiap menit lalu dibuang (review E2).
+    final hariIni = await LaporanRepository(
+      _db,
+    ).muat(Periode.hari(now), sekarang: now, ringkas: true);
     final kemarin =
         await _db.getTransactionsByDateRange(awalKemarin, batasKemarin);
 
