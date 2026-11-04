@@ -560,15 +560,28 @@ class SessionManager {
 
   /// Helper: ambil permissions dari DB.
   Future<List<String>> _getUserPermissionsFromDb(
-      String userId, String role) async {
+          String userId, String role) =>
+      bacaIzin(_dbx, userId, role);
+
+  /// Izin akun [userId] menurut database — SATU aturan untuk login, buka
+  /// ulang aplikasi, dan muat ulang izin sesudah sinkron. Dulu ditulis dua
+  /// kali (di sini dan AuthRepository); mengubah satunya saja membuat menu
+  /// berbeda tergantung jalur mana yang terakhir jalan (review E8).
+  ///
+  /// Owner: semua izin kecuali [izinBukanUntukOwner]. Kasir: yang aktif.
+  static Future<List<String>> bacaIzin(
+    AppDatabase db,
+    String userId,
+    String role,
+  ) async {
     if (role == 'owner') {
-      final all = await _dbx.select(_dbx.permissions).get();
+      final all = await db.select(db.permissions).get();
       return all
           .map((p) => p.code)
           .where((k) => !izinBukanUntukOwner.contains(k))
           .toList();
     }
-    final perms = await (_dbx.select(_dbx.userPermissions)
+    final perms = await (db.select(db.userPermissions)
           ..where((up) => up.userId.equals(userId))
           ..where((up) => up.enabled.equals(true)))
         .get();

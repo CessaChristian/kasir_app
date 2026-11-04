@@ -209,7 +209,8 @@ class AuthRepository {
         user.role == 'owner' ? null : await cariShiftTerbuka(user.id);
 
     // 5. Get user permissions
-    final permissions = await _getUserPermissions(user.id, user.role);
+    final permissions =
+        await SessionManager.bacaIzin(_db, user.id, user.role);
 
     // 6. Create and return session (default expire: 12 jam)
     return AuthSession.create(
@@ -359,30 +360,6 @@ class AuthRepository {
         ),
       );
     }
-  }
-
-  /// Get user permissions
-  /// 
-  /// For owners, returns all permission codes (always full access)
-  /// For cashiers, returns only enabled permissions
-  Future<List<String>> _getUserPermissions(String userId, String role) async {
-    // Owner has all permissions KECUALI yang memang bukan haknya —
-    // menjual dan membuka shift. Lihat SessionManager.izinBukanUntukOwner.
-    if (role == 'owner') {
-      final allPermissions = await _db.select(_db.permissions).get();
-      return allPermissions
-          .map((p) => p.code)
-          .where((k) => !SessionManager.izinBukanUntukOwner.contains(k))
-          .toList();
-    }
-
-    // Cashier: get enabled permissions only
-    final userPerms = await (_db.select(_db.userPermissions)
-          ..where((up) => up.userId.equals(userId))
-          ..where((up) => up.enabled.equals(true)))
-        .get();
-
-    return userPerms.map((up) => up.permissionCode).toList();
   }
 
   // ============================================================================
