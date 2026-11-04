@@ -112,19 +112,30 @@ class DasborOwnerRepository {
     if (shifts.isEmpty) return const [];
 
     final nama = await _db.namaAkun();
-    final hasil = <ShiftBerjalan>[];
-    for (final s in shifts) {
-      final txs = await (_db.select(_db.transactions)
-            ..where((t) => t.shiftId.equals(s.id) & t.deletedAt.isNull()))
-          .get();
-      hasil.add(ShiftBerjalan(
-        namaKasir: s.namaKasir(nama) ?? 'Kasir',
-        mulai: s.startAt,
-        transaksi: txs.length,
-        pendapatan: txs.fold(0, (a, t) => a + t.total),
-      ));
-    }
-    return hasil;
+    // Satu kueri untuk semua shift, dan hanya jumlah & totalnya. Dulu satu
+    // kueri per shift yang membawa SEMUA baris transaksinya (review E3).
+    final baris = await _db
+        .customSelect(
+          'SELECT shift_id, COUNT(*) AS n, COALESCE(SUM(total), 0) AS jumlah '
+          'FROM transactions WHERE deleted_at IS NULL AND shift_id IN '
+          '(${List.filled(shifts.length, '?').join(', ')}) GROUP BY shift_id',
+          variables: [for (final s in shifts) Variable.withString(s.id)],
+          readsFrom: {_db.transactions},
+        )
+        .get();
+    final perShift = {
+      for (final b in baris)
+        b.read<String>('shift_id'): (b.read<int>('n'), b.read<int>('jumlah')),
+    };
+    return [
+      for (final s in shifts)
+        ShiftBerjalan(
+          namaKasir: s.namaKasir(nama) ?? 'Kasir',
+          mulai: s.startAt,
+          transaksi: perShift[s.id]?.$1 ?? 0,
+          pendapatan: perShift[s.id]?.$2 ?? 0,
+        ),
+    ];
   }
 
   /// Kapan shift terakhir ditutup — hanya kalau masih HARI INI. Shift yang
