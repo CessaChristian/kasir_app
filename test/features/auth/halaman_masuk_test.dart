@@ -205,6 +205,24 @@ void main() {
       await SessionManager.instance.clearSession();
     });
 
+    testWidgets('galat internal tidak tampil apa adanya di halaman login', (
+      t,
+    ) async {
+      final tahan = _RepoTahan(db);
+      layarHp(t);
+      await t.pumpWidget(MaterialApp(home: LoginPage(repo: tahan)));
+      await t.pump();
+      await t.enterText(kolom(0), 'owner');
+      await t.enterText(kolom(1), '999999');
+      await tekan(t, 'Masuk');
+      await t.pump();
+      tahan.hasil.completeError(StateError('Too many elements'));
+      await tungguSelesai(t);
+      expect(find.textContaining('Too many elements'), findsNothing);
+      expect(find.text('Gagal masuk. Coba lagi.'), findsOneWidget);
+      await lepas(t);
+    });
+
     testWidgets('Masuk: tombol langsung "Memeriksa…" sampai PIN selesai '
         'diperiksa; Enter berkali-kali tetap sekali', (t) async {
       final tahan = _RepoTahan(db);
@@ -286,6 +304,25 @@ void main() {
             (db.select(db.users)..where((u) => u.id.equals('o-1'))).getSingle(),
       );
       expect(owner!.recoveryAttempts, 0);
+      await lepas(t);
+    });
+
+    testWidgets('tidak ada internet: disuruh online, bukan "kode tidak valid"', (
+      t,
+    ) async {
+      layarHp(t);
+      final tanpaInternet = AuthRepository(db, kirimKredensial: (_) async => null);
+      await t.pumpWidget(
+        MaterialApp(home: OwnerRecoveryPage(repo: tanpaInternet)),
+      );
+      await tunggu(t);
+      await t.enterText(kolom(0), kodeRecovery);
+      await t.enterText(kolom(1), '445566');
+      await t.enterText(kolom(2), '445566');
+      await tekan(t, 'Reset PIN');
+      await tungguSelesai(t);
+      expect(find.textContaining('Butuh internet'), findsOneWidget);
+      expect(find.text('Kode recovery tidak valid'), findsNothing);
       await lepas(t);
     });
 

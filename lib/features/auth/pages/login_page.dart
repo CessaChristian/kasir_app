@@ -14,7 +14,6 @@ import '../../../shared/widgets/sync_refresh.dart';
 import '../../../utils/crypto_utils.dart';
 import '../recovery/pages/owner_recovery_page.dart';
 import '../repositories/auth_repository.dart';
-import '../../../utils/pesan_galat.dart';
 
 /// Halaman Login (desain): username + PIN, galat sebaris di bawah PIN
 /// berdampingan dengan "Lupa PIN Owner?".
@@ -105,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => AppShell(key: AppShell.globalKey)),
       );
-    } on StateError catch (e) {
+    } on AkunDitolak catch (e) {
       // Akun dinonaktifkan/dihapus, terlalu banyak percobaan, dsb.
       if (!mounted) return;
       setState(() {
@@ -113,10 +112,11 @@ class _LoginPageState extends State<LoginPage> {
         _galat = e.message;
       });
     } catch (e) {
+      debugPrint('[login] $e');
       if (!mounted) return;
       setState(() {
         _memuat = false;
-        _galat = pesanGalat(e);
+        _galat = 'Gagal masuk. Coba lagi.';
       });
     }
   }

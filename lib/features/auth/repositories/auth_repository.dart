@@ -13,6 +13,12 @@ import '../../../data/sync/sync_service.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 
+/// Login ditolak karena keadaan akun: kalimatnya untuk dibaca pengguna.
+/// Galat lain yang muncul saat login tidak boleh tampil apa adanya.
+class AkunDitolak extends StateError {
+  AkunDitolak(super.message);
+}
+
 /// Repository for authentication operations
 class AuthRepository {
   final AppDatabase _db;
@@ -196,7 +202,7 @@ class AuthRepository {
     // memajukan jam, hitungan ini tidak. Hanya kembali ke nol kalau PIN-nya
     // dibuat ulang (Reset PIN kasir / kode recovery owner).
     if (user.loginAttempts >= batasSalahPin) {
-      throw StateError(
+      throw AkunDitolak(
         user.role == 'owner' ? pesanOwnerTerkunci : pesanKasirTerkunci,
       );
     }
@@ -205,7 +211,7 @@ class AuthRepository {
     if (user.loginLockedUntil != null &&
         user.loginLockedUntil!.isAfter(DateTime.now())) {
       final remaining = user.loginLockedUntil!.difference(DateTime.now());
-      throw StateError(
+      throw AkunDitolak(
           'Akun terkunci. Coba lagi dalam ${_formatLockDuration(remaining)}.');
     }
 
@@ -223,10 +229,10 @@ class AuthRepository {
     // — ini jaring kedua) atau dinonaktifkan. Diperiksa SESUDAH PIN benar:
     // kalau sebelumnya, pesannya membocorkan username mana yang ada.
     if (user.deletedAt != null) {
-      throw StateError('Akun Anda sudah dihapus oleh pemilik.');
+      throw AkunDitolak('Akun Anda sudah dihapus oleh pemilik.');
     }
     if (!user.isActive) {
-      throw StateError('Akun Anda dinonaktifkan oleh pemilik.');
+      throw AkunDitolak('Akun Anda dinonaktifkan oleh pemilik.');
     }
 
     // S5: PIN benar → reset login attempts + clear lock.

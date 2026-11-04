@@ -129,12 +129,14 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
         _galat = 'Terlalu banyak percobaan';
         _kunci(hasil.lockSeconds ?? 60);
       } else {
-        // Pesan repository berbahasa Inggris untuk log; yang dibaca owner
-        // ditulis di sini.
+        // Sengaja tidak memakai satu kalimat untuk semua: tanpa internet,
+        // owner yang kodenya benar dulu dibilang "kode tidak valid".
         setState(
-          () => _galat = hasil.type == RecoveryResultType.ownerNotFound
-              ? 'Akun owner tidak ditemukan di HP ini'
-              : 'Kode recovery tidak valid',
+          () => _galat = switch (hasil.type) {
+            RecoveryResultType.ownerNotFound ||
+            RecoveryResultType.butuhInternet => hasil.message,
+            _ => 'Kode recovery tidak valid',
+          },
         );
         await _periksaKunci();
       }
