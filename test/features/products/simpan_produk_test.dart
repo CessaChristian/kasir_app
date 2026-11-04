@@ -38,6 +38,14 @@ void main() {
         hasIceOption: false,
       );
 
+  test('nama produk yang sudah dihapus boleh dipakai lagi', () async {
+    await simpan('p1', 'Es Teh');
+    await db.deleteProduct('p1');
+    await simpan('p2', 'Es Teh');
+    final aktif = await db.watchProducts().first;
+    expect(aktif.map((p) => p.id), ['p2']);
+  });
+
   test('nama kembar ditolak, tidak peduli besar-kecil huruf & spasi', () async {
     await simpan('p1', 'Es Teh');
     expect(

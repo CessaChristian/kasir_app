@@ -61,44 +61,47 @@ class _ProductsPageState extends State<ProductsPage> {
       // melewati PopScope, sehingga input user bisa hilang tanpa konfirmasi.
       enableDrag: false,
       constraints: BoxConstraints(maxHeight: screenHeight * 0.9),
-      builder: (_) => ProductFormSheet(editing: editing),
+      builder: (_) => ProductFormSheet(
+        editing: editing,
+        simpan: (hasil) => _simpan(hasil, editing),
+      ),
     );
 
-    if (result == null) return;
-    if (!mounted) return;
+    if (result == null || !mounted) return;
+    AppToast.success(context,
+        editing == null ? '${result.name} ditambahkan' : 'Perubahan disimpan');
+  }
 
-    try {
-      // Primary key WAJIB UUID: ID berbasis jam bisa bentrok antar-device
-      // saat sync (dua HP membuat produk pada milidetik yang sama).
-      final productId = editing?.id ?? newUuid();
+  /// Galatnya ditangani form, yang tetap terbuka supaya isiannya tidak hilang.
+  Future<void> _simpan(FormResult result, Product? editing) async {
+    // Primary key WAJIB UUID: ID berbasis jam bisa bentrok antar-device
+    // saat sync (dua HP membuat produk pada milidetik yang sama).
+    final productId = editing?.id ?? newUuid();
 
-      await _productRepo.upsertProduct(
-        id: productId,
-        name: result.name,
-        price: result.price,
-        categoryId: result.categoryId,
-        hasSpicyOption: result.hasSpicyOption,
-        hasSweetOption: result.hasSweetOption,
-        hasIceOption: result.hasIceOption,
-        imagePath: result.imagePath,
-      );
+    await _productRepo.upsertProduct(
+      id: productId,
+      name: result.name,
+      price: result.price,
+      categoryId: result.categoryId,
+      hasSpicyOption: result.hasSpicyOption,
+      hasSweetOption: result.hasSweetOption,
+      hasIceOption: result.hasIceOption,
+      imagePath: result.imagePath,
+    );
 
-      // Gambar lama dibuang HANYA setelah penyimpanan sungguh berhasil.
-      // Kalau dihapus lebih awal (mis. saat memilih foto baru di form) lalu
-      // penyimpanan gagal, produk kehilangan gambarnya tanpa sebab.
-      final gambarLama = editing?.imagePath;
-      if (gambarLama != null &&
-          gambarLama.isNotEmpty &&
-          gambarLama != result.imagePath) {
+    // Gambar lama dibuang HANYA setelah penyimpanan sungguh berhasil.
+    // Kalau dihapus lebih awal (mis. saat memilih foto baru di form) lalu
+    // penyimpanan gagal, produk kehilangan gambarnya tanpa sebab.
+    final gambarLama = editing?.imagePath;
+    if (gambarLama != null &&
+        gambarLama.isNotEmpty &&
+        gambarLama != result.imagePath) {
+      try {
         await ImageStorageService().hapus(gambarLama);
+      } catch (e) {
+        // Produknya sudah tersimpan. Berkas sisa disapu sinkron foto.
+        debugPrint('[produk] foto lama gagal dibuang: $e');
       }
-
-      if (!mounted) return;
-      AppToast.success(context,
-          editing == null ? '${result.name} ditambahkan' : 'Perubahan disimpan');
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.error(context, pesanGalat(e, awalan: 'Gagal menyimpan produk'));
     }
   }
 

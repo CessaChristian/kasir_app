@@ -65,14 +65,26 @@ String pesanIzinFoto(PlatformException e, ImageSource sumber) {
 class ProductFormSheet extends StatefulWidget {
   final Product? editing;
 
-  const ProductFormSheet({super.key, this.editing});
+  /// Menyimpan isian. Form baru tertutup kalau ini berhasil; kalau melempar,
+  /// form tetap terbuka supaya isiannya tidak hilang (audit nomor 7 & 8).
+  final Future<void> Function(FormResult hasil) simpan;
+
+  /// Diisi test; aplikasi memakai basis data utama.
+  final ProductRepository? repo;
+
+  const ProductFormSheet({
+    super.key,
+    this.editing,
+    required this.simpan,
+    this.repo,
+  });
 
   @override
   State<ProductFormSheet> createState() => _ProductFormSheetState();
 }
 
 class _ProductFormSheetState extends State<ProductFormSheet> {
-  final _productRepo = ProductRepository(db);
+  late final _productRepo = widget.repo ?? ProductRepository(db);
 
   /// Galat isian, tampil di atas tombol simpan (desain).
   String? _galat;
@@ -171,6 +183,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
   // True saat pop berasal dari submit sukses — lewati dialog konfirmasi.
   bool _saving = false;
 
+  /// Sedang menunggu penyimpanan: tombol dan tutup form ditahan.
+  bool _menyimpan = false;
+
   /// Buang gambar yang dibuat sesi ini tapi tidak jadi dipakai.
   ///
   /// [kecuali] adalah pilihan akhir yang dibawa keluar form — hanya itu yang
@@ -183,30 +198,43 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     _gambarBaru.clear();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_menyimpan) return;
     final galat = galatFormProduk(nama: _nameC.text, hargaTeks: _priceC.text);
     if (galat != null) {
       setState(() => _galat = galat);
       return;
     }
-    final price = parseRupiah(_priceC.text)!;
+    final hasil = FormResult(
+      name: _nameC.text.trim(),
+      price: parseRupiah(_priceC.text)!,
+      categoryId: _selectedCategory?.id,
+      hasSpicyOption: _hasSpicyOption,
+      hasSweetOption: _hasSweetOption,
+      hasIceOption: _hasIceOption,
+      imagePath: _imagePath,
+    );
+
+    setState(() => _menyimpan = true);
+    try {
+      await widget.simpan(hasil);
+    } catch (e) {
+      // Mis. nama kembar: form tetap terbuka, tinggal ganti namanya.
+      if (mounted) {
+        setState(() => _menyimpan = false);
+        AppToast.error(
+          context,
+          pesanGalat(e, awalan: 'Gagal menyimpan produk'),
+        );
+      }
+      return;
+    }
 
     _saving = true;
     // Sisa pilihan yang tidak jadi dipakai boleh langsung dibuang: file-file
     // itu belum pernah tercatat di database mana pun.
     unawaited(_bersihkanGambarYatim(kecuali: _imagePath));
-    Navigator.pop(
-      context,
-      FormResult(
-        name: _nameC.text.trim(),
-        price: price,
-        categoryId: _selectedCategory?.id,
-        hasSpicyOption: _hasSpicyOption,
-        hasSweetOption: _hasSweetOption,
-        hasIceOption: _hasIceOption,
-        imagePath: _imagePath,
-      ),
-    );
+    if (mounted) Navigator.pop(context, hasil);
   }
 
   Future<void> _pickImage() async {
@@ -270,7 +298,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || _menyimpan) return;
         if (_saving || !_isDirty) {
           Navigator.of(context).pop();
           return;
@@ -374,7 +402,7 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                     child: SizedBox(
                       height: 48,
                       child: FilledButton.icon(
-                        onPressed: _submit,
+                        onPressed: _menyimpan ? null : _submit,
                         style: FilledButton.styleFrom(
                           backgroundColor: WarnaTeras.oranye,
                           shape: RoundedRectangleBorder(
@@ -387,7 +415,11 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
                         ),
                         label: FittedBox(
                           child: Text(
-                            isEditing ? 'Simpan Perubahan' : 'Tambah Produk',
+                            _menyimpan
+                                ? 'Menyimpan…'
+                                : isEditing
+                                ? 'Simpan Perubahan'
+                                : 'Tambah Produk',
                             style: const TextStyle(
                               fontSize: TeksTeras.biasa,
                               fontWeight: FontWeight.w500,
