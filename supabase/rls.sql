@@ -139,6 +139,7 @@ revoke all on public.rahasia from anon, authenticated;
 -- ---------------------------------------------------------------------
 revoke all on public.nomor_terakhir from anon, authenticated;
 revoke all on public.percobaan_kunci from anon, authenticated;
+revoke all on public.produk_gabung from anon, authenticated;
 
 -- =====================================================================
 --  PEMERIKSAAN SESUDAH DIJALANKAN

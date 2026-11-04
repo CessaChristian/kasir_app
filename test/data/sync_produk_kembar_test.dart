@@ -6,8 +6,7 @@ import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/open_bill/models/isi_bill.dart';
 
 /// Server menggabungkan produk kembar dari dua HP offline
-/// (`supabase/produk_kembar.sql`). HP yang kalah harus menerima hasilnya:
-/// versinya di server hanya 1 detik lebih baru dari yang tadi ia kirim.
+/// (`supabase/produk_kembar.sql`). HP yang kalah harus menerima hasilnya.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
