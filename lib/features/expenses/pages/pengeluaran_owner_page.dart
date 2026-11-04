@@ -29,14 +29,17 @@ import '../../../utils/pesan_galat.dart';
 /// hari. Owner juga bisa mencatat pengeluaran sendiri — tanpa shift, jadi
 /// hanya masuk pengelompokan per tanggal (keputusan owner 2026-10-04).
 class PengeluaranOwnerPage extends StatefulWidget {
-  const PengeluaranOwnerPage({super.key});
+  /// Diisi test; aplikasi memakai basis data utama.
+  final ExpenseRepository? repo;
+
+  const PengeluaranOwnerPage({super.key, this.repo});
 
   @override
   State<PengeluaranOwnerPage> createState() => _PengeluaranOwnerPageState();
 }
 
 class _PengeluaranOwnerPageState extends State<PengeluaranOwnerPage> {
-  final _repo = ExpenseRepository(db);
+  late final _repo = widget.repo ?? ExpenseRepository(db);
   var _periode = Periode.hari(DateTime.now());
 
   /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"

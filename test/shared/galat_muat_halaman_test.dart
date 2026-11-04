@@ -7,9 +7,18 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/auth/repositories/permission_repository.dart';
+import 'package:kasir_app/features/dashboard/pages/dasbor_kasir_page.dart';
+import 'package:kasir_app/features/expenses/expenses_page.dart';
+import 'package:kasir_app/features/expenses/pages/pengeluaran_owner_page.dart';
+import 'package:kasir_app/features/expenses/repositories/expense_repository.dart';
 import 'package:kasir_app/features/history/models/saringan_riwayat.dart';
 import 'package:kasir_app/features/history/widgets/daftar_riwayat.dart';
+import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
+import 'package:kasir_app/features/open_bill/sheets/lembar_open_bill.dart';
 import 'package:kasir_app/features/owner/pages/hak_akses_page.dart';
+import 'package:kasir_app/features/owner/pages/kelola_kasir_page.dart';
+import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
+import 'package:kasir_app/features/owner/models/ringkasan_kasir.dart';
 import 'package:kasir_app/features/products/pages/kategori_page.dart';
 import 'package:kasir_app/features/products/repositories/product_repository.dart';
 import 'package:kasir_app/features/sales/models/keranjang.dart';
@@ -22,6 +31,7 @@ import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/cakupan_riwayat.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
+import 'package:kasir_app/shared/widgets/transaction_detail_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Data gagal dimuat: tampil pesan dan tombol Coba lagi, bukan lingkaran yang
@@ -74,6 +84,54 @@ class _IzinGagal extends PermissionRepository {
   }
 }
 
+class _PengeluaranGagal extends ExpenseRepository {
+  _PengeluaranGagal(super.db);
+  var gagal = true;
+
+  @override
+  Stream<List<Expense>> watchExpensesByShift(String shiftId) =>
+      gagal ? Stream.error(_galat) : super.watchExpensesByShift(shiftId);
+
+  @override
+  Stream<List<Expense>> watchPengeluaranPeriode(Periode p) =>
+      gagal ? Stream.error(_galat) : super.watchPengeluaranPeriode(p);
+}
+
+class _KasirGagal extends CashierRepository {
+  _KasirGagal(super.db) : super(terhubung: () async => true);
+  var gagal = true;
+
+  @override
+  Stream<List<RingkasanKasir>> watchDaftarKasir() =>
+      gagal ? Stream.error(_galat) : super.watchDaftarKasir();
+}
+
+class _BillGagal extends OpenBillRepository {
+  _BillGagal(super.db);
+  var gagal = true;
+
+  @override
+  Stream<List<OpenBill>> watchTerbuka(String? shiftId) =>
+      gagal ? Stream.error(_galat) : super.watchTerbuka(shiftId);
+}
+
+class _StrukGagal extends SalesRepository {
+  _StrukGagal(super.db);
+  var gagal = true;
+
+  @override
+  Future<List<TransactionItem>> getTransactionItems(
+    String transactionId, {
+    bool termasukBatal = false,
+  }) async {
+    if (gagal) throw _galat;
+    return super.getTransactionItems(
+      transactionId,
+      termasukBatal: termasukBatal,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppDatabase db;
@@ -110,11 +168,13 @@ void main() {
     Widget halaman, {
     required String pesan,
     required void Function() pulih,
+    Future<void> Function()? siapkan,
   }) async {
     t.view.physicalSize = const Size(1000, 2400);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     await t.pumpWidget(MaterialApp(home: Scaffold(body: halaman)));
+    await siapkan?.call();
     await jalan(t);
     expect(find.text('$pesan. Coba lagi.'), findsOneWidget);
     pulih();
@@ -124,6 +184,112 @@ void main() {
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 1));
   }
+
+  /// Kasir yang sedang menjalankan shift.
+  Future<void> masukShift() => SessionManager.instance.setSession(
+    AuthSession.create(
+      userId: 'k-1',
+      username: 'sari',
+      role: 'cashier',
+      shiftId: 's-1',
+      permissions: const ['create_transaction', 'manage_expenses'],
+    ),
+  );
+
+  testWidgets('Pengeluaran kasir', (t) async {
+    await t.runAsync(masukShift);
+    final repo = _PengeluaranGagal(db);
+    await uji(
+      t,
+      ExpensesPage(repo: repo, repoShift: ShiftRepository(db)),
+      pesan: 'Pengeluaran gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('Pengeluaran owner', (t) async {
+    final repo = _PengeluaranGagal(db);
+    await uji(
+      t,
+      PengeluaranOwnerPage(repo: repo),
+      pesan: 'Pengeluaran gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('Kelola Kasir', (t) async {
+    final repo = _KasirGagal(db);
+    await uji(
+      t,
+      KelolaKasirPage(repo: repo),
+      pesan: 'Daftar kasir gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('Dashboard kasir', (t) async {
+    await t.runAsync(masukShift);
+    final repo = _ShiftGagal(db);
+    await uji(
+      t,
+      DasborKasirPage(keranjang: Keranjang(), repo: repo),
+      pesan: 'Dashboard gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('Tagihan open bill', (t) async {
+    await t.runAsync(masukShift);
+    final repo = _BillGagal(db);
+    await uji(
+      t,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => bukaDaftarOpenBill(
+            context,
+            Keranjang(),
+            repo: repo,
+            repoProduk: ProductRepository(db),
+            repoJual: SalesRepository(db),
+          ),
+          child: const Text('buka'),
+        ),
+      ),
+      siapkan: () => t.tap(find.text('buka')),
+      pesan: 'Tagihan gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('Detail struk', (t) async {
+    final repo = _StrukGagal(db);
+    final tx = Transaction(
+      id: 't-1',
+      invoiceNo: 'INV-1',
+      total: 5000,
+      paymentMethod: 'qris',
+      createdAt: DateTime(2026, 11, 4),
+      updatedAt: DateTime(2026, 11, 4),
+      orderType: 'dine_in',
+      syncStatus: 'synced',
+    );
+    await uji(
+      t,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => TransactionDetailSheet(transaction: tx, repo: repo),
+          ),
+          child: const Text('buka'),
+        ),
+      ),
+      siapkan: () => t.tap(find.text('buka')),
+      pesan: 'Isi struk gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
 
   testWidgets('Kasir', (t) async {
     final repo = _ProdukGagal(db);
