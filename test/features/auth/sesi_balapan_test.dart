@@ -71,6 +71,30 @@ void main() {
     });
   });
 
+  test('review B4: sesi yang berakhir di titik MANA PUN selama pemeriksaan '
+      'akun tidak hidup lagi', () async {
+    await (db.update(db.users)..where((u) => u.id.equals('k-1')))
+        .write(const UsersCompanion(username: Value('sari2')));
+    final awal = sm.currentSession!;
+    // Coba setiap titik tunggu: keluar sesudah 0, 1, 2, ... giliran.
+    for (var giliran = 0; giliran < 40; giliran++) {
+      await sm.setSession(awal);
+      await sm.ingatPinMasuk('k-1', 'pin-lama', salt: 's');
+      final periksa = sm.periksaAkunMasihBerlaku();
+      for (var i = 0; i < giliran; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await sm.clearSession(); // 15 menit tidak disentuh
+      await periksa;
+      expect(sm.isLoggedIn, isFalse, reason: 'keluar di giliran $giliran');
+      final p = await SharedPreferences.getInstance();
+      expect(p.getString('auth_session'), isNull,
+          reason: 'tidak tertulis lagi (giliran $giliran)');
+      expect(p.getString('pin_saat_masuk'), isNull,
+          reason: 'catatan PIN tidak tertulis lagi (giliran $giliran)');
+    }
+  });
+
   group('K2: Reset PIN mengakhiri sesi yang sedang berjalan', () {
     test('PIN akun yang sedang masuk diganti → keluar dengan pesan', () async {
       await (db.update(db.users)..where((u) => u.id.equals('k-1')))

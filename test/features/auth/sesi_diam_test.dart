@@ -112,6 +112,38 @@ void main() {
     });
   });
 
+  group('review B5: kabar dari sinkron BUKAN sentuhan', () {
+    Future<DateTime> masukLaluDiam(Duration diam) async {
+      await sm.setSession(sesi());
+      final sentuh = DateTime.now().subtract(diam);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      return sm.sentuhanTerakhir!;
+    }
+
+    test('owner mengganti nama akun ini dari HP lain', () async {
+      final sentuh = await masukLaluDiam(menit(14));
+      await (db.update(db.users)..where((u) => u.id.equals('kasir-1')))
+          .write(const UsersCompanion(username: Value('kasir-baru')));
+      await sm.periksaAkunMasihBerlaku();
+      expect(sm.currentSession!.username, 'kasir-baru');
+      expect(sm.sentuhanTerakhir, sentuh,
+          reason: 'dulu hitungan 15 menit diam dimulai lagi');
+    });
+
+    test('shift digabung server / ditutup HP lain', () async {
+      final sentuh = await masukLaluDiam(menit(14));
+      await db.into(db.shifts).insert(ShiftsCompanion.insert(
+            id: const Value('shift-1'),
+            userId: 'kasir-1',
+            endAt: Value(DateTime.now()),
+          ));
+      await sm.periksaShiftMasihBerjalan();
+      expect(sm.currentSession!.shiftId, isNull);
+      expect(sm.sentuhanTerakhir, sentuh);
+    });
+  });
+
   group('aplikasi dibuka lagi (misalnya sesudah digeser dari riwayat)', () {
     Future<void> simpanSesi({Duration? diam}) async {
       final prefs = <String, Object>{

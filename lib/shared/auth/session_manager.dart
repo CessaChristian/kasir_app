@@ -39,12 +39,38 @@ class SessionManager {
   /// shift langsung dikeluarkan pada pemeriksaan berikutnya.
   Future<void> setSession(AuthSession session) async {
     _currentSession = session;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sessionKey, json.encode(session.toJson()));
-    await catatKabar();
+    await _simpan(session);
     // Login juga sentuhan — owner tidak boleh langsung dikeluarkan karena
     // sentuhan terakhirnya tercatat dari sesi sebelumnya.
     catatSentuhan();
+  }
+
+  /// Tulis [sesi] ke penyimpanan — hanya kalau ia masih sesi yang berjalan
+  /// sesudah menunggu penyimpanan dibuka.
+  Future<void> _simpan(AuthSession sesi) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!identical(_currentSession, sesi)) return;
+    await prefs.setString(_sessionKey, json.encode(sesi.toJson()));
+    await catatKabar();
+  }
+
+  /// Ganti sesi yang sedang berjalan karena kabar dari luar (sinkron: nama
+  /// diganti, izin berubah, shift digabung atau ditutup HP lain).
+  ///
+  /// - BUKAN sentuhan: dulu lewat [setSession], jadi setiap kabar seperti
+  ///   itu memulai lagi hitungan 15 menit diam — HP yang ditinggal tidak
+  ///   pernah keluar dan shift-nya terlihat masih dipegang (review B5).
+  /// - Hanya kalau [lama] masih sesi yang berjalan: sesi yang sudah diakhiri
+  ///   selagi kabarnya dibaca tidak boleh hidup lagi (review B4, QA K3).
+  ///
+  /// Mengembalikan true kalau sesinya benar-benar diganti.
+  Future<bool> _gantiDariLuar(AuthSession lama, AuthSession baru) async {
+    if (!identical(_currentSession, lama)) return false;
+    _currentSession = baru;
+    await _simpan(baru);
+    if (!identical(_currentSession, baru)) return false;
+    sesiBerubah.value++;
+    return true;
   }
 
   /// Kasir yang memegang shift dan selama ini tidak memberi kabar ke server
@@ -363,11 +389,7 @@ class SessionManager {
       return; // tidak berubah — jangan menggambar ulang layar tanpa alasan
     }
 
-    _currentSession = sesi.copyWith(permissions: baru);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        _sessionKey, json.encode(_currentSession!.toJson()));
-    sesiBerubah.value++;
+    await _gantiDariLuar(sesi, sesi.copyWith(permissions: baru));
   }
 
   /// Berisi alasan kalau sesi yang sedang berjalan DICABUT dari jarak jauh,
@@ -426,9 +448,12 @@ class SessionManager {
     final pinDiganti = berbeda && !hanyaFormat;
     // Sesi dari APK sebelum K2 belum punya catatan: dimulai dari sekarang.
     // Hash yang hanya pindah format menjadi patokan baru.
+    if (!identical(_currentSession, sesi)) return;
     if (user != null && (!tercatat || hanyaFormat)) {
       await ingatPinMasuk(user.id, user.pinHash, salt: user.salt);
     }
+    // Lihat _gantiDariLuar: sesi ini bisa berakhir selama menunggu di atas.
+    if (!identical(_currentSession, sesi)) return;
 
     final alasan = user == null
         ? 'Akun Anda sudah tidak ada.'
@@ -443,8 +468,7 @@ class SessionManager {
       // Owner mengganti nama akun ini dari HP lain: nama di menu ikut
       // berganti tanpa perlu login ulang.
       if (user!.username != sesi.username) {
-        await setSession(sesi.copyWith(username: user.username));
-        sesiBerubah.value++;
+        await _gantiDariLuar(sesi, sesi.copyWith(username: user.username));
       }
       return;
     }
@@ -518,14 +542,14 @@ class SessionManager {
     // saja sudah ditutup HP lain.
     final tujuan = shift.digabungKe;
     if (tujuan != null && sisaGabungan > 0) {
-      await aturShift(tujuan);
+      if (!await _gantiDariLuar(sesi, sesi.denganShift(tujuan))) return;
       shiftDigabung.value =
           'Shift ini digabung dengan shift yang lebih dulu dibuka akun ini '
           'di perangkat lain. Penjualan tetap tercatat.';
       return periksaShiftMasihBerjalan(sisaGabungan: sisaGabungan - 1);
     }
 
-    await aturShift(null);
+    if (!await _gantiDariLuar(sesi, sesi.denganShift(null))) return;
     shiftDitutupDariLuar.value =
         'Shift ini sudah ditutup dari perangkat lain. Buka shift baru untuk '
         'melanjutkan.';
