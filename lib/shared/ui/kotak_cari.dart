@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'teks_teras.dart';
@@ -11,11 +13,18 @@ class KotakCari extends StatefulWidget {
   /// Halaman kasir memakai ukuran sedikit lebih besar (permintaan owner).
   final bool besar;
 
+  /// Diisi: [onBerubah] baru dipanggil sesudah berhenti mengetik selama
+  /// ini — untuk pencarian yang berat (Riwayat menyaring seluruh transaksi
+  /// periode tiap ketukan; "nasi goreng" = 11 kali, review E1). Tombol ✕
+  /// tetap langsung.
+  final Duration? jeda;
+
   const KotakCari({
     super.key,
     required this.onBerubah,
     this.petunjuk = 'Cari...',
     this.besar = false,
+    this.jeda,
   });
 
   @override
@@ -24,11 +33,23 @@ class KotakCari extends StatefulWidget {
 
 class _KotakCariState extends State<KotakCari> {
   final _c = TextEditingController();
+  Timer? _tunda;
 
   @override
   void dispose() {
+    _tunda?.cancel();
     _c.dispose();
     super.dispose();
+  }
+
+  void _kabari(String v) {
+    _tunda?.cancel();
+    final jeda = widget.jeda;
+    if (jeda == null) {
+      widget.onBerubah(v);
+    } else {
+      _tunda = Timer(jeda, () => widget.onBerubah(v));
+    }
   }
 
   @override
@@ -60,7 +81,7 @@ class _KotakCariState extends State<KotakCari> {
               controller: _c,
               onChanged: (v) {
                 setState(() {});
-                widget.onBerubah(v);
+                _kabari(v);
               },
               style: TextStyle(
                 fontSize: widget.besar ? 15 : TeksTeras.biasa,
@@ -79,6 +100,7 @@ class _KotakCariState extends State<KotakCari> {
               onTap: () {
                 _c.clear();
                 setState(() {});
+                _tunda?.cancel();
                 widget.onBerubah('');
               },
               child: const Icon(

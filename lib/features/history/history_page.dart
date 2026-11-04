@@ -76,6 +76,7 @@ class _HistoryPageState extends State<HistoryPage> {
       ),
       kepala: [
         KotakCari(
+          jeda: const Duration(milliseconds: 300),
           petunjuk: 'Cari riwayat...',
           besar: true,
           onBerubah: (v) => setState(() => _cari = v),
