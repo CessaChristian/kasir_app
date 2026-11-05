@@ -21,9 +21,8 @@ const pesanAksesDitolak =
 /// tapi menghapus transaksi yang belum terkirim dan HP harus didaftarkan lagi,
 /// jadi owner perlu tahu lebih dulu.
 const pesanDatabaseRusak =
-    'Data di HP ini rusak. Tutup lalu buka lagi aplikasi. Kalau masih muncul, '
-    'hubungi owner sebelum install ulang, karena transaksi yang belum terkirim '
-    'bisa hilang.';
+    'Data di HP ini rusak. Tutup lalu buka lagi aplikasi untuk memperbaikinya. '
+    'Kalau masih muncul, hubungi owner.';
 
 /// Memori HP habis saat menulis database.
 const pesanMemoriPenuh = 'Memori HP penuh. Kosongkan dulu lalu coba lagi.';

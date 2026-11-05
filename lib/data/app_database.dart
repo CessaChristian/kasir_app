@@ -2336,10 +2336,13 @@ class ShiftSudahDitutup extends StateError {
             'Buka shift baru untuk melanjutkan.');
 }
 
+/// Nama berkas database di folder dokumen aplikasi.
+const namaBerkasDatabase = 'kasir_app.sqlite';
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'kasir_app.sqlite'));
+    final file = File(p.join(dir.path, namaBerkasDatabase));
     // Isolate terpisah: dulu database berjalan di jalur yang sama dengan
     // layar, jadi selama kueri berat (sinkron besar, laporan panjang) layar
     // tersendat. Semua kueri tetap lewat satu koneksi ini.

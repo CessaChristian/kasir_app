@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../shared/auth/session_manager.dart';
 import '../db.dart';
+import '../pemulihan/pemulihan_data.dart';
 import '../perangkat/perangkat_repository.dart';
 import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
@@ -431,6 +432,8 @@ class SyncService {
         selamaTersambung: () => _periksaSesudahSinkron(hasil),
       );
     } finally {
+      // Tandai terkirim tidak memicu pantauan tabel, jadi disalin ulang di sini.
+      BukuCadangan.instance?.jadwalkan();
       _berjalan = null;
       final h = _hasilTerakhir;
       _hasilTerakhir = null;

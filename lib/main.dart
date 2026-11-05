@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:path_provider/path_provider.dart';
 import 'app/app_shell.dart';
 import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
@@ -12,6 +13,8 @@ import 'shared/ui/skala_layar.dart';
 import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
+import 'data/pemulihan/pemulihan_data.dart';
+import 'features/pemulihan/layar_data_rusak.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'features/auth/pages/owner_setup_page.dart';
 import 'features/auth/pages/login_page.dart';
@@ -22,6 +25,7 @@ import 'features/perangkat/pages/daftarkan_perangkat_page.dart';
 import 'shared/auth/session_manager.dart';
 import 'shared/widgets/pencatat_sentuhan.dart';
 import 'app/penjaga_perangkat.dart';
+import 'utils/pesan_galat.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +33,34 @@ void main() async {
   // Initialize date formatting
   await initializeDateFormatting('id_ID', null);
 
+  // Diperiksa SEBELUM apa pun membuka database. Sesudah terbuka, berkasnya
+  // tidak bisa diganti tanpa menutup aplikasi.
+  final folder = await getApplicationDocumentsDirectory();
+  _pemulihan = PemulihanData(folder.path);
+  if (await _pemulihan.periksa() == KeadaanDatabase.rusak) {
+    final ringkasan = await _pemulihan.ringkasan();
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(kSeedDineIn),
+        builder: (context, child) => SkalaLayar(child: child!),
+        home: LayarDataRusak(
+          ringkasan: ringkasan,
+          onPerbaiki: () async {
+            await _pemulihan.karantina();
+            await _jalankanAplikasi();
+          },
+        ),
+      ),
+    );
+    return;
+  }
+  await _jalankanAplikasi();
+}
+
+late final PemulihanData _pemulihan;
+
+Future<void> _jalankanAplikasi() async {
   // Folder gambar di-cache sekali supaya build() bisa menyusun path secara
   // sinkron tanpa FutureBuilder di setiap kartu produk.
   await ImageStorageService.init();
@@ -56,6 +88,10 @@ void main() async {
   // dicabut tetap terkunci walau dibuka ulang tanpa internet.
   await PerangkatRepository.instance.muatTandaDicabut();
 
+  // Selagi pemulihan menunggu, salinan lama masih dibutuhkan dan tidak boleh
+  // tertimpa isi database baru. Dimulai sesudah datanya dikembalikan.
+  if (!await _pemulihan.menunggu()) _mulaiBukuCadangan();
+
   unawaited(_sinkronAwal());
 
   // Menyinkronkan sendiri setiap beberapa menit dan setiap kali aplikasi
@@ -64,6 +100,10 @@ void main() async {
   SyncOtomatis.instance.mulai();
 
   runApp(const MyApp());
+}
+
+void _mulaiBukuCadangan() {
+  BukuCadangan.instance ??= BukuCadangan(db, _pemulihan.berkasCadangan)..ikuti();
 }
 
 /// Sinkron saat aplikasi dibuka. Hasilnya dicatat ke log, bukan ditampilkan
@@ -120,6 +160,18 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
   // masuk, tapi layarnya tidak pernah berubah.
   late Future<AuthState> _authFuture;
 
+  /// Hasil Perbaiki data yang belum diberitahukan ke kasir.
+  HasilPemulihan? _hasilPemulihan;
+
+  void _beritahuHasilPemulihan() {
+    final hasil = _hasilPemulihan;
+    if (hasil == null) return;
+    _hasilPemulihan = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) beritahuHasilPemulihan(context, hasil);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -137,6 +189,27 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         isLoggedIn: false,
         perluDaftar: true,
       );
+    }
+
+    // Lanjutan Perbaiki data: tarik semua dari server dulu supaya baris yang
+    // belum terkirim punya induknya, baru masukkan salinannya.
+    if (await _pemulihan.menunggu()) {
+      final hasil = await SyncService.instance.jalankan();
+      if (!hasil.tarikSelesai) {
+        return AuthState(
+          hasUser: false,
+          hasOwner: false,
+          isLoggedIn: false,
+          perluInternet: true,
+          sebabTerputus: hasil.sebabTerputus,
+        );
+      }
+      final pulih = await _pemulihan.masukkan(db);
+      debugPrint('[pemulihan] masuk ${pulih.masuk}, gagal ${pulih.gagal}');
+      await _pemulihan.selesai();
+      _mulaiBukuCadangan();
+      _hasilPemulihan = pulih;
+      unawaited(SyncService.instance.jalankan());
     }
 
     final onboardingRepo = OnboardingRepository();
@@ -195,8 +268,11 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
                 children: [
                   Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Terjadi kesalahan saat memulai aplikasi',
+                  Text(
+                    pesanGalat(
+                      snapshot.error!,
+                      awalan: 'Terjadi kesalahan saat memulai aplikasi',
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
@@ -220,6 +296,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         }
 
         final state = snapshot.data!;
+        _beritahuHasilPemulihan();
 
         // Belum terdaftar — layar pertama yang dilihat HP baru.
         if (state.perluDaftar) {
