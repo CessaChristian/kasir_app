@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
+import '../../expenses/models/kategori_biaya.dart';
 
 /// Satu shift beserta isinya, untuk Riwayat Shift dan Detail Shift.
 ///
@@ -81,6 +82,24 @@ class RingkasanShift {
     ],
   ];
 
+  /// Kotak kategori di bawah Pengeluaran, atas permintaan owner. Ketiganya
+  /// selalu tampil. [BarisRincian.jumlah] menghitung catatan, bukan qty.
+  List<BarisRincian> get rincianPengeluaran {
+    final sah = pengeluaran.where((e) => e.deletedAt == null);
+    return [
+      for (final k in KategoriBiaya.values)
+        () {
+          final isi = sah.where((e) => e.category == k.kode);
+          return BarisRincian(
+            k.label,
+            isi.length,
+            isi.fold(0, (n, e) => n + e.amount),
+            satuan: 'data',
+          );
+        }(),
+    ];
+  }
+
   static bool _tunai(Transaction t) => t.paymentMethod != 'qris';
 
   /// Selain Delivery = Dine In. Take Away sudah digabung ke Dine In (v34);
@@ -105,7 +124,16 @@ class BarisRincian {
   /// Baris "… Total": tebal, dengan garis pemisah yang lebih gelap.
   final bool tebal;
 
-  const BarisRincian(this.label, this.jumlah, this.total, {this.tebal = false});
+  /// Sebutan [jumlah]: `trx` untuk transaksi, `data` untuk pengeluaran.
+  final String satuan;
+
+  const BarisRincian(
+    this.label,
+    this.jumlah,
+    this.total, {
+    this.tebal = false,
+    this.satuan = 'trx',
+  });
 }
 
 /// "7j 0m" (desain). Shift yang masih berjalan dihitung sampai [sekarang].

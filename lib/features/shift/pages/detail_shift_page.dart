@@ -209,6 +209,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             formatRp(r.totalPengeluaran),
             warna: WarnaTeras.merah,
           ),
+          _rincian(r.rincianPengeluaran),
           const GarisTeras(),
           _uangKas(r),
         ],
@@ -307,7 +308,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
     );
   }
 
-  /// Kotak krem Cash/QRIS × Dine In/Delivery (desain).
+  /// Kotak krem: Cash/QRIS × Dine In/Delivery (desain) dan kategori pengeluaran.
   Widget _rincian(List<BarisRincian> isi) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4.5),
@@ -354,7 +355,7 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
             ),
           ),
           Text(
-            '${b.jumlah} trx',
+            '${b.jumlah} ${b.satuan}',
             style: const TextStyle(
               fontSize: TeksTeras.kecil,
               color: WarnaTeras.teksPudar,

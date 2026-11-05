@@ -100,6 +100,39 @@ void main() {
       expect((r.jumlahDineIn, r.jumlahDelivery), (3, 1));
     });
 
+    test('rincian pengeluaran: tiga kategori, yang batal tidak dihitung', () {
+      final baris = RingkasanShift(
+        shift: shift(pagi),
+        namaKasir: 'budi',
+        transaksi: const [],
+        pengeluaran: [
+          ...r.pengeluaran,
+          Expense(
+            id: 'e3',
+            shiftId: 's',
+            userId: 'budi',
+            description: 'Gas',
+            amount: 3000,
+            category: 'operasional_kedai',
+            // Lima barang tetap satu catatan.
+            qty: 5,
+            createdAt: pagi,
+            updatedAt: pagi,
+            syncStatus: 'synced',
+          ),
+        ],
+      ).rincianPengeluaran;
+      expect(
+        [for (final b in baris) (b.label, b.jumlah, b.total, b.satuan)],
+        [
+          ('Asset', 0, 0, 'data'),
+          ('Bahan Baku', 1, 7000, 'data'),
+          ('Operasional Kedai', 1, 3000, 'data'),
+        ],
+      );
+      expect(baris.fold(0, (n, b) => n + b.total), 10000);
+    });
+
     test('kas akhir = kas awal + tunai sah − pengeluaran sah', () {
       final berkas = RingkasanShift(
         shift: shift(pagi, kasAwal: 200000),
@@ -439,6 +472,11 @@ void main() {
         reason: 'Dine In/Delivery',
       );
       expect(find.text('Cash Total'), findsOneWidget);
+      expect(find.text('Asset'), findsOneWidget);
+      expect(find.text('Bahan Baku'), findsOneWidget);
+      expect(find.text('Operasional Kedai'), findsOneWidget);
+      expect(find.text('0 trx'), findsWidgets);
+      expect(find.text('1 data'), findsOneWidget);
       expect(find.text('Kas bersih'), findsNothing, reason: 'dihapus desain');
       expect(find.text('Uang kas'), findsOneWidget);
       expect(find.text('Rp 200.000'), findsOneWidget, reason: 'kas awal');
@@ -447,12 +485,19 @@ void main() {
       expect(find.text('Rp 203.000'), findsOneWidget);
 
       expect(find.text('Transaksi (3)'), findsOneWidget);
+      // Kartu ringkasan lebih tinggi dari layar test: daftarnya perlu digulir.
+      await t.scrollUntilVisible(
+        find.textContaining('Dibatalkan · owner', findRichText: true),
+        200,
+      );
       expect(
         find.textContaining('Dibatalkan · owner', findRichText: true),
         findsOneWidget,
       );
       expect(find.text('Alasan: Pelanggan batal'), findsOneWidget);
 
+      await t.ensureVisible(find.text('Pengeluaran (1)'));
+      await t.pumpAndSettle();
       await t.tap(find.text('Pengeluaran (1)'));
       await t.pumpAndSettle();
       expect(find.text('Es batu'), findsOneWidget);
