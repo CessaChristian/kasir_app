@@ -140,6 +140,26 @@ void main() {
       expect(p.perluPerhatian(sekarang: sekarang), isTrue);
     });
 
+    test('jam HP salah tampil ke owner, selisih kecil tidak', () {
+      Perangkat hp(int? detik) => Perangkat.dariBaris({
+        'id': 'a',
+        'nama': 'Realme Sari',
+        'status': 'aktif',
+        'terakhir_aktif': sekarang.toUtc().toIso8601String(),
+        'terakhir_tarik': sekarang.toUtc().toIso8601String(),
+        'selisih_jam_detik': detik,
+      });
+      final m = hp(86400).masalahData(sekarang: sekarang)!;
+      expect(m.judul, 'Jam HP ini lebih cepat 1 hari');
+      expect(m.catatan, contains('tanggal yang salah'));
+      expect(hp(86400).perluPerhatian(sekarang: sekarang), isTrue);
+      expect(hp(-7200).masalahData(sekarang: sekarang)!.judul,
+          'Jam HP ini lebih lambat 2 jam');
+      expect(hp(120).masalahData(sekarang: sekarang), isNull);
+      expect(hp(null).masalahData(sekarang: sekarang), isNull,
+          reason: 'APK lama atau SQL belum dijalankan');
+    });
+
     testWidgets('QA S10: Dashboard owner — strip "HP perlu dicek" hanya '
         'kalau ada masalah', (t) async {
       Future<void> pasang(List<Perangkat> daftar) async {

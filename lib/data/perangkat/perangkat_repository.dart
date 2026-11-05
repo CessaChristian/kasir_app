@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../supabase/jam_server.dart';
 import '../supabase/supabase_service.dart';
 import 'kode_nota.dart';
 import '../../shared/auth/session_manager.dart';
@@ -43,6 +44,10 @@ class Perangkat {
   /// Baris HP ini yang ditolak SERVER dan belum terkirim (QA kedua S10).
   final int jumlahGagalKirim;
 
+  /// Selisih jam HP ini dengan jam server menurut laporan terakhirnya,
+  /// positif berarti jam HP lebih cepat. Null kalau belum pernah melapor.
+  final Duration? selisihJam;
+
   const Perangkat({
     required this.id,
     required this.nama,
@@ -54,6 +59,7 @@ class Perangkat {
     this.terakhirTarik,
     this.jumlahTertahan = 0,
     this.jumlahGagalKirim = 0,
+    this.selisihJam,
   });
 
   factory Perangkat.dariBaris(Map<String, dynamic> b) {
@@ -73,6 +79,10 @@ class Perangkat {
       },
       jumlahTertahan: (b['jumlah_tertahan'] as num?)?.toInt() ?? 0,
       jumlahGagalKirim: (b['jumlah_gagal_kirim'] as num?)?.toInt() ?? 0,
+      selisihJam: switch (b['selisih_jam_detik']) {
+        final num detik => Duration(seconds: detik.toInt()),
+        _ => null,
+      },
     );
   }
 
@@ -100,6 +110,13 @@ class Perangkat {
         catatan: 'Data dari HP ini ditolak server dan belum sampai. '
             'Perbarui aplikasi di HP itu ke versi terbaru, lalu tarik layar '
             'untuk mengirim ulang.',
+      );
+    }
+    if (selisihJam case final s? when s.abs() >= JamServer.batasSalah) {
+      return (
+        judul: 'Jam HP ini ${JamServer.keterangan(s)}',
+        catatan: 'Jualan dari HP ini bisa masuk ke tanggal yang salah di '
+            'laporan. Benarkan jamnya di Pengaturan HP itu.',
       );
     }
     if (jumlahTertahan > 0) {
@@ -438,14 +455,24 @@ class PerangkatRepository {
     bool tarikBersih = false,
     int? tertahan,
     int? gagalKirim,
+    Duration? selisihJam,
   }) async {
     final k = _klien;
     if (k == null) return;
     // Dari yang paling lengkap. Server yang belum menjalankan
-    // supabase/perangkat_gagal_kirim.sql (atau perangkat_tarik.sql) belum
-    // menerima parameter barunya — kabar "masih dipakai" tetap harus
-    // sampai: pemegang shift dan sesi diam bergantung padanya.
+    // supabase/perangkat_jam.sql (atau perangkat_gagal_kirim.sql,
+    // perangkat_tarik.sql) belum menerima parameter barunya — kabar "masih
+    // dipakai" tetap harus sampai: pemegang shift dan sesi diam bergantung
+    // padanya.
     final pilihan = <Map<String, dynamic>>[
+      if (selisihJam != null)
+        {
+          'p_shift_id': shiftId,
+          if (tarikBersih) 'p_tarik_bersih': true,
+          'p_tertahan': ?tertahan,
+          'p_gagal_kirim': ?gagalKirim,
+          'p_selisih_jam': selisihJam.inSeconds,
+        },
       {
         'p_shift_id': shiftId,
         if (tarikBersih) 'p_tarik_bersih': true,
@@ -458,7 +485,10 @@ class PerangkatRepository {
           if (tarikBersih) 'p_tarik_bersih': true,
           'p_tertahan': ?tertahan,
         },
-      if (tarikBersih || tertahan != null || gagalKirim != null)
+      if (tarikBersih ||
+          tertahan != null ||
+          gagalKirim != null ||
+          selisihJam != null)
         {'p_shift_id': shiftId},
     ];
     try {

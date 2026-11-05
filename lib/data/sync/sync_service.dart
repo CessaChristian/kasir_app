@@ -7,6 +7,7 @@ import '../../shared/auth/session_manager.dart';
 import '../db.dart';
 import '../pemulihan/pemulihan_data.dart';
 import '../perangkat/perangkat_repository.dart';
+import '../supabase/jam_server.dart';
 import '../supabase/supabase_service.dart';
 import 'kemajuan_sync.dart';
 import 'sync_engine.dart';
@@ -333,6 +334,7 @@ class SyncService {
       tarikBersih: tarikBersih(hasil, jumlahTertahan.value),
       tertahan: jumlahTertahan.value,
       gagalKirim: jumlahGagalKirim.value,
+      selisihJam: JamServer.instance.selisih.value,
     );
   }
 

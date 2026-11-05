@@ -77,4 +77,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 45 | `kredensial_owner.sql` | KREDENSIAL OWNER HANYA BISA DIGANTI DENGAN BUKTI (review A1, 4 Nov 2026) |
 | 46 | `angka_wajar.sql` | ANGKA DAN JALUR FOTO YANG WAJAR (audit nomor 9 & 10, 4 Nov 2026) |
 | 47 | `produk_kembar.sql` | PRODUK KEMBAR DARI HP OFFLINE DIGABUNG (keputusan owner, 4 Nov 2026) |
-| 48 | `rls.sql` | SISA PENGETATAN AKSES |
+| 48 | `perangkat_jam.sql` | SELISIH JAM TIAP PERANGKAT (keputusan owner, 6 Nov 2026) |
+| 49 | `rls.sql` | SISA PENGETATAN AKSES |

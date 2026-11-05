@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../data/supabase/jam_server.dart';
 import '../../data/sync/sync_otomatis.dart';
 import '../../data/sync/sync_service.dart';
 import 'teks_teras.dart';
@@ -19,6 +20,15 @@ String labelSinkronTerakhir(DateTime? waktu, DateTime sekarang) {
   return hariIni
       ? 'Sinkron terakhir $jam'
       : 'Sinkron terakhir ${DateFormat('d MMM', 'id_ID').format(waktu)} $jam';
+}
+
+/// Peringatan jam HP, atau null kalau jamnya benar atau belum diketahui.
+/// Kasir tetap bisa berjualan (keputusan owner 2026-11-05), tapi jualannya
+/// tercatat dengan jam HP, jadi laporannya bisa masuk ke tanggal yang salah.
+String? peringatanJam(Duration? selisih) {
+  if (selisih == null || selisih.abs() < JamServer.batasSalah) return null;
+  return 'Jam HP ini ${JamServer.keterangan(selisih)}. Segera perbaiki di '
+      'Pengaturan HP supaya laporan tidak salah tanggal.';
 }
 
 /// Peringatan sinkron, atau null kalau semuanya normal.
@@ -57,7 +67,8 @@ String? peringatanSinkron({
 }
 
 /// Label "Sinkron terakhir …" yang berubah jadi peringatan oranye lewat
-/// [peringatanSinkron].
+/// [peringatanSinkron], atau merah lewat [peringatanJam]. Jam didahulukan:
+/// selama jamnya salah, peringatan lain pun dihitung dari jam yang salah.
 class StatusSinkron extends StatefulWidget {
   /// Hanya tampil kalau ada peringatan (Dashboard owner).
   final bool hanyaPeringatan;
@@ -93,8 +104,20 @@ class _StatusSinkronState extends State<StatusSinkron> {
         sync.jumlahTertahan,
         sync.jumlahGagalKirim,
         sync.terakhirBerhasil,
+        JamServer.instance.selisih,
       ]),
       builder: (context, _) {
+        final jam = peringatanJam(JamServer.instance.selisih.value);
+        if (jam != null) {
+          return _kartu(
+            jam,
+            ikon: Icons.schedule_rounded,
+            warna: WarnaTeras.merah,
+            latar: WarnaTeras.merahMuda,
+            tepi: WarnaTeras.merahIkon,
+            warnaTeks: WarnaTeras.merah,
+          );
+        }
         final waktu = sync.terakhirBerhasil.value;
         final sekarang = DateTime.now();
         final pesan = peringatanSinkron(
@@ -123,29 +146,41 @@ class _StatusSinkronState extends State<StatusSinkron> {
     );
   }
 
-  Widget _peringatan(String pesan) => Container(
+  Widget _peringatan(String pesan) => _kartu(
+    pesan,
+    ikon: Icons.sync_problem_rounded,
+    warna: WarnaTeras.oranye,
+    latar: const Color(0xFFFFF3E6),
+    tepi: const Color(0xFFF6C894),
+    warnaTeks: WarnaTeras.teks,
+  );
+
+  Widget _kartu(
+    String pesan, {
+    required IconData ikon,
+    required Color warna,
+    required Color latar,
+    required Color tepi,
+    required Color warnaTeks,
+  }) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
-      color: const Color(0xFFFFF3E6),
+      color: latar,
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xFFF6C894)),
+      border: Border.all(color: tepi),
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(
-          Icons.sync_problem_rounded,
-          size: 20,
-          color: WarnaTeras.oranye,
-        ),
+        Icon(ikon, size: 20, color: warna),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             pesan,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: TeksTeras.kecil,
               height: 1.35,
-              color: WarnaTeras.teks,
+              color: warnaTeks,
             ),
           ),
         ),

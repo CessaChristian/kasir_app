@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kasir_app/data/supabase/jam_server.dart';
 import 'package:kasir_app/data/sync/sync_service.dart';
 import 'package:kasir_app/shared/ui/status_sinkron.dart';
 
@@ -10,6 +11,34 @@ void main() {
   setUpAll(() => initializeDateFormatting('id_ID'));
 
   final kini = DateTime(2026, 10, 22, 15);
+
+  group('peringatan jam HP', () {
+    tearDown(JamServer.instance.aturUlang);
+
+    test('hanya kalau selisihnya 5 menit atau lebih', () {
+      expect(peringatanJam(null), isNull);
+      expect(peringatanJam(const Duration(minutes: 4)), isNull);
+      expect(peringatanJam(const Duration(minutes: -5)),
+          contains('lebih lambat 5 menit'));
+      expect(peringatanJam(const Duration(days: 1)),
+          contains('lebih cepat 1 hari'));
+    });
+
+    testWidgets('muncul di kartu, hilang begitu jamnya dibenerin', (t) async {
+      await t.pumpWidget(
+        const MaterialApp(home: Scaffold(body: StatusSinkron())),
+      );
+      expect(find.textContaining('Jam HP ini'), findsNothing);
+
+      JamServer.instance.selisih.value = const Duration(days: 1);
+      await t.pump();
+      expect(find.textContaining('lebih cepat 1 hari'), findsOneWidget);
+
+      JamServer.instance.selisih.value = Duration.zero;
+      await t.pump();
+      expect(find.textContaining('Jam HP ini'), findsNothing);
+    });
+  });
 
   group('peringatanSinkron', () {
     test('normal: tidak ada peringatan', () {
