@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' show ClientException;
-import 'package:kasir_app/data/app_database.dart' show ShiftSudahDitutup;
+import 'package:drift/native.dart';
+import 'package:kasir_app/data/app_database.dart' show AppDatabase, ShiftSudahDitutup;
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:kasir_app/utils/pesan_galat.dart';
@@ -55,6 +56,46 @@ void main() {
         );
         expect(pesan, pesanAksesDitolak, reason: mentah);
       }
+    });
+
+    test('galat ASLI database dengan tabel hilang → pesan database rusak', () async {
+      // Isolate terpisah, sama seperti aplikasi: galatnya terbungkus.
+      final folder = Directory.systemTemp.createTempSync('uji_galat');
+      addTearDown(() => folder.deleteSync(recursive: true));
+      final db = AppDatabase.forTesting(
+        NativeDatabase.createInBackground(File('${folder.path}/a.sqlite')),
+      );
+      addTearDown(db.close);
+      Object? galat;
+      try {
+        await db.customSelect('SELECT * FROM tabel_hilang').get();
+      } catch (e) {
+        galat = e;
+      }
+      expect(pesanGalat(galat!, awalan: 'Produk gagal dimuat'), pesanDatabaseRusak);
+    });
+
+    test('database HP rusak → disuruh buka ulang dan hubungi owner', () {
+      for (final e in [
+        SqliteException(extendedResultCode: 11, message: 'database disk image is malformed'),
+        SqliteException(extendedResultCode: 26, message: 'file is not a database'),
+      ]) {
+        expect(pesanGalat(e, awalan: 'Produk gagal dimuat'), pesanDatabaseRusak);
+      }
+      expect(
+        pesanGalat(SqliteException(extendedResultCode: 13, message: 'database or disk is full')),
+        pesanMemoriPenuh,
+      );
+    });
+
+    test('penolakan database biasa bukan "database rusak"', () {
+      expect(
+        pesanGalat(
+          SqliteException(extendedResultCode: 19, message: 'FOREIGN KEY constraint failed'),
+          awalan: 'Gagal menyimpan',
+        ),
+        'Gagal menyimpan. Coba lagi.',
+      );
     });
 
     test('galat bawaan Dart tidak tampil mentah', () {

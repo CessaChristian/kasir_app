@@ -8,12 +8,12 @@ import '../../../shared/services/image_storage_service.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/constants/category_icons.dart';
 import '../../../shared/ui/deretan_kategori.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../../shared/ui/kotak_cari.dart';
 import '../../../shared/ui/lembar_konfirmasi.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_tambah.dart';
 import '../../../shared/ui/warna_teras.dart';
-import '../../../shared/widgets/error_state_widget.dart';
 import '../widgets/baris_produk.dart';
 import '../sheets/product_form_sheet.dart';
 import '../../../utils/pesan_galat.dart';
@@ -149,10 +149,13 @@ class _ProductsPageState extends State<ProductsPage> {
               stream: _aliranProduk,
               builder: (context, snap) {
                 if (snap.hasError) {
-                  return ErrorStateWidget(
-                    title: 'Gagal memuat produk',
-                    onRetry: () => setState(
-                      () => _aliranProduk = _productRepo.watchProducts(),
+                  return Center(
+                    child: GalatMuat(
+                      galat: snap.error!,
+                      awalan: 'Gagal memuat produk',
+                      onCobaLagi: () => setState(
+                        () => _aliranProduk = _productRepo.watchProducts(),
+                      ),
                     ),
                   );
                 }
