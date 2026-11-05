@@ -21,14 +21,17 @@ import '../../../utils/pesan_galat.dart';
 /// Daftar Produk (desain): cari · deretan kategori · baris produk ·
 /// tombol tambah. Ketuk baris untuk mengedit.
 class ProductsPage extends StatefulWidget {
-  const ProductsPage({super.key});
+  /// Diisi test; aplikasi memakai basis data utama.
+  final ProductRepository? repo;
+
+  const ProductsPage({super.key, this.repo});
 
   @override
   State<ProductsPage> createState() => _ProductsPageState();
 }
 
 class _ProductsPageState extends State<ProductsPage> {
-  final _productRepo = ProductRepository(db);
+  late final _productRepo = widget.repo ?? ProductRepository(db);
   String _searchQuery = '';
   String? _selectedCategoryId;
 
