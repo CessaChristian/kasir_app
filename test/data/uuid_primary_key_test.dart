@@ -148,6 +148,9 @@ void main() {
       'lib/data/sync/sync_engine.dart':
           'membandingkan updated_at lokal (detik) dengan server (mikrodetik) '
           'untuk memutuskan versi mana yang menang saat menarik — bukan ID',
+      'lib/data/supabase/supabase_service.dart':
+          'membaca masa berlaku tiket login untuk dinilai dengan jam server '
+          '— bukan ID',
     };
 
     test('tidak ada pemakaian SinceEpoch di luar daftar yang diizinkan', () {

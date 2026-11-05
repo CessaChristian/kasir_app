@@ -69,6 +69,11 @@ Future<void> _jalankanAplikasi() async {
   // harus tetap jalan penuh secara offline. Kasir tidak boleh gagal
   // berjualan hanya karena server tidak bisa dihubungi.
   await SupabaseService.instance.init();
+  // Tiket HP ini sudah hilang: tanpa ini layar Daftarkan Perangkat baru muncul
+  // sesudah sinkron, sedangkan sinkron otomatis tidak jalan tanpa tiket.
+  if (SupabaseService.instance.sebabTerputus == SebabTerputus.ditolak) {
+    await PerangkatRepository.instance.tandaiIdentitasHilang();
+  }
 
   // Sinkron pertama dijalankan di latar belakang — TIDAK ditunggu.
   // Menunggunya berarti layar putih selama jaringan lambat, dan aplikasi

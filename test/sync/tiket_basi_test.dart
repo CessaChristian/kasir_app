@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kasir_app/data/supabase/jam_server.dart';
 import 'package:kasir_app/data/supabase/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,6 +39,39 @@ Session _tiket({required Duration sisaUmur}) {
 }
 
 void main() {
+  tearDown(JamServer.instance.aturUlang);
+
+  /// Tiket yang menurut jam SERVER masih punya [sisaServer], di HP yang jamnya
+  /// berselisih [selisih].
+  Session tiketDiHpSalahJam(Duration selisih, Duration sisaServer) {
+    JamServer.instance.selisih.value = selisih;
+    // Cap tiket dibuat server: jam server + umurnya. [_tiket] menghitung dari
+    // jam tes, yang di sini berperan sebagai jam HP.
+    return _tiket(sisaUmur: sisaServer - selisih);
+  }
+
+  group('jam HP salah', () {
+    test('jam maju sehari: tiket yang baru ditukar tetap bisa dipakai', () {
+      expect(
+        SupabaseService.sesiMasihBisaDipakai(
+          // Menurut jam HP itu capnya sudah lewat 23 jam lebih.
+          tiketDiHpSalahJam(const Duration(days: 1), const Duration(minutes: 50)),
+        ),
+        isTrue,
+      );
+    });
+
+    test('jam mundur sehari: tiket yang sudah mati harus ditukar', () {
+      // Menurut jam HP itu capnya masih hampir sehari lagi.
+      expect(
+        SupabaseService.sesiMasihBisaDipakai(
+          tiketDiHpSalahJam(const Duration(days: -1), const Duration(minutes: -5)),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('sesiMasihBisaDipakai', () {
     test('tidak ada tiket sama sekali -> tidak bisa dipakai', () {
       expect(SupabaseService.sesiMasihBisaDipakai(null), isFalse);

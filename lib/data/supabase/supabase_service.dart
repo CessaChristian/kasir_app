@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'jam_server.dart';
 import 'klien_berbatas_waktu.dart';
 
 import 'supabase_config.dart';
@@ -141,10 +142,23 @@ class SupabaseService {
   /// Masa berlakunya dibaca gotrue dari DALAM tiketnya sendiri, dengan margin
   /// sepuluh detik supaya permintaan yang sedang berjalan tidak kedaluwarsa
   /// di tengah jalan.
+  ///
+  /// Dinilai dengan jam SERVER kalau sudah diketahui. Tiket hanya berumur
+  /// sekitar sejam, jadi HP yang jamnya maju sehari menganggap tiket yang baru
+  /// ditukar pun sudah mati, dan sinkronnya berhenti total. Sebaliknya HP yang
+  /// jamnya mundur terus memakai tiket yang sudah ditolak server.
   @visibleForTesting
-  static bool sesiMasihBisaDipakai(Session? sesi) =>
-      sesi != null && !sesi.isExpired;
-
+  static bool sesiMasihBisaDipakai(Session? sesi) {
+    if (sesi == null) return false;
+    final kedaluwarsa = sesi.expiresAt;
+    if (JamServer.instance.selisih.value == null || kedaluwarsa == null) {
+      return !sesi.isExpired;
+    }
+    return JamServer.instance
+        .sekarang()
+        .add(const Duration(seconds: 10))
+        .isBefore(DateTime.fromMillisecondsSinceEpoch(kedaluwarsa * 1000));
+  }
 
   /// Null kalau aplikasi dibangun tanpa --dart-define, atau init gagal.
   SupabaseClient? get client => _siap ? Supabase.instance.client : null;
@@ -207,6 +221,16 @@ class SupabaseService {
     await _loginUlangDariBrankas();
     if (sesiMasihBisaDipakai(Supabase.instance.client.auth.currentSession)) {
       return true;
+    }
+
+    // Pernah terdaftar tapi tiketnya sudah tidak ada, dan tiket itulah
+    // identitasnya. Sama artinya dengan identitas yang ditolak server: HP ini
+    // harus mendaftar lagi dengan kunci. Dulu terbaca "belum disiapkan" tanpa
+    // jalan keluar apa pun, sedangkan datanya tertahan di HP ini.
+    if (_sebabTerputus == null &&
+        Supabase.instance.client.auth.currentSession == null &&
+        await sudahTerdaftar()) {
+      _sebabTerputus = SebabTerputus.ditolak;
     }
 
     // Tidak ada lagi kredensial bawaan build yang bisa dicoba. Perangkat yang
