@@ -320,6 +320,50 @@ void main() {
     expect((await ambil('p10')).name, 'Baru');
   });
 
+  test('baris synced bercap masa depan mengikuti server (jam HP pernah maju)',
+      () async {
+    // Jam HP maju sehari saat mengedit. Server memotong capnya, tapi salinan
+    // lokal masih bercap besok, sehingga harga baru dari HP lain ditolak.
+    await pasangProdukLokal(
+      id: 'p20',
+      nama: 'Harga lama',
+      updatedAt: detik('2026-09-05T10:00:00Z'),
+      syncStatus: 'synced',
+    );
+
+    final (_, berubah) = await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p20',
+        nama: 'Harga baru',
+        updatedAt: '2026-09-04T10:05:00.000000+00:00',
+      ),
+    ]);
+
+    expect(berubah, 1);
+    expect((await ambil('p20')).name, 'Harga baru');
+  });
+
+  test('baris pending bercap lebih baru TIDAK ditimpa server', () async {
+    await pasangProdukLokal(
+      id: 'p21',
+      nama: 'Edit belum terkirim',
+      updatedAt: detik('2026-09-05T10:00:00Z'),
+      syncStatus: 'pending',
+    );
+
+    await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p21',
+        nama: 'Versi server',
+        updatedAt: '2026-09-04T10:05:00.000000+00:00',
+      ),
+    ]);
+
+    final p = await ambil('p21');
+    expect(p.name, 'Edit belum terkirim');
+    expect(p.syncStatus, 'pending');
+  });
+
   test('kursor tarikan disimpan UTUH dengan mikrodetiknya', () async {
     // Inti Bug 1. Kursor yang tersimpan sebagai DateTime menyusut ke detik,
     // sehingga baris yang sama tertarik ulang di SETIAP sinkronisasi — dan

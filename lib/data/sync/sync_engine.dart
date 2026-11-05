@@ -897,14 +897,16 @@ class SyncEngine {
           // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
           if (lokal != null || !terhapusDiServer) berubah++;
         }
-      } else if (!lokal.pending && _detikSama(lokal, mikroServer)) {
-        // Detik yang SAMA, dan HP ini tidak punya perubahan yang menunggu:
-        // dua perubahan server dalam satu detik (owner membetulkan harga
-        // tepat sesudah mengubahnya). Dulu versi kedua dilewati, dan karena
-        // penandanya sudah lewat, HP ini menyimpan versi pertama selamanya
-        // (QA kedua K11). Server-lah yang benar untuk baris yang sudah
-        // terkirim; hanya dihitung kalau isinya memang berbeda — lihat
-        // catatan "KENAPA BARIS synced" di [_serverMenang].
+      } else if (!lokal.pending) {
+        // Tidak ada perubahan yang menunggu, jadi server-lah yang benar, apa
+        // pun cap waktunya. Termasuk:
+        // - dua perubahan server dalam satu detik (QA kedua K11);
+        // - cap lokal yang kelewat maju karena jam HP pernah salah. Server
+        //   memotong cap itu saat menerimanya, dan kalau salinan lokalnya
+        //   dibiarkan, HP ini menolak harga baru dari HP lain sampai jamnya
+        //   melewati cap itu.
+        // Hanya dihitung kalau isinya berbeda — lihat catatan
+        // "KENAPA BARIS synced" di [_serverMenang].
         final id = r['id'] as String;
         final sebelum = await _barisMentah(e.nama, id);
         if (await _tulisAtauTahan(e, r) &&
@@ -1048,17 +1050,13 @@ class SyncEngine {
   /// diberikan server sendiri — dan untuk baris itu, perbedaan di bawah satu
   /// detik memang tidak bisa diamati dari sini.
   ///
-  /// Baris `synced` di detik yang SAMA tidak lewat sini: [_gabungkan]
-  /// menulisnya dan hanya menghitungnya kalau isinya berbeda (QA kedua K11).
+  /// Baris `synced` yang tidak lebih tua dari server tidak berhenti di sini:
+  /// [_gabungkan] tetap menulisnya dan hanya menghitungnya kalau isinya
+  /// berbeda.
   static bool _serverMenang(
       ({int mikro, bool pending}) lokal, int mikroServer) {
     const sejuta = 1000000;
     return (mikroServer ~/ sejuta) > (lokal.mikro ~/ sejuta);
-  }
-
-  static bool _detikSama(({int mikro, bool pending}) lokal, int mikroServer) {
-    const sejuta = 1000000;
-    return mikroServer ~/ sejuta == lokal.mikro ~/ sejuta;
   }
 
   /// Isi baris lokal sebagai teks, untuk melihat apakah tulisan benar-benar
