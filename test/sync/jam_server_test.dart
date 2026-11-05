@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kasir_app/data/supabase/jam_server.dart';
 import 'package:kasir_app/data/supabase/klien_berbatas_waktu.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthException, GoTrueClient, Session, User;
 
 void main() {
   final jam = JamServer.instance;
@@ -137,6 +141,54 @@ void main() {
       kode = 400;
       expect((await klien.post(uriTukar, body: 'r1')).statusCode, 400,
           reason: 'tiket yang benar-benar dicabut tetap harus ketahuan');
+    });
+  });
+
+  group('SDK login asli saat tiket ditukar', () {
+    /// SDK sungguhan, lewat klien aplikasi, dengan server yang menjawab [kode].
+    /// Yang diuji perilaku SDK-nya: tiket dihapus atau disimpan.
+    Future<GoTrueClient> tukarDenganJawaban(int kode, String isi) async {
+      final auth = GoTrueClient(
+        url: 'https://contoh.test/auth/v1',
+        httpClient: KlienBerbatasWaktu(
+          MockClient((_) async => http.Response(isi, kode)),
+        ),
+        autoRefreshToken: false,
+      );
+      final sesi = Session(
+        accessToken: 'bukan.jwt.asli',
+        refreshToken: 'r1',
+        tokenType: 'bearer',
+        user: const User(
+          id: '00000000-0000-0000-0000-000000000001',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01T00:00:00Z',
+        ),
+      );
+      await auth.setInitialSession(jsonEncode(sesi.toJson()));
+      expect(auth.currentSession, isNotNull);
+      await expectLater(auth.refreshSession(), throwsA(isA<AuthException>()));
+      return auth;
+    }
+
+    test('429: tiket TETAP ada, jadi HP tidak perlu daftar ulang', () async {
+      final auth = await tukarDenganJawaban(
+        429,
+        '{"code":429,"error_code":"over_request_rate_limit",'
+            '"msg":"Request rate limit reached"}',
+      );
+      expect(auth.currentSession, isNotNull);
+    });
+
+    test('tiket benar-benar dicabut server: tetap dihapus', () async {
+      final auth = await tukarDenganJawaban(
+        400,
+        '{"code":400,"error_code":"refresh_token_not_found",'
+            '"msg":"Invalid Refresh Token"}',
+      );
+      expect(auth.currentSession, isNull);
     });
   });
 
