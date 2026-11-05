@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/services/image_storage_service.dart';
@@ -233,6 +233,7 @@ class SyncGambar {
         dihapusLokal = buangLokal.length;
       }
 
+      if (gagal.isNotEmpty) debugPrint('[sync] foto gagal: ${gagal.first}');
       return HasilSyncGambar(
         diunggah: diunggah,
         diunduh: diunduh,
@@ -243,6 +244,7 @@ class SyncGambar {
             : '${gagal.length} foto gagal dipindahkan: ${gagal.first}',
       );
     } catch (e) {
+      debugPrint('[sync] tahap foto gagal: $e');
       return HasilSyncGambar(error: e.toString());
     }
   }
