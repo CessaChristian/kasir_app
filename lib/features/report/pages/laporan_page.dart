@@ -44,7 +44,10 @@ class LaporanPage extends StatefulWidget {
   /// Diisi test; aplikasi memakai basis data utama.
   final LaporanRepository? repo;
 
-  const LaporanPage({super.key, this.repo});
+  /// Diisi test untuk meniru pergantian hari; aplikasi memakai jam HP.
+  final DateTime Function()? jam;
+
+  const LaporanPage({super.key, this.repo, this.jam});
 
   @override
   State<LaporanPage> createState() => _LaporanPageState();
@@ -52,11 +55,12 @@ class LaporanPage extends StatefulWidget {
 
 class _LaporanPageState extends State<LaporanPage> {
   late final _repo = widget.repo ?? LaporanRepository(db);
-  var _periode = Periode.hari(DateTime.now());
+  late var _periode = Periode.hari((widget.jam ?? DateTime.now)());
 
   /// Dibiarkan terbuka lewat tengah malam: pintasan seperti "Hari ini"
   /// ikut pindah ke tanggal baru, rentang pilihan sendiri tidak.
   late final _pengawasHari = PengawasHari(
+    jam: widget.jam,
     onGanti: (lama, baru) {
       final p = geserPintasan(_periode, lama, baru);
       if (p != null && mounted) _ubahPeriode(p);
