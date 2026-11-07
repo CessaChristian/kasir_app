@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/services/image_storage_service.dart';
 import '../app_database.dart';
+import '../supabase/jam_server.dart';
 import 'kemajuan_sync.dart';
 
 /// Hasil satu putaran sinkronisasi gambar.
@@ -143,7 +144,8 @@ class SyncGambar {
 
   Future<HasilSyncGambar> jalankan() async {
     try {
-      final diServer = await _daftarServer();
+      final diServerWaktu = await _daftarServer();
+      final diServer = diServerWaktu.keys.toSet();
       final dirujuk = await _pathDirujuk();
 
       // Yang perlu NAIK: berkasnya ada di sini, tapi belum ada di server.
@@ -175,7 +177,9 @@ class SyncGambar {
       // Aman dilakukan dari sini karena pembersihan berjalan SETELAH tarikan
       // selesai, jadi daftar produk lokal sudah memuat perubahan dari
       // perangkat lain.
-      final buang = boleh ? diServer.difference(dirujuk).toList() : <String>[];
+      final buang = boleh
+          ? pilihBuanganServer(diServerWaktu, dirujuk, JamServer.instance.sekarang())
+          : <String>[];
 
       // Yang perlu DIBUANG DI SINI. Perangkat yang mengganti foto sudah
       // membuang berkas lamanya saat menyimpan, tapi perangkat LAIN tidak —
@@ -321,12 +325,33 @@ class SyncGambar {
     };
   }
 
-  /// Berkas yang benar-benar ada di bucket, sebagai path relatif lengkap.
+  /// Berkas di server yang boleh dibuang: tidak dirujuk produk mana pun di HP
+  /// ini DAN sudah lebih tua dari [usiaAmanBerkasBaru] menurut jam server.
+  ///
+  /// Dulu semua yang tidak dirujuk dibuang. Foto produk baru dari HP lain,
+  /// yang barisnya belum ditarik HP ini, ikut terhapus dari server dan HP
+  /// lain tidak pernah bisa mengunduhnya (audit 6 Nov nomor 17). Berkas tanpa
+  /// waktu juga tidak dibuang.
+  @visibleForTesting
+  static List<String> pilihBuanganServer(
+    Map<String, DateTime?> diServer,
+    Set<String> dirujuk,
+    DateTime sekarang,
+  ) => [
+    for (final e in diServer.entries)
+      if (!dirujuk.contains(e.key) &&
+          e.value != null &&
+          sekarang.difference(e.value!) > usiaAmanBerkasBaru)
+        e.key,
+  ];
+
+  /// Berkas yang benar-benar ada di bucket, sebagai path relatif lengkap,
+  /// beserta waktu terakhir diunggah.
   ///
   /// `list()` mengembalikan nama berkas saja tanpa foldernya, jadi prefiksnya
   /// dipasang kembali supaya sebanding dengan isi `products.image_path`.
-  Future<Set<String>> _daftarServer() async {
-    final hasil = <String>{};
+  Future<Map<String, DateTime?>> _daftarServer() async {
+    final hasil = <String, DateTime?>{};
     var offset = 0;
     while (true) {
       final halaman = await _client.storage.from(bucket).list(
@@ -337,7 +362,8 @@ class SyncGambar {
             ),
           );
       for (final f in halaman) {
-        hasil.add('${ImageStorageService.folderProduk}/${f.name}');
+        hasil['${ImageStorageService.folderProduk}/${f.name}'] =
+            DateTime.tryParse(f.updatedAt ?? f.createdAt ?? '');
       }
       if (halaman.length < _ukuranHalaman) break;
       offset += halaman.length;

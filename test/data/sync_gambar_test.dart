@@ -237,6 +237,38 @@ void main() {
     final mesin = SyncGambar(db, _KlienPalsu(), berkas: berkas);
     expect(await mesin.pathDirujuk(), isEmpty);
   });
+
+  group('buang foto di server (audit 6 Nov nomor 17)', () {
+    final kini = DateTime.utc(2026, 11, 7, 12);
+    const a = 'products/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.webp';
+    const b = 'products/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.webp';
+    const c = 'products/cccccccc-cccc-cccc-cccc-cccccccccccc.webp';
+
+    test('foto baru dari HP lain yang barisnya belum tertarik TIDAK dibuang',
+        () {
+      final buang = SyncGambar.pilihBuanganServer(
+        {
+          a: kini.subtract(const Duration(days: 3)), // sisa lama
+          b: kini.subtract(const Duration(minutes: 5)), // baru diunggah HP lain
+          c: null, // tanpa waktu: tidak diketahui
+        },
+        const {},
+        kini,
+      );
+      expect(buang, [a]);
+    });
+
+    test('foto yang dirujuk tidak pernah dibuang walau sudah lama', () {
+      expect(
+        SyncGambar.pilihBuanganServer(
+          {a: kini.subtract(const Duration(days: 30))},
+          const {a},
+          kini,
+        ),
+        isEmpty,
+      );
+    });
+  });
 }
 
 /// Cukup untuk membangun SyncGambar. Setiap panggilan ke jaringan MELEMPAR —
