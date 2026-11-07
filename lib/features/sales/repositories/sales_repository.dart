@@ -79,11 +79,17 @@ class SalesRepository {
     } catch (_) {
       // Sengaja dibisukan — lihat catatan di atas.
     }
-    final shift = await (_db.select(_db.shifts)
-          ..where((s) => s.id.equals(shiftId))
-          ..limit(1))
-        .getSingleOrNull();
-    return shift != null && (shift.endAt != null || shift.deletedAt != null);
+    // Lewat aturan bersama: shift yang DIGABUNG server bukan "ditutup" —
+    // penjualannya masuk ke shift tujuan (audit 6 Nov nomor 29).
+    try {
+      await _db.shiftBerjalan(shiftId);
+      return false;
+    } on ShiftSudahDitutup {
+      return true;
+    } on ShiftBelumAda {
+      // Penyimpanan sendiri yang memberi pesan yang jelas.
+      return false;
+    }
   }
 
   // ---- PEMBATALAN ----

@@ -151,6 +151,9 @@ class ShiftRepository {
 
   /// Tutup shift: catat jam selesainya dan kirim ke HP lain. Pemeriksaan
   /// "masih dipegang HP lain" dilakukan pemanggil (butuh server).
+  /// Lihat [AppDatabase.ujungShift].
+  Future<String> ujungShift(String shiftId) => _db.ujungShift(shiftId);
+
   Future<void> tutupShift(String shiftId) async {
     SessionManager.instance.requirePermission('open_close_shift');
     final sekarang = DateTime.now();

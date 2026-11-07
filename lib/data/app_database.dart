@@ -1866,7 +1866,7 @@ class AppDatabase extends _$AppDatabase {
 
     late String invoiceNo;
     await transaction(() async {
-      final shiftTujuan = await _shiftBerjalan(shiftId);
+      final shiftTujuan = await shiftBerjalan(shiftId);
       await _validasiProdukMasihAda(lines);
       final bill = billId == null ? null : await _billTerbuka(billId);
       if (billId != null && bill == null) {
@@ -2125,7 +2125,30 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// Shift tujuan penjualan/pengeluaran yang sebenarnya.
+  /// Ujung rantai penggabungan shift: [shiftId] sendiri kalau tidak
+  /// digabung, atau shift tujuannya. Shift yang barisnya belum ada di HP ini
+  /// dikembalikan apa adanya.
+  ///
+  /// SATU aturan untuk semua yang menulis ke shift — bayar, simpan bill,
+  /// pengeluaran, tutup shift (audit 6 Nov nomor 23, 29 & 30). Dulu tiap
+  /// tempat punya versinya sendiri, dan yang tidak mengikuti penggabungan
+  /// menyuruh kasir membuka shift baru padahal shift-nya masih jalan.
+  Future<String> ujungShift(String shiftId) async {
+    var id = shiftId;
+    for (var i = 0; i < 10; i++) {
+      final tujuan = await (selectOnly(shifts)
+            ..addColumns([shifts.digabungKe])
+            ..where(shifts.id.equals(id))
+            ..limit(1))
+          .map((r) => r.read(shifts.digabungKe))
+          .getSingleOrNull();
+      if (tujuan == null) return id;
+      id = tujuan;
+    }
+    return id;
+  }
+
+  /// Shift tujuan penjualan/pengeluaran/bill yang sebenarnya.
   ///
   /// Tolak shift yang sudah ditutup. Tanpa ini HP yang belum tahu shift-nya
   /// ditutup HP lain tetap menjual ke situ, dan kas akhir shift yang sudah
@@ -2135,25 +2158,18 @@ class AppDatabase extends _$AppDatabase {
   /// diganti tujuannya — kasir tetap berjualan di shift yang sama, hanya
   /// namanya yang berbeda; sesinya dipindah [SessionManager] sesudah sinkron.
   ///
-  /// Shift yang barisnya belum ada di HP ini dibiarkan: belum tentu ditutup,
-  /// barisnya saja yang belum sampai.
-  Future<String> _shiftBerjalan(String shiftId) async {
-    var id = shiftId;
-    for (var i = 0; i < 10; i++) {
-      final shift = await (select(shifts)
-            ..where((s) => s.id.equals(id))
-            ..limit(1))
-          .getSingleOrNull();
-      if (shift == null) return id;
-      final tujuan = shift.digabungKe;
-      if (tujuan != null) {
-        id = tujuan;
-        continue;
-      }
-      if (shift.endAt != null || shift.deletedAt != null) {
-        throw ShiftSudahDitutup();
-      }
-      return id;
+  /// Shift yang barisnya belum ada di HP ini ditolak dengan [ShiftBelumAda]:
+  /// dulu dibiarkan, lalu database menolaknya (foreign key) dan kasir hanya
+  /// melihat "Gagal menyimpan transaksi" berulang (audit 6 Nov nomor 30).
+  Future<String> shiftBerjalan(String shiftId) async {
+    final id = await ujungShift(shiftId);
+    final shift = await (select(shifts)
+          ..where((s) => s.id.equals(id))
+          ..limit(1))
+        .getSingleOrNull();
+    if (shift == null) throw ShiftBelumAda();
+    if (shift.endAt != null || shift.deletedAt != null) {
+      throw ShiftSudahDitutup();
     }
     return id;
   }
@@ -2167,7 +2183,7 @@ class AppDatabase extends _$AppDatabase {
     int qty = 1,
   }) async {
     final shiftTujuan =
-        shiftId == null ? null : await _shiftBerjalan(shiftId);
+        shiftId == null ? null : await shiftBerjalan(shiftId);
     await into(expenses).insert(
       ExpensesCompanion(
         id: Value(newUuid()),
@@ -2330,6 +2346,14 @@ class BillTidakTerbuka extends StateError {
 
 /// Shift tujuan penjualan/pengeluaran sudah ditutup — biasanya dari HP lain
 /// yang memegang shift yang sama, sebelum kabarnya sampai ke HP ini.
+/// Shift sesi ini belum ada di HP ini — mis. sesudah Perbaiki data, atau
+/// shift tujuan penggabungan belum tertarik.
+class ShiftBelumAda extends StateError {
+  ShiftBelumAda()
+      : super('Data shift ini belum ada di HP ini. Segarkan dulu, atau buka '
+            'shift baru.');
+}
+
 class ShiftSudahDitutup extends StateError {
   ShiftSudahDitutup()
       : super('Shift ini sudah ditutup di perangkat lain. '

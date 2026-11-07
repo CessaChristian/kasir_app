@@ -106,9 +106,12 @@ class PengelolaShift {
   /// Tutup shift berjalan. Kasir tetap masuk dan bisa membuka shift baru.
   /// Panggil [halanganMenutup] lebih dulu.
   Future<void> tutup() async {
-    final shiftId = SessionManager.instance.currentSession?.shiftId;
-    if (shiftId == null) return;
-    await _repo.tutupShift(shiftId);
+    final shiftSesi = SessionManager.instance.currentSession?.shiftId;
+    if (shiftSesi == null) return;
+    // Shift yang sudah digabung server: yang ditutup shift tujuannya. Dulu
+    // shift asal yang ditutup (sudah tidak dipakai), dan shift tujuannya
+    // tetap terbuka (audit 6 Nov nomor 29).
+    await _repo.tutupShift(await _repo.ujungShift(shiftSesi));
     await SessionManager.instance.aturShift(null);
     // Lepaskan tanda "perangkat ini memegang shift X" di server; best-effort.
     unawaited(PerangkatRepository.instance.hadir(null));

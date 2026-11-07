@@ -434,8 +434,8 @@ class OpenBillRepository {
     final sm = SessionManager.instance;
     sm.requirePermission('create_transaction');
     final sesi = sm.currentSession!;
-    final shiftId = sesi.shiftId;
-    if (shiftId == null) {
+    final shiftSesi = sesi.shiftId;
+    if (shiftSesi == null) {
       throw StateError('Buka shift dulu untuk mulai berjualan');
     }
     if (baris.isEmpty) throw StateError('Keranjang masih kosong');
@@ -443,6 +443,10 @@ class OpenBillRepository {
     final sekarang = DateTime.now();
 
     return _db.transaction(() async {
+      // Aturan yang sama dengan bayar (audit 6 Nov nomor 23): dulu bill baru
+      // masuk ke shift yang sudah ditutup HP lain, lalu tidak tampil di mana
+      // pun sesudah kasir membuka shift baru.
+      final shiftId = await _db.shiftBerjalan(shiftSesi);
       final galat = periksaNamaBill(
         rapi,
         await _terbuka(shiftId),
