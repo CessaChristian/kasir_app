@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 import '../../shared/services/image_storage_service.dart';
 import '../app_database.dart';
 import 'kemajuan_sync.dart';
+import '../supabase/jam_server.dart';
 import '../supabase/supabase_service.dart';
 import '../../utils/pesan_galat.dart' show galatTakTersambung;
 
@@ -897,14 +898,18 @@ class SyncEngine {
           // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
           if (lokal != null || !terhapusDiServer) berubah++;
         }
-      } else if (!lokal.pending) {
-        // Tidak ada perubahan yang menunggu, jadi server-lah yang benar, apa
-        // pun cap waktunya. Termasuk:
+      } else if (!lokal.pending &&
+          (_detikSama(lokal, mikroServer) || _capLokalDiMasaDepan(lokal))) {
+        // Tidak ada perubahan yang menunggu, dan versi server tidak lebih tua
+        // secara nyata:
         // - dua perubahan server dalam satu detik (QA kedua K11);
-        // - cap lokal yang kelewat maju karena jam HP pernah salah. Server
-        //   memotong cap itu saat menerimanya, dan kalau salinan lokalnya
+        // - cap lokal di masa depan karena jam HP pernah salah. Server
+        //   memotong cap itu saat menerimanya; kalau salinan lokalnya
         //   dibiarkan, HP ini menolak harga baru dari HP lain sampai jamnya
         //   melewati cap itu.
+        // SELAIN itu versi lama tidak ditulis: tarikan kecil yang jalan di
+        // luar antrean sinkron bisa membawa halaman yang diambil sebelum HP
+        // ini mengirim perubahannya (audit 6 Nov nomor 10).
         // Hanya dihitung kalau isinya berbeda — lihat catatan
         // "KENAPA BARIS synced" di [_serverMenang].
         final id = r['id'] as String;
@@ -1058,6 +1063,20 @@ class SyncEngine {
     const sejuta = 1000000;
     return (mikroServer ~/ sejuta) > (lokal.mikro ~/ sejuta);
   }
+
+  static bool _detikSama(({int mikro, bool pending}) lokal, int mikroServer) {
+    const sejuta = 1000000;
+    return mikroServer ~/ sejuta == lokal.mikro ~/ sejuta;
+  }
+
+  /// Cap lokal lebih dari [JamServer.batasSalah] di depan jam server — hanya
+  /// mungkin kalau jam HP pernah maju.
+  static bool _capLokalDiMasaDepan(({int mikro, bool pending}) lokal) =>
+      lokal.mikro >
+      JamServer.instance
+          .sekarang()
+          .add(JamServer.batasSalah)
+          .microsecondsSinceEpoch;
 
   /// Isi baris lokal sebagai teks, untuk melihat apakah tulisan benar-benar
   /// mengubah sesuatu. Cap waktu dan status sinkron tidak dihitung — bukan

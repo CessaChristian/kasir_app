@@ -324,23 +324,47 @@ void main() {
       () async {
     // Jam HP maju sehari saat mengedit. Server memotong capnya, tapi salinan
     // lokal masih bercap besok, sehingga harga baru dari HP lain ditolak.
+    final kini = DateTime.now().toUtc();
     await pasangProdukLokal(
       id: 'p20',
       nama: 'Harga lama',
-      updatedAt: detik('2026-09-05T10:00:00Z'),
+      updatedAt: kini.add(const Duration(days: 1)),
       syncStatus: 'synced',
     );
 
     final (_, berubah) = await mesin.gabungkanTabel('products', [
-      barisServer(
-        id: 'p20',
-        nama: 'Harga baru',
-        updatedAt: '2026-09-04T10:05:00.000000+00:00',
-      ),
+      barisServer(id: 'p20', nama: 'Harga baru', updatedAt: kini.toIso8601String()),
     ]);
 
     expect(berubah, 1);
     expect((await ambil('p20')).name, 'Harga baru');
+  });
+
+  test('audit nomor 10: baris synced yang lebih baru TIDAK ditimpa halaman '
+      'lama dari tarikan yang terlambat', () async {
+    // HP ini baru menutup shift / mengubah harga dan sudah terkirim (synced,
+    // cap 10.05). Tarikan kecil yang mengambil halaman sebelum kiriman itu
+    // datang membawa versi 10.00.
+    final kini = DateTime.now().toUtc();
+    final baru = kini.subtract(const Duration(minutes: 1));
+    await pasangProdukLokal(
+      id: 'p22',
+      nama: 'Versi terkirim',
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          baru.millisecondsSinceEpoch ~/ 1000 * 1000,
+          isUtc: true),
+      syncStatus: 'synced',
+    );
+    await mesin.gabungkanTabel('products', [
+      barisServer(
+        id: 'p22',
+        nama: 'Versi lama',
+        updatedAt: baru
+            .subtract(const Duration(minutes: 5))
+            .toIso8601String(),
+      ),
+    ]);
+    expect((await ambil('p22')).name, 'Versi terkirim');
   });
 
   test('baris pending bercap lebih baru TIDAK ditimpa server', () async {
