@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,7 +46,12 @@ class PenyimpananSesiAman extends LocalStorage {
     try {
       final lama = _cadangan.getString(kunci);
       if (lama == null) return;
-      if (await _brankas.read(key: kunci) == null) {
+      final diBrankas = await _brankas.read(key: kunci);
+      // Cadangan bisa LEBIH BARU dari isi brankas: brankas sempat galat saat
+      // aplikasi jalan, jadi tiket pengganti ditulis ke cadangan. Dulu isi
+      // brankas selalu menang, tiket lama dipakai, server menolaknya, dan HP
+      // harus didaftarkan ulang (audit 6 Nov nomor 18).
+      if (diBrankas == null || kedaluwarsa(lama) > kedaluwarsa(diBrankas)) {
         await _brankas.write(key: kunci, value: lama);
       }
       if (await _brankas.read(key: kunci) != null) {
@@ -53,6 +60,17 @@ class PenyimpananSesiAman extends LocalStorage {
     } catch (e) {
       debugPrint('[sesi] penyimpanan terenkripsi tidak bisa dipakai: $e');
       _brankasBisa = false;
+    }
+  }
+
+  /// `expires_at` sesi tersimpan, atau 0 kalau tidak terbaca.
+  @visibleForTesting
+  static int kedaluwarsa(String sesi) {
+    try {
+      final data = jsonDecode(sesi);
+      return data is Map ? (data['expires_at'] as num?)?.toInt() ?? 0 : 0;
+    } catch (_) {
+      return 0;
     }
   }
 

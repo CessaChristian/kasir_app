@@ -57,4 +57,17 @@ void main() {
     await s.initialize();
     expect(await s.accessToken(), '{"tiket":"terbaru"}');
   });
+
+  test('audit nomor 18: cadangan yang LEBIH BARU menggantikan isi brankas',
+      () async {
+    SharedPreferences.setMockInitialValues(
+        {kunci: '{"tiket":"r5","expires_at":2000}'});
+    FlutterSecureStorage.setMockInitialValues(
+        {kunci: '{"tiket":"r3","expires_at":1000}'});
+    final s = PenyimpananSesiAman(kunci: kunci);
+    await s.initialize();
+    expect(await s.accessToken(), '{"tiket":"r5","expires_at":2000}');
+    final p = await SharedPreferences.getInstance();
+    expect(p.getString(kunci), isNull);
+  });
 }
