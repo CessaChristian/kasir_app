@@ -198,6 +198,18 @@ void main() {
     });
   });
 
+  test('audit nomor 36: pekerjaan printer yang gagal tidak membuat antrean '
+      'macet selamanya', () async {
+    // Pengaturan rusak (tipe salah): membacanya melempar galat.
+    SharedPreferences.setMockInitialValues({'printer_mac': 5});
+    await expectLater(l.periksa(), throwsA(anything));
+    await l.simpan(
+      const PengaturanPrinter(mac: '86:67:7A:80:4E:3D', nama: 'RPP02N'),
+    );
+    final hasil = await l.cetak([1]).timeout(const Duration(seconds: 5));
+    expect(hasil, HasilCetak.berhasil);
+  });
+
   test('dua ketukan beruntun: dicetak bergiliran, tidak bercampur', () async {
     final a = l.cetak([1]);
     final b = l.cetak([2, 2]);

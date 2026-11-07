@@ -231,7 +231,15 @@ class LayananPrinter {
   Future<T> _giliran<T>(Future<T> Function() kerja) {
     final sebelum = _antrean;
     final hasil = () async {
-      if (sebelum != null) await sebelum;
+      // Galat pekerjaan sebelumnya urusan pemanggilnya sendiri. Dulu ikut
+      // dilempar ke sini: setiap pekerjaan sesudahnya gagal sebelum mulai,
+      // dan kartu "Mencetak struk…" berputar sampai aplikasi ditutup paksa
+      // (audit 6 Nov nomor 36).
+      if (sebelum != null) {
+        try {
+          await sebelum;
+        } catch (_) {}
+      }
       return kerja();
     }();
     _antrean = hasil;
