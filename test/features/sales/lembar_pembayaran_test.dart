@@ -12,8 +12,9 @@ void main() {
 
   Future<void> pasang(
     WidgetTester t,
-    Future<void> Function(int) bayar,
-  ) async {
+    Future<void> Function(int) bayar, {
+    MetodeBayar metode = MetodeBayar.qris,
+  }) async {
     t.view.physicalSize = const Size(1080, 2400);
     t.view.devicePixelRatio = 3;
     addTearDown(t.view.reset);
@@ -26,7 +27,7 @@ void main() {
               onPressed: () async => hasil = await tampilkanPembayaran(
                 c,
                 total: 18000,
-                metode: MetodeBayar.qris,
+                metode: metode,
                 bayar: bayar,
               ),
               child: const Text('buka'),
@@ -43,6 +44,16 @@ void main() {
     await t.drag(find.text('Pembayaran QRIS'), const Offset(0, 600));
     await t.pumpAndSettle();
   }
+
+  testWidgets('audit nomor 33: sesudah tombol nominal, ketikan masuk di '
+      'belakang angka', (t) async {
+    await pasang(t, (_) async {}, metode: MetodeBayar.tunai);
+    await t.tap(find.text('Rp 20.000').last);
+    await t.pump();
+    final kolom = t.widget<TextField>(find.byType(TextField)).controller!;
+    expect(kolom.selection, TextSelection.collapsed(offset: kolom.text.length),
+        reason: 'kursor harus di akhir, bukan -1');
+  });
 
   testWidgets('belum memproses: lembar bisa digeser tutup', (t) async {
     await pasang(t, (_) async {});
