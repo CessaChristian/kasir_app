@@ -507,7 +507,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
                           Icons.remove_rounded,
                           const Color(0xFF5A5048),
                           'Kurangi ${l.productName}',
-                          () => _k.kurangiSatu(i),
+                          () => _k.kurangiSatu(i, baris: l),
                         ),
                         SizedBox(
                           width: 24,
@@ -524,14 +524,14 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
                           Icons.add_rounded,
                           WarnaTeras.oranye,
                           'Tambah ${l.productName}',
-                          () => _k.tambahSatu(i),
+                          () => _k.tambahSatu(i, baris: l),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 6),
                   IconButton(
-                    onPressed: () => _k.hapus(i),
+                    onPressed: () => _k.hapus(i, baris: l),
                     tooltip: 'Hapus ${l.productName}',
                     visualDensity: VisualDensity.compact,
                     icon: const Icon(

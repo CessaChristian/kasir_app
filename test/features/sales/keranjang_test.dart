@@ -102,4 +102,28 @@ void main() {
     expect(k.baris.single.priceAtSale, 8000);
     expect(k.total, 16000);
   });
+
+  test('audit nomor 32: ketuk hapus dua kali sebelum digambar ulang tidak '
+      'menghapus barang lain', () {
+    final k = Keranjang()
+      ..tambah(idProduk: 'teh', nama: 'Teh', harga: 5000)
+      ..tambah(idProduk: 'kopi', nama: 'Kopi', harga: 10000)
+      ..tambah(idProduk: 'kopi', nama: 'Kopi', harga: 10000)
+      ..tambah(idProduk: 'roti', nama: 'Roti', harga: 8000);
+    final teh = k.baris[0];
+    k.hapus(0, baris: teh);
+    k.hapus(0, baris: teh); // ketukan kedua, layar belum digambar ulang
+    expect(k.baris.map((b) => (b.productId, b.qty)), [('kopi', 2), ('roti', 1)]);
+  });
+
+  test('kurangi dua kali cepat tetap mengurangi barang yang sama', () {
+    final k = Keranjang()
+      ..tambah(idProduk: 'kopi', nama: 'Kopi', harga: 10000)
+      ..tambah(idProduk: 'kopi', nama: 'Kopi', harga: 10000)
+      ..tambah(idProduk: 'kopi', nama: 'Kopi', harga: 10000);
+    final kopi = k.baris[0];
+    k.kurangiSatu(0, baris: kopi);
+    k.kurangiSatu(0, baris: kopi);
+    expect(k.baris.single.qty, 1);
+  });
 }
