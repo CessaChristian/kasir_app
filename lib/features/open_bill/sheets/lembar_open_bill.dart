@@ -82,7 +82,21 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
   /// hapusnya dimatikan supaya tidak terketuk dua kali.
   String? _sedangDihapus;
 
+  /// Satu bill dibuka pada satu waktu: ketukan kedua selagi menunggu server
+  /// dulu menjalankan penyimpanan kedua dengan isi yang sama.
+  var _membuka = false;
+
   Future<void> _buka(OpenBill b, BillTermuat isi) async {
+    if (_membuka) return;
+    _membuka = true;
+    try {
+      await _bukaSekali(b, isi);
+    } finally {
+      _membuka = false;
+    }
+  }
+
+  Future<void> _bukaSekali(OpenBill b, BillTermuat isi) async {
     final aktif = _k.bill;
     if (aktif?.id == b.id) {
       Navigator.pop(context, true);
@@ -151,6 +165,11 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
         isiAwal: aktif.isiAwal,
         baris: List.of(_k.baris),
       );
+      // Sudah tersimpan: keranjang dilepas dari isi lama SEKARANG, walau
+      // lembar ini sudah ditutup. Dulu `!mounted` keluar duluan, keranjang
+      // tetap memegang isi lama, dan Perbarui berikutnya menghitung
+      // tambahannya dua kali (audit 6 Nov nomor 22).
+      if (hasil != HasilPerbarui.sedangDibayar) _k.kosongkan();
       if (!mounted) return false;
       // Sedang dibayar HP lain: tetap di bill ini, perubahannya tidak hilang.
       if (hasil == HasilPerbarui.sedangDibayar) {

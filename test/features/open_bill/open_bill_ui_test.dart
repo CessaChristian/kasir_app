@@ -187,6 +187,38 @@ void main() {
     await lepas(t);
   });
 
+  testWidgets('audit nomor 22: dialog Simpan tidak bisa ditutup selama '
+      'menyimpan, dan keranjang tetap kosong sesudahnya', (t) async {
+    final tahan = Completer<void>();
+    repo = _RepoTahan(db, tahan.future);
+    final k = Keranjang()..tambah(idProduk: 'latte', nama: 'Latte', harga: 18000);
+    await pasang(t, k);
+    await t.tap(find.text('keranjang'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Simpan Bill'));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), 'Meja 7');
+    await t.tap(find.text('Simpan'));
+    await t.pump();
+    expect(find.text('Menyimpan…'), findsOneWidget);
+
+    // Kasir tidak sabar: ketuk di luar dialog dan tekan kembali.
+    await t.tapAt(const Offset(5, 5));
+    await t.pump();
+    await t.binding.handlePopRoute();
+    await t.pump();
+    expect(find.text('Simpan Open Bill'), findsOneWidget,
+        reason: 'dialog tetap terbuka sampai penyimpanan selesai');
+
+    tahan.complete();
+    await tunggu(t);
+    await t.pumpAndSettle();
+    expect(k.isEmpty, isTrue);
+    expect((await semuaBill(t)).single.name, 'Meja 7');
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
   testWidgets('Tagihan Nota: lencana, ringkasan, muat ke keranjang, Perbarui', (
     t,
   ) async {
@@ -1254,5 +1286,29 @@ class _PenjualanTiruan extends SalesRepository {
     ditanya++;
     await sesudahDitanya?.call();
     return ditutup;
+  }
+}
+
+/// Menahan penyimpanan bill sampai [tahan] selesai — meniru sinyal lemot.
+class _RepoTahan extends OpenBillRepository {
+  final Future<void> tahan;
+  _RepoTahan(super.db, this.tahan);
+
+  @override
+  Future<String> simpan({
+    String? id,
+    required String nama,
+    required List<SaleLine> baris,
+    String? isiAwal,
+    String? isiServer,
+  }) async {
+    await tahan;
+    return super.simpan(
+      id: id,
+      nama: nama,
+      baris: baris,
+      isiAwal: isiAwal,
+      isiServer: isiServer,
+    );
   }
 }

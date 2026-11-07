@@ -119,7 +119,11 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
     // True kalau isi bill di server sudah diubah HP lain sejak dimuat —
     // perubahan HP ini digabungkan ke situ, dan kasir perlu tahu.
     var digabung = false;
-    final nama = await tanyaSimpanBill(
+    // Keranjang dikosongkan begitu tersimpan, di dalam penyimpan — bukan
+    // sesudah dialog tertutup. Kalau layarnya hilang di tengah jalan,
+    // keranjang tetap tidak memegang isi lama yang akan dihitung dua kali.
+    String? tersimpan;
+    await tanyaSimpanBill(
       context,
       perbarui: aktif != null,
       jumlahItem: baris.fold(0, (s, b) => s + b.qty),
@@ -129,6 +133,8 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
         try {
           if (aktif == null) {
             await widget.repoBill.simpan(nama: nama, baris: baris);
+            tersimpan = nama;
+            _k.kosongkan();
             return null;
           }
           final (:hasil, :sisaKlaim) = await widget.repoBill.perbarui(
@@ -144,14 +150,16 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           }
           digabung = hasil == HasilPerbarui.digabung;
           ditolak = kataPenolakan(hasil);
+          tersimpan = nama;
+          _k.kosongkan();
           return null;
         } catch (e) {
           return pesanGalat(e, awalan: 'Gagal menyimpan bill');
         }
       },
     );
+    final nama = tersimpan;
     if (nama == null || !mounted) return;
-    _k.kosongkan();
     if (ditolak != null) {
       AppToast.error(
         context,

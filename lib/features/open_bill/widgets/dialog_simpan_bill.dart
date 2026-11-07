@@ -87,7 +87,12 @@ class _DialogSimpanBillState extends State<_DialogSimpanBill> {
   @override
   Widget build(BuildContext context) {
     final terisi = _nama.text.trim().isNotEmpty;
-    return Dialog(
+    // Selama menyimpan, ketuk di luar dan tombol kembali tidak menutup
+    // dialog (audit 6 Nov nomor 22): dulu bill sudah tersimpan tapi keranjang
+    // tidak dikosongkan, dan Perbarui berikutnya menghitung tambahan dua kali.
+    return PopScope(
+      canPop: !_menyimpan,
+      child: Dialog(
       backgroundColor: WarnaTeras.kartu,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -197,7 +202,7 @@ class _DialogSimpanBillState extends State<_DialogSimpanBill> {
                 Expanded(
                   flex: 14,
                   child: TombolLembar(
-                    label: 'Simpan',
+                    label: _menyimpan ? 'Menyimpan…' : 'Simpan',
                     latar: terisi ? WarnaTeras.oranye : const Color(0xFFF3D3B4),
                     warna: Colors.white,
                     tinggi: 46,
@@ -210,6 +215,7 @@ class _DialogSimpanBillState extends State<_DialogSimpanBill> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
