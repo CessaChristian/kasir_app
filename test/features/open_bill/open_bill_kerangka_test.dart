@@ -11,6 +11,7 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/db.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/open_bill/models/isi_bill.dart';
+import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
 import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,8 @@ void main() {
   late Directory folder;
 
   setUpAll(() async {
+    // Tarikan sebelum tutup shift dianggap berhasil (tidak ada server).
+    OpenBillRepository.tarikWajibUntukTest = () async {};
     await initializeDateFormatting('id_ID');
     folder = await Directory.systemTemp.createTemp('kerangka_bill');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

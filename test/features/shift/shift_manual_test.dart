@@ -95,6 +95,8 @@ void main() {
   }
 
   setUp(() async {
+    // Tarikan sebelum tutup shift dianggap berhasil (tidak ada server).
+    OpenBillRepository.tarikWajibUntukTest = () async {};
     SharedPreferences.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     SessionManager.dbOverride = db;
@@ -113,6 +115,7 @@ void main() {
     await masuk();
   });
   tearDown(() async {
+    OpenBillRepository.tarikWajibUntukTest = null;
     await SessionManager.instance.clearSession();
     SessionManager.dbOverride = null;
     await db.close();

@@ -80,7 +80,7 @@ Future<void> tutupShiftLewatDialog(
       context,
       () => (
         // Bill dari HP lain di shift yang sama ikut terhitung.
-        rb.segarkanDariServer().then((_) => rb.jumlahTerbuka(shiftId)),
+        rb.tarikWajib().then((_) => rb.jumlahTerbuka(shiftId)),
         p.halanganMenutup(shiftId),
         (repo ?? ShiftRepository(db)).watchShift(shiftId).first,
       ).wait,

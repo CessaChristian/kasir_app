@@ -1085,6 +1085,38 @@ void main() {
     await lepas(t);
   });
 
+  testWidgets('audit nomor 27: tarikan sebelum tutup shift gagal → shift '
+      'tidak ditutup walau di HP ini tidak ada bill', (t) async {
+    OpenBillRepository.tarikWajibUntukTest =
+        () async => throw TimeoutException('sinyal lemot');
+    addTearDown(() => OpenBillRepository.tarikWajibUntukTest = null);
+    await t.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (c) => TextButton(
+            onPressed: () => tutupShiftLewatDialog(
+              c,
+              repo: ShiftRepository(db),
+              repoBill: repo,
+            ),
+            child: const Text('tutup'),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('tutup'));
+    await tunggu(t);
+    await t.pumpAndSettle();
+    expect(
+      find.text('Gagal memeriksa shift. Periksa koneksi lalu coba lagi.'),
+      findsOneWidget,
+    );
+    expect(find.text('Tutup shift sekarang?'), findsNothing);
+    expect(SessionManager.instance.currentSession!.shiftId, 's-1');
+    await t.pump(const Duration(seconds: 5));
+    await lepas(t);
+  });
+
   testWidgets('review C5: pemeriksaan tutup shift gagal → ada pesan, shift '
       'tidak tertutup', (t) async {
     await t.pumpWidget(
@@ -1119,6 +1151,8 @@ void main() {
       await repo.simpan(nama: 'Meja 1', baris: [baris('teh', 1)]);
       await repo.simpan(nama: 'Meja 2', baris: [baris('teh', 1)]);
     });
+    OpenBillRepository.tarikWajibUntukTest = () async {};
+    addTearDown(() => OpenBillRepository.tarikWajibUntukTest = null);
     var dilihat = 0;
     await t.pumpWidget(
       MaterialApp(

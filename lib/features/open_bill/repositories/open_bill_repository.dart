@@ -219,6 +219,23 @@ class OpenBillRepository {
   /// shift yang sama ikut terhitung. Dipakai sebelum tutup shift, dan
   /// sesudah server menolak bayar/hapus supaya bill itu hilang dari daftar.
   /// Gagal atau lebih dari 4 detik diabaikan: data lokal tetap dipakai.
+  /// Tarik semua data dulu, dan GAGAL kalau tidak bisa — untuk tutup shift
+  /// (audit 6 Nov nomor 27). Dulu tarikan yang lewat 4 detik dibisukan,
+  /// bill dari HP lain belum tertarik, jumlahnya terbaca 0, dan shift
+  /// tertutup dengan bill yang tertinggal. Tutup shift memang wajib online.
+  Future<void> tarikWajib() async {
+    if (tarikWajibUntukTest case final tarik?) return tarik();
+    if (!SupabaseService.instance.online) {
+      throw StateError('Tutup shift butuh internet.');
+    }
+    await SyncEngine(_db).tarikSemua().timeout(const Duration(seconds: 15));
+  }
+
+  /// Pengganti [tarikWajib], untuk test. Statis: test layar membuat
+  /// repository-nya sendiri.
+  @visibleForTesting
+  static Future<void> Function()? tarikWajibUntukTest;
+
   Future<void> segarkanDariServer() async {
     try {
       if (!SupabaseService.instance.online) return;
