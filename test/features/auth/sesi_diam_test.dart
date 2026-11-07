@@ -93,12 +93,20 @@ void main() {
       expect(sm.isLoggedIn, isTrue);
     });
 
-    test('kasir yang belum membuka shift tidak terkena', () async {
+    test('kasir yang belum membuka shift JUGA keluar (keputusan owner '
+        '2026-11-07), tanpa laporan lepas shift', () async {
+      var lapor = 0;
+      sm.laporLepasShiftUntukTest = () async => lapor++;
+      addTearDown(() => sm.laporLepasShiftUntukTest = null);
       await sm.setSession(sesi(shiftId: null));
-      sm.catatSentuhan(DateTime(2026, 1, 1));
+      final sentuh = DateTime(2026, 1, 1, 9);
+      sm.catatSentuhan(sentuh);
       await pumpEventQueue();
-      expect(await sm.akhiriKalauDiam(), isFalse);
-      expect(sm.isLoggedIn, isTrue);
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(14))), isFalse);
+      expect(await sm.akhiriKalauDiam(sekarang: sentuh.add(menit(15))), isTrue);
+      expect(sm.sesiDicabut.value, SessionManager.pesanDiam);
+      await pumpEventQueue();
+      expect(lapor, 0, reason: 'tidak memegang shift, tidak ada yang dilepas');
     });
 
     test('membuka shift sesudah lama diam memulai hitungan dari nol',
@@ -109,6 +117,51 @@ void main() {
       await sm.aturShift('shift-1');
       expect(await sm.akhiriKalauDiam(), isFalse,
           reason: 'kasir baru saja menekan Buka shift — jelas sedang dipakai');
+    });
+  });
+
+  group('jam HP dimundurkan (audit 6 Nov nomor 4)', () {
+    for (final (nama, id, shift) in [
+      ('owner', 'owner-1', null),
+      ('kasir dengan shift', 'kasir-1', 'shift-1'),
+      ('kasir tanpa shift', 'kasir-1', null),
+    ]) {
+      test('$nama: jam mundur ke sebelum sentuhan terakhir → keluar', () async {
+        await sm.setSession(sesi(id: id, shiftId: shift));
+        final sentuh = DateTime(2026, 11, 7, 10);
+        sm.catatSentuhan(sentuh);
+        await pumpEventQueue();
+        // Ditinggal 20 menit, lalu jamnya dimundurkan sejam.
+        expect(
+          await sm.akhiriKalauDiam(sekarang: sentuh.subtract(menit(40))),
+          isTrue,
+        );
+        expect(sm.isLoggedIn, isFalse);
+      });
+    }
+
+    test('mundur kurang dari semenit (jam dibetulkan jaringan) tidak dihitung',
+        () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      final sentuh = DateTime(2026, 11, 7, 10);
+      sm.catatSentuhan(sentuh);
+      await pumpEventQueue();
+      expect(
+        await sm.akhiriKalauDiam(
+            sekarang: sentuh.subtract(const Duration(seconds: 30))),
+        isFalse,
+      );
+    });
+
+    test('sesi lewat 12 jam berakhir walau aplikasinya terus terbuka',
+        () async {
+      await sm.setSession(sesi(id: 'owner-1', shiftId: null));
+      final lewat = DateTime.now().add(const Duration(hours: 12, minutes: 1));
+      // Disentuh terus sampai saat itu.
+      sm.catatSentuhan(lewat);
+      await pumpEventQueue();
+      expect(await sm.akhiriKalauDiam(sekarang: lewat), isTrue);
+      expect(sm.sesiDicabut.value, SessionManager.pesanSesiHabis);
     });
   });
 

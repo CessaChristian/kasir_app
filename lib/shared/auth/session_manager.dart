@@ -131,6 +131,9 @@ class SessionManager {
   void catatSentuhan([DateTime? waktu]) {
     final kini = waktu ?? DateTime.now();
     _sentuhanTerakhir = kini;
+    _sejakSentuhan
+      ..reset()
+      ..start();
     final tersimpan = _sentuhanTersimpan;
     // Selisih mutlak: jam HP yang dimundurkan tidak boleh membuat sentuhan
     // berhenti tersimpan.
@@ -156,8 +159,8 @@ class SessionManager {
 
   static const jedaSimpanSentuhan = Duration(minutes: 1);
 
-  /// Akhiri sesi kalau kasir yang memegang shift sudah [batasDiam] tidak
-  /// memberi kabar. True kalau sesinya diakhiri; [sesiDicabut] membawa
+  /// Akhiri sesi kalau akun ini sudah [batasDiam] tidak disentuh, sudah
+  /// lewat 12 jam, atau jam HP dimundurkan. True kalau sesinya diakhiri; [sesiDicabut] membawa
   /// [pesanDiam] ke layar.
   ///
   /// Dipanggil saat aplikasi dibuka, saat kembali dari latar belakang
@@ -171,18 +174,57 @@ class SessionManager {
   /// Internet mati tetap tidak dihitung diam — yang dihitung sentuhannya.
   Future<bool> akhiriKalauDiam({DateTime? sekarang}) async {
     final sesi = _currentSession;
-    if (sesi != null && sesi.isOwner) {
-      return _akhiriOwnerKalauDitinggal(sekarang ?? DateTime.now());
+    if (sesi == null) return false;
+    final kini = sekarang ?? DateTime.now();
+    if (_sesiTidakSah(sesi, kini)) {
+      await _akhiri(sesi, pesanSesiHabis);
+      return true;
     }
-    if (sesi == null || !sesi.isCashier || sesi.shiftId == null) return false;
+    if (sesi.isOwner) return _akhiriOwnerKalauDitinggal(kini);
+    // Semua kasir, juga yang belum membuka shift (keputusan owner
+    // 2026-11-07): HP kasir yang ditinggal terbuka tetap bisa dipakai orang
+    // lain atas nama kasir itu.
     // Kabar hanya cadangan untuk HP yang belum pernah mencatat sentuhan.
     final patokan = _sentuhanTerakhir ?? _kabarTerakhir;
-    if (patokan == null) return false;
-    if ((sekarang ?? DateTime.now()).difference(patokan) < batasDiam) {
+    if (!_diamMenurutStopwatch &&
+        (patokan == null || kini.difference(patokan) < batasDiam)) {
       return false;
     }
+    await _akhiri(sesi, pesanDiam);
+    return true;
+  }
+
+  /// Toleransi jam HP yang sedikit mundur sendiri (diperbaiki jaringan).
+  static const toleransiJamMundur = Duration(minutes: 1);
+
+  static const pesanSesiHabis =
+      'Sesi berakhir. Silakan masuk lagi.';
+
+  /// Lamanya diam selama aplikasi hidup, TIDAK ikut jam HP. Dulu hanya jam
+  /// yang dipakai: jam yang dimundurkan membuat selisihnya negatif, selalu di
+  /// bawah 15 menit, jadi HP owner yang ditinggal bisa dibuka tanpa PIN.
+  final Stopwatch _sejakSentuhan = Stopwatch();
+
+  bool get _diamMenurutStopwatch =>
+      _sejakSentuhan.isRunning && _sejakSentuhan.elapsed >= batasDiam;
+
+  /// Sesi lewat 12 jam (dulu hanya diperiksa saat aplikasi dibuka), atau jam
+  /// HP mundur ke sebelum sentuhan terakhir. Mundur seperti itu tidak
+  /// dipercaya: sesi diakhiri, bukan dianggap baru saja disentuh.
+  bool _sesiTidakSah(AuthSession sesi, DateTime kini) {
+    final sentuh = _sentuhanTerakhir;
+    return !kini.isBefore(sesi.expiresAt) ||
+        (sentuh != null && sentuh.isAfter(kini.add(toleransiJamMundur)));
+  }
+
+  Future<void> _akhiri(AuthSession sesi, String pesan) async {
+    final pegangShift = sesi.isCashier && sesi.shiftId != null;
+    _sejakSentuhan
+      ..stop()
+      ..reset();
     await clearSession();
-    sesiDicabut.value = pesanDiam;
+    sesiDicabut.value = pesan;
+    if (!pegangShift) return;
     // Server diberi tahu sekarang, tidak menunggu sinkron berikutnya —
     // HP lain langsung bisa menutup shift-nya. Sinkron yang sedang jalan
     // ditunggu DULU, sama seperti keluar biasa (AuthRepository.laporShift):
@@ -203,7 +245,6 @@ class SessionManager {
       await (laporLepasShiftUntukTest ??
           () => PerangkatRepository.instance.hadir(null))();
     }());
-    return true;
   }
 
   /// Pengganti laporan "shift dilepas" ke server, untuk test.
@@ -228,11 +269,11 @@ class SessionManager {
   /// menit selama aplikasi terbuka, jadi aturannya tidak akan pernah berlaku.
   Future<bool> _akhiriOwnerKalauDitinggal(DateTime sekarang) async {
     final sentuh = _sentuhanTerakhir;
-    if (sentuh == null || sekarang.difference(sentuh) < batasDiam) {
+    if (!_diamMenurutStopwatch &&
+        (sentuh == null || sekarang.difference(sentuh) < batasDiam)) {
       return false;
     }
-    await clearSession();
-    sesiDicabut.value = pesanDiamOwner;
+    await _akhiri(_currentSession!, pesanDiamOwner);
     return true;
   }
 
