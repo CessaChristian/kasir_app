@@ -504,9 +504,17 @@ void main() {
     );
   }
 
-  Future<String> simpanMeja4(WidgetTester t) async => (await t.runAsync(
-    () => repo.simpan(nama: 'Meja 4', baris: [baris('latte', 1)]),
-  ))!;
+  /// Bill Meja 4 yang sudah ada di server (terkirim), seperti bill yang
+  /// dimuat dari daftar Open Bill.
+  Future<String> simpanMeja4(WidgetTester t, {bool terkirim = true}) async =>
+      (await t.runAsync(() async {
+        final id = await repo.simpan(nama: 'Meja 4', baris: [baris('latte', 1)]);
+        if (terkirim) {
+          await (db.update(db.openBills)..where((b) => b.id.equals(id)))
+              .write(const OpenBillsCompanion(syncStatus: Value('synced')));
+        }
+        return id;
+      }))!;
 
   Future<List<Transaction>> semuaTx(WidgetTester t) async =>
       (await t.runAsync(() => db.select(db.transactions).get()))!;
@@ -645,6 +653,48 @@ void main() {
     expect(server.catatan, ['cek', 'cek', 'klaim']);
     final tx = await semuaTx(t);
     expect((tx.single.total, tx.single.billName), (26000, 'Meja 4'));
+    await t.tap(find.text('Selesai'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('audit nomor 24: bill yang diperbarui HP ini dan belum terkirim '
+      'tidak dikira diubah HP lain', (t) async {
+    // Meja 4 diperbarui di HP ini jadi Latte×1 + Teh×1 saat offline; server
+    // masih menyimpan Latte×1 saja.
+    final id = await simpanMeja4(t, terkirim: false);
+    await t.runAsync(() => repo.simpan(
+          id: id,
+          nama: 'Meja 4',
+          baris: [baris('latte', 1), baris('teh', 1)],
+          isiAwal: kodekanBarisBill([(idProduk: 'latte', jumlah: 1, catatan: null)]),
+        ));
+    final server = _ServerTiruan(db)
+      ..isiServer = kodekanBarisBill([(idProduk: 'latte', jumlah: 1, catatan: null)])
+      ..kirimUntukTest = () async {}; // pengiriman gagal (offline)
+    final k = Keranjang();
+    await pasang(t, k);
+    await bukaDaftar(t);
+    await t.tap(find.text('Meja 4'));
+    await t.pumpAndSettle();
+    expect(k.baris.map((b) => b.productId), ['latte', 'teh']);
+    Navigator.of(t.element(find.text('Keranjang'))).pop();
+    await t.pumpAndSettle();
+    // ignore: unawaited_futures
+    bukaKeranjang(t.element(find.text('keranjang')), k,
+        repo: SalesRepository(db), repoBill: server);
+    await t.pumpAndSettle();
+    await t.tap(find.text('QRIS'));
+    await t.pump();
+    await t.tap(find.text('Bayar Rp 26.000'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Sudah Bayar'));
+    await tunggu(t, 300);
+    await t.pumpAndSettle();
+    expect(find.textContaining('diubah di perangkat lain'), findsNothing);
+    final tx = await semuaTx(t);
+    expect(tx.single.total, 26000, reason: 'Teh ikut tertagih');
     await t.tap(find.text('Selesai'));
     await t.pumpAndSettle();
     await t.pump(const Duration(seconds: 3));

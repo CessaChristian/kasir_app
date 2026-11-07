@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/supabase_service.dart';
 import '../../../data/sync/sync_engine.dart';
+import '../../../data/sync/sync_service.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../models/isi_bill.dart';
 
@@ -365,6 +367,38 @@ class OpenBillRepository {
           : null,
     );
   }
+
+  /// Kirim dulu bill [id] kalau di HP ini masih menunggu dikirim. True kalau
+  /// sesudahnya bill itu SUDAH sampai di server (atau memang tidak tertunda).
+  ///
+  /// Dipakai sebelum membandingkan isi bill dengan server (audit 6 Nov nomor
+  /// 24). Bill yang diperbarui saat offline lalu dibayar sebelum sinkron dulu
+  /// terlihat "diubah HP lain" — server masih menyimpan isi lama — dan
+  /// keranjang diganti isi lama itu: tambahan kasir hilang dan tidak tertagih.
+  Future<bool> kirimKalauTertunda(String id) async {
+    Future<bool> tertunda() async =>
+        (await (_db.select(_db.openBills)..where((b) => b.id.equals(id)))
+                .getSingleOrNull())
+            ?.syncStatus ==
+        'pending';
+    if (!await tertunda()) return true;
+    try {
+      if (kirimUntukTest case final kirim?) {
+        await kirim();
+      } else if (SupabaseService.instance.online) {
+        // Lewat antrean sinkron yang sama, supaya tidak berebut dengan
+        // putaran yang mungkin sedang jalan.
+        await SyncService.instance.jalankan().timeout(batasTungguServer);
+      }
+    } catch (e) {
+      debugPrint('[bill] kirim sebelum bayar gagal: $e');
+    }
+    return !await tertunda();
+  }
+
+  /// Pengganti pengiriman di [kirimKalauTertunda], untuk test.
+  @visibleForTesting
+  Future<void> Function()? kirimUntukTest;
 
   /// Perbarui bill [id] yang dimuat ke keranjang dengan isi [isiAwal].
   ///

@@ -6,6 +6,7 @@ import '../../../data/app_database.dart'
     show BillTidakTerbuka, ShiftSudahDitutup;
 import '../../../data/db.dart';
 import '../../../data/models/sale_line.dart';
+import '../../../data/sync/sync_service.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/lembar_konfirmasi.dart';
@@ -238,9 +239,14 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           // Klaim hanya memeriksa status bill, bukan isinya. Pesanan yang
           // ditambahkan HP lain sesudah bill dimuat ke sini tidak akan ikut
           // tertagih — jadi isinya dicocokkan dulu.
+          // Bill yang diperbarui HP ini tapi belum terkirim: kirim dulu.
+          // Kalau tetap belum sampai, isi server yang lama tidak dianggap
+          // perubahan HP lain (audit 6 Nov nomor 24).
+          final sudahSampai = await widget.repoBill.kirimKalauTertunda(bill.id);
           final cek = await widget.repoBill.cekDiServer(bill.id);
           final isiServer = cek.isi;
-          if (cek.keputusan == KeputusanServer.boleh &&
+          if (sudahSampai &&
+              cek.keputusan == KeputusanServer.boleh &&
               isiServer != null &&
               !isiBillSama(isiServer, bill.isiAwal)) {
             final gabungan = await widget.repoBill.gabungDenganServer(
@@ -248,6 +254,20 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
               milikku: baris,
               isiServer: isiServer,
             );
+            // Pesanan dari HP lain memakai produk yang belum ada di HP ini.
+            // Dulu dibuang diam-diam lalu tidak tertagih: keranjang tidak
+            // diganti, kasir diminta menyegarkan dulu.
+            if (gabungan.produkHilang > 0) {
+              unawaited(SyncService.instance.jalankan());
+              if (mounted) {
+                AppToast.warning(
+                  context,
+                  'Bill ${bill.nama} punya pesanan dari HP lain yang produknya '
+                  'belum ada di HP ini. Tunggu sebentar lalu bayar lagi.',
+                );
+              }
+              throw const PembayaranDitolak();
+            }
             _k.muatBill((
               id: bill.id,
               nama: bill.nama,
