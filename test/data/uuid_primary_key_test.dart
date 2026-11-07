@@ -148,6 +148,8 @@ void main() {
       'lib/data/sync/sync_engine.dart':
           'membandingkan updated_at lokal (detik) dengan server (mikrodetik) '
           'untuk memutuskan versi mana yang menang saat menarik — bukan ID',
+      'lib/data/supabase/klien_berbatas_waktu.dart':
+          'membaca masa berlaku tiket login dari jawaban server — bukan ID',
       'lib/data/supabase/supabase_service.dart':
           'membaca masa berlaku tiket login untuk dinilai dengan jam server '
           '— bukan ID',
