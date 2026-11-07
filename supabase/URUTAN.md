@@ -1,8 +1,42 @@
 # Urutan menjalankan berkas SQL
 
 Server Supabase dibangun dari berkas-berkas di folder ini, dijalankan
-**satu per satu lewat SQL Editor, sesuai urutan di bawah**. Setiap berkas
-aman diulang.
+**satu per satu lewat SQL Editor, sesuai urutan di bawah, masing-masing SEKALI**.
+Sesudahnya jalankan `periksa_akhir.sql`: hasil yang benar tidak mengembalikan
+baris apa pun.
+
+> **"Aman diulang" di kepala berkas hanya benar kalau berkas itu yang
+> TERAKHIR mendefinisikan fungsinya.** Berkas yang isinya sudah digantikan
+> berkas lebih baru (daftar di bawah), kalau dijalankan ulang sendirian,
+> diam-diam mengembalikan perilaku lama tanpa pesan galat (audit 6 Nov 2026
+> nomor 20). Contoh: `open_bill_kunci.sql` mengembalikan klaim bill tanpa
+> batas waktu, dan `perangkat_tarik.sql` membuat `perangkat_hadir` dobel
+> sehingga kabar "HP masih aktif" ditolak. Di server yang sudah berjalan,
+> jalankan hanya berkas BARU. Ragu? Jalankan `periksa_akhir.sql`.
+
+### Berkas yang sudah digantikan — jangan dijalankan ulang sendirian
+
+| Berkas | Fungsinya didefinisikan ulang oleh |
+|---|---|
+| `perangkat.sql` | `perangkat_tebak_aman.sql`, `perangkat_bukti_owner.sql`, `versi_asli.sql` |
+| `perangkat_shift.sql` | `shift_pemegang_basi.sql`, `versi_asli.sql` |
+| `buang_sampah.sql` | `buang_sampah_tarik.sql` |
+| `nomor_nota.sql` | `nomor_kasir_server.sql`, `perangkat_tebak_aman.sql` |
+| `open_bill_kunci.sql` | `open_bill_aman.sql`, `versi_asli.sql` |
+| `shift_pemegang_basi.sql` | `pengetatan_kecil.sql` |
+| `tolak_versi_lama.sql` | `versi_asli.sql` |
+| `perangkat_tarik.sql` | `versi_asli.sql` |
+| `perangkat_aman.sql` | `perangkat_tebak_aman.sql` |
+| `shift_gabung.sql` | `pengetatan_kecil.sql` |
+| `open_bill_aman.sql` | `klaim_tanpa_waktu.sql`, `versi_asli.sql` |
+| `perangkat_gagal_kirim.sql` | `versi_asli.sql` |
+| `klaim_lima_menit.sql` | `klaim_tanpa_waktu.sql` |
+| `kredensial_owner.sql` | `kredensial_ketat.sql` |
+| `produk_kembar.sql` | `versi_asli.sql` |
+| `perangkat_jam.sql` | `versi_asli.sql` |
+
+Kalau terlanjur menjalankan salah satunya, jalankan ulang SEMUA berkas yang
+menggantikannya sesuai urutan, lalu `periksa_akhir.sql`.
 
 Urutan ini **sudah dibuktikan** (28 Okt 2026): semua berkas dijalankan di
 PostgreSQL 16 lokal dengan tiruan skema `auth`, `storage`, `cron`, dan

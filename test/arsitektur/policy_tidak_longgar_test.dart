@@ -178,7 +178,8 @@ void main() {
     final berkas = {
       for (final f in Directory('supabase').listSync())
         if (f.path.endsWith('.sql')) f.uri.pathSegments.last,
-    };
+    // Hanya membaca, dijalankan SESUDAH semua langkah — bukan langkah bangun.
+    }..remove('periksa_akhir.sql');
     final tercatat = [
       for (final m in RegExp(
         r'^\| \d+ \| `([a-z_]+\.sql)`',
