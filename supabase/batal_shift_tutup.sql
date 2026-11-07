@@ -14,8 +14,10 @@
 --
 --  ── PERBAIKANNYA ──
 --
---  Pembatalan oleh akun KASIR yang tiba saat shift-nya sudah ditutup
---  diabaikan, tanpa galat. Versi server dipertahankan dan capnya dimajukan,
+--  Pembatalan oleh akun KASIR yang DILAKUKAN sesudah shift-nya ditutup
+--  diabaikan, tanpa galat. Pembatalan yang dilakukan selagi shift masih
+--  buka tetap diterima walau baru tiba sesudah shift ditutup (kasir
+--  membatalkan saat offline, lalu menutup shift begitu online). Versi server dipertahankan dan capnya dimajukan,
 --  jadi HP kasir menarik lagi transaksi itu sebagai transaksi biasa. Sesudah
 --  itu hanya owner yang bisa membatalkannya. Pembatalan oleh owner selalu
 --  diterima. Kasir tidak diberi pesan (keputusan owner).
@@ -40,10 +42,15 @@ begin
   ) then
     return new;
   end if;
+  -- Dibandingkan dengan WAKTU PEMBATALAN, bukan waktu tiba. Kasir yang
+  -- membatalkan saat offline lalu menutup shift begitu online: shift-nya
+  -- terkirim duluan (urutan sinkron), dan pembatalan yang sah ikut dibuang
+  -- kalau patokannya waktu tiba.
   if not exists (
     select 1 from public.shifts s
      where s.id = public.ujung_gabungan(old.shift_id)
        and s.end_at is not null
+       and new.deleted_at > s.end_at
   ) then
     return new;
   end if;
