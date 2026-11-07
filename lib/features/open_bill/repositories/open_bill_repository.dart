@@ -511,13 +511,16 @@ class OpenBillRepository {
         )..where((b) => b.id.equals(id))).getSingleOrNull();
         final terkini = isiServer ?? lokal?.items;
         if (terkini != null) {
-          isi = kodekanBarisBill(
-            gabungIsiBill(
-              awal: bacaIsiBill(isiAwal),
-              milikku: bacaIsiBill(isi),
-              terkini: bacaIsiBill(terkini),
-            ),
+          final gabungan = gabungIsiBill(
+            awal: bacaIsiBill(isiAwal),
+            milikku: bacaIsiBill(isi),
+            terkini: bacaIsiBill(terkini),
           );
+          // HP ini dan HP lain sama-sama menghapus isinya: bill kosong tidak
+          // disimpan sebagai bill terbuka "0 item" yang menghalangi tutup
+          // shift (audit 6 Nov nomor 26).
+          if (gabungan.isEmpty) throw BillJadiKosong();
+          isi = kodekanBarisBill(gabungan);
         }
       }
       final diubah =
@@ -583,4 +586,11 @@ class OpenBillRepository {
           ),
         );
   }
+}
+
+/// Gabungan perubahan HP ini dan HP lain menghapus semua isi bill.
+class BillJadiKosong extends StateError {
+  BillJadiKosong()
+      : super('Isi bill jadi kosong karena pesanannya juga dihapus di HP '
+            'lain. Hapus bill ini kalau sudah tidak dipakai.');
 }
