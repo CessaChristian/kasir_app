@@ -204,9 +204,10 @@ void main() {
 
     // Kasir tidak sabar: ketuk di luar dialog dan tekan kembali.
     await t.tapAt(const Offset(5, 5));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 500));
     await t.binding.handlePopRoute();
-    await t.pump();
+    // Lewat animasi tutup: dialog yang sedang ditutup masih terlihat.
+    await t.pump(const Duration(milliseconds: 500));
     expect(find.text('Simpan Open Bill'), findsOneWidget,
         reason: 'dialog tetap terbuka sampai penyimpanan selesai');
 
