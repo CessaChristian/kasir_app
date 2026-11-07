@@ -6,7 +6,6 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/kategori_biaya.dart';
-import '../../../utils/formatters/isi_kolom.dart';
 
 /// Isian dialog Pengeluaran. [amount] adalah TOTAL (nominal × [qty]).
 class InputPengeluaran {
@@ -72,7 +71,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
 
   void _geserJumlah(int d) => setState(() {
     final baru = (_qty + d).clamp(1, _jumlahMaks);
-    isiKolom(_jumlahC, '$baru');
+    _jumlahC.text = '$baru';
     _galat = null;
   });
 

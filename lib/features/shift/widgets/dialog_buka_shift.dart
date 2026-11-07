@@ -5,7 +5,6 @@ import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../utils/currency_formatter.dart';
-import '../../../utils/formatters/isi_kolom.dart';
 
 /// Batas digit uang kas awal: sampai Rp999.999.999.
 const digitMaksKasAwal = 9;
@@ -46,7 +45,7 @@ class _DialogBukaShiftState extends State<_DialogBukaShift> {
   int? get _nilai => parseRupiah(_kas.text);
 
   void _pilih(int nominal) => setState(() {
-    isiKolom(_kas, formatRupiah(nominal));
+    _kas.text = formatRupiah(nominal);
     _galat = '';
   });
 

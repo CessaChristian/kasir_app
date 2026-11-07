@@ -7,7 +7,6 @@ import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
 import '../models/pesanan.dart';
 import '../../../utils/pesan_galat.dart';
-import '../../../utils/formatters/isi_kolom.dart';
 
 /// Dilempar [tampilkanPembayaran]'s `bayar` untuk menutup lembar TANPA
 /// pesan galat: pemanggil sudah menjelaskan sendiri apa yang terjadi (mis.
@@ -358,7 +357,7 @@ class _LembarPembayaranState extends State<_LembarPembayaran> {
         borderRadius: BorderRadius.circular(4),
         onTap: _memproses
             ? null
-            : () => setState(() => isiKolom(_uang, formatRupiah(n))),
+            : () => setState(() => _uang.text = formatRupiah(n)),
         child: Container(
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 4),
