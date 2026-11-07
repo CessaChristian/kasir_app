@@ -279,8 +279,12 @@ begin
 end $$;
 
 
-revoke all on function public.kunci_cap_asli(text, uuid)
-  from public, anon, authenticated;
+-- HARUS bisa dipanggil HP: jaga_versi_terbaru berjalan atas nama HP yang
+-- mengirim. Dulu dicabut, dan SEMUA perubahan baris yang sudah ada ditolak
+-- `permission denied` (tutup shift, pembatalan, edit). Isinya hanya menyusun
+-- nama kunci, tanpa rahasia.
+revoke all on function public.kunci_cap_asli(text, uuid) from public, anon;
+grant execute on function public.kunci_cap_asli(text, uuid) to authenticated;
 revoke all on function public.catat_cap_asli() from public, anon, authenticated;
 revoke all on function public.jaga_versi_terbaru() from public, anon, authenticated;
 revoke all on function public.gabung_produk_kembar()

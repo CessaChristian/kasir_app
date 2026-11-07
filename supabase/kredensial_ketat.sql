@@ -80,8 +80,11 @@ $$;
 
 revoke all on function public.cocok_pin(text, text, text)
   from public, anon, authenticated;
-revoke all on function public.hash_kredensial_sah(text)
-  from public, anon, authenticated;
+-- HARUS bisa dipanggil HP: CHECK di langkah 2 dijalankan atas nama HP yang
+-- menulis. Dulu dicabut, dan pembuatan akun kasir dari HP ditolak
+-- `permission denied`. Isinya hanya aturan bentuk hash, tanpa rahasia.
+revoke all on function public.hash_kredensial_sah(text) from public, anon;
+grant execute on function public.hash_kredensial_sah(text) to authenticated;
 
 -- ---------------------------------------------------------------------
 --  2. Kolom hash wajib sah

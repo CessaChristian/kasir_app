@@ -4,7 +4,7 @@
 --  Jalankan lewat SQL Editor SESUDAH semua berkas di URUTAN.md. Hanya
 --  membaca, tidak mengubah apa pun. Aman dijalankan kapan saja.
 --
---  Hasil yang BENAR: keempat bagian di bawah tidak mengembalikan baris
+--  Hasil yang BENAR: kelima bagian di bawah tidak mengembalikan baris
 --  apa pun. Setiap baris yang muncul adalah tanda berkas terlewat, salah
 --  urutan, atau berkas lama yang dijalankan ulang (lihat URUTAN.md).
 --
@@ -47,3 +47,22 @@ select 'constraint kurang' as masalah, h.tabel, h.nama
    select 1 from pg_constraint c join pg_namespace n on n.oid = c.connamespace
     where n.nspname = 'public' and c.conrelid::regclass::text = h.tabel
       and c.conname = h.nama);
+
+-- 5. Fungsi yang WAJIB bisa dipanggil HP (role authenticated). Dulu dua
+--    fungsi bantu dicabut izinnya, dan semua perubahan dari HP ditolak
+--    `permission denied` (8 Nov 2026).
+select 'izin HP kurang' as masalah, f as fungsi
+  from unnest(array[
+    'public.kunci_cap_asli(text, uuid)',
+    'public.hash_kredensial_sah(text)',
+    'public.perangkat_aktif()',
+    'public.perangkat_hadir(uuid, boolean, integer, integer, integer)',
+    'public.ubah_status_perangkat(uuid, boolean, text)',
+    'public.lupakan_perangkat(uuid, text)',
+    'public.ubah_kredensial_owner(text, text, text, text, text, text)',
+    'public.status_bill(uuid)',
+    'public.klaim_bill(uuid, uuid)',
+    'public.lepas_klaim_bill(uuid, uuid)',
+    'public.hapus_bill(uuid)'
+  ]) f
+ where not has_function_privilege('authenticated', f, 'execute');
