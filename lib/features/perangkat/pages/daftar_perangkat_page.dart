@@ -12,10 +12,10 @@ import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/kolom_lembar.dart';
 import '../../../shared/ui/layar_butuh_internet.dart';
 import '../../../shared/ui/lembar_bawah.dart';
-import '../../../shared/ui/lembar_konfirmasi.dart';
 import '../../../shared/ui/teks_teras.dart';
 import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
+import '../widgets/lembar_pin_owner.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/pesan_galat.dart';
 import '../../../shared/ui/galat_muat.dart';
@@ -237,47 +237,62 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     );
   }
 
-  Future<void> _cabut(Perangkat p) async {
-    final ya = await tampilkanLembarKonfirmasi(
-      context,
-      ikon: Icons.block_rounded,
-      judul: 'Cabut perangkat?',
-      catatan:
-          '${p.nama} akan langsung keluar dan tidak bisa mengakses aplikasi '
-          'sampai dipulihkan.',
-      labelAksi: 'Cabut',
-    );
-    if (!ya) return;
-    await _jalankan(
-      () => _repo.ubahStatus(p.id, aktif: false),
-      '${p.nama} dicabut',
-      memuat: 'Mencabut perangkat…',
-    );
-  }
-
-  /// Tanpa konfirmasi (desain): memulihkan tidak merugikan siapa pun.
-  Future<void> _pulihkan(Perangkat p) => _jalankan(
-    () => _repo.ubahStatus(p.id, aktif: true),
-    '${p.nama} dipulihkan',
-    memuat: 'Memulihkan perangkat…',
+  Future<void> _cabut(Perangkat p) => _denganPin(
+    p,
+    ikon: Icons.block_rounded,
+    judul: 'Cabut perangkat?',
+    catatan:
+        '${p.nama} akan langsung keluar dan tidak bisa mengakses aplikasi '
+        'sampai dipulihkan.',
+    labelAksi: 'Cabut',
+    aksi: (pin) => _repo.ubahStatus(p.id, aktif: false, pin: pin),
+    pesan: '${p.nama} dicabut',
   );
 
-  Future<void> _lupakan(Perangkat p) async {
-    final ya = await tampilkanLembarKonfirmasi(
+  Future<void> _pulihkan(Perangkat p) => _denganPin(
+    p,
+    ikon: Icons.restart_alt_rounded,
+    judul: 'Pulihkan perangkat?',
+    catatan: '${p.nama} bisa mengakses aplikasi lagi.',
+    labelAksi: 'Pulihkan',
+    aksi: (pin) => _repo.ubahStatus(p.id, aktif: true, pin: pin),
+    pesan: '${p.nama} dipulihkan',
+  );
+
+  Future<void> _lupakan(Perangkat p) => _denganPin(
+    p,
+    ikon: Icons.delete_rounded,
+    judul: 'Lupakan perangkat?',
+    catatan:
+        '${p.nama} akan dihapus permanen dari daftar. Perangkat harus '
+        'didaftarkan ulang untuk bisa dipakai.',
+    labelAksi: 'Lupakan',
+    aksi: (pin) => _repo.lupakan(p.id, pin: pin),
+    pesan: '${p.nama} dilupakan',
+  );
+
+  /// Aksi status perangkat butuh PIN owner yang diperiksa server. Galatnya
+  /// (PIN salah, offline) tampil di lembar PIN itu sendiri.
+  Future<void> _denganPin(
+    Perangkat p, {
+    required IconData ikon,
+    required String judul,
+    required String catatan,
+    required String labelAksi,
+    required Future<void> Function(String pin) aksi,
+    required String pesan,
+  }) async {
+    final berhasil = await tanyaPinOwnerLalu(
       context,
-      ikon: Icons.delete_rounded,
-      judul: 'Lupakan perangkat?',
-      catatan:
-          '${p.nama} akan dihapus permanen dari daftar. Perangkat harus '
-          'didaftarkan ulang untuk bisa dipakai.',
-      labelAksi: 'Lupakan',
+      ikon: ikon,
+      judul: judul,
+      catatan: catatan,
+      labelAksi: labelAksi,
+      aksi: aksi,
     );
-    if (!ya) return;
-    await _jalankan(
-      () => _repo.lupakan(p.id),
-      '${p.nama} dilupakan',
-      memuat: 'Melupakan perangkat…',
-    );
+    if (!berhasil || !mounted) return;
+    AppToast.success(context, pesan);
+    await _muat(diam: true);
   }
 
   @override

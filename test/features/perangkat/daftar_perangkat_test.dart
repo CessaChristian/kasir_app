@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
+import 'package:kasir_app/features/perangkat/widgets/lembar_pin_owner.dart';
 import 'package:kasir_app/features/perangkat/widgets/peringatan_perangkat.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/perangkat/pages/daftar_perangkat_page.dart';
@@ -52,13 +53,19 @@ class _RepoPalsu extends PerangkatRepository {
   }
 
   @override
-  Future<void> ubahStatus(String id, {required bool aktif}) async {
+  Future<void> ubahStatus(
+    String id, {
+    required bool aktif,
+    required String pin,
+  }) async {
+    if (pin != pinOwner) throw PinOwnerSalah();
     panggilan.add('status $id $aktif');
     _ganti(id, (p) => _salin(p, aktif: aktif));
   }
 
   @override
-  Future<void> lupakan(String id) async {
+  Future<void> lupakan(String id, {required String pin}) async {
+    if (pin != pinOwner) throw PinOwnerSalah();
     panggilan.add('lupakan $id');
     daftar = [
       for (final p in daftar)
@@ -66,6 +73,8 @@ class _RepoPalsu extends PerangkatRepository {
     ];
   }
 }
+
+const pinOwner = '727272';
 
 Perangkat _salin(Perangkat p, {String? nama, bool? aktif}) => Perangkat(
   id: p.id,
@@ -428,7 +437,14 @@ void main() {
       await lepas(t);
     });
 
-    testWidgets('Cabut ditanya dulu; Batal tidak mengubah apa pun', (t) async {
+    Future<void> isiPin(WidgetTester t, String pin, String aksi) async {
+      await t.enterText(find.byKey(const Key('isian-pin-owner')), pin);
+      await t.tap(find.widgetWithText(FilledButton, aksi).last);
+      await tunggu(t);
+    }
+
+    testWidgets('Cabut minta PIN owner; Batal dan PIN salah tidak mengubah '
+        'apa pun (audit 6 Nov nomor 1)', (t) async {
       await buka(t);
       await t.tap(find.text('Cabut').first);
       await t.pumpAndSettle();
@@ -446,23 +462,29 @@ void main() {
 
       await t.tap(find.text('Cabut').first);
       await t.pumpAndSettle();
-      await t.tap(find.widgetWithText(FilledButton, 'Cabut').last);
-      await tunggu(t);
+      await isiPin(t, '111111', 'Cabut');
+      expect(find.text('PIN owner salah.'), findsOneWidget,
+          reason: 'lembar tetap terbuka supaya bisa dicoba lagi');
+      expect(repo.panggilan, isEmpty);
+
+      await isiPin(t, pinOwner, 'Cabut');
       expect(repo.panggilan, ['status tab false']);
       expect(find.text('Dicabut'), findsNWidgets(2));
       await lepas(t);
     });
 
-    testWidgets('Pulihkan langsung jalan tanpa konfirmasi', (t) async {
+    testWidgets('Pulihkan juga minta PIN owner', (t) async {
       await buka(t);
       await t.tap(find.text('Pulihkan'));
-      await tunggu(t);
+      await t.pumpAndSettle();
+      expect(find.text('Pulihkan perangkat?'), findsOneWidget);
+      await isiPin(t, pinOwner, 'Pulihkan');
       expect(repo.panggilan, ['status dimas true']);
       expect(find.text('DICABUT'), findsNothing);
       await lepas(t);
     });
 
-    testWidgets('Lupakan ditanya dulu, lalu hilang dari daftar', (t) async {
+    testWidgets('Lupakan minta PIN owner, lalu hilang dari daftar', (t) async {
       await buka(t);
       await t.tap(find.text('Lupakan'));
       await t.pumpAndSettle();
@@ -474,8 +496,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await t.tap(find.widgetWithText(FilledButton, 'Lupakan').last);
-      await tunggu(t);
+      await isiPin(t, pinOwner, 'Lupakan');
       expect(repo.panggilan, ['lupakan dimas']);
       expect(find.text('HP Lama Dimas'), findsNothing);
       await lepas(t);

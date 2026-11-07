@@ -100,8 +100,8 @@ void main() {
   test('kasir tidak bisa mengganti nama, mencabut, atau melupakan HP', () {
     final repo = PerangkatRepository.untukTest();
     expect(() => repo.ubahNama('hp-1', 'x'), ditolak);
-    expect(() => repo.ubahStatus('hp-1', aktif: false), ditolak);
-    expect(() => repo.lupakan('hp-1'), ditolak);
+    expect(() => repo.ubahStatus('hp-1', aktif: false, pin: '727272'), ditolak);
+    expect(() => repo.lupakan('hp-1', pin: '727272'), ditolak);
   });
 
   test('review B8: owner tanpa koneksi server → mencabut GAGAL, bukan diam-diam '
@@ -110,8 +110,8 @@ void main() {
     final repo = PerangkatRepository.untukTest();
     final takTersambung = throwsA(isA<StateError>().having(
         (e) => e.message, 'pesan', pesanTakTersambung));
-    await expectLater(repo.ubahStatus('hp-1', aktif: false), takTersambung);
-    await expectLater(repo.lupakan('hp-1'), takTersambung);
+    await expectLater(repo.ubahStatus('hp-1', aktif: false, pin: '727272'), takTersambung);
+    await expectLater(repo.lupakan('hp-1', pin: '727272'), takTersambung);
     await expectLater(repo.ubahNama('hp-1', 'x'), takTersambung);
   });
 

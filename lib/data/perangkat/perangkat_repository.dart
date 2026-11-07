@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase/jam_server.dart';
 import '../supabase/supabase_service.dart';
 import 'kode_nota.dart';
+import '../../features/perangkat/widgets/lembar_pin_owner.dart' show PinOwnerSalah;
 import '../../shared/auth/session_manager.dart';
 import '../../utils/pesan_galat.dart';
 
@@ -649,17 +650,31 @@ class PerangkatRepository {
     );
   }
 
-  Future<void> ubahStatus(String id, {required bool aktif}) async {
+  /// [pin] PIN owner, diperiksa server (supabase/perangkat_bukti_owner.sql):
+  /// HP yang aplikasinya diakali tidak bisa mencabut HP lain tanpa tahu PIN
+  /// owner (audit 6 Nov nomor 1).
+  Future<void> ubahStatus(
+    String id, {
+    required bool aktif,
+    required String pin,
+  }) async {
     SessionManager.instance.requireOwner();
-    await _klienWajib.rpc(
+    _periksaJawaban(await _klienWajib.rpc(
       'ubah_status_perangkat',
-      params: {'p_id': id, 'p_aktif': aktif},
-    );
+      params: {'p_id': id, 'p_aktif': aktif, 'p_pin': pin},
+    ));
   }
 
-  Future<void> lupakan(String id) async {
+  Future<void> lupakan(String id, {required String pin}) async {
     SessionManager.instance.requireOwner();
-    await _klienWajib.rpc('lupakan_perangkat', params: {'p_id': id});
+    _periksaJawaban(await _klienWajib.rpc(
+      'lupakan_perangkat',
+      params: {'p_id': id, 'p_pin': pin},
+    ));
+  }
+
+  static void _periksaJawaban(Object? jawaban) {
+    if (jawaban == 'pin_salah') throw PinOwnerSalah();
   }
 
   /// Klien server untuk aksi yang HARUS sampai. Dulu `_klien?.rpc(...)`:
