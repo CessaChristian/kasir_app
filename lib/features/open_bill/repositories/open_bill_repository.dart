@@ -551,12 +551,19 @@ class OpenBillRepository {
   /// ini (foreign key). `updated_at` dan `sync_status` SENGAJA tidak diubah:
   /// tanda ini tidak ikut terkirim, dan tarikan berikutnya — versi server
   /// selalu lebih baru — menimpanya dengan status sebenarnya.
+  ///
+  /// Hanya untuk bill yang SUDAH terkirim (audit 6 Nov nomor 25). Bill yang
+  /// masih menunggu dikirim ikut membawa `deleted_at` saat dikirim, dan kalau
+  /// jawaban "dibayar" tadi sebenarnya "sedang dibayar" yang lalu gagal, bill
+  /// yang masih terbuka terhapus di semua HP. Bill seperti itu dibiarkan
+  /// tampil sampai tarikan berikutnya.
   Future<void> tandaiTertutup(String id) =>
       (_db.update(_db.openBills)..where(
             (b) =>
                 b.id.equals(id) &
                 b.transactionId.isNull() &
-                b.deletedAt.isNull(),
+                b.deletedAt.isNull() &
+                b.syncStatus.equals('synced'),
           ))
           .write(OpenBillsCompanion(deletedAt: Value(DateTime.now())));
 
