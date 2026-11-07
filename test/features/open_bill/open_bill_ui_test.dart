@@ -1248,6 +1248,24 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('audit nomor 31: klaim yang ternyata milik HP ini sendiri '
+        'diklaim ulang, lalu lunas', (t) async {
+      await simpanMeja4(t);
+      // Cek menjawab "sedang dibayar" — klaim itu milik percobaan bayar HP
+      // ini yang gagal di tengah. Klaim ulang dengan transaksi yang sama
+      // diterima server.
+      final server = _ServerTiruan(db, cek: KeputusanServer.sedangDibayar)
+        ..sisaKlaim = const Duration(minutes: 3);
+      await bayarBill(t, server);
+      expect(server.catatan, ['cek', 'klaim']);
+      expect(find.text(pesan), findsNothing);
+      expect((await semuaTx(t)).single.total, 18000);
+      await t.tap(find.text('Selesai'));
+      await t.pumpAndSettle();
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
     testWidgets('hapus: ditolak, bill tetap di daftar', (t) async {
       await simpanMeja4(t);
       final server = _ServerTiruan(

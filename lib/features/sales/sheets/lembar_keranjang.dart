@@ -284,10 +284,14 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           }
           // Sudah pasti tertutup atau sedang dibayar menurut pengecekan
           // tadi: tidak perlu klaim.
+          // "Sedang dibayar" tetap diklaim: bisa jadi klaim itu milik HP ini
+          // sendiri dari percobaan tadi yang gagal di tengah, dan server
+          // mengizinkan pemilik klaim mengulang dengan transaksi yang sama.
+          // Dulu dilewati, dan HP ini terkunci klaimnya sendiri sampai lima
+          // menit (audit 6 Nov nomor 31).
           final jawaban =
               cek.keputusan == KeputusanServer.sudahDibayar ||
-                  cek.keputusan == KeputusanServer.sudahDihapus ||
-                  cek.keputusan == KeputusanServer.sedangDibayar
+                  cek.keputusan == KeputusanServer.sudahDihapus
               ? cek
               : await widget.repoBill.klaimDiServer(bill.id, id);
           final keputusan = jawaban.keputusan;
