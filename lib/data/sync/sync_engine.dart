@@ -1307,10 +1307,9 @@ class SyncEngine {
                 'recovery_salt': u.recoverySalt,
                 'recovery_created_at': _iso(u.recoveryCreatedAt),
                 'recovery_used_at': _iso(u.recoveryUsedAt),
-                'recovery_attempts': u.recoveryAttempts,
-                'recovery_locked_until': _iso(u.recoveryLockedUntil),
-                // Hitungan & kunci salah PIN SENGAJA tidak dikirim — milik HP
-                // masing-masing (QA kedua S2, lihat `tulis` di bawah).
+                // Hitungan & kunci salah PIN dan salah kode recovery SENGAJA
+                // tidak dikirim — milik HP masing-masing (QA kedua S2, audit
+                // 6 Nov nomor 6). Lihat `tulis` di bawah.
                 'created_at': _iso(u.createdAt),
                 'updated_at': _iso(u.updatedAt),
                 'deleted_at': _iso(u.deletedAt),
@@ -1335,6 +1334,9 @@ class SyncEngine {
                 ..where((u) => u.id.equals(r['id'] as String)))
               .getSingleOrNull();
           final pinDiganti = lama != null && lama.salt != r['salt'];
+          // Kode recovery baru (garamnya baru) melepas kunci salah kode.
+          final kodeDiganti =
+              lama != null && lama.recoverySalt != r['recovery_salt'];
           await _db.into(_db.users).insertOnConflictUpdate(UsersCompanion(
                 id: Value(r['id'] as String),
                 username: Value(r['username'] as String),
@@ -1346,8 +1348,10 @@ class SyncEngine {
                 recoverySalt: Value(r['recovery_salt'] as String?),
                 recoveryCreatedAt: Value(_dt(r['recovery_created_at'])),
                 recoveryUsedAt: Value(_dt(r['recovery_used_at'])),
-                recoveryAttempts: Value((r['recovery_attempts'] as num).toInt()),
-                recoveryLockedUntil: Value(_dt(r['recovery_locked_until'])),
+                recoveryAttempts:
+                    kodeDiganti ? const Value(0) : const Value.absent(),
+                recoveryLockedUntil:
+                    kodeDiganti ? const Value(null) : const Value.absent(),
                 loginAttempts:
                     pinDiganti ? const Value(0) : const Value.absent(),
                 loginLockedUntil:

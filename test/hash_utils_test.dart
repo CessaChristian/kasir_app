@@ -63,44 +63,28 @@ void main() {
     });
   });
 
-  group('Backward compatibility — SHA-256 legacy', () {
-    test('verify recovery hash format lama (SHA-256) → match', () {
-      const salt = 'recovery_salt_xyz';
-      const code = 'ABCDEFGHJKLMNPQR';
-      final legacyHash = _legacyRecoveryHash(code, salt);
+  group('hash tersimpan yang tidak dipercaya (audit 6 Nov nomor 3 & 5)', () {
+    final salt = HashUtils.generateSalt();
 
-      expect(HashUtils.needsRehash(legacyHash), isTrue);
-      expect(HashUtils.verifyWithSalt(code, salt, legacyHash), isTrue);
-      expect(HashUtils.verifyWithSalt('WRONG-CODE-VALUE', salt, legacyHash),
-          isFalse);
+    test('format lama SHA-256 DITOLAK walau isinya benar', () {
+      expect(HashUtils.verifyWithSalt('ABCDEFGHJKLMNPQR', salt, _legacyRecoveryHash('ABCDEFGHJKLMNPQR', salt)), isFalse);
     });
 
-    test('needsRehash true untuk legacy, false untuk PBKDF2', () {
-      final salt = HashUtils.generateSalt();
-      final newHash = HashUtils.hashWithSalt('ABCDEFGHJKLMNPQR', salt);
-      final legacyHash = _legacyRecoveryHash('ABCDEFGHJKLMNPQR', salt);
-
-      expect(HashUtils.needsRehash(newHash), isFalse);
-      expect(HashUtils.needsRehash(legacyHash), isTrue);
+    test('bagian hash kosong atau kepotong tidak menerima apa pun', () {
+      for (final h in ['pbkdf2:120000:', 'pbkdf2:1:', 'pbkdf2:120000:AAAA']) {
+        expect(HashUtils.verifyWithSalt('ABCDEFGHJKLMNPQR', salt, h), isFalse, reason: h);
+        expect(HashUtils.verifyWithSalt('', salt, h), isFalse, reason: h);
+      }
     });
 
-    test('roundtrip migration: legacy verify → rehash → new verify', () {
-      const salt = 'migration_salt';
-      const code = 'TESTCODE12345678';
-
-      // 1. Punya hash legacy
-      final legacyHash = _legacyRecoveryHash(code, salt);
-      expect(HashUtils.verifyWithSalt(code, salt, legacyHash), isTrue);
-
-      // 2. needsRehash → true → trigger re-hash
-      expect(HashUtils.needsRehash(legacyHash), isTrue);
-
-      // 3. Generate hash baru
-      final newHash = HashUtils.hashWithSalt(code, salt);
-      expect(newHash, startsWith('pbkdf2:'));
-
-      // 4. Verify dengan hash baru
-      expect(HashUtils.verifyWithSalt(code, salt, newHash), isTrue);
+    test('jumlah putaran di luar batas ditolak tanpa dihitung', () {
+      final benar = HashUtils.hashWithSalt('ABCDEFGHJKLMNPQR', salt);
+      final isi = benar.split(':').last;
+      for (final n in [0, 1, 99999, 1000001, 2000000000]) {
+        expect(HashUtils.verifyWithSalt('ABCDEFGHJKLMNPQR', salt, 'pbkdf2:$n:$isi'), isFalse,
+            reason: '$n');
+      }
+      expect(HashUtils.verifyWithSalt('ABCDEFGHJKLMNPQR', salt, benar), isTrue);
     });
   });
   group('di latar (isolate lain)', () {

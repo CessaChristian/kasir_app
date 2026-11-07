@@ -37,6 +37,9 @@ void main() {
     int salah = 0,
     String? kunci,
     String jam = '2030-01-01T10:00:00Z',
+    String? garamKode,
+    int salahKode = 0,
+    String? kunciKode,
   }) => {
     'id': 'k-1',
     'username': username,
@@ -45,11 +48,11 @@ void main() {
     'role': 'cashier',
     'is_active': true,
     'recovery_hash': null,
-    'recovery_salt': null,
+    'recovery_salt': garamKode,
     'recovery_created_at': null,
     'recovery_used_at': null,
-    'recovery_attempts': 0,
-    'recovery_locked_until': null,
+    'recovery_attempts': salahKode,
+    'recovery_locked_until': kunciKode,
     'login_attempts': salah,
     'login_locked_until': kunci,
     'created_at': '2026-10-01T00:00:00Z',
@@ -131,5 +134,46 @@ void main() {
     expect(u.pinHash, 'pbkdf2:baru');
     expect(u.loginAttempts, 10);
     expect(u.loginLockedUntil, isNotNull);
+  });
+
+  group('kunci kode recovery juga milik HP ini (audit 6 Nov nomor 6)', () {
+    test('tidak ikut terkirim', () async {
+      await sariTerkunciDiHpIni();
+      await (db.update(db.users)..where((u) => u.id.equals('k-1'))).write(
+        const UsersCompanion(syncStatus: Value('pending')),
+      );
+      await mesin.dorongSemua();
+      final b = terkirim.single;
+      expect(b.containsKey('recovery_attempts'), isFalse);
+      expect(b.containsKey('recovery_locked_until'), isFalse);
+    });
+
+    test('kiriman palsu "terkunci sampai 2099" dari server diabaikan',
+        () async {
+      await tarik(barisServer(garamKode: 'g1'));
+      await tarik(barisServer(
+        garamKode: 'g1',
+        salahKode: 99,
+        kunciKode: '2099-01-01T00:00:00Z',
+        jam: '2030-01-02T10:00:00Z',
+      ));
+      final u = await sari();
+      expect(u.recoveryAttempts, 0);
+      expect(u.recoveryLockedUntil, isNull);
+    });
+
+    test('kode recovery baru (garam baru) melepas kunci di HP ini', () async {
+      await tarik(barisServer(garamKode: 'g1'));
+      await (db.update(db.users)..where((u) => u.id.equals('k-1'))).write(
+        UsersCompanion(
+          recoveryAttempts: const Value(5),
+          recoveryLockedUntil: Value(DateTime(2030)),
+        ),
+      );
+      await tarik(barisServer(garamKode: 'g2', jam: '2030-01-02T10:00:00Z'));
+      final u = await sari();
+      expect(u.recoveryAttempts, 0);
+      expect(u.recoveryLockedUntil, isNull);
+    });
   });
 }

@@ -10,13 +10,16 @@ import 'package:crypto/crypto.dart';
 /// melindungi dari brute-force offline jika database bocor.
 ///
 /// Format hash baru: `pbkdf2:<iterations>:<base64-hash>`
-/// Hash lama (SHA-256 single-pass) tetap bisa diverifikasi untuk
-/// kompatibilitas, dan akan otomatis di-rehash saat user login.
+/// Hash lama (SHA-256 single-pass) DITOLAK sejak audit 6 Nov nomor 3.
 class CryptoUtils {
   // PBKDF2 parameters
   static const int _pbkdf2Iterations = 120000;
   static const int _pbkdf2KeyLength = 32; // 256 bits
   static const String _pbkdf2Prefix = 'pbkdf2:';
+
+  /// Batas jumlah putaran yang diterima dari hash tersimpan.
+  static const int putaranMinimum = 100000;
+  static const int putaranMaksimum = 1000000;
 
   /// Panjang PIN — satu-satunya sumber kebenaran untuk seluruh aplikasi.
   /// Halaman login, onboarding, kelola kasir, dan reset PIN semuanya
@@ -46,16 +49,16 @@ class CryptoUtils {
     return '$_pbkdf2Prefix$_pbkdf2Iterations:${base64.encode(derived)}';
   }
 
-  /// Verify PIN — auto-detect format (PBKDF2 baru atau SHA-256 lama).
+  /// Verify PIN — hanya format PBKDF2.
   ///
   /// Menggunakan constant-time comparison untuk mencegah timing attack.
   static bool verifyPin(String pin, String salt, String storedHash) {
     if (storedHash.startsWith(_pbkdf2Prefix)) {
       return _verifyPbkdf2(pin, salt, storedHash);
     }
-    // Legacy SHA-256 — tetap diverifikasi agar user lama bisa login,
-    // lalu auth_repository akan re-hash ke PBKDF2 setelah berhasil.
-    return _verifyLegacySha256(pin, salt, storedHash);
+    // Format lama (SHA-256 sekali) DITOLAK (audit 6 Nov nomor 3): bisa
+    // dibongkar dalam hitungan detik. Semua akun sudah berformat baru.
+    return false;
   }
 
   /// [hashPin] di isolate lain. PBKDF2 120.000 putaran makan ratusan
@@ -102,7 +105,13 @@ class CryptoUtils {
     if (colonIdx <= 0) return false;
 
     final iterations = int.tryParse(body.substring(0, colonIdx));
-    if (iterations == null || iterations <= 0) return false;
+    // Nilainya ikut sinkron dari server, jadi tidak dipercaya mentah: angka
+    // raksasa membuat pemeriksaan macet berjam-jam.
+    if (iterations == null ||
+        iterations < putaranMinimum ||
+        iterations > putaranMaksimum) {
+      return false;
+    }
 
     final Uint8List expected;
     try {
@@ -110,6 +119,9 @@ class CryptoUtils {
     } catch (_) {
       return false;
     }
+    // Hash kosong dulu dianggap cocok dengan PIN apa pun: "kosong sama dengan
+    // kosong" (audit 6 Nov nomor 5).
+    if (expected.length != _pbkdf2KeyLength) return false;
 
     final computed = _pbkdf2(
       utf8.encode(pin),
@@ -118,13 +130,6 @@ class CryptoUtils {
       expected.length,
     );
     return _constantTimeEquals(computed, expected);
-  }
-
-  static bool _verifyLegacySha256(
-      String pin, String salt, String storedHash) {
-    final bytes = utf8.encode(pin + salt);
-    final computed = sha256.convert(bytes).toString();
-    return _constantTimeStringEquals(computed, storedHash);
   }
 
   /// PBKDF2-HMAC-SHA256 (RFC 2898).
@@ -174,13 +179,4 @@ class CryptoUtils {
     return result == 0;
   }
 
-  /// Constant-time string comparison — mencegah timing attack.
-  static bool _constantTimeStringEquals(String a, String b) {
-    if (a.length != b.length) return false;
-    int result = 0;
-    for (int i = 0; i < a.length; i++) {
-      result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
-    }
-    return result == 0;
-  }
 }

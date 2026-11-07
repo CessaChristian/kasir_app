@@ -51,49 +51,30 @@ void main() {
     });
   });
 
-  group('Backward compatibility — SHA-256 legacy', () {
-    test('verify hash format lama (SHA-256 single-pass) → match', () {
-      const salt = 'test_salt_abc';
-      const pin = '123456';
-      final legacyHash = _legacyHash(pin, salt);
+  group('hash tersimpan yang tidak dipercaya (audit 6 Nov nomor 3 & 5)', () {
+    final salt = CryptoUtils.generateSalt();
 
-      expect(CryptoUtils.needsRehash(legacyHash), isTrue);
-      expect(CryptoUtils.verifyPin(pin, salt, legacyHash), isTrue);
-      expect(CryptoUtils.verifyPin('999999', salt, legacyHash), isFalse);
+    test('format lama SHA-256 DITOLAK walau isinya benar', () {
+      expect(CryptoUtils.verifyPin('123456', salt, _legacyHash('123456', salt)), isFalse);
     });
 
-    test('needsRehash true untuk hash lama, false untuk hash baru', () {
-      final salt = CryptoUtils.generateSalt();
-      final newHash = CryptoUtils.hashPin('123456', salt);
-
-      expect(CryptoUtils.needsRehash(newHash), isFalse);
-      expect(
-          CryptoUtils.needsRehash(
-              '85f0e57c4ca39e7df45e1cf9d3aff70d0f4cfe1e1b86bbabd25d2c0a9c3a8d49'),
-          isTrue);
+    test('bagian hash kosong atau kepotong tidak menerima apa pun', () {
+      for (final h in ['pbkdf2:120000:', 'pbkdf2:1:', 'pbkdf2:120000:AAAA']) {
+        expect(CryptoUtils.verifyPin('123456', salt, h), isFalse, reason: h);
+        expect(CryptoUtils.verifyPin('', salt, h), isFalse, reason: h);
+      }
     });
 
-    test('roundtrip migration: legacy verify → rehash → new verify', () {
-      const pin = '567890';
-      const salt = 'legacy_salt_xyz';
-
-      // 1. User punya hash legacy → verify dulu (login)
-      final legacyHash = _legacyHash(pin, salt);
-      expect(CryptoUtils.verifyPin(pin, salt, legacyHash), isTrue);
-
-      // 2. needsRehash → true → trigger migration
-      expect(CryptoUtils.needsRehash(legacyHash), isTrue);
-
-      // 3. Generate hash baru dengan PBKDF2 (simulasi update DB)
-      final newHash = CryptoUtils.hashPin(pin, salt);
-      expect(newHash, startsWith('pbkdf2:120000:'));
-      expect(CryptoUtils.needsRehash(newHash), isFalse);
-
-      // 4. Verify dengan hash baru tetap jalan
-      expect(CryptoUtils.verifyPin(pin, salt, newHash), isTrue);
+    test('jumlah putaran di luar batas ditolak tanpa dihitung', () {
+      final benar = CryptoUtils.hashPin('123456', salt);
+      final isi = benar.split(':').last;
+      for (final n in [0, 1, 99999, 1000001, 2000000000]) {
+        expect(CryptoUtils.verifyPin('123456', salt, 'pbkdf2:$n:$isi'), isFalse,
+            reason: '$n');
+      }
+      expect(CryptoUtils.verifyPin('123456', salt, benar), isTrue);
     });
   });
-
   group('Timing attack protection', () {
     test('verifyPin pakai constant-time comparison (smoke test)', () {
       final salt = CryptoUtils.generateSalt();
@@ -113,8 +94,6 @@ void main() {
           reason: 'PIN lama harus tetap bisa dipakai masuk');
       expect(await CryptoUtils.verifyPinDiLatar('123456', salt, hash), isTrue);
       expect(await CryptoUtils.verifyPinDiLatar('999999', salt, hash), isFalse);
-      final lama = _legacyHash('123456', salt);
-      expect(await CryptoUtils.verifyPinDiLatar('123456', salt, lama), isTrue);
     });
 
     test('layar tetap hidup selama PIN diperiksa dan dibuat', () async {
