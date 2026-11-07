@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kasir_app/shared/ui/tombol_lembar.dart';
@@ -61,6 +63,35 @@ void main() {
     expect(dikirim, ['Salah input nominal']);
     expect(find.text('Masukkan PIN'), findsNothing);
     expect(find.text('Pengeluaran berhasil dibatalkan'), findsOneWidget);
+    await tekanTombol(t, 'Selesai');
+    expect(hasil(), isTrue);
+  });
+
+  testWidgets('audit nomor 34: selama memproses dialog tidak bisa ditutup, '
+      'dan hasilnya tetap dilaporkan', (t) async {
+    final tahan = Completer<void>();
+    final hasil = await buka(t, kirim: (_) => tahan.future);
+    await t.pump();
+    await t.tap(find.text('buka'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Salah input nominal'));
+    await t.pump();
+    final tombol = find.widgetWithText(FilledButton, 'Batalkan');
+    await t.ensureVisible(tombol);
+    await t.tap(tombol);
+    await t.pump();
+    expect(find.text('Memproses…'), findsOneWidget);
+
+    await t.tap(find.text('Batal'), warnIfMissed: false);
+    await t.binding.handlePopRoute();
+    await t.tapAt(const Offset(5, 5));
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text('Memproses…'), findsOneWidget,
+        reason: 'dialog tetap terbuka sampai pembatalannya selesai');
+    expect(hasil(), isNull);
+
+    tahan.complete();
+    await t.pumpAndSettle();
     await tekanTombol(t, 'Selesai');
     expect(hasil(), isTrue);
   });

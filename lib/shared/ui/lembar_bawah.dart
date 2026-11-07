@@ -9,9 +9,18 @@ import 'warna_teras.dart';
 /// bisa digulir dan naik mengikuti keyboard (lembar berisi kolom isian).
 ///
 /// Dipakai lembar Download Laporan dan lembar Kelola Kasir.
-Future<T?> tampilkanLembarBawah<T>(BuildContext context, WidgetBuilder isi) {
+///
+/// [bolehGeser] false untuk lembar yang menyimpan sesuatu: geser ke bawah
+/// menutup lembar TANPA lewat PopScope, jadi tidak bisa dicegah selama
+/// penyimpanan berjalan (audit 6 Nov nomor 34).
+Future<T?> tampilkanLembarBawah<T>(
+  BuildContext context,
+  WidgetBuilder isi, {
+  bool bolehGeser = true,
+}) {
   return showModalBottomSheet<T>(
     context: context,
+    enableDrag: bolehGeser,
     useSafeArea: true,
     isScrollControlled: true,
     backgroundColor: WarnaTeras.kartu,
@@ -130,10 +139,15 @@ class TombolBatalSimpan extends StatelessWidget {
   final String labelSimpan;
   final VoidCallback? onSimpan;
 
+  /// False selama menyimpan: lembar tidak boleh ditutup sebelum hasilnya
+  /// jelas (audit 6 Nov nomor 34).
+  final bool bolehBatal;
+
   const TombolBatalSimpan({
     super.key,
     required this.labelSimpan,
     required this.onSimpan,
+    this.bolehBatal = true,
   });
 
   @override
@@ -147,7 +161,7 @@ class TombolBatalSimpan extends StatelessWidget {
             latar: WarnaTeras.kartu,
             warna: const Color(0xFF5A5048),
             tepi: const Color(0xFFDDD6CF),
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: bolehBatal ? () => Navigator.pop(context, false) : null,
           ),
         ),
         const SizedBox(width: 10),

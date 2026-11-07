@@ -85,6 +85,7 @@ Future<bool> tampilkanTambahKasir(
   final hasil = await tampilkanLembarBawah<bool>(
     context,
     (_) => _TambahKasir(repo: repo),
+    bolehGeser: false,
   );
   return hasil == true;
 }
@@ -146,7 +147,9 @@ class _TambahKasirState extends State<_TambahKasir> {
   @override
   Widget build(BuildContext context) {
     final (_, cocok) = periksaPinBaru(_pin.text, _ulang.text);
-    return Column(
+    return PopScope(
+      canPop: !_menyimpan,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const JudulLembar(
@@ -213,7 +216,9 @@ class _TambahKasirState extends State<_TambahKasir> {
                 label: 'Batal',
                 latar: WarnaTeras.latarAbu,
                 warna: WarnaTeras.teks,
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: _menyimpan
+                    ? null
+                    : () => Navigator.pop(context, false),
               ),
             ),
             const SizedBox(width: 10),
@@ -229,6 +234,7 @@ class _TambahKasirState extends State<_TambahKasir> {
           ],
         ),
       ],
+      ),
     );
   }
 }
@@ -368,6 +374,7 @@ Future<bool> tampilkanUbahUsername(
   final hasil = await tampilkanLembarBawah<bool>(
     context,
     (_) => _UbahUsername(repo: repo, akun: akun),
+    bolehGeser: false,
   );
   return hasil == true;
 }
@@ -424,7 +431,9 @@ class _UbahUsernameState extends State<_UbahUsername> {
             ? 'Username baru dipakai saat login berikutnya'
             : 'Sama dengan username sekarang');
     final bolehSimpan = galat == null && _berubah && !_menyimpan;
-    return Column(
+    return PopScope(
+      canPop: !_menyimpan,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const KepalaLembarIkon(
@@ -456,10 +465,12 @@ class _UbahUsernameState extends State<_UbahUsername> {
         ),
         const SizedBox(height: 12),
         TombolBatalSimpan(
+          bolehBatal: !_menyimpan,
           labelSimpan: _menyimpan ? 'Memeriksa…' : 'Simpan',
           onSimpan: bolehSimpan ? _simpan : null,
         ),
       ],
+      ),
     );
   }
 }
@@ -477,6 +488,7 @@ Future<bool> tampilkanResetPin(
   final hasil = await tampilkanLembarBawah<bool>(
     context,
     (_) => _ResetPin(repo: repo, akun: akun),
+    bolehGeser: false,
   );
   return hasil == true;
 }
@@ -527,7 +539,9 @@ class _ResetPinState extends State<_ResetPin> {
   Widget build(BuildContext context) {
     final (pesan, cocok) = periksaPinBaru(_pin.text, _ulang.text);
     final mata = _tombolMata(_tampil, () => setState(() => _tampil = !_tampil));
-    return Column(
+    return PopScope(
+      canPop: !_menyimpan,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         KepalaLembarIkon(
@@ -566,10 +580,12 @@ class _ResetPinState extends State<_ResetPin> {
             : _pesanPin(_galatSimpan, false),
         const SizedBox(height: 12),
         TombolBatalSimpan(
+          bolehBatal: !_menyimpan,
           labelSimpan: _menyimpan ? 'Menyimpan…' : 'Simpan PIN',
           onSimpan: cocok && !_menyimpan ? _simpan : null,
         ),
       ],
+      ),
     );
   }
 }

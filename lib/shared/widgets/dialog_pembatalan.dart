@@ -117,9 +117,14 @@ class _DialogPembatalanState extends State<DialogPembatalan> {
   Widget build(BuildContext context) {
     return PopScope(
       // Setelah berhasil, menutup dengan tombol kembali tetap melapor true.
-      canPop: _langkah != _Langkah.berhasil,
+      // Selama memproses tidak bisa ditutup sama sekali (audit 6 Nov nomor
+      // 34): dulu dialog melapor "tidak jadi" padahal pembatalannya jalan
+      // terus dan berhasil.
+      canPop: _langkah != _Langkah.berhasil && !_memproses,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.pop(context, true);
+        if (!didPop && _langkah == _Langkah.berhasil) {
+          Navigator.pop(context, true);
+        }
       },
       child: Dialog(
         backgroundColor: WarnaTeras.kartu,
@@ -242,7 +247,9 @@ class _DialogPembatalanState extends State<DialogPembatalan> {
                 warna: WarnaTeras.teks,
                 tinggi: _tinggiTombol,
                 sudut: _sudutTombol,
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: _memproses
+                    ? null
+                    : () => Navigator.pop(context, false),
               ),
             ),
             const SizedBox(width: 10),
