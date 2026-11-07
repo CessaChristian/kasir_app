@@ -115,4 +115,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 49 | `kredensial_ketat.sql` | KREDENSIAL KETAT (audit 6 Nov 2026 nomor 3, 5 & 6) |
 | 50 | `perangkat_bukti_owner.sql` | CABUT / PULIHKAN / LUPAKAN PERANGKAT BUTUH PIN OWNER (audit 6 Nov 2026 nomor 1) |
 | 51 | `versi_asli.sql` | VERSI ASLI KIRIMAN (audit 6 Nov 2026 nomor 11, 12, 13 & 19) |
-| 52 | `rls.sql` | SISA PENGETATAN AKSES |
+| 52 | `batal_shift_tutup.sql` | PEMBATALAN KASIR DI SHIFT YANG SUDAH DITUTUP DIABAIKAN (audit 6 Nov 2026 nomor 28) |
+| 53 | `rls.sql` | SISA PENGETATAN AKSES |
