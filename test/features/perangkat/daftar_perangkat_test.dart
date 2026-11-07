@@ -149,6 +149,17 @@ void main() {
       expect(p.perluPerhatian(sekarang: sekarang), isTrue);
     });
 
+    test('audit nomor 21: selisih jam ekstrem dibatasi supaya muat di server',
+        () {
+      const int32 = 2147483647;
+      expect(PerangkatRepository.selisihDetikTerkirim(const Duration(days: 30000)),
+          lessThanOrEqualTo(int32));
+      expect(PerangkatRepository.selisihDetikTerkirim(const Duration(days: -30000)),
+          greaterThanOrEqualTo(-int32));
+      expect(PerangkatRepository.selisihDetikTerkirim(const Duration(hours: 2)),
+          7200);
+    });
+
     test('jam HP salah tampil ke owner, selisih kecil tidak', () {
       Perangkat hp(int? detik) => Perangkat.dariBaris({
         'id': 'a',

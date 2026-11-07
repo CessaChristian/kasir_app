@@ -441,6 +441,15 @@ class PerangkatRepository {
     return hasil;
   }
 
+  /// Selisih jam dalam detik, dibatasi supaya muat di kolom server (integer).
+  /// Jam HP tahun 2100 dulu membuat seluruh kabar "HP masih aktif" ditolak
+  /// (audit 6 Nov nomor 21). Sepuluh tahun sudah jelas "jam salah".
+  @visibleForTesting
+  static int selisihDetikTerkirim(Duration selisih) =>
+      selisih.inSeconds.clamp(-batasSelisihDetik, batasSelisihDetik);
+
+  static const batasSelisihDetik = 10 * 365 * 24 * 3600;
+
   /// Tandai perangkat ini masih dipakai. Dipanggil sesudah tiap sinkron.
   /// [shiftId] adalah shift yang sedang dipegang perangkat ini, atau null
   /// kalau tidak sedang memegang apa pun — owner, atau kasir yang sudah
@@ -472,7 +481,7 @@ class PerangkatRepository {
           if (tarikBersih) 'p_tarik_bersih': true,
           'p_tertahan': ?tertahan,
           'p_gagal_kirim': ?gagalKirim,
-          'p_selisih_jam': selisihJam.inSeconds,
+          'p_selisih_jam': selisihDetikTerkirim(selisihJam),
         },
       {
         'p_shift_id': shiftId,
