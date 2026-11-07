@@ -250,7 +250,24 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
     }
 
     final authRepo = AuthRepository(db);
-    final hasOwner = await authRepo.hasOwner();
+    var hasOwner = await authRepo.hasOwner();
+    // Ada akun tapi owner-nya belum ada di HP ini — mis. barisnya tertahan
+    // saat ditarik. Dulu langsung ditawari "buat akun owner" tanpa bertanya
+    // ke server: siapa pun yang memegang HP ini bisa membuat owner sendiri
+    // dan memegang menu owner (audit 6 Nov nomor 7). Server yang memutuskan.
+    if (!hasOwner) {
+      final ada = SupabaseConfig.tersedia ? await _ownerDiServer() : null;
+      if (ada != false) {
+        return AuthState(
+          hasUser: true,
+          hasOwner: false,
+          isLoggedIn: false,
+          perluInternet: true,
+          ownerBelumMasuk: ada == true,
+        );
+      }
+      hasOwner = await authRepo.hasOwner();
+    }
     final isLoggedIn = SessionManager.instance.isLoggedIn;
 
     return AuthState(
@@ -258,6 +275,26 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
       hasOwner: hasOwner,
       isLoggedIn: isLoggedIn,
     );
+  }
+
+  /// Apakah server punya akun owner. Null kalau belum bisa dipastikan.
+  /// Sinkron dulu: kalau barisnya sampai, HP ini memakainya.
+  Future<bool?> _ownerDiServer() async {
+    final hasil = await SyncService.instance.jalankan();
+    if (!hasil.tarikSelesai) return null;
+    if (await AuthRepository(db).hasOwner()) return false;
+    try {
+      final baris = await SupabaseService.instance.client!
+          .from('users')
+          .select('id')
+          .eq('role', 'owner')
+          .isFilter('deleted_at', null)
+          .limit(1);
+      return baris.isNotEmpty;
+    } catch (e) {
+      debugPrint('[masuk] cek owner di server gagal: $e');
+      return null;
+    }
   }
 
   @override
@@ -321,6 +358,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
         if (state.perluInternet) {
           return _LayarPerluInternet(
             sebab: state.sebabTerputus,
+            ownerBelumMasuk: state.ownerBelumMasuk,
             onCobaLagi: () async {
               // Kemajuannya tampil di tombol layar itu sendiri (persen),
               // bukan popup yang mengunci layar.
@@ -379,9 +417,16 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
 /// dipulihkan dari sisi server.
 class _LayarPerluInternet extends StatefulWidget {
   final SebabTerputus? sebab;
+
+  /// Server punya akun owner, tapi barisnya belum tersimpan di HP ini.
+  final bool ownerBelumMasuk;
   final Future<void> Function() onCobaLagi;
 
-  const _LayarPerluInternet({required this.sebab, required this.onCobaLagi});
+  const _LayarPerluInternet({
+    required this.sebab,
+    required this.onCobaLagi,
+    this.ownerBelumMasuk = false,
+  });
 
   @override
   State<_LayarPerluInternet> createState() => _LayarPerluInternetState();
@@ -393,7 +438,14 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
   @override
   Widget build(BuildContext context) {
     final warna = Theme.of(context).colorScheme.primary;
-    final (ikon, judul, isi) = switch (widget.sebab) {
+    final (ikon, judul, isi) = widget.ownerBelumMasuk
+        ? (
+            Icons.manage_accounts_rounded,
+            'Akun Owner Belum Masuk',
+            'Akun owner sudah ada di server, tapi belum tersimpan di HP ini.'
+                '\n\nPastikan aplikasi sudah versi terbaru, lalu coba lagi.',
+          )
+        : switch (widget.sebab) {
       SebabTerputus.ditolak => (
         Icons.phonelink_lock_rounded,
         'Perangkat Tidak Dikenali',
@@ -527,6 +579,9 @@ class AuthState {
   /// Perangkat ini belum pernah didaftarkan dengan kunci pemasangan.
   final bool perluDaftar;
 
+  /// Ada akun di HP ini, owner-nya ada di server tapi belum masuk ke HP ini.
+  final bool ownerBelumMasuk;
+
   AuthState({
     required this.hasUser,
     required this.hasOwner,
@@ -534,5 +589,6 @@ class AuthState {
     this.perluInternet = false,
     this.sebabTerputus,
     this.perluDaftar = false,
+    this.ownerBelumMasuk = false,
   });
 }

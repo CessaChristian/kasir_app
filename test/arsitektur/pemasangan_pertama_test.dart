@@ -131,4 +131,17 @@ void main() {
       reason: 'harus tetap `late`, hanya tanpa `final`',
     );
   });
+
+  test('audit 6 Nov nomor 7: ada akun tanpa owner → tanya server dulu, bukan '
+      'langsung menawarkan pembuatan owner', () {
+    final badan = badanPemeriksaan();
+    final posTanya = badan.indexOf('_ownerDiServer()');
+    final posTanpaOwner = badan.indexOf('if (!hasOwner)');
+    expect(posTanpaOwner, isNot(-1));
+    expect(posTanya, greaterThan(posTanpaOwner),
+        reason: 'keputusan "belum ada owner" hanya boleh dari jawaban server');
+    expect(badan.indexOf('ada != false'), greaterThan(posTanya),
+        reason: 'jawaban "belum tahu" (null) juga tidak boleh membuka layar '
+            'pembuatan owner');
+  });
 }
