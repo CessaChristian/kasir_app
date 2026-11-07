@@ -413,7 +413,13 @@ class SyncService {
       // justru perangkat itu yang tidak pernah sampai ke sana. Yang muncul
       // cuma "periksa koneksi" selamanya, padahal jaringannya sehat dan
       // penyebabnya sudah diketahui server sejak tadi.
-      await PerangkatRepository.instance.periksaStatusSaya();
+      final status = await PerangkatRepository.instance.periksaStatusSaya();
+      // HP yang dicabut tidak menyinkron sama sekali (audit 6 Nov nomor 16).
+      // Dulu mesinnya tetap jalan: server menjawab kosong untuk HP itu, dan
+      // produk yang tertahan disembunyikan permanen seolah sudah dibuang.
+      if (status == StatusPerangkatIni.dicabut) {
+        return _hasilTerakhir = const HasilSync(error: 'perangkat dicabut');
+      }
 
       final mesin = _mesin =
           SyncEngine(db, onKemajuan: (k) => kemajuan.value = k);
