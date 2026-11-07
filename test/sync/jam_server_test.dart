@@ -57,63 +57,128 @@ void main() {
     });
   });
 
-  group('penukaran tiket saat jam salah', () {
+  group('penukaran tiket saat jam salah (audit 6 Nov nomor 8)', () {
     final uriTukar = Uri.parse(
         'https://contoh.test/auth/v1/token?grant_type=refresh_token');
-    Future<http.Response> tukar(http.Client k, [String isi = 'r1']) =>
-        k.post(uriTukar, body: isi);
     late int kirim;
     late int status;
+    late int umurDetik;
     late KlienBerbatasWaktu klien;
+
+    /// Tiket akses palsu dengan `exp` dari jam SERVER.
+    String tiketAkses(int umur) {
+      final jamServer = DateTime.now().subtract(jam.selisih.value!);
+      final exp = jamServer.add(Duration(seconds: umur)).millisecondsSinceEpoch ~/
+          1000;
+      String b64(Map<String, dynamic> m) =>
+          base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+      return '${b64({'alg': 'HS256'})}.${b64({'exp': exp})}.ttd';
+    }
+
+    // Server sungguhan memberi tiket pengganti BARU di setiap tukar.
     setUp(() {
       kirim = 0;
       status = 200;
-      klien = KlienBerbatasWaktu(MockClient((_) async {
+      umurDetik = 3600;
+      klien = KlienBerbatasWaktu(MockClient((r) async {
         kirim++;
-        return http.Response('tiket$kirim', status);
+        if (status != 200) return http.Response('{"msg":"x"}', status);
+        final lama = (jsonDecode(r.body) as Map)['refresh_token'] as String;
+        return http.Response(
+          jsonEncode({
+            'access_token': tiketAkses(umurDetik),
+            'refresh_token': '$lama+',
+            'token_type': 'bearer',
+          }),
+          200,
+        );
       }));
     });
 
-    test('jam salah: tukar berulang hanya sekali sampai ke server', () async {
+    Future<String> tukar(String tiket) async {
+      final r = await klien.post(uriTukar,
+          body: jsonEncode({'refresh_token': tiket}));
+      return r.statusCode == 200
+          ? (jsonDecode(r.body) as Map)['refresh_token'] as String
+          : 'gagal ${r.statusCode}';
+    }
+
+    test('jam salah: SDK menukar tiket pengganti berulang, server cukup sekali',
+        () async {
       jam.selisih.value = const Duration(days: 1);
-      expect((await tukar(klien)).body, 'tiket1');
-      expect((await tukar(klien)).body, 'tiket1');
-      expect((await tukar(klien)).body, 'tiket1');
+      final r2 = await tukar('r1');
+      expect(r2, 'r1+');
+      // SDK lalu memakai tiket pengganti itu, berulang-ulang.
+      expect(await tukar(r2), 'r1+');
+      expect(await tukar(r2), 'r1+');
+      expect(await tukar('r1'), 'r1+');
       expect(kirim, 1);
     });
 
-    test('jam benar: setiap tukar tetap sampai ke server', () async {
+    test('tiket hampir habis menurut jam server: ditukar sungguhan', () async {
+      jam.selisih.value = const Duration(days: 1);
+      umurDetik = 30;
+      final r2 = await tukar('r1');
+      await tukar(r2);
+      expect(kirim, 2);
+    });
+
+    test('jam benar: setiap tukar sampai ke server', () async {
       jam.selisih.value = Duration.zero;
-      await tukar(klien);
-      await tukar(klien);
+      final r2 = await tukar('r1');
+      await tukar(r2);
       expect(kirim, 2);
     });
 
     test('jam dibenerin: jawaban simpanan tidak dipakai lagi', () async {
       jam.selisih.value = const Duration(days: 1);
-      await tukar(klien);
+      final r2 = await tukar('r1');
       jam.selisih.value = Duration.zero;
-      expect((await tukar(klien)).body, 'tiket2');
+      expect(await tukar(r2), 'r1++');
+      expect(kirim, 2);
     });
 
-    test('tiket berbeda dan jawaban gagal tidak memakai simpanan', () async {
+    test('jawaban gagal tidak disimpan, tiket lain ditukar sungguhan', () async {
       jam.selisih.value = const Duration(days: 1);
       status = 400;
-      await tukar(klien);
-      await tukar(klien);
-      expect(kirim, 2, reason: 'jawaban gagal tidak boleh disimpan');
+      await tukar('r1');
+      await tukar('r1');
+      expect(kirim, 2);
       status = 200;
-      await tukar(klien);
-      await tukar(klien, 'r2');
-      expect(kirim, 4, reason: 'tiket lain harus benar-benar ditukar');
+      await tukar('r1');
+      await tukar('lain');
+      expect(kirim, 4);
     });
 
     test('permintaan selain penukaran tidak disimpan', () async {
       jam.selisih.value = const Duration(days: 1);
       final lain = Uri.parse('https://contoh.test/rest/v1/products');
-      await klien.post(lain, body: 'a');
-      await klien.post(lain, body: 'a');
+      final k = KlienBerbatasWaktu(MockClient((_) async {
+        kirim++;
+        return http.Response('[]', 200);
+      }));
+      await k.post(lain, body: 'a');
+      await k.post(lain, body: 'a');
       expect(kirim, 2);
+    });
+  });
+
+  group('sesudah 429, penukaran ditahan (audit 6 Nov nomor 9)', () {
+    final uriTukar = Uri.parse(
+        'https://contoh.test/auth/v1/token?grant_type=refresh_token');
+
+    test('penolakan berikutnya tidak dikirim ke server selama ditahan',
+        () async {
+      var kirim = 0;
+      final klien = KlienBerbatasWaktu(MockClient((_) async {
+        kirim++;
+        return http.Response('batas', 429);
+      }));
+      for (var i = 0; i < 6; i++) {
+        final r = await klien.post(uriTukar, body: '{"refresh_token":"r1"}');
+        expect(r.statusCode, greaterThanOrEqualTo(500));
+      }
+      expect(kirim, 1);
     });
   });
 
@@ -145,13 +210,17 @@ void main() {
   });
 
   group('SDK login asli saat tiket ditukar', () {
+    var kirimKeServer = 0;
     /// SDK sungguhan, lewat klien aplikasi, dengan server yang menjawab [kode].
     /// Yang diuji perilaku SDK-nya: tiket dihapus atau disimpan.
     Future<GoTrueClient> tukarDenganJawaban(int kode, String isi) async {
       final auth = GoTrueClient(
         url: 'https://contoh.test/auth/v1',
         httpClient: KlienBerbatasWaktu(
-          MockClient((_) async => http.Response(isi, kode)),
+          MockClient((_) async {
+            kirimKeServer++;
+            return http.Response(isi, kode);
+          }),
         ),
         autoRefreshToken: false,
       );
@@ -174,12 +243,15 @@ void main() {
     }
 
     test('429: tiket TETAP ada, jadi HP tidak perlu daftar ulang', () async {
+      kirimKeServer = 0;
       final auth = await tukarDenganJawaban(
         429,
         '{"code":429,"error_code":"over_request_rate_limit",'
             '"msg":"Request rate limit reached"}',
       );
       expect(auth.currentSession, isNotNull);
+      expect(kirimKeServer, 1,
+          reason: 'SDK mengulang 5xx, tapi ulangannya tidak boleh sampai server');
     });
 
     test('tiket benar-benar dicabut server: tetap dihapus', () async {
