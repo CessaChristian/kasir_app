@@ -367,6 +367,28 @@ void main() {
     expect((await ambil('p22')).name, 'Versi terkirim');
   });
 
+  test('audit nomor 14: edit yang disimpan saat tarikan berjalan tidak hilang',
+      () async {
+    await pasangProdukLokal(
+      id: 'p30',
+      nama: 'Lama',
+      updatedAt: detik('2026-09-04T10:00:00Z'),
+      syncStatus: 'synced',
+    );
+    final tarik = mesin.gabungkanTabel('products', [
+      barisServer(id: 'p30', nama: 'Versi server', updatedAt: '2026-09-04T10:05:00Z'),
+    ]);
+    // Owner menyimpan harga baru tepat saat tarikan memproses baris ini.
+    final simpan = db.customStatement(
+      "UPDATE products SET name = 'Edit owner', updated_at = ?, "
+      "sync_status = 'pending' WHERE id = 'p30'",
+      [DateTime.parse('2026-09-04T10:10:00Z').millisecondsSinceEpoch ~/ 1000],
+    );
+    await Future.wait([tarik, simpan]);
+    final p = await ambil('p30');
+    expect((p.name, p.syncStatus), ('Edit owner', 'pending'));
+  });
+
   test('baris pending bercap lebih baru TIDAK ditimpa server', () async {
     await pasangProdukLokal(
       id: 'p21',

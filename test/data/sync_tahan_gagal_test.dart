@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -77,6 +78,27 @@ void main() {
     expect(gagal, hasLength(1));
     expect(gagal.first, contains('products'));
     expect(mesin.ditolak, 1, reason: 'QA S10: dilaporkan ke owner');
+  });
+
+  test('audit nomor 15: server sedang gangguan (503/401/429) bukan "ditolak"',
+      () async {
+    for (final kode in ['503', '502', '401', '429', 'PGRST301']) {
+      await db.delete(db.products).go();
+      final a = await pasangProduk('Kopi');
+      await pasangProduk('Teh');
+      var permintaan = 0;
+      final mesin = SyncEngine(db)
+        ..pengirimUntukTest = (tabel, baris) async {
+          permintaan++;
+          throw PostgrestException(message: 'gangguan', code: kode);
+        };
+      await mesin.dorongSemua();
+      expect(permintaan, 1, reason: '$kode: tidak dikirim satu per satu');
+      expect(mesin.koneksiPutus, isTrue,
+          reason: '$kode: berhenti seperti putus koneksi');
+      expect(mesin.ditolak, isNull, reason: '$kode: tidak dilaporkan ditolak');
+      expect(await status(a), 'pending');
+    }
   });
 
   test('QA K10: jumlahTertunda menghitung yang belum terkirim di semua tabel',

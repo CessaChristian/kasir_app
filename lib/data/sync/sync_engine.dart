@@ -879,76 +879,81 @@ class SyncEngine {
     var sudah = 0;
     var berubah = 0;
 
-    for (final r in baris) {
-      final waktuServer = r['updated_at'] as String;
-      final mikroServer = _mikro(waktuServer);
-      final lokal = await _keadaanLokal(e.nama, r['id'] as String);
-      final terhapusDiServer = r['deleted_at'] != null;
+    // Satu transaksi per halaman (audit 6 Nov nomor 14). Tiap baris dibaca
+    // lalu ditulis; dulu simpanan pengguna bisa terselip di antara keduanya,
+    // lalu tertimpa versi server dan dicap terkirim — editnya hilang tanpa
+    // pernah dikirim. Selama transaksi, tulisan lain menunggu sebentar.
+    await _db.transaction(() async {
+      for (final r in baris) {
+        final waktuServer = r['updated_at'] as String;
+        final mikroServer = _mikro(waktuServer);
+        final lokal = await _keadaanLokal(e.nama, r['id'] as String);
+        final terhapusDiServer = r['deleted_at'] != null;
 
-      if (lokal == null && terhapusDiServer && _sampahTakPerluDisimpan(e.nama)) {
-        // Produk atau kategori yang belum pernah ada di sini dan datang sudah
-        // terhapus: tidak disimpan sama sekali. Tidak ada yang bisa
-        // merujuknya — item struk tidak terikat ke produk (v24), dan server
-        // tidak lagi menyimpan produk aktif yang menunjuk kategori terhapus
-        // (`supabase/kategori_terhapus.sql`). Penandanya tetap maju di bawah.
-      } else if (lokal == null || _serverMenang(lokal, mikroServer)) {
-        if (await _tulisAtauTahan(e, r)) {
-          // Baris terhapus yang belum pernah ada di sini — transaksi dan
-          // pengeluaran yang DIBATALKAN — tetap ditulis karena itu catatan,
-          // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
-          if (lokal != null || !terhapusDiServer) berubah++;
+        if (lokal == null && terhapusDiServer && _sampahTakPerluDisimpan(e.nama)) {
+          // Produk atau kategori yang belum pernah ada di sini dan datang sudah
+          // terhapus: tidak disimpan sama sekali. Tidak ada yang bisa
+          // merujuknya — item struk tidak terikat ke produk (v24), dan server
+          // tidak lagi menyimpan produk aktif yang menunjuk kategori terhapus
+          // (`supabase/kategori_terhapus.sql`). Penandanya tetap maju di bawah.
+        } else if (lokal == null || _serverMenang(lokal, mikroServer)) {
+          if (await _tulisAtauTahan(e, r)) {
+            // Baris terhapus yang belum pernah ada di sini — transaksi dan
+            // pengeluaran yang DIBATALKAN — tetap ditulis karena itu catatan,
+            // tapi tidak terlihat sebagai "data diperbarui" bagi pemakai.
+            if (lokal != null || !terhapusDiServer) berubah++;
+          }
+        } else if (!lokal.pending &&
+            (_detikSama(lokal, mikroServer) || _capLokalDiMasaDepan(lokal))) {
+          // Tidak ada perubahan yang menunggu, dan versi server tidak lebih tua
+          // secara nyata:
+          // - dua perubahan server dalam satu detik (QA kedua K11);
+          // - cap lokal di masa depan karena jam HP pernah salah. Server
+          //   memotong cap itu saat menerimanya; kalau salinan lokalnya
+          //   dibiarkan, HP ini menolak harga baru dari HP lain sampai jamnya
+          //   melewati cap itu.
+          // SELAIN itu versi lama tidak ditulis: tarikan kecil yang jalan di
+          // luar antrean sinkron bisa membawa halaman yang diambil sebelum HP
+          // ini mengirim perubahannya (audit 6 Nov nomor 10).
+          // Hanya dihitung kalau isinya berbeda — lihat catatan
+          // "KENAPA BARIS synced" di [_serverMenang].
+          final id = r['id'] as String;
+          final sebelum = await _barisMentah(e.nama, id);
+          if (await _tulisAtauTahan(e, r) &&
+              sebelum != await _barisMentah(e.nama, id)) {
+            berubah++;
+          }
         }
-      } else if (!lokal.pending &&
-          (_detikSama(lokal, mikroServer) || _capLokalDiMasaDepan(lokal))) {
-        // Tidak ada perubahan yang menunggu, dan versi server tidak lebih tua
-        // secara nyata:
-        // - dua perubahan server dalam satu detik (QA kedua K11);
-        // - cap lokal di masa depan karena jam HP pernah salah. Server
-        //   memotong cap itu saat menerimanya; kalau salinan lokalnya
-        //   dibiarkan, HP ini menolak harga baru dari HP lain sampai jamnya
-        //   melewati cap itu.
-        // SELAIN itu versi lama tidak ditulis: tarikan kecil yang jalan di
-        // luar antrean sinkron bisa membawa halaman yang diambil sebelum HP
-        // ini mengirim perubahannya (audit 6 Nov nomor 10).
-        // Hanya dihitung kalau isinya berbeda — lihat catatan
-        // "KENAPA BARIS synced" di [_serverMenang].
-        final id = r['id'] as String;
-        final sebelum = await _barisMentah(e.nama, id);
-        if (await _tulisAtauTahan(e, r) &&
-            sebelum != await _barisMentah(e.nama, id)) {
-          berubah++;
+
+        sudah++;
+        // Dilaporkan berkala saja — memanggil setState seribu kali justru
+        // membuat tampilan tersendat.
+        if (sudah % 25 == 0 || sudah == baris.length) {
+          _lapor('menarik', e.nama, urutan, sudah, baris.length,
+              perubahan: berubah);
+        }
+
+        // Penandanya mengikuti URUTAN KEDATANGAN, bukan `updated_at`. Dua
+        // kolom itu memang berbeda tugas, dan memakai `updated_at` di sini
+        // adalah sumber kebocoran yang ditutup `supabase/sync_urutan.sql`.
+        //
+        // Server yang belum dimigrasi tidak punya kolomnya. Dalam keadaan itu
+        // penandanya sengaja TIDAK dimajukan: lebih baik menarik ulang tiap
+        // kali daripada memajukannya dengan nilai yang salah arti dan
+        // melewatkan baris diam-diam.
+        final urut = r[kolomUrut];
+        if (urut is String) {
+          final mikroUrut = _mikro(urut);
+          if (mikroUrut > tertinggi) {
+            tertinggi = mikroUrut;
+            kursorTertinggi = urut;
+          }
         }
       }
+    });
 
-      sudah++;
-      // Dilaporkan berkala saja — memanggil setState seribu kali justru
-      // membuat tampilan tersendat.
-      if (sudah % 25 == 0 || sudah == baris.length) {
-        _lapor('menarik', e.nama, urutan, sudah, baris.length,
-            perubahan: berubah);
-      }
-
-      // Penandanya mengikuti URUTAN KEDATANGAN, bukan `updated_at`. Dua
-      // kolom itu memang berbeda tugas, dan memakai `updated_at` di sini
-      // adalah sumber kebocoran yang ditutup `supabase/sync_urutan.sql`.
-      //
-      // Server yang belum dimigrasi tidak punya kolomnya. Dalam keadaan itu
-      // penandanya sengaja TIDAK dimajukan: lebih baik menarik ulang tiap
-      // kali daripada memajukannya dengan nilai yang salah arti dan
-      // melewatkan baris diam-diam.
-      final urut = r[kolomUrut];
-      if (urut is String) {
-        final mikroUrut = _mikro(urut);
-        if (mikroUrut > tertinggi) {
-          tertinggi = mikroUrut;
-          kursorTertinggi = urut;
-        }
-      }
-    }
-
-    if (kursorTertinggi != null) {
-      await _catatKursorTarik(e.nama, kursorTertinggi);
-    }
+    final kursor = kursorTertinggi;
+    if (kursor != null) await _catatKursorTarik(e.nama, kursor);
     return (baris.length, berubah);
   }
 
@@ -1122,7 +1127,7 @@ class SyncEngine {
         gagal.add('${g.tabel}: ${g.penyebab}');
       } on _Berhenti catch (b) {
         didorong += b.terkirim;
-        _koneksiPutus = galatTakTersambung(b.penyebab);
+        _koneksiPutus = galatSementara(b.penyebab);
         gagal.add('${b.tabel}: ${b.penyebab}');
         return (didorong, gagal);
       } catch (e) {
@@ -1168,7 +1173,7 @@ class SyncEngine {
         // Koneksi putus atau server tidak menjawab: mencoba satu per satu
         // cuma menunggu batas waktu yang sama untuk setiap baris — 100 baris
         // ±25 menit (QA kedua S11). Berhenti; putaran berikutnya mencoba lagi.
-        if (galatTakTersambung(galat)) await berhenti(galat);
+        if (galatSementara(galat)) await berhenti(galat);
 
         // Potongan ditolak. Bisa jadi SELURUH isinya bermasalah, tapi jauh
         // lebih sering cuma SATU baris — dan 99 baris sehat lainnya ikut
@@ -1265,6 +1270,20 @@ class SyncEngine {
 
   /// Mengembalikan (baris yang lolos, galat penolakan pertama, sebab
   /// berhenti di tengah — koneksi putus atau Batalkan).
+  /// Gangguan yang hilang sendiri: putus koneksi, server sedang bermasalah
+  /// (5xx), tiket basi (401/JWT), atau kebanyakan permintaan (429). Dulu
+  /// hanya putus koneksi: jawaban 503 dihitung "baris ditolak", tiap baris
+  /// dikirim satu per satu, lalu kasir dan owner diberi tahu "perbarui
+  /// aplikasi" (audit 6 Nov nomor 15).
+  @visibleForTesting
+  static bool galatSementara(Object galat) {
+    if (galatTakTersambung(galat)) return true;
+    if (galat is! PostgrestException) return false;
+    final kode = galat.code ?? '';
+    return kode.startsWith('5') ||
+        const {'401', '429', 'PGRST301', 'PGRST303'}.contains(kode);
+  }
+
   Future<(List<Map<String, dynamic>>, Object?, Object?)> _kirimSatuSatu(
     _Entitas e,
     List<Map<String, dynamic>> potongan,
@@ -1277,7 +1296,7 @@ class SyncEngine {
         await _kirim(e, [baris]);
         lolos.add(baris);
       } catch (err) {
-        if (galatTakTersambung(err)) return (lolos, galat, err);
+        if (galatSementara(err)) return (lolos, galat, err);
         galat ??= err;
       }
     }
