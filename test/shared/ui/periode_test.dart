@@ -58,6 +58,31 @@ void main() {
     );
   });
 
+  group('audit nomor 38: tanggal 7, "Bulan Ini" = "7 Hari Terakhir"', () {
+    final tgl7 = DateTime(2026, 11, 7, 23, 59);
+    final tgl8 = DateTime(2026, 11, 8, 0, 1);
+    Periode pilih(String n) =>
+        pintasanPeriode(tgl7).firstWhere((e) => e.$1 == n).$2;
+
+    test('judul mengikuti pintasan yang dipilih', () {
+      expect(namaPeriode(pilih('Bulan Ini'), tgl7), 'Bulan Ini');
+      expect(namaPeriode(pilih('7 Hari Terakhir'), tgl7), '7 Hari Terakhir');
+    });
+
+    test('lewat tengah malam "Bulan Ini" tetap mulai tanggal 1', () {
+      final baru = geserPintasan(pilih('Bulan Ini'), tgl7, tgl8);
+      expect(baru, Periode(DateTime(2026, 11, 1), DateTime(2026, 11, 8)));
+      expect(namaPeriode(baru!, tgl8), 'Bulan Ini');
+    });
+
+    test('rentang tanpa nama (pilih bulan November) terbaca "Bulan Ini"', () {
+      expect(
+        namaPeriode(Periode(DateTime(2026, 11, 1), DateTime(2026, 11, 7)), tgl7),
+        'Bulan Ini',
+      );
+    });
+  });
+
   test('label tanggal mengikuti format desain', () {
     expect(labelPeriode(Periode.hari(DateTime(2026, 10, 1))), '1 Okt 2026');
     expect(

@@ -82,6 +82,10 @@ class _LembarPeriodeState extends State<LembarPeriode> {
   var _modeBulan = false;
   late String? _pilihan = widget.pilihanAwal;
 
+  /// Pintasan yang terakhir diketuk; hilang begitu tanggal atau bulan dipilih
+  /// sendiri (audit 6 Nov nomor 38).
+  late String? _namaPintasan = widget.awal.nama;
+
   // Mode tanggal. [_sampai] null = sedang menunggu tanggal akhir.
   late DateTime _dari = widget.awal.dari;
   late DateTime? _sampai = widget.awal.sampai;
@@ -106,9 +110,10 @@ class _LembarPeriodeState extends State<LembarPeriode> {
 
   Periode get _draf => _modeBulan
       ? periodeBulan(_bulanDari, _bulanSampai ?? _bulanDari, _hariIni)
-      : Periode(_dari, _sampai ?? _dari);
+      : Periode(_dari, _sampai ?? _dari, nama: _namaPintasan);
 
   void _setel(Periode p) => setState(() {
+    _namaPintasan = p.nama;
     _modeBulan = false;
     _dari = p.dari;
     _sampai = p.sampai;
@@ -124,6 +129,7 @@ class _LembarPeriodeState extends State<LembarPeriode> {
   });
 
   void _ketukTanggal(DateTime d) => setState(() {
+    _namaPintasan = null;
     if (_sampai == null && !d.isBefore(_dari)) {
       _sampai = d;
     } else {
@@ -133,6 +139,7 @@ class _LembarPeriodeState extends State<LembarPeriode> {
   });
 
   void _ketukBulan(DateTime b) => setState(() {
+    _namaPintasan = null;
     if (_bulanSampai == null && !b.isBefore(_bulanDari)) {
       _bulanSampai = b;
     } else {
@@ -217,7 +224,10 @@ class _LembarPeriodeState extends State<LembarPeriode> {
                       padding: const EdgeInsets.only(right: 6),
                       child: _chip(
                         nama,
-                        aktif: !_modeBulan && draf == p && !_menungguAkhir,
+                        aktif: !_modeBulan &&
+                            draf == p &&
+                            (_namaPintasan == null || _namaPintasan == nama) &&
+                            !_menungguAkhir,
                         onTap: () => _setel(p),
                       ),
                     ),

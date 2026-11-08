@@ -4,12 +4,20 @@ class Periode {
   final DateTime dari;
   final DateTime sampai;
 
-  Periode(DateTime dari, DateTime sampai)
+  /// Nama pintasan yang dipilih owner ("Bulan Ini"), null untuk rentang
+  /// pilihan sendiri. Tidak ikut dibandingkan di `==`. Dua pintasan bisa
+  /// bertanggal sama — tanggal 7, "Bulan Ini" = "7 Hari Terakhir" — dan dulu
+  /// namanya ditebak dari tanggal: judulnya salah, dan lewat tengah malam
+  /// "Bulan Ini" bergeser jadi 7 hari terakhir sehingga tanggal 1 hilang
+  /// (audit 6 Nov nomor 38).
+  final String? nama;
+
+  Periode(DateTime dari, DateTime sampai, {this.nama})
     : dari = _tanggal(dari),
       sampai = _tanggal(sampai);
 
   /// Satu hari penuh.
-  Periode.hari(DateTime hari) : this(hari, hari);
+  Periode.hari(DateTime hari, {String? nama}) : this(hari, hari, nama: nama);
 
   static DateTime _tanggal(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -49,14 +57,18 @@ List<(String, Periode)> pintasanPeriode(DateTime hariIni) {
   final h = DateTime(hariIni.year, hariIni.month, hariIni.day);
   DateTime geser(int n) => DateTime(h.year, h.month, h.day + n);
   return [
-    ('Hari ini', Periode.hari(h)),
-    ('Kemarin', Periode.hari(geser(-1))),
-    ('7 Hari Terakhir', Periode(geser(-6), h)),
-    ('30 Hari Terakhir', Periode(geser(-29), h)),
-    ('Bulan Ini', Periode(DateTime(h.year, h.month), h)),
+    ('Hari ini', Periode.hari(h, nama: 'Hari ini')),
+    ('Kemarin', Periode.hari(geser(-1), nama: 'Kemarin')),
+    ('7 Hari Terakhir', Periode(geser(-6), h, nama: '7 Hari Terakhir')),
+    ('30 Hari Terakhir', Periode(geser(-29), h, nama: '30 Hari Terakhir')),
+    ('Bulan Ini', Periode(DateTime(h.year, h.month), h, nama: 'Bulan Ini')),
     (
       'Bulan Lalu',
-      Periode(DateTime(h.year, h.month - 1), DateTime(h.year, h.month, 0)),
+      Periode(
+        DateTime(h.year, h.month - 1),
+        DateTime(h.year, h.month, 0),
+        nama: 'Bulan Lalu',
+      ),
     ),
   ];
 }
@@ -73,9 +85,27 @@ Periode? geserPintasan(Periode p, DateTime lama, DateTime baru) {
 }
 
 /// "Hari ini", "Bulan Lalu", ... atau "Filter periode".
+///
+/// Nama yang dipilih owner dipakai selama tanggalnya masih cocok. Tanpa nama
+/// (rentang dari kalender atau pilihan bulan), bulan didahulukan: pilih
+/// "November" di tanggal 7 terbaca "Bulan Ini", bukan "7 Hari Terakhir".
 String namaPeriode(Periode p, DateTime hariIni) {
-  for (final (nama, q) in pintasanPeriode(hariIni)) {
-    if (q == p) return nama;
+  final pintasan = pintasanPeriode(hariIni);
+  for (final (nama, q) in pintasan) {
+    if (nama == p.nama && q == p) return nama;
+  }
+  const urutanTebak = [
+    'Hari ini',
+    'Kemarin',
+    'Bulan Ini',
+    'Bulan Lalu',
+    '7 Hari Terakhir',
+    '30 Hari Terakhir',
+  ];
+  for (final n in urutanTebak) {
+    for (final (nama, q) in pintasan) {
+      if (nama == n && q == p) return nama;
+    }
   }
   return 'Filter periode';
 }
