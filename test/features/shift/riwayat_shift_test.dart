@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -182,6 +184,17 @@ void main() {
       '2j 15m',
     );
     expect(jamShift(jalan), '08:00 – sekarang');
+  });
+
+  test('audit nomor 50: shift lewat tengah malam menulis tanggal selesainya',
+      () {
+    final malam = DateTime(2026, 11, 9, 22);
+    final s = shift(malam, selesai: DateTime(2026, 11, 10, 2));
+    expect(jamShift(s), '22:00 – 10 Nov 02:00');
+    expect(
+      durasiShift(shift(malam), malam.add(const Duration(days: 8, hours: 1))),
+      '8 hari 1 jam',
+    );
   });
 
   test('label kelompok: Hari ini, Kemarin, lalu tanggal lengkap', () {
@@ -384,6 +397,34 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('audit nomor 50: ganti periode tidak menampilkan isi periode '
+        'lama selama yang baru dimuat', (t) async {
+      layarHp(t);
+      SharedPreferences.setMockInitialValues({});
+      await masuk(owner: true);
+      addTearDown(SessionManager.instance.clearSession);
+      final lambat = _PeriodeKeduaLambat(db);
+      await t.runAsync(() async {
+        await t.pumpWidget(MaterialApp(home: RiwayatShiftPage(repo: lambat)));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await t.pump();
+      expect(find.text('budi'), findsOneWidget);
+
+      await t.tap(find.text('Ubah'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Kemarin'));
+      await t.pump();
+      await t.tap(find.text('Terapkan'));
+      // Bukan pumpAndSettle: tanda memuat berputar terus.
+      await t.pump(const Duration(milliseconds: 500));
+      await t.pump(const Duration(milliseconds: 500));
+      expect(find.text('budi'), findsNothing,
+          reason: 'isi "Hari ini" tidak boleh tampil sebagai isi "Kemarin"');
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await lepas(t);
+    });
+
     testWidgets('kasir tanpa izin hanya melihat shift sendiri', (t) async {
       layarHp(t);
       SharedPreferences.setMockInitialValues({});
@@ -515,6 +556,35 @@ void main() {
       });
       await t.pump();
     }
+
+    testWidgets('audit nomor 50: shift yang digabung diberi catatan dan '
+        'tombol ke shift tujuan, bukan "Aktif" Rp0', (t) async {
+      SharedPreferences.setMockInitialValues({});
+      addTearDown(SessionManager.instance.clearSession);
+      await t.runAsync(() async {
+        await masuk(owner: true);
+        await db.into(db.shifts).insert(
+              ShiftsCompanion.insert(
+                id: const Value('s-gabung'),
+                userId: 'budi',
+                startAt: Value(pagi),
+                digabungKe: const Value('s-budi'),
+                deletedAt: Value(pagi),
+              ),
+            );
+      });
+      await bukaDetail(t, 's-gabung');
+      expect(find.text('Shift ini sudah digabung'), findsOneWidget);
+      expect(find.text('Aktif'), findsNothing);
+      await t.tap(find.text('Lihat shift tujuan'));
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('Shift ini sudah digabung'), findsNothing);
+      expect(find.text('budi'), findsWidgets);
+      await lepas(t);
+    });
 
     group('isi Detail Shift untuk kasir (D1)', () {
       const catatan =
@@ -649,4 +719,22 @@ void main() {
       await lepas(t);
     });
   });
+}
+
+/// Periode kedua tidak pernah selesai dimuat — meniru kueri yang lambat.
+class _PeriodeKeduaLambat extends ShiftRepository {
+  _PeriodeKeduaLambat(super.db);
+  var _ke = 0;
+
+  @override
+  Stream<List<RingkasanShift>> watchRiwayatShift(
+    Periode periode, {
+    String? hanyaUserId,
+  }) {
+    _ke++;
+    if (_ke == 1) {
+      return super.watchRiwayatShift(periode, hanyaUserId: hanyaUserId);
+    }
+    return StreamController<List<RingkasanShift>>().stream;
+  }
 }

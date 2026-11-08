@@ -112,6 +112,8 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
               ),
             );
           }
+          final tujuan = r.shift.digabungKe;
+          if (tujuan != null) return _sudahDigabung(r, tujuan);
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
@@ -144,6 +146,66 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
           );
         },
       ),
+    );
+  }
+
+  /// Shift ini sudah digabung server ke shift lain akun yang sama (dua HP
+  /// membuka shift bersamaan). Datanya tetap disimpan sebagai penanda —
+  /// HP yang masih offline butuh petunjuk ke mana transaksinya pindah —
+  /// tapi isinya kosong. Dulu tampil "Aktif" dengan Rp0 (audit 6 Nov
+  /// nomor 50).
+  Widget _sudahDigabung(RingkasanShift r, String tujuan) {
+    final nama = r.namaKasir ?? 'kasir ini';
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        KartuTeras(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.merge_rounded, color: WarnaTeras.oranye),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Shift ini sudah digabung',
+                      style: TextStyle(
+                        fontSize: TeksTeras.menu,
+                        fontWeight: FontWeight.w700,
+                        color: WarnaTeras.teks,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$nama membuka shift di dua HP bersamaan, jadi keduanya '
+                'digabung jadi satu. Semua transaksi dan pengeluarannya '
+                'sekarang ada di shift tujuan.',
+                style: const TextStyle(
+                  fontSize: TeksTeras.biasa,
+                  color: WarnaTeras.teksPudar,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pushReplacement(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          DetailShiftPage(shiftId: tujuan, repo: widget.repo),
+                    ),
+                  ),
+                  child: const Text('Lihat shift tujuan'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -282,28 +344,36 @@ class _DetailShiftPageState extends State<DetailShiftPage> {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: TeksTeras.biasa,
-                color: WarnaTeras.teksPudar,
+      // Nilai boleh turun baris kalau melebihi 65% lebar: "3 hari 7 jam
+      // (berjalan)" atau jam yang menulis tanggal tidak muat di HP kecil.
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: TeksTeras.biasa,
+                  color: WarnaTeras.teksPudar,
+                ),
               ),
             ),
-          ),
-          Text(
-            nilai,
-            style: TextStyle(
-              fontSize: besar ? TeksTeras.angka : TeksTeras.biasa,
-              fontWeight: besar ? FontWeight.w700 : FontWeight.w600,
-              color: warna,
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: box.maxWidth * 0.65),
+              child: Text(
+                nilai,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  fontSize: besar ? TeksTeras.angka : TeksTeras.biasa,
+                  fontWeight: besar ? FontWeight.w700 : FontWeight.w600,
+                  color: warna,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -93,6 +93,10 @@ class _RiwayatShiftPageState extends State<RiwayatShiftPage> {
     return HalamanTurunan(
       judul: 'Riwayat Shift',
       child: StreamBuilder<List<RingkasanShift>>(
+        // Kunci per aliran: ganti periode = mulai dari kosong. Dulu daftar
+        // periode lama tetap tampil sampai yang baru selesai dimuat, seolah
+        // itu isi periode yang baru dipilih (audit 6 Nov nomor 50).
+        key: ObjectKey(_aliran),
         stream: _aliran,
         builder: (context, snap) {
           final daftar = snap.data;

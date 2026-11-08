@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import 'format_shift.dart';
+
 import '../../../data/app_database.dart';
 import '../../expenses/models/kategori_biaya.dart';
 
@@ -137,17 +139,30 @@ class BarisRincian {
 }
 
 /// "7j 0m" (desain). Shift yang masih berjalan dihitung sampai [sekarang].
+///
+/// Sehari atau lebih: "8 hari 1 jam" (sama dengan [lamaShift]).
 String durasiShift(Shift s, DateTime sekarang) {
   final d = (s.endAt ?? sekarang).difference(s.startAt);
   final menit = d.isNegative ? 0 : d.inMinutes;
+  if (menit >= 24 * 60) return lamaShift(s.startAt, s.endAt ?? sekarang);
   return '${menit ~/ 60}j ${menit % 60}m';
 }
 
-/// "08:00 – 15:00" atau "13:26 – sekarang".
+/// "08:00 – 15:00" atau "13:26 – sekarang". Selesai di hari lain ditulis
+/// dengan tanggalnya: "22:00 – 10 Nov 02:00". Dulu "22:00 – 02:00", tampak
+/// selesai sebelum mulai (audit 6 Nov nomor 50).
 String jamShift(Shift s) {
   final f = DateFormat('HH:mm');
-  final akhir = s.endAt == null ? 'sekarang' : f.format(s.endAt!.toLocal());
-  return '${f.format(s.startAt.toLocal())} – $akhir';
+  final mulai = s.startAt.toLocal();
+  final selesai = s.endAt?.toLocal();
+  if (selesai == null) return '${f.format(mulai)} – sekarang';
+  final hariSama = selesai.year == mulai.year &&
+      selesai.month == mulai.month &&
+      selesai.day == mulai.day;
+  final akhir = hariSama
+      ? f.format(selesai)
+      : '${DateFormat('d MMM', 'id_ID').format(selesai)} ${f.format(selesai)}';
+  return '${f.format(mulai)} – $akhir';
 }
 
 class KelompokShift {
