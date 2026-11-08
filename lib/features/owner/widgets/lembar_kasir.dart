@@ -50,11 +50,16 @@ Widget _tombolMata(bool tampil, VoidCallback onTap) => IconButton(
   ),
 );
 
-Widget _pesanPin(String? pesan, bool cocok) => SizedBox(
-  height: 22,
+/// Pesan di bawah isian PIN. Pesan panjang (mis. galat simpan dari server)
+/// turun ke baris berikutnya; dulu tingginya dipatok satu baris dan
+/// teksnya keluar layar (audit 6 Nov nomor 48).
+@visibleForTesting
+Widget pesanPin(String? pesan, bool cocok) => ConstrainedBox(
+  constraints: const BoxConstraints(minHeight: 22),
   child: pesan == null
       ? null
       : Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
               cocok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
@@ -62,11 +67,13 @@ Widget _pesanPin(String? pesan, bool cocok) => SizedBox(
               color: cocok ? WarnaTeras.hijau : WarnaTeras.merah,
             ),
             const SizedBox(width: 4),
-            Text(
-              pesan,
-              style: TextStyle(
-                fontSize: TeksTeras.kecil,
-                color: cocok ? WarnaTeras.hijau : WarnaTeras.merah,
+            Expanded(
+              child: Text(
+                pesan,
+                style: TextStyle(
+                  fontSize: TeksTeras.kecil,
+                  color: cocok ? WarnaTeras.hijau : WarnaTeras.merah,
+                ),
               ),
             ),
           ],
@@ -576,8 +583,8 @@ class _ResetPinState extends State<_ResetPin> {
         ),
         const SizedBox(height: 6),
         _galatSimpan == null
-            ? _pesanPin(pesan, cocok)
-            : _pesanPin(_galatSimpan, false),
+            ? pesanPin(pesan, cocok)
+            : pesanPin(_galatSimpan, false),
         const SizedBox(height: 12),
         TombolBatalSimpan(
           bolehBatal: !_menyimpan,

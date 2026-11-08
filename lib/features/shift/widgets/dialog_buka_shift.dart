@@ -64,7 +64,9 @@ class _DialogBukaShiftState extends State<_DialogBukaShift> {
       backgroundColor: WarnaTeras.kartu,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
+      // Bisa digulir: keyboard angka di HP layar kecil dulu menutupi tombol
+      // Buka Shift (audit 6 Nov nomor 48).
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
         child: Column(
           mainAxisSize: MainAxisSize.min,

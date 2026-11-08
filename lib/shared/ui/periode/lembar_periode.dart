@@ -152,7 +152,9 @@ class _LembarPeriodeState extends State<LembarPeriode> {
   Widget build(BuildContext context) {
     final draf = _draf;
     final teksDraf = _modeBulan ? _labelRentangBulan() : labelPeriode(draf);
-    return Padding(
+    // Bisa digulir: di HP layar kecil atau huruf besar, tombol Terapkan dulu
+    // terdorong keluar layar (audit 6 Nov nomor 48).
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
