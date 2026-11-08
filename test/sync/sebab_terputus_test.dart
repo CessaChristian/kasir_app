@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -127,6 +128,55 @@ void main() {
     test('jaringan dan tanpa sebab: null — pakai pesan koneksi yang biasa', () {
       expect(alasanTakPulihSendiri(SebabTerputus.jaringan), isNull);
       expect(alasanTakPulihSendiri(null), isNull);
+    });
+  });
+
+  group('audit nomor 42', () {
+    test('tiket dicabut server (4xx berkode, SDK menghapus tiket) → ditolak',
+        () {
+      final galat = AuthApiException(
+        'Invalid Refresh Token: Refresh Token Not Found',
+        statusCode: '400',
+        code: 'refresh_token_not_found',
+      );
+      expect(golongkanGagalTukar(galat, tiketDihapus: true),
+          SebabTerputus.ditolak);
+      expect(golongkanGagalTukar(galat, tiketDihapus: false),
+          SebabTerputus.jaringan,
+          reason: 'tiket masih ada: belum pasti, coba lagi nanti');
+    });
+
+    test('putus atau server gangguan tetap jaringan walau tiket hilang', () {
+      expect(
+        golongkanGagalTukar(
+          AuthRetryableFetchException(message: 'SocketException'),
+          tiketDihapus: true,
+        ),
+        SebabTerputus.jaringan,
+      );
+    });
+
+    test('pemeriksaan bertumpuk memakai satu percobaan', () async {
+      final sekali = SekaliJalan<bool>();
+      var jalan = 0;
+      final selesai = Completer<bool>();
+      Future<bool> kerja() {
+        jalan++;
+        return selesai.future;
+      }
+
+      final a = sekali.jalankan(kerja);
+      final b = sekali.jalankan(kerja);
+      selesai.complete(true);
+      expect(await a, isTrue);
+      expect(await b, isTrue);
+      expect(jalan, 1);
+      // Sesudah selesai, percobaan berikutnya berjalan lagi.
+      await sekali.jalankan(() async {
+        jalan++;
+        return false;
+      });
+      expect(jalan, 2);
     });
   });
 }

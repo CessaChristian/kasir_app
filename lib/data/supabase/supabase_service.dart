@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -79,6 +81,38 @@ SebabTerputus golongkanGagalMasuk(Object galat) {
     return SebabTerputus.ditolak;
   }
   return SebabTerputus.jaringan;
+}
+
+/// Menggolongkan galat saat menukar tiket yang sudah mati.
+///
+/// Sama dengan [golongkanGagalMasuk], ditambah satu kepastian: server
+/// MENJAWAB (4xx berkode, bukan putus atau 5xx) dan SDK sudah menghapus
+/// tiketnya. Tiket itu satu-satunya identitas HP ini, jadi HP ini memang
+/// harus didaftarkan lagi. Dulu terbaca "masalah jaringan" sampai putaran
+/// sinkron berikutnya, sekitar 5 menit (audit 6 Nov nomor 42).
+@visibleForTesting
+SebabTerputus golongkanGagalTukar(Object galat, {required bool tiketDihapus}) {
+  final sebab = golongkanGagalMasuk(galat);
+  if (sebab == SebabTerputus.jaringan &&
+      galat is AuthApiException &&
+      tiketDihapus) {
+    return SebabTerputus.ditolak;
+  }
+  return sebab;
+}
+
+/// Satu pekerjaan yang sedang berjalan dipakai bersama oleh pemanggil
+/// berikutnya, bukan dijalankan dua kali.
+class SekaliJalan<T> {
+  Future<T>? _berjalan;
+
+  Future<T> jalankan(Future<T> Function() kerja) {
+    final ada = _berjalan;
+    if (ada != null) return ada;
+    final baru = kerja().whenComplete(() => _berjalan = null);
+    _berjalan = baru;
+    return baru;
+  }
 }
 
 /// Satu-satunya pintu koneksi ke Supabase.
@@ -187,7 +221,16 @@ class SupabaseService {
         ),
       );
       _siap = true;
-      await pastikanTerhubung();
+      // Tiket yang masih ada cukup diperiksa di belakang: menukarnya lewat
+      // jaringan lemot bisa makan 15 detik lebih, dan selama itu logo diam
+      // sebelum halaman login muncul (audit 6 Nov nomor 42). Tanpa tiket,
+      // pemeriksaannya hampir seluruhnya di HP ini, dan hasilnya ("HP ini
+      // harus didaftarkan lagi") dibutuhkan sebelum layar pertama.
+      if (Supabase.instance.client.auth.currentSession == null) {
+        await pastikanTerhubung();
+      } else {
+        unawaited(pastikanTerhubung());
+      }
     } catch (_) {
       _siap = false;
     }
@@ -201,7 +244,17 @@ class SupabaseService {
   /// meski jaringannya sudah pulih — tombol "Coba Lagi" jadi tidak berguna.
   ///
   /// Sesi juga bisa kedaluwarsa kalau perangkat lama tidak dipakai.
-  Future<bool> pastikanTerhubung() async {
+  ///
+  /// Pemanggilan yang bertumpuk (sinkron otomatis dan halaman Perangkat
+  /// bersamaan) memakai satu percobaan yang sama. Dulu keduanya berjalan
+  /// sendiri-sendiri dan saling menimpa [sebabTerputus] (audit 6 Nov
+  /// nomor 42).
+  Future<bool> pastikanTerhubung() =>
+      _pemeriksaan.jalankan(_pastikanTerhubung);
+
+  final _pemeriksaan = SekaliJalan<bool>();
+
+  Future<bool> _pastikanTerhubung() async {
     if (!_siap) {
       _sebabTerputus = SebabTerputus.belumDisiapkan;
       return false;
@@ -309,7 +362,10 @@ class SupabaseService {
       return sesiMasihBisaDipakai(
           Supabase.instance.client.auth.currentSession);
     } catch (e) {
-      _sebabTerputus = golongkanGagalMasuk(e);
+      _sebabTerputus = golongkanGagalTukar(
+        e,
+        tiketDihapus: Supabase.instance.client.auth.currentSession == null,
+      );
       return false;
     }
   }
