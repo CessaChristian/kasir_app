@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/supabase/jam_server.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -330,7 +331,9 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     }
     final idSaya = _repo.idSaya;
     final (aktif, dicabut) = kelompokkanPerangkat(_daftar, idSaya);
-    final sekarang = DateTime.now();
+    // Jam server, bukan jam HP owner: jam yang maju sehari membuat semua HP
+    // tampil "tidak aktif 1 hari" (audit 6 Nov nomor 46).
+    final sekarang = JamServer.instance.sekarang();
     Widget kartu(Perangkat p) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: _KartuPerangkat(

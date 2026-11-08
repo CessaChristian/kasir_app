@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/data/perangkat/perangkat_repository.dart';
+import 'package:kasir_app/data/supabase/jam_server.dart';
 import 'package:kasir_app/features/perangkat/widgets/lembar_pin_owner.dart';
 import 'package:kasir_app/features/perangkat/widgets/peringatan_perangkat.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
@@ -147,6 +148,25 @@ void main() {
       expect(m.judul, '3 data gagal terkirim dari HP ini');
       expect(m.catatan, contains('belum sampai'));
       expect(p.perluPerhatian(sekarang: sekarang), isTrue);
+    });
+
+    test('audit nomor 46: lama tidak aktif dihitung dengan jam server, bukan '
+        'jam HP owner yang maju 8 hari', () {
+      final jamServer = DateTime.now().subtract(const Duration(days: 8));
+      // Jam HP owner maju 8 hari dari server.
+      JamServer.instance.selisih.value = const Duration(days: 8);
+      addTearDown(() => JamServer.instance.selisih.value = null);
+      final kasir = Perangkat(
+        id: 'hp-kasir',
+        nama: 'HP Kasir',
+        aktif: true,
+        terakhirAktif: jamServer.subtract(const Duration(minutes: 2)),
+        didaftarkan: DateTime(2026, 6, 12),
+        terakhirTarik: jamServer.subtract(const Duration(minutes: 2)),
+      );
+      expect(kasir.hariDiam(), 0);
+      expect(kasir.perluDicek(idSaya: 'hp-owner'), isFalse);
+      expect(kasir.masalahData(idSaya: 'hp-owner'), isNull);
     });
 
     test('audit nomor 21: selisih jam ekstrem dibatasi supaya muat di server',

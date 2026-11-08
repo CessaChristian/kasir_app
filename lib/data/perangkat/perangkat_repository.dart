@@ -135,7 +135,7 @@ class Perangkat {
             'untuk menyegarkan.',
       );
     }
-    final lama = (sekarang ?? DateTime.now()).difference(tarik);
+    final lama = (sekarang ?? JamServer.instance.sekarang()).difference(tarik);
     if (lama <= batasTidakMenarik) return null;
     return (
       judul: 'Tidak menerima data ${lama.inDays} hari',
@@ -166,12 +166,12 @@ class Perangkat {
   bool perluDicek({DateTime? sekarang, String? idSaya}) {
     final saya = idSaya ?? SupabaseService.instance.client?.auth.currentUser?.id;
     if (!aktif || id == saya) return false;
-    return (sekarang ?? DateTime.now()).difference(terakhirAktif) >= batasDiam;
+    return (sekarang ?? JamServer.instance.sekarang()).difference(terakhirAktif) >= batasDiam;
   }
 
   /// Berapa hari penuh HP ini tidak sinkron.
   int hariDiam({DateTime? sekarang}) =>
-      (sekarang ?? DateTime.now()).difference(terakhirAktif).inDays;
+      (sekarang ?? JamServer.instance.sekarang()).difference(terakhirAktif).inDays;
 }
 
 /// Jawaban pendaftaran perangkat dengan kunci pemasangan
