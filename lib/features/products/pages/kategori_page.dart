@@ -282,9 +282,15 @@ class _KategoriPageState extends State<KategoriPage> {
             : Column(
                 children: [
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                      children: [_kartuTambah(), _judulDaftar(), _daftar()],
+                    // Terkunci selama menyimpan: sesudahnya halaman dimuat
+                    // ulang dari database, jadi ketukan di sela-sela itu
+                    // dulu hilang tanpa tanda (audit 6 Nov nomor 40).
+                    child: IgnorePointer(
+                      ignoring: _menyimpan,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                        children: [_kartuTambah(), _judulDaftar(), _daftar()],
+                      ),
                     ),
                   ),
                   Padding(

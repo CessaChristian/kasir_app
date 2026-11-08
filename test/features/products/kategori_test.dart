@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -404,7 +405,7 @@ void main() {
       await t.pumpAndSettle();
     }
 
-    Future<void> buka(WidgetTester t) async {
+    Future<void> buka(WidgetTester t, {ProductRepository? repo}) async {
       layarHp(t);
       await t.runAsync(() async {
         await kategori('k-kopi', 'Kopi');
@@ -425,7 +426,7 @@ void main() {
                       c,
                       MaterialPageRoute(
                         builder: (_) =>
-                            KategoriPage(repo: ProductRepository(db)),
+                            KategoriPage(repo: repo ?? ProductRepository(db)),
                       ),
                     ),
                     child: const Text('buka'),
@@ -746,6 +747,34 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets(
+      'audit nomor 40: selama menyimpan daftar terkunci, ketukan tidak '
+      'hilang diam-diam sesudah dimuat ulang',
+      (t) async {
+        final repo = _Lambat(db);
+        await buka(t, repo: repo);
+        await t.tap(find.byTooltip('Sembunyikan di Kasir'));
+        await t.pump();
+        await t.tap(find.text('Simpan Perubahan'));
+        await t.pump();
+        expect(find.text('Menyimpan…'), findsOneWidget);
+
+        // Selagi menyimpan, owner mengetuk hapus kategori lain.
+        await t.tap(find.byTooltip('Hapus Snack'), warnIfMissed: false);
+        await t.pumpAndSettle();
+        expect(
+          find.text('Kategori ini akan dihapus dari daftar.'),
+          findsNothing,
+        );
+
+        repo.selesai.complete();
+        await tunggu(t);
+        expect(find.text('Snack'), findsOneWidget);
+        await t.pump(const Duration(seconds: 5));
+        await lepas(t);
+      },
+    );
+
     testWidgets('kembali tanpa perubahan langsung keluar', (t) async {
       await buka(t);
       await t.tap(find.byTooltip('Kembali'));
@@ -754,4 +783,27 @@ void main() {
       await lepas(t);
     });
   });
+}
+
+/// Penyimpanan yang baru selesai saat test mengizinkan — meniru kiriman ke
+/// server yang lambat.
+class _Lambat extends ProductRepository {
+  _Lambat(super.db);
+  final selesai = Completer<void>();
+
+  @override
+  Future<void> simpanKategori({
+    List<({String nama, int? ikon})> tambah = const [],
+    Map<String, bool> tampil = const {},
+    Map<String, ({String nama, int? ikon})> ubah = const {},
+    List<String> hapus = const [],
+  }) async {
+    await selesai.future;
+    await super.simpanKategori(
+      tambah: tambah,
+      tampil: tampil,
+      ubah: ubah,
+      hapus: hapus,
+    );
+  }
 }
