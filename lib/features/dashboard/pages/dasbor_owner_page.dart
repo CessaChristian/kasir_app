@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../shift/models/format_shift.dart';
+
 import '../../../data/db.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/bar_rasio.dart';
@@ -241,8 +243,13 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
     } else if (berjalan.length == 1) {
       final s = berjalan.single;
       judul = '${s.namaKasir} sedang shift';
-      keterangan = 'Sejak ${jam.format(s.mulai)} · ${s.transaksi} transaksi'
-          ' · ${formatRp(s.pendapatan)}';
+      // Tanggal dan lamanya ikut ditulis: shift yang lupa ditutup sejak
+      // Senin dulu tetap terbaca "Sejak 08:00" di hari Kamis (audit 6 Nov
+      // nomor 49).
+      final sekarang = DateTime.now();
+      keterangan = 'Sejak ${jamMulaiShift(s.mulai, sekarang)}'
+          ' · ${lamaShift(s.mulai, sekarang)}'
+          ' · ${s.transaksi} transaksi · ${formatRp(s.pendapatan)}';
     } else {
       // Dua HP bisa menjalankan shift bersamaan.
       final nama = berjalan.map((s) => s.namaKasir).toList();
