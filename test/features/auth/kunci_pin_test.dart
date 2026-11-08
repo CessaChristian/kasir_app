@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -132,6 +134,29 @@ void main() {
     expect(hasil.isSuccess, isTrue);
     expect(await repo.login(username: 'owner', pin: '975310'), isNotNull,
         reason: 'langsung bisa masuk, tidak menunggu kunci habis');
+  });
+
+  test('audit nomor 45: selama menunggu server, database tidak terkunci',
+      () async {
+    final kode = await repo.generateAndStoreRecoveryCodeForOwner('o-1');
+    final server = Completer<String?>();
+    final dihubungi = Completer<void>();
+    final r = AuthRepository(
+      db,
+      kirimKredensial: (p) {
+        dihubungi.complete();
+        return server.future;
+      },
+    );
+    final reset =
+        r.resetOwnerPinWithRecoveryCode(recoveryCode: kode, newPin: '975310');
+    await dihubungi.future;
+    // Kasir di HP yang sama menyimpan sesuatu selagi owner menunggu server.
+    await (db.update(db.users)..where((u) => u.id.equals('k-1')))
+        .write(const UsersCompanion(loginAttempts: Value(0)))
+        .timeout(const Duration(seconds: 2));
+    server.complete('ok');
+    expect((await reset).isSuccess, isTrue);
   });
 
   test('review 3 Nov: kode recovery BARU dari reset bisa dipakai reset '

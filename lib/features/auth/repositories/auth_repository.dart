@@ -537,93 +537,103 @@ class AuthRepository {
       );
     }
 
-    return await _db.transaction<RecoveryResult>(() async {
+    // Tahap 1, di dalam transaksi: kunci, periksa kode, hitung salah.
+    // Server TIDAK dihubungi di sini: selama transaksi terbuka database
+    // terkunci, dan menunggu server di sinyal lemot membuat kasir di HP yang
+    // sama tidak bisa menyimpan transaksi (audit 6 Nov nomor 45).
+    final cek = await _db.transaction<(RecoveryResult?, User?)>(() async {
       final owner = await _getOwner();
       if (owner == null) {
-        return RecoveryResult.ownerNotFound();
+        return (RecoveryResult.ownerNotFound(), null);
       }
 
       // Lock check di dalam transaksi
       final lockUntil = owner.recoveryLockedUntil;
       if (lockUntil != null && DateTime.now().isBefore(lockUntil)) {
         final remaining = lockUntil.difference(DateTime.now()).inSeconds;
-        return RecoveryResult.locked(seconds: remaining);
+        return (RecoveryResult.locked(seconds: remaining), null);
       }
 
       if (owner.recoveryHash == null || owner.recoverySalt == null) {
-        return RecoveryResult.invalidCode(
-          message: 'No recovery code set up for this account',
+        return (
+          RecoveryResult.invalidCode(
+            message: 'No recovery code set up for this account',
+          ),
+          null,
         );
       }
 
       // Verifikasi recovery code (PBKDF2 + constant-time)
-      final normalized = _normalizeRecoveryCode(recoveryCode);
       final isValid = await _verifyRecoveryCode(
-        normalized,
+        _normalizeRecoveryCode(recoveryCode),
         owner.recoverySalt!,
         owner.recoveryHash!,
       );
 
       if (!isValid) {
         await _incrementRecoveryAttempts(owner.id);
-        return RecoveryResult.invalidCode();
+        return (RecoveryResult.invalidCode(), null);
       }
-
-      // Verifikasi lulus → generate kredensial baru dan TULIS SEKALI.
-      // Kalau write gagal (storage penuh, dll), seluruh transaksi rollback —
-      // owner tetap bisa pakai recovery code yang sama.
-      final newSalt = CryptoUtils.generateSalt();
-      final newPinHash = await CryptoUtils.hashPinDiLatar(newPin, newSalt);
-      final newRecoveryCode = _generateRecoveryCode();
-      final newRecoverySalt = _generateRecoverySalt();
-      // Tanpa strip, sama seperti saat diperiksa: dulu disimpan lengkap
-      // dengan strip, jadi kode yang ditampilkan ke owner tidak pernah cocok
-      // dan reset berikutnya selalu "kode salah" (review 3 Nov).
-      final newRecoveryHash = await _hashRecoveryCode(
-        _normalizeRecoveryCode(newRecoveryCode),
-        newRecoverySalt,
-      );
-
-      // Server dulu — ia memeriksa sendiri kode recovery-nya (review A1).
-      switch (await _gantiKredensialOwner(
-        bukti: normalized,
-        jenis: 'recovery',
-        pinHash: newPinHash,
-        salt: newSalt,
-        recoveryHash: newRecoveryHash,
-        recoverySalt: newRecoverySalt,
-      )) {
-        case null:
-          return RecoveryResult.butuhInternet();
-        case 'salah':
-          // Kode di HP ini sudah usang (diganti dari HP lain).
-          return RecoveryResult.invalidCode();
-      }
-
-      await (_db.update(_db.users)..where((u) => u.id.equals(owner.id))).write(
-        UsersCompanion(
-          pinHash: Value(newPinHash),
-          salt: Value(newSalt),
-          recoveryHash: Value(newRecoveryHash),
-          recoverySalt: Value(newRecoverySalt),
-          recoveryCreatedAt: Value(DateTime.now()),
-          recoveryUsedAt: Value(DateTime.now()),
-          recoveryAttempts: const Value(0),
-          recoveryLockedUntil: const Value(null),
-          // PIN baru = kunci salah PIN dilepas. Dulu owner yang dikunci
-          // orang iseng tetap harus menunggu sesudah memulihkan PIN-nya.
-          loginAttempts: const Value(0),
-          loginLockedUntil: const Value(null),
-          updatedAt: Value(DateTime.now()),
-          syncStatus: const Value('pending'),
-        ),
-      );
-
-      return RecoveryResult.success(
-        newRecoveryCode: newRecoveryCode,
-        message: 'PIN reset successful',
-      );
+      return (null, owner);
     });
+    final (gagal, owner) = cek;
+    if (gagal != null) return gagal;
+    final normalized = _normalizeRecoveryCode(recoveryCode);
+
+    // Tahap 2, di luar transaksi: kredensial baru dan server.
+    final newSalt = CryptoUtils.generateSalt();
+    final newPinHash = await CryptoUtils.hashPinDiLatar(newPin, newSalt);
+    final newRecoveryCode = _generateRecoveryCode();
+    final newRecoverySalt = _generateRecoverySalt();
+    // Tanpa strip, sama seperti saat diperiksa: dulu disimpan lengkap
+    // dengan strip, jadi kode yang ditampilkan ke owner tidak pernah cocok
+    // dan reset berikutnya selalu "kode salah" (review 3 Nov).
+    final newRecoveryHash = await _hashRecoveryCode(
+      _normalizeRecoveryCode(newRecoveryCode),
+      newRecoverySalt,
+    );
+
+    // Server dulu — ia memeriksa sendiri kode recovery-nya (review A1).
+    switch (await _gantiKredensialOwner(
+      bukti: normalized,
+      jenis: 'recovery',
+      pinHash: newPinHash,
+      salt: newSalt,
+      recoveryHash: newRecoveryHash,
+      recoverySalt: newRecoverySalt,
+    )) {
+      case null:
+        return RecoveryResult.butuhInternet();
+      case 'salah':
+        // Kode di HP ini sudah usang (diganti dari HP lain).
+        return RecoveryResult.invalidCode();
+    }
+
+    // Tahap 3: tulis sekali. Kalau gagal (storage penuh, dll), owner tetap
+    // bisa memakai kode recovery yang sama.
+    await (_db.update(_db.users)..where((u) => u.id.equals(owner!.id))).write(
+      UsersCompanion(
+        pinHash: Value(newPinHash),
+        salt: Value(newSalt),
+        recoveryHash: Value(newRecoveryHash),
+        recoverySalt: Value(newRecoverySalt),
+        recoveryCreatedAt: Value(DateTime.now()),
+        recoveryUsedAt: Value(DateTime.now()),
+        recoveryAttempts: const Value(0),
+        recoveryLockedUntil: const Value(null),
+        // PIN baru = kunci salah PIN dilepas. Dulu owner yang dikunci
+        // orang iseng tetap harus menunggu sesudah memulihkan PIN-nya.
+        loginAttempts: const Value(0),
+        loginLockedUntil: const Value(null),
+        updatedAt: Value(DateTime.now()),
+        syncStatus: const Value('pending'),
+      ),
+    );
+
+    return RecoveryResult.success(
+      newRecoveryCode: newRecoveryCode,
+      message: 'PIN reset successful',
+    );
   }
 
   /// Regenerate owner recovery code (requires current PIN)
