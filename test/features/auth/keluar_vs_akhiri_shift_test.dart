@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +65,24 @@ void main() {
     expect((await shift()).endAt, isNull,
         reason: 'kasir yang cuma gantian memegang HP harus bisa keluar tanpa '
             'mematikan shiftnya, dan melanjutkannya setelah masuk lagi');
+  });
+
+  test('audit nomor 43: Keluar tidak menunggu sinyal, dan kabar "keluar" '
+      'tetap tiba sebelum kabar "masuk lagi"', () async {
+    final sinkron = Completer<void>();
+    final laporan = <String?>[];
+    final r = AuthRepository(
+      db,
+      tungguSinkron: () => sinkron.future,
+      lapor: (id) async => laporan.add(id),
+    );
+    await r.logout().timeout(const Duration(seconds: 1));
+    expect(SessionManager.instance.currentSession, isNull);
+
+    final masukLagi = r.laporShift('shift-1');
+    sinkron.complete();
+    await masukLagi;
+    expect(laporan, [null, 'shift-1']);
   });
 
   group('jaring pengaman: shift ditutup dari perangkat lain', () {

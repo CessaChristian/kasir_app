@@ -305,6 +305,8 @@ void main() {
           urutan.add('tunggu sinkron, masih masuk: ${sm.isLoggedIn}'),
       lapor: (shiftId) async => urutan.add('lapor shift $shiftId'),
     ).logout();
+    // Kabarnya dikirim di belakang (audit nomor 43); urutannya tetap.
+    await pumpEventQueue();
 
     expect(urutan, [
       'tunggu sinkron, masih masuk: false',

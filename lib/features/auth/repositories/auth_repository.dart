@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../../../data/app_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
@@ -314,8 +315,13 @@ class AuthRepository {
     // Best-effort: `hadir` menelan galatnya sendiri. Kalau sedang offline,
     // tandanya baru terlepas saat perangkat ini online lagi. Keluar dari akun
     // tidak boleh gagal hanya karena jaringannya mati.
+    //
+    // TIDAK ditunggu: menunggu sinkron yang sedang jalan plus kabarnya di
+    // sinyal lemot bisa sampai ±30 detik, dan selama itu layar diam tanpa
+    // tanda (audit 6 Nov nomor 43). Urutannya tetap terjaga lewat antrean
+    // [laporShift]: laporan sesudah masuk lagi menunggu laporan ini.
     await SessionManager.instance.clearSession();
-    await laporShift(null);
+    unawaited(laporShift(null));
   }
 
   /// Beri tahu server shift yang dipegang perangkat ini SEKARANG — sesudah
@@ -329,10 +335,21 @@ class AuthRepository {
   /// putarannya, membawa shift yang dibacanya dari sesi sebelum berubah.
   /// Kalau laporannya tiba belakangan, shift yang lama terpasang lagi.
   /// Panggil SESUDAH sesinya diubah.
-  Future<void> laporShift(String? shiftId) async {
-    await (_tungguSinkron ?? SyncService.instance.tungguSelesai)();
-    await (_lapor ?? PerangkatRepository.instance.hadir)(shiftId);
+  ///
+  /// Laporan diantre satu per satu untuk seluruh aplikasi: "keluar" yang
+  /// belum terkirim tidak boleh tiba SESUDAH "masuk lagi dengan shift".
+  Future<void> laporShift(String? shiftId) {
+    final giliran = _antreanLapor.then((_) async {
+      await (_tungguSinkron ?? SyncService.instance.tungguSelesai)();
+      await (_lapor ?? PerangkatRepository.instance.hadir)(shiftId);
+    });
+    _antreanLapor = giliran.catchError((Object e) {
+      debugPrint('[lapor shift] $e');
+    });
+    return giliran;
   }
+
+  static Future<void> _antreanLapor = Future.value();
 
   Future<User?> getUserById(String userId) {
     return (_db.select(_db.users)..where((u) => u.id.equals(userId)))
