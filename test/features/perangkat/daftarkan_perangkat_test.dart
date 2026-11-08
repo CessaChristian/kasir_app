@@ -294,7 +294,37 @@ void main() {
     await t.pump(const Duration(seconds: 16)); // jawabanKunci tidak pernah datang
     await t.pump();
     expect(find.textContaining('Periksa koneksi'), findsOneWidget);
-    expect(catatan.last, 'lepas');
+    // Audit nomor 41: tanpa jawaban belum tentu ditolak — identitasnya
+    // disimpan, dan percobaan berikutnya memakainya lagi.
+    expect(catatan, ['buat', 'periksa:benar']);
+    jawabanKunci = Completer<HasilKunci>();
+    await tekan(t);
+    jawabanKunci.complete(HasilKunci.diterima);
+    await t.pumpAndSettle();
+    expect(catatan, ['buat', 'periksa:benar', 'periksa:benar']);
+    expect(lanjut, isTrue);
+    await t.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('audit nomor 41: melepas identitas gagal (sinyal putus) → '
+      'pesan, tombol aktif lagi', (t) async {
+    jawabanKunci = Completer<HasilKunci>();
+    await t.pumpWidget(
+      MaterialApp(
+        home: DaftarkanPerangkatPage(
+          sesudahBerhasil: () async => lanjut = true,
+          buatIdentitas: () async => HasilDaftarPerangkat.berhasil,
+          periksaKunci: (k) => jawabanKunci.future,
+          lepaskanIdentitas: () async => throw Exception('putus'),
+        ),
+      ),
+    );
+    await isi(t, 'salah');
+    await tekan(t);
+    jawabanKunci.complete(HasilKunci.salah);
+    await t.pumpAndSettle();
+    expect(find.text('Mendaftarkan...'), findsNothing);
+    expect(find.textContaining('Periksa koneksi'), findsOneWidget);
   });
 
   testWidgets('review B7: data toko gagal ditarik sesudah terdaftar → pesan, '

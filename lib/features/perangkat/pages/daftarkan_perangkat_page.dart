@@ -88,6 +88,21 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
 
   Future<void> _daftar() async {
     if (_sedangMendaftar) return;
+    try {
+      await _daftarSekali();
+    } catch (e) {
+      // Galat apa pun (mis. sinyal putus saat melepas identitas) dulu lolos
+      // dan tombolnya menggantung di "Mendaftarkan…" (audit 6 Nov nomor 41).
+      debugPrint('[perangkat] daftar: $e');
+      if (!mounted) return;
+      setState(() {
+        _sedangMendaftar = false;
+        _galat = pesanHasilKunci(HasilKunci.gagal);
+      });
+    }
+  }
+
+  Future<void> _daftarSekali() async {
     if (_kunciC.text.isEmpty) {
       setState(() => _galat = 'Kunci pemasangan wajib diisi');
       return;
@@ -123,10 +138,17 @@ class _DaftarkanPerangkatPageState extends State<DaftarkanPerangkatPage> {
 
     if (hasil != HasilKunci.diterima) {
       // Identitas yang tidak diakui siapa pun jangan ditinggalkan menggantung.
-      if (identitasBaru) {
+      // Tapi "gagal" (termasuk tidak dijawab 15 detik) belum tentu ditolak:
+      // server bisa saja sudah mencatatnya. Dulu identitasnya tetap dilepas,
+      // dan HP ini tampil "aktif" di Daftar Perangkat padahal tidak ada yang
+      // memakai identitas itu (audit 6 Nov nomor 41). Sekarang disimpan dan
+      // dipakai lagi saat diulang — mendaftar ulang identitas yang sama aman.
+      if (identitasBaru && hasil != HasilKunci.gagal) {
+        _perluIdentitasBaru = true;
         await (widget.lepaskanIdentitas ??
             SupabaseService.instance.lepaskanPerangkat)();
-        _perluIdentitasBaru = true;
+      } else if (identitasBaru) {
+        _perluIdentitasBaru = false;
       }
       if (!mounted) return;
       setState(() {
