@@ -46,10 +46,16 @@ class _Tiruan implements SaluranPrinter {
   Future<void> bukaPengaturanIzin() async => izinDibuka++;
   @override
   Future<bool> tersambung() async => false;
+  /// Lama menyambung (printer jauh).
+  Duration jedaSambung = Duration.zero;
   @override
-  Future<bool> sambung(String mac) async => menyala;
+  Future<bool> sambung(String mac) =>
+      Future.delayed(jedaSambung, () => menyala);
+  /// Diisi: kiriman tidak pernah selesai (printer menerima sebagian).
+  bool kirimMenggantung = false;
   @override
-  Future<bool> kirim(List<int> bytes) async => true;
+  Future<bool> kirim(List<int> bytes) =>
+      kirimMenggantung ? Completer<bool>().future : Future.value(true);
   @override
   Future<void> putus() async {}
 }
@@ -175,6 +181,19 @@ void main() {
     await tester.tap(find.text('Popup izin tidak muncul? Buka Pengaturan Izin'));
     await tester.pump();
     expect(t.izinDibuka, 1);
+  });
+
+  test('audit nomor 52: test print "mungkin tercetak" → peringatan, '
+      'printer tetap tersambung', () {
+    final m = hasilTestPrint(HasilCetak.mungkinTercetak, 'RPP02N');
+    expect(m.jenis, JenisPesan.peringatan);
+    expect(m.tersambung, isTrue);
+    expect(m.teks, contains('Cek kertasnya'));
+    final g = hasilTestPrint(HasilCetak.takTersambung, 'RPP02N');
+    expect(g.jenis, JenisPesan.galat);
+    expect(g.tersambung, isFalse);
+    expect(hasilTestPrint(HasilCetak.berhasil, 'RPP02N').teks,
+        'Test print terkirim ke RPP02N');
   });
 
   testWidgets('tanpa keterangan ukuran kertas', (tester) async {

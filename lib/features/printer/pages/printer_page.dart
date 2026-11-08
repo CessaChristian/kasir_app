@@ -172,16 +172,19 @@ class _PrinterPageState extends State<PrinterPage> with WidgetsBindingObserver {
       pesan: 'Mencetak percobaan…',
     );
     if (!mounted) return;
-    final pesan = pesanCetak(hasil);
+    final h = hasilTestPrint(hasil, _atur.nama);
     // Hasil cetak juga kabar status printer yang paling baru.
     setState(
-      () => _status = hasil == HasilCetak.berhasil
-          ? _Status.tersambung
-          : _Status.tidakTerhubung,
+      () => _status = h.tersambung ? _Status.tersambung : _Status.tidakTerhubung,
     );
-    pesan == null
-        ? AppToast.success(context, 'Test print terkirim ke ${_atur.nama}')
-        : AppToast.error(context, pesan);
+    switch (h.jenis) {
+      case JenisPesan.berhasil:
+        AppToast.success(context, h.teks);
+      case JenisPesan.peringatan:
+        AppToast.warning(context, h.teks);
+      case JenisPesan.galat:
+        AppToast.error(context, h.teks);
+    }
   }
 
   bool get _bisaTest =>
@@ -531,3 +534,32 @@ class _Kosong extends StatelessWidget {
     ),
   );
 }
+
+enum JenisPesan { berhasil, peringatan, galat }
+
+/// Pesan dan status sesudah Test Print.
+///
+/// "Mungkin tercetak": printernya tersambung dan sudah menerima sebagian atau
+/// seluruh struk — kertasnya sering sudah keluar. Dulu tampil galat merah
+/// dan status "tidak terhubung" (audit 6 Nov nomor 52).
+@visibleForTesting
+({String teks, JenisPesan jenis, bool tersambung}) hasilTestPrint(
+  HasilCetak hasil,
+  String? namaPrinter,
+) => switch (hasil) {
+  HasilCetak.berhasil => (
+    teks: 'Test print terkirim ke $namaPrinter',
+    jenis: JenisPesan.berhasil,
+    tersambung: true,
+  ),
+  HasilCetak.mungkinTercetak => (
+    teks: 'Test print mungkin sudah tercetak. Cek kertasnya di printer.',
+    jenis: JenisPesan.peringatan,
+    tersambung: true,
+  ),
+  _ => (
+    teks: pesanCetak(hasil)!,
+    jenis: JenisPesan.galat,
+    tersambung: false,
+  ),
+};

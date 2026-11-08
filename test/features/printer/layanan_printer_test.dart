@@ -40,10 +40,13 @@ class _Tiruan implements SaluranPrinter {
   Future<void> bukaPengaturanIzin() async => catatan.add('buka izin');
   @override
   Future<bool> tersambung() async => tersambungAwal || _tersambung;
+  /// Sambung yang menggantung; diputus = gagal, seperti plugin Bluetooth.
+  Completer<bool>? _menggantung;
+
   @override
   Future<bool> sambung(String mac) {
     catatan.add('sambung $mac');
-    if (sambungMenggantung) return Completer<bool>().future;
+    if (sambungMenggantung) return (_menggantung = Completer<bool>()).future;
     return Future.delayed(jedaSambung, () {
       _tersambung = bisaSambung;
       return bisaSambung;
@@ -62,6 +65,9 @@ class _Tiruan implements SaluranPrinter {
   @override
   Future<void> putus() async {
     catatan.add('putus');
+    final g = _menggantung;
+    _menggantung = null;
+    if (g != null && !g.isCompleted) g.complete(false);
     _tersambung = false;
     tersambungAwal = false;
   }
@@ -175,9 +181,48 @@ void main() {
       expect(t.catatan.where((c) => c.startsWith('kirim')), ['kirim 2'],
           reason: 'cetakan pertama yang akhirnya tersambung tidak mengirim');
       expect(t.catatan, [
-        'putus', 'sambung 86:67:7A:80:4E:3D', 'putus', // pertama berhenti
+        'putus', 'sambung 86:67:7A:80:4E:3D', // pertama menyambung
+        'putus', // batas habis: diputus (audit nomor 52)
+        'putus', // pertama berhenti
         'putus', 'sambung 86:67:7A:80:4E:3D', 'kirim 2', // baru giliran kedua
       ], reason: 'sambungan kedua tidak diputus cetakan pertama yang telat');
+    });
+  });
+
+  test('audit nomor 52: sambung menggantung → begitu batas habis diputus, '
+      'cetak ulang langsung jalan (tidak menunggu ±35 detik)', () {
+    fakeAsync((w) {
+      final lemot = LayananPrinter.untukTest(
+        t,
+        batasCetak: const Duration(seconds: 1),
+      );
+      t.sambungMenggantung = true;
+      HasilCetak? pertama;
+      lemot.cetak([1]).then((x) => pertama = x);
+      w.elapse(const Duration(milliseconds: 1100));
+      expect(pertama, HasilCetak.takTersambung);
+
+      t.sambungMenggantung = false;
+      HasilCetak? kedua;
+      lemot.cetak([2, 2]).then((x) => kedua = x);
+      w.elapse(const Duration(seconds: 1));
+      expect(kedua, HasilCetak.berhasil);
+      w.elapse(const Duration(seconds: 10));
+    });
+  });
+
+  test('lewat batas waktu saat struk sedang dikirim TIDAK diputus', () {
+    fakeAsync((w) {
+      final lemot = LayananPrinter.untukTest(
+        t,
+        batasCetak: const Duration(seconds: 1),
+      );
+      t.jedaKirim = const Duration(seconds: 3);
+      lemot.cetak([1]);
+      w.elapse(const Duration(milliseconds: 1100));
+      expect(t.catatan.where((c) => c == 'putus').length, 1,
+          reason: 'hanya putus sebelum menyambung');
+      w.elapse(const Duration(seconds: 5));
     });
   });
 

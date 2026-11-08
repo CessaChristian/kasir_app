@@ -111,7 +111,11 @@ class IsiStruk extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          _baris('Dibayar (${tunai ? 'Cash' : 'QRIS'})', formatRp(dibayar)),
+          // Sama dengan struk cetak (audit 6 Nov nomor 52).
+          _baris(
+            tunai ? 'Diterima (Cash)' : 'Dibayar (QRIS)',
+            formatRp(dibayar),
+          ),
           if (tunai)
             _baris(
               'Kembalian',

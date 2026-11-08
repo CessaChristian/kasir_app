@@ -265,9 +265,14 @@ class LayananPrinter {
             batasCetak,
             onTimeout: () {
               c.ditinggal = true;
-              return c.mengirim
-                  ? HasilCetak.mungkinTercetak
-                  : HasilCetak.takTersambung;
+              if (c.mengirim) return HasilCetak.mungkinTercetak;
+              // Masih menyambung: sambungannya diputus SEKARANG supaya
+              // langkah yang menggantung ikut berhenti. Dulu langkahnya
+              // ditunggu sampai batasnya sendiri, dan cetak ulang kasir
+              // menunggu sampai ±35 detik (audit 6 Nov nomor 52). Yang
+              // sedang MENGIRIM tidak diputus: struknya bisa terpotong.
+              unawaited(_diam(_saluran.putus));
+              return HasilCetak.takTersambung;
             },
           ),
         );

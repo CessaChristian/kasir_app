@@ -74,7 +74,8 @@ void main() {
       '-' * 32,
       'Total                  Rp 46.000',
       '-' * 32,
-      'Dibayar (TUNAI)        Rp 50.000',
+      // Audit nomor 52: uang yang diserahkan, tetap bertanda TUNAI.
+      'Diterima (TUNAI)       Rp 50.000',
       'Kembalian               Rp 4.000',
       '-' * 32,
       'Terima Kasih!',

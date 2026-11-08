@@ -87,8 +87,12 @@ List<BarisCetak> susunStruk({
     garis,
     ..._kiriKanan('Total', formatRp(tx.total), kolom, tebal: true),
     garis,
+    // Tunai: uang yang DISERAHKAN pelanggan, jadi "Diterima" — laporan
+    // menyebut "tunai" untuk total belanja tunai, dan "Dibayar (TUNAI)
+    // Rp100.000" tampak bertentangan dengan "Tunai Rp57.000" di laporan
+    // (audit 6 Nov nomor 52).
     ..._kiriKanan(
-      'Dibayar (${tunai ? 'TUNAI' : 'QRIS'})',
+      tunai ? 'Diterima (TUNAI)' : 'Dibayar (QRIS)',
       formatRp(dibayar),
       kolom,
     ),
