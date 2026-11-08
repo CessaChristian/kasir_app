@@ -48,7 +48,11 @@ class _SalesPageState extends State<SalesPage> {
   /// Semua kategori (termasuk yang disembunyikan) — penyaring produk perlu
   /// tahu kategori mana yang masih ada.
   List<Category> _kategori = const [];
-  late final StreamSubscription<List<Category>> _langgananKategori;
+  late StreamSubscription<List<Category>> _langgananKategori;
+
+  /// Galat terakhir memuat kategori. Dulu galatnya tidak ditangkap: Kasir
+  /// tampil tanpa kategori dan tanpa penjelasan (audit 6 Nov nomor 54).
+  Object? _galatKategori;
 
   Keranjang get _keranjang => widget.keranjang;
 
@@ -60,8 +64,29 @@ class _SalesPageState extends State<SalesPage> {
     // berulang kali saat berpindah-pindah halaman.
     SyncOtomatis.instance.picu('halaman kasir dibuka');
     _keranjang.addListener(_segarkan);
-    _langgananKategori = _productRepo.watchCategories().listen((k) {
-      if (mounted) setState(() => _kategori = k);
+    _langgananKategori = _dengarKategori();
+  }
+
+  StreamSubscription<List<Category>> _dengarKategori() =>
+      _productRepo.watchCategories().listen(
+        (k) {
+          if (mounted) {
+            setState(() {
+              _kategori = k;
+              _galatKategori = null;
+            });
+          }
+        },
+        onError: (Object e) {
+          if (mounted) setState(() => _galatKategori = e);
+        },
+      );
+
+  void _muatUlangKategori() {
+    _langgananKategori.cancel();
+    setState(() {
+      _galatKategori = null;
+      _langgananKategori = _dengarKategori();
     });
   }
 
@@ -148,7 +173,17 @@ class _SalesPageState extends State<SalesPage> {
                   ),
                 ),
               ),
-              _kisiKategori(adaProdukTanpaKategori(semua, _kategori), pilihan),
+              if (_galatKategori case final galat?)
+                GalatMuat(
+                  galat: galat,
+                  awalan: 'Kategori gagal dimuat',
+                  onCobaLagi: _muatUlangKategori,
+                )
+              else
+                _kisiKategori(
+                  adaProdukTanpaKategori(semua, _kategori),
+                  pilihan,
+                ),
               if (pilihan != null) _barisFilter(pilihan, produk.length),
               const SizedBox(height: 14),
               if (snap.hasError)

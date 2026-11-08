@@ -47,6 +47,16 @@ class _ProdukGagal extends ProductRepository {
       gagal ? Stream.error(_galat) : super.watchProducts();
 }
 
+/// Hanya kategori yang gagal; produk tetap termuat.
+class _KategoriGagal extends ProductRepository {
+  _KategoriGagal(super.db);
+  var gagal = true;
+
+  @override
+  Stream<List<Category>> watchCategories() =>
+      gagal ? Stream.error(_galat) : super.watchCategories();
+}
+
 class _ShiftGagal extends ShiftRepository {
   _ShiftGagal(super.db);
   var gagal = true;
@@ -297,6 +307,17 @@ void main() {
       t,
       SalesPage(keranjang: Keranjang(), repo: repo),
       pesan: 'Produk gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('audit nomor 54: kategori Kasir gagal dimuat → pesan dan '
+      'Coba lagi', (t) async {
+    final repo = _KategoriGagal(db);
+    await uji(
+      t,
+      SalesPage(keranjang: Keranjang(), repo: repo),
+      pesan: 'Kategori gagal dimuat',
       pulih: () => repo.gagal = false,
     );
   });

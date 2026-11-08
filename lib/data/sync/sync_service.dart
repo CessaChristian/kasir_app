@@ -220,7 +220,14 @@ class SyncService {
       return hasil;
     }
     final lengkap = await hanyaKalauBerhasil();
-    await selamaTersambung();
+    // Datanya sudah terkirim dan tertarik: galat pemeriksaan tambahan
+    // dicatat saja. Dulu galat ini menjadikan seluruh sinkron "gagal"
+    // (audit 6 Nov nomor 54).
+    try {
+      await selamaTersambung();
+    } catch (e) {
+      debugPrint('[sync] pemeriksaan sesudah sinkron gagal: $e');
+    }
     return lengkap;
   }
 

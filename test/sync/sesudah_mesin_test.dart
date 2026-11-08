@@ -183,4 +183,11 @@ void main() {
       expect((h.dibatalkan, h.gambarNaik), (true, 2));
     });
   });
+
+  test('audit nomor 54: putaran berhasil, pemeriksaan sesudahnya galat → '
+      'sinkron tetap berhasil', () async {
+    final h = await jalankan(const HasilSync(), galatPemeriksaan: 'putus');
+    expect(h.didorong, 9);
+    expect(h.error, isNull);
+  });
 }
