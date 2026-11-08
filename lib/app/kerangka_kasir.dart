@@ -93,7 +93,7 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
   void _keranjangBerubah() {
     final berisi = !_keranjang.isEmpty;
     // Sinkron otomatis ditunda selama pesanan disusun.
-    SyncOtomatis.instance.sedangMenyusunPesanan = berisi;
+    _perbaruiPenahan();
     // Keranjang yang baru saja kosong adalah titik teraman untuk menyegarkan.
     // Tanpa ini sinkron yang tertunda bisa tertahan sepanjang jam ramai,
     // karena keranjang nyaris tidak pernah kosong lebih dari sesaat.
@@ -103,7 +103,23 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
     _keranjangTadinyaBerisi = berisi;
   }
 
+  /// Sinkron otomatis ditahan hanya selama ada pesanan yang BISA dibayar:
+  /// keranjang berisi DAN shift masih dipegang. Shift yang ditutup dari HP
+  /// lain melepas shift dari sesi, tapi keranjangnya tetap berisi — dulu
+  /// sinkron ikut tertahan sampai kasir mengosongkannya sendiri, jadi data
+  /// HP ini tidak terkirim (audit 6 Nov nomor 47).
+  void _perbaruiPenahan() {
+    final tadi = SyncOtomatis.instance.sedangMenyusunPesanan;
+    final tahan = !_keranjang.isEmpty &&
+        SessionManager.instance.currentSession?.shiftId != null;
+    SyncOtomatis.instance.sedangMenyusunPesanan = tahan;
+    if (tadi && !tahan && !_keranjang.isEmpty) {
+      SyncOtomatis.instance.lanjutkanYangTertunda();
+    }
+  }
+
   void _sesiBerubah() {
+    _perbaruiPenahan();
     if (mounted) setState(() {});
   }
 

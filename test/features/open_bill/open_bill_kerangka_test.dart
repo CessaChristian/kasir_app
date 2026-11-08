@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:kasir_app/app/kerangka_kasir.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/db.dart';
+import 'package:kasir_app/data/sync/sync_otomatis.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/open_bill/models/isi_bill.dart';
 import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
@@ -141,6 +142,22 @@ void main() {
   }
 
   final ikonBill = find.byTooltip('Open Bill');
+
+  testWidgets('audit nomor 47: keranjang berisi tapi shift dilepas → sinkron '
+      'otomatis tidak tertahan lagi', (t) async {
+    await siapkan(t);
+    await keTab(t, 'Kasir');
+    await t.tap(find.text('Latte').first);
+    await tunggu(t);
+    expect(SyncOtomatis.instance.sedangMenyusunPesanan, isTrue,
+        reason: 'pesanan sedang disusun');
+
+    // Shift ditutup dari HP lain: shiftnya dilepas dari sesi.
+    await jalan(t, () => SessionManager.instance.aturShift(null));
+    await tunggu(t);
+    expect(SyncOtomatis.instance.sedangMenyusunPesanan, isFalse);
+    await lepas(t);
+  });
 
   testWidgets('Ikon Open Bill hanya di header Dashboard dan Kasir', (t) async {
     await siapkan(t, jumlahBill: 2);
