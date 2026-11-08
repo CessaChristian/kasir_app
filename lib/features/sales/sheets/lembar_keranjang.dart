@@ -141,6 +141,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           final (:hasil, :sisaKlaim) = await widget.repoBill.perbarui(
             id: aktif.id,
             nama: nama,
+            namaAwal: aktif.nama,
             isiAwal: aktif.isiAwal,
             baris: baris,
           );

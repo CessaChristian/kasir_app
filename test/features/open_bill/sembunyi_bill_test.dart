@@ -90,4 +90,58 @@ void main() {
     final b = await db.select(db.openBills).getSingle();
     expect(b.items, isNot('[]'));
   });
+
+  test('audit nomor 51: nama dari HP lain tidak tertimpa nama lama keranjang',
+      () async {
+    addTearDown(() async {
+      await SessionManager.instance.clearSession();
+      SessionManager.dbOverride = null;
+    });
+    SessionManager.dbOverride = db;
+    await SessionManager.instance.setSession(AuthSession.create(
+      userId: 'k-1',
+      username: 'sari',
+      role: 'cashier',
+      shiftId: 's-1',
+      permissions: const ['create_transaction'],
+    ));
+    final repo = OpenBillRepository(db);
+    final teh = SaleLine(
+        productId: 'teh', productName: 'Teh', qty: 1, priceAtSale: 1);
+    final id = await repo.simpan(nama: 'Meja 3', baris: [teh]);
+    final awal = (await (db.select(db.openBills)
+              ..where((b) => b.id.equals(id)))
+            .getSingle())
+        .items;
+    // HP lain mengganti namanya; tarikan membawanya ke HP ini.
+    await (db.update(db.openBills)..where((b) => b.id.equals(id)))
+        .write(const OpenBillsCompanion(name: Value('Pak Budi')));
+
+    // Keranjang HP ini masih memegang nama lama dan menambah pesanan.
+    await repo.simpan(
+      id: id,
+      nama: 'Meja 3',
+      namaAwal: 'Meja 3',
+      baris: [teh, teh],
+      isiAwal: awal,
+    );
+    final b = await (db.select(db.openBills)..where((b) => b.id.equals(id)))
+        .getSingle();
+    expect(b.name, 'Pak Budi');
+
+    // Diganti di HP ini: nama baru tetap dipakai.
+    await repo.simpan(
+      id: id,
+      nama: 'Meja 7',
+      namaAwal: 'Pak Budi',
+      baris: [teh],
+      isiAwal: b.items,
+    );
+    expect(
+      (await (db.select(db.openBills)..where((b) => b.id.equals(id)))
+              .getSingle())
+          .name,
+      'Meja 7',
+    );
+  });
 }

@@ -280,6 +280,9 @@ void main() {
       find.text('Simpan atau kosongkan keranjang terlebih dahulu'),
       findsOneWidget,
     );
+    // Audit nomor 51: larangan, bukan toast sukses.
+    expect(find.byIcon(Icons.warning_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
     expect(k.bill, isNull);
     expect(k.baris.single.productId, 'roti', reason: 'keranjang utuh');
     expect(find.text('Tagihan Nota'), findsOneWidget, reason: 'tetap terbuka');
@@ -1404,6 +1407,7 @@ class _RepoTahan extends OpenBillRepository {
     required List<SaleLine> baris,
     String? isiAwal,
     String? isiServer,
+    String? namaAwal,
   }) async {
     await tahan;
     return super.simpan(
@@ -1412,6 +1416,7 @@ class _RepoTahan extends OpenBillRepository {
       baris: baris,
       isiAwal: isiAwal,
       isiServer: isiServer,
+      namaAwal: namaAwal,
     );
   }
 }

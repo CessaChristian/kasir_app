@@ -103,7 +103,9 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       return;
     }
     if (!_k.isEmpty && aktif == null) {
-      AppToast.success(
+      // Larangan, bukan kabar berhasil: dulu toast hijau (audit 6 Nov
+      // nomor 51).
+      AppToast.warning(
         context,
         'Simpan atau kosongkan keranjang terlebih dahulu',
       );
@@ -162,6 +164,7 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       final (:hasil, :sisaKlaim) = await widget.repo.perbarui(
         id: aktif.id,
         nama: aktif.nama,
+        namaAwal: aktif.nama,
         isiAwal: aktif.isiAwal,
         baris: List.of(_k.baris),
       );

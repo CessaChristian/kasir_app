@@ -432,6 +432,7 @@ class OpenBillRepository {
     required String nama,
     required String isiAwal,
     required List<SaleLine> baris,
+    String? namaAwal,
   }) async {
     final cek = await cekDiServer(id);
     if (cek.keputusan == KeputusanServer.sedangDibayar) {
@@ -455,6 +456,7 @@ class OpenBillRepository {
         baris: baris,
         isiAwal: isiAwal,
         isiServer: cek.isi,
+        namaAwal: namaAwal,
       );
     } on BillTidakTerbuka {
       return (hasil: HasilPerbarui.tidakTerbuka, sisaKlaim: null);
@@ -481,6 +483,7 @@ class OpenBillRepository {
     required List<SaleLine> baris,
     String? isiAwal,
     String? isiServer,
+    String? namaAwal,
   }) async {
     final sm = SessionManager.instance;
     sm.requirePermission('create_transaction');
@@ -522,10 +525,18 @@ class OpenBillRepository {
       }
 
       var isi = kodekanIsiBill(baris);
+      final lokal = await (_db.select(
+        _db.openBills,
+      )..where((b) => b.id.equals(id))).getSingleOrNull();
+      // Nama tidak diganti di HP ini ([namaAwal] = nama saat bill dimuat):
+      // pakai nama terbaru di HP ini, yang mungkin sudah diganti HP lain.
+      // Dulu nama lama dari keranjang ikut tersimpan dan menimpa "Pak Budi"
+      // kembali jadi "Meja 3" (audit 6 Nov nomor 51).
+      final namaDipakai =
+          namaAwal != null && rapi == namaAwal.trim() && lokal != null
+          ? lokal.name
+          : rapi;
       if (isiAwal != null) {
-        final lokal = await (_db.select(
-          _db.openBills,
-        )..where((b) => b.id.equals(id))).getSingleOrNull();
         final terkini = isiServer ?? lokal?.items;
         if (terkini != null) {
           final gabungan = gabungIsiBill(
@@ -549,7 +560,7 @@ class OpenBillRepository {
               ))
               .write(
                 OpenBillsCompanion(
-                  name: Value(rapi),
+                  name: Value(namaDipakai),
                   items: Value(isi),
                   updatedAt: Value(sekarang),
                   syncStatus: const Value('pending'),
