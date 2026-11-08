@@ -143,6 +143,22 @@ class _ProductsPageState extends State<ProductsPage> {
       builder: (context, catSnap) {
         final kategori = catSnap.data ?? const <Category>[];
         final byId = {for (final c in kategori) c.id: c};
+        // Kategori yang sedang dipilih dihapus (di HP ini atau HP lain):
+        // kembali ke "Semua". Dulu saringannya tetap memakai kategori yang
+        // sudah tidak ada, jadi daftar produk kosong tanpa penjelasan
+        // (audit 6 Nov nomor 39).
+        final terpilih = _selectedCategoryId;
+        final kategoriHilang = terpilih != null &&
+            catSnap.hasData &&
+            !byId.containsKey(terpilih);
+        if (kategoriHilang) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _selectedCategoryId == terpilih) {
+              setState(() => _selectedCategoryId = null);
+            }
+          });
+        }
+        final idSaring = kategoriHilang ? null : terpilih;
         return Stack(
           children: [
             StreamBuilder<List<Product>>(
@@ -160,7 +176,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   );
                 }
                 final semua = snap.data;
-                final tampil = semua == null ? null : _saring(semua);
+                final tampil = semua == null ? null : _saring(semua, idSaring);
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                   children: [
@@ -180,7 +196,7 @@ class _ProductsPageState extends State<ProductsPage> {
                     ),
                     const SizedBox(height: 10),
                     DeretanKategori(
-                      terpilih: _selectedCategoryId,
+                      terpilih: idSaring,
                       onPilih: (id) => setState(() => _selectedCategoryId = id),
                       isi: [
                         const ChipKategori(
@@ -247,11 +263,11 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   /// Saring menurut kategori terpilih dan kata cari.
-  List<Product> _saring(List<Product> semua) {
+  List<Product> _saring(List<Product> semua, String? idKategori) {
     final cari = _searchQuery.trim().toLowerCase();
     return [
       for (final p in semua)
-        if ((_selectedCategoryId == null || p.categoryId == _selectedCategoryId) &&
+        if ((idKategori == null || p.categoryId == idKategori) &&
             (cari.isEmpty || p.name.toLowerCase().contains(cari)))
           p,
     ];

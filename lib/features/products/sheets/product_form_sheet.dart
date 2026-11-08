@@ -94,6 +94,13 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   Category? _selectedCategory;
   bool _categoryInitialized = false;
+
+  /// Owner memilih kategori lewat daftar. Selama belum, mode Edit memakai
+  /// kategori asli produknya walau kategori itu belum ada di HP ini (belum
+  /// tertarik). Dulu kategori yang tidak ketemu dianggap "tanpa kategori" dan
+  /// ikut tersimpan, jadi ubah harga diam-diam melepas kategorinya (audit
+  /// 6 Nov nomor 39).
+  bool _kategoriDiubah = false;
   bool _hasSpicyOption = false;
   bool _hasSweetOption = false;
   bool _hasIceOption = false;
@@ -163,11 +170,10 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     // Mode Edit: kotor hanya kalau berbeda dari produk aslinya.
     //
     // Kategori dimuat asinkron lewat StreamBuilder di bawah, jadi
-    // _selectedCategory masih null selama beberapa frame pertama. Selama
-    // pengisian itu belum selesai, jangan dianggap berubah.
-    final categoryPending = p.categoryId != null && !_categoryInitialized;
+    // _selectedCategory masih null selama beberapa frame pertama. Yang
+    // dihitung hanya pilihan owner sendiri.
     final categoryChanged =
-        !categoryPending && _selectedCategory?.id != p.categoryId;
+        _kategoriDiubah && _selectedCategory?.id != p.categoryId;
 
     // Harga dibandingkan sebagai angka, bukan teks, supaya tidak rapuh
     // terhadap format titik ribuan dari RupiahInputFormatter.
@@ -208,7 +214,9 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
     final hasil = FormResult(
       name: _nameC.text.trim(),
       price: parseRupiah(_priceC.text)!,
-      categoryId: _selectedCategory?.id,
+      categoryId: widget.editing != null && !_kategoriDiubah
+          ? widget.editing!.categoryId
+          : _selectedCategory?.id,
       hasSpicyOption: _hasSpicyOption,
       hasSweetOption: _hasSweetOption,
       hasIceOption: _hasIceOption,
@@ -612,13 +620,17 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
         }
 
         final dipilih = _selectedCategory;
+        final belumTermuat = dipilih == null &&
+            !_kategoriDiubah &&
+            widget.editing?.categoryId != null;
         return KolomPilihan(
           ikon: dipilih == null
               ? Icons.category_rounded
               : categoryIconFromCodepoint(dipilih.iconCodepoint),
           label: 'Kategori',
-          nilai: dipilih?.name ?? 'Pilih Kategori',
-          kosong: dipilih == null,
+          nilai: dipilih?.name ??
+              (belumTermuat ? 'Kategori belum termuat' : 'Pilih Kategori'),
+          kosong: dipilih == null && !belumTermuat,
           onTap: () async {
             // Cegah keyboard muncul lagi setelah lembar ditutup.
             FocusManager.instance.primaryFocus?.unfocus();
@@ -644,7 +656,10 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
               ],
             );
             if (hasil != null && mounted) {
-              setState(() => _selectedCategory = hasil.nilai);
+              setState(() {
+                _selectedCategory = hasil.nilai;
+                _kategoriDiubah = true;
+              });
             }
           },
         );
