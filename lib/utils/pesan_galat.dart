@@ -24,6 +24,14 @@ const pesanDatabaseRusak =
     'Data di HP ini rusak. Tutup lalu buka lagi aplikasi untuk memperbaikinya. '
     'Kalau masih muncul, hubungi owner.';
 
+/// Database HP ini gagal dibaca atau ditulis, tapi berkasnya belum tentu
+/// rusak — pemeriksaan saat aplikasi dibuka tidak menemukan apa pun untuk
+/// galat seperti ini, jadi "buka lagi untuk memperbaikinya" tidak pernah
+/// terjadi (audit 6 Nov nomor 44).
+const pesanDatabaseGagalBaca =
+    'Data di HP ini gagal dibaca. Tutup lalu buka lagi aplikasinya. '
+    'Kalau masih muncul, hubungi owner.';
+
 /// Memori HP habis saat menulis database.
 const pesanMemoriPenuh = 'Memori HP penuh. Kosongkan dulu lalu coba lagi.';
 
@@ -79,15 +87,16 @@ String? _pesanDatabase(Object e) {
   if (e is! DriftRemoteException && asli is! SqliteException) return null;
   final isi = '$asli'.toLowerCase();
   if (isi.contains('disk is full')) return pesanMemoriPenuh;
-  const rusak = [
-    'no such table',
+  // Hanya yang juga ditemukan pemeriksaan berkas saat aplikasi dibuka
+  // (periksaBerkasDatabase): tabel inti hilang, berkas rusak, bukan database.
+  const rusak = ['no such table', 'malformed', 'not a database'];
+  if (rusak.any(isi.contains)) return pesanDatabaseRusak;
+  const gagalBaca = [
     'no such column',
-    'malformed',
-    'not a database',
     'disk i/o error',
     'unable to open database',
   ];
-  return rusak.any(isi.contains) ? pesanDatabaseRusak : null;
+  return gagalBaca.any(isi.contains) ? pesanDatabaseGagalBaca : null;
 }
 
 /// Putus koneksi atau server tidak menjawab — bukan penolakan dari server.

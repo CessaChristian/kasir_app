@@ -88,6 +88,17 @@ void main() {
       );
     });
 
+    test('audit nomor 44: galat yang tidak ditemukan pemeriksaan saat dibuka '
+        'tidak disebut "rusak, buka lagi untuk memperbaikinya"', () {
+      for (final e in [
+        SqliteException(extendedResultCode: 10, message: 'disk I/O error'),
+        SqliteException(extendedResultCode: 14, message: 'unable to open database file'),
+        SqliteException(extendedResultCode: 1, message: 'no such column: x'),
+      ]) {
+        expect(pesanGalat(e, awalan: 'Gagal menyimpan'), pesanDatabaseGagalBaca);
+      }
+    });
+
     test('penolakan database biasa bukan "database rusak"', () {
       expect(
         pesanGalat(
