@@ -19,8 +19,15 @@ class KotakCari extends StatefulWidget {
   /// tetap langsung.
   final Duration? jeda;
 
+  /// Kata cari yang sedang dipakai halaman. Kotak ini ada di dalam daftar
+  /// yang digulir: begitu tergulir keluar layar ia dibuang, dan saat kembali
+  /// dibuat ulang. Tanpa ini kotaknya tampil kosong padahal daftarnya masih
+  /// tersaring (audit 6 Nov nomor 37).
+  final String nilai;
+
   const KotakCari({
     super.key,
+    required this.nilai,
     required this.onBerubah,
     this.petunjuk = 'Cari...',
     this.besar = false,
@@ -32,7 +39,7 @@ class KotakCari extends StatefulWidget {
 }
 
 class _KotakCariState extends State<KotakCari> {
-  final _c = TextEditingController();
+  late final _c = TextEditingController(text: widget.nilai);
   Timer? _tunda;
 
   @override

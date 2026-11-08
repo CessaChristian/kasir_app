@@ -130,6 +130,7 @@ class _SalesPageState extends State<SalesPage> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
               KotakCari(
+                nilai: _kata,
                 petunjuk: 'Cari produk...',
                 besar: true,
                 onBerubah: (v) => setState(() => _kata = v),

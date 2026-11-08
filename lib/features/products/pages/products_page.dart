@@ -165,6 +165,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                   children: [
                     KotakCari(
+                      nilai: _searchQuery,
                       petunjuk: 'Cari produk...',
                       onBerubah: (v) => setState(() => _searchQuery = v),
                     ),

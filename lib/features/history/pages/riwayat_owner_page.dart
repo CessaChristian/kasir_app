@@ -65,6 +65,7 @@ class _RiwayatOwnerPageState extends State<RiwayatOwnerPage> {
       ),
       kepala: [
         KotakCari(
+          nilai: _cari,
           jeda: const Duration(milliseconds: 300),
           petunjuk: 'Cari riwayat...',
           onBerubah: (v) => setState(() => _cari = v),
