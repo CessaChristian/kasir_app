@@ -37,28 +37,72 @@ class NavBawahTeras extends StatelessWidget {
     required this.onPilih,
   });
 
+  /// Seberapa tinggi lingkaran tengah menyembul di atas nav.
+  static const sembul = 22.0;
+
   @override
   Widget build(BuildContext context) {
     final iTengah = kiri.length;
-    return Container(
-      decoration: const BoxDecoration(
-        color: WarnaTeras.kartu,
-        border: Border(top: BorderSide(color: WarnaTeras.garis)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 66,
-          child: Row(
-            children: [
-              for (var i = 0; i < kiri.length; i++) _tombol(kiri[i], i),
-              Expanded(child: _tombolTengah(iTengah)),
-              for (var i = 0; i < kanan.length; i++)
-                _tombol(kanan[i], iTengah + 1 + i),
-            ],
+    final aktif = iTengah == terpilih;
+    // Ruang sembulan ikut dihitung sebagai bagian nav. Dulu lingkarannya
+    // digambar di luar batas nav, dan Flutter tidak meneruskan ketukan di
+    // luar batas: 22 px bagian atas tombol Kasir tidak bisa diketuk (audit
+    // 6 Nov nomor 53).
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: sembul),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: WarnaTeras.kartu,
+              border: Border(top: BorderSide(color: WarnaTeras.garis)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 66,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < kiri.length; i++) _tombol(kiri[i], i),
+                    Expanded(child: _tombolTengah(iTengah)),
+                    for (var i = 0; i < kanan.length; i++)
+                      _tombol(kanan[i], iTengah + 1 + i),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+        Positioned(
+          top: 0,
+          child: GestureDetector(
+            key: const ValueKey('nav-tengah-lingkaran'),
+            onTap: () => onPilih(iTengah),
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: WarnaTeras.oranye,
+                shape: BoxShape.circle,
+                border: Border.all(color: WarnaTeras.latar, width: 4),
+                boxShadow: [
+                  BoxShadow(
+                    color: WarnaTeras.oranye.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                aktif ? tengah.ikonAktif : tengah.ikon,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -92,57 +136,24 @@ class NavBawahTeras extends StatelessWidget {
     );
   }
 
-  /// Tombol bulat oranye yang menyembul ke atas nav.
-  ///
-  /// Lingkarannya sengaja keluar dari batas nav (`Clip.none`), bukan digeser
-  /// dengan `Transform` — `Transform` tidak mengurangi ukuran tata letak,
-  /// sehingga lingkaran + label melebihi tinggi nav ("BOTTOM OVERFLOWED").
+  /// Label tombol tengah. Lingkarannya digambar di [build], di atas nav.
   Widget _tombolTengah(int indeks) {
     final aktif = indeks == terpilih;
     return GestureDetector(
       onTap: () => onPilih(indeks),
       behavior: HitTestBehavior.opaque,
-      child: SizedBox.expand(
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
-          children: [
-            Positioned(
-              top: -22,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: WarnaTeras.oranye,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: WarnaTeras.latar, width: 4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: WarnaTeras.oranye.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  aktif ? tengah.ikonAktif : tengah.ikon,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 11),
+          child: Text(
+            tengah.label,
+            style: TextStyle(
+              fontSize: TeksTeras.kecil,
+              fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
+              color: WarnaTeras.teks,
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 11),
-              child: Text(
-                tengah.label,
-                style: TextStyle(
-                  fontSize: TeksTeras.kecil,
-                  fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
-                  color: WarnaTeras.teks,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

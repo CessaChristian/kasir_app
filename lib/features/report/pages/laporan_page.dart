@@ -82,7 +82,11 @@ class _LaporanPageState extends State<LaporanPage> {
 
   /// Batang Tren Pendapatan yang diketuk (gelembung nominal); null = tidak
   /// ada. Direset saat periode berganti, karena batangnya ikut berganti.
-  int? _batangTerpilih;
+  ///
+  /// Diingat lewat NAMA batangnya ("Jam 09:00", "Sen, 3 Nov"), bukan
+  /// urutannya: data baru dari sinkron bisa menambah batang di depan, dan
+  /// sorotan dulu pindah ke batang lain (audit 6 Nov nomor 53).
+  String? _batangTerpilih;
   var _mengekspor = false;
 
   static const _produkAwal = 5;
@@ -504,13 +508,18 @@ class _LaporanPageState extends State<LaporanPage> {
           else
             GrafikBatang(
               batang: r.grafik,
-              terpilih: _batangTerpilih,
-              onPilih: (i) => setState(() => _batangTerpilih = i),
+              terpilih: _indeksTerpilih(r.grafik),
+              onPilih: (i) => setState(
+                () => _batangTerpilih = i == null ? null : r.grafik[i].nama,
+              ),
             ),
         ],
       ),
     );
   }
+
+  int? _indeksTerpilih(List<BatangGrafik> batang) =>
+      indeksBatang(batang, _batangTerpilih);
 
   static String _persen(int nilai, int total) =>
       '${total == 0 ? 0 : (nilai / total * 100).round()}%';
@@ -952,4 +961,11 @@ class _LaporanPageState extends State<LaporanPage> {
       ),
     );
   }
+}
+
+/// Urutan batang bernama [nama] di [batang], atau null kalau tidak ada.
+@visibleForTesting
+int? indeksBatang(List<BatangGrafik> batang, String? nama) {
+  final i = batang.indexWhere((b) => b.nama == nama);
+  return i < 0 ? null : i;
 }

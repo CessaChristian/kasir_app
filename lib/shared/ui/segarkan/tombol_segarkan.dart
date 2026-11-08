@@ -20,14 +20,24 @@ class _TombolSegarkanState extends State<TombolSegarkan>
     duration: const Duration(milliseconds: 900),
   );
 
+  /// Keadaan terakhir yang sudah diikuti ikon.
+  var _berputar = false;
+
   @override
   void initState() {
     super.initState();
     widget.pengendali.addListener(_ikuti);
+    _ikuti();
   }
 
+  /// Hanya bereaksi saat sinkron MULAI atau SELESAI. Pengendali juga
+  /// mengabari perubahan lain; dulu setiap kabar itu memutar ikon satu
+  /// putaran penuh walau tidak ada sinkron (audit 6 Nov nomor 53).
   void _ikuti() {
-    if (widget.pengendali.berjalan) {
+    final berjalan = widget.pengendali.berjalan;
+    if (berjalan == _berputar) return;
+    _berputar = berjalan;
+    if (berjalan) {
       _putar.repeat();
     } else {
       // Selesaikan putaran yang sedang berjalan, jangan berhenti di tengah.
