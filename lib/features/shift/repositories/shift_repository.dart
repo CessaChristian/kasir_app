@@ -148,10 +148,7 @@ class ShiftRepository {
     if (kasAwal < 0) throw ArgumentError('Kas awal tidak boleh negatif');
     return _db.transaction(() async {
       final terbuka = await (_db.select(_db.shifts)
-            ..where((s) =>
-                s.userId.equals(userId) &
-                s.endAt.isNull() &
-                s.deletedAt.isNull())
+            ..where((s) => s.userId.equals(userId) & shiftMasihBerjalan(s))
             ..orderBy([(s) => OrderingTerm.asc(s.startAt)])
             ..limit(1))
           .getSingleOrNull();

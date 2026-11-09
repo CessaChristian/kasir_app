@@ -319,6 +319,21 @@ class Users extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// SATU-SATUNYA definisi "shift masih berjalan": belum ditutup DAN belum
+/// dihapus (shift yang digabung ke shift lain ikut terhapus). Dulu ditulis
+/// ulang di tiap layar dan repository; satu tempat yang lupa `deletedAt`
+/// membuat layar berbeda memberi jawaban berbeda (audit 6 Nov nomor 61).
+///
+/// Sengaja TIDAK dipakai di tempat yang memang menanyakan hal lain, mis.
+/// Detail Shift yang perlu tahu shift belum ditutup walau sudah digabung.
+extension ShiftMasihBerjalan on Shift {
+  bool get masihBerjalan => endAt == null && deletedAt == null;
+}
+
+/// Versi kueri dari [ShiftMasihBerjalan.masihBerjalan].
+Expression<bool> shiftMasihBerjalan($ShiftsTable s) =>
+    s.endAt.isNull() & s.deletedAt.isNull();
+
 /// =======================
 /// TABLE: SHIFTS
 /// =======================
@@ -2173,9 +2188,7 @@ class AppDatabase extends _$AppDatabase {
           ..limit(1))
         .getSingleOrNull();
     if (shift == null) throw ShiftBelumAda();
-    if (shift.endAt != null || shift.deletedAt != null) {
-      throw ShiftSudahDitutup();
-    }
+    if (!shift.masihBerjalan) throw ShiftSudahDitutup();
     return id;
   }
 

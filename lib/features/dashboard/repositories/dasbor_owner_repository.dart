@@ -106,7 +106,7 @@ class DasborOwnerRepository {
 
   Future<List<ShiftBerjalan>> _shiftBerjalan() async {
     final shifts = await (_db.select(_db.shifts)
-          ..where((s) => s.endAt.isNull() & s.deletedAt.isNull())
+          ..where(shiftMasihBerjalan)
           ..orderBy([(s) => OrderingTerm.asc(s.startAt)]))
         .get();
     if (shifts.isEmpty) return const [];

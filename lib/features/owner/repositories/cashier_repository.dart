@@ -183,7 +183,7 @@ class CashierRepository {
       for (final k in kasir)
         () {
           final milik = shift.where((s) => s.userId == k.id);
-          final berjalan = milik.where((s) => s.endAt == null);
+          final berjalan = milik.where((s) => s.masihBerjalan);
           final selesai = milik.where((s) => s.endAt != null);
           return RingkasanKasir(
             akun: k,
@@ -287,10 +287,7 @@ class CashierRepository {
 
   Future<void> _akhiriShiftBerjalan(String userId, DateTime sekarang) =>
       (_db.update(_db.shifts)..where(
-            (s) =>
-                s.userId.equals(userId) &
-                s.endAt.isNull() &
-                s.deletedAt.isNull(),
+            (s) => s.userId.equals(userId) & shiftMasihBerjalan(s),
           ))
           .write(
             ShiftsCompanion(

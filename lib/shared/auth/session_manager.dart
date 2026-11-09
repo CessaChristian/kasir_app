@@ -573,7 +573,7 @@ class SessionManager {
 
     // Shift yang belum tersinkron ke sini belum tentu sudah ditutup — barisnya
     // memang belum sampai. Yang dijadikan alasan hanya yang JELAS tertutup.
-    if (shift == null || (shift.endAt == null && shift.deletedAt == null)) {
+    if (shift == null || shift.masihBerjalan) {
       return;
     }
 

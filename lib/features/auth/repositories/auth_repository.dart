@@ -382,10 +382,7 @@ class AuthRepository {
     // tiap HP, sehingga dua perangkat memakai shift yang berbeda walau
     // datanya sudah sama persis. Yang paling awal dimulai dipilih di mana pun.
     final terbuka = await (_db.select(_db.shifts)
-          ..where((s) =>
-              s.userId.equals(userId) &
-              s.endAt.isNull() &
-              s.deletedAt.isNull())
+          ..where((s) => s.userId.equals(userId) & shiftMasihBerjalan(s))
           ..orderBy([(s) => OrderingTerm.asc(s.startAt)]))
         .get();
     if (terbuka.isEmpty) return null;
