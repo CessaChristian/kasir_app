@@ -884,10 +884,28 @@ class SyncEngine {
     // lalu tertimpa versi server dan dicap terkirim — editnya hilang tanpa
     // pernah dikirim. Selama transaksi, tulisan lain menunggu sebentar.
     await _db.transaction(() async {
+      // Keadaan lokal sehalaman dibaca SEKALI, bukan satu kueri per baris:
+      // database berjalan di isolate lain, jadi setiap kueri adalah satu kali
+      // bolak-balik — sehalaman 500 baris dulu ±1.000 kali (audit 6 Nov
+      // nomor 57). Aman dibaca di depan: setiap `tulis` hanya menyentuh
+      // barisnya sendiri, dan selama transaksi ini tulisan lain menunggu.
+      final awal = await _barisLokal(e.nama, [
+        for (final r in baris) r['id'] as String,
+      ]);
+      // Id yang sudah ditulis di halaman ini: kalau muncul lagi, keadaannya
+      // dibaca ulang — isi [awal] sudah basi untuknya.
+      final tersentuh = <String>{};
+      // Baris yang ditulis ulang dengan versi yang sama: isinya dibandingkan
+      // sesudah putaran, juga sekali kueri.
+      final dibandingkan = <String, String?>{};
       for (final r in baris) {
         final waktuServer = r['updated_at'] as String;
         final mikroServer = _mikro(waktuServer);
-        final lokal = await _keadaanLokal(e.nama, r['id'] as String);
+        final idBaris = r['id'] as String;
+        final segar = !tersentuh.add(idBaris);
+        final lokal = segar
+            ? await _keadaanLokal(e.nama, idBaris)
+            : _keadaanDari(awal[idBaris]);
         final terhapusDiServer = r['deleted_at'] != null;
 
         if (lokal == null && terhapusDiServer && _sampahTakPerluDisimpan(e.nama)) {
@@ -917,11 +935,15 @@ class SyncEngine {
           // ini mengirim perubahannya (audit 6 Nov nomor 10).
           // Hanya dihitung kalau isinya berbeda — lihat catatan
           // "KENAPA BARIS synced" di [_serverMenang].
-          final id = r['id'] as String;
-          final sebelum = await _barisMentah(e.nama, id);
-          if (await _tulisAtauTahan(e, r) &&
-              sebelum != await _barisMentah(e.nama, id)) {
-            berubah++;
+          final sebelum = segar
+              ? await _barisMentah(e.nama, idBaris)
+              : _mentahDari(awal[idBaris]);
+          if (await _tulisAtauTahan(e, r)) {
+            if (segar) {
+              if (sebelum != await _barisMentah(e.nama, idBaris)) berubah++;
+            } else {
+              dibandingkan[idBaris] = sebelum;
+            }
           }
         }
 
@@ -949,6 +971,15 @@ class SyncEngine {
             kursorTertinggi = urut;
           }
         }
+      }
+
+      if (dibandingkan.isNotEmpty) {
+        final sesudah = await _barisLokal(e.nama, dibandingkan.keys.toList());
+        for (final MapEntry(key: id, value: sebelum) in dibandingkan.entries) {
+          if (sebelum != _mentahDari(sesudah[id])) berubah++;
+        }
+        _lapor('menarik', e.nama, urutan, sudah, baris.length,
+            perubahan: berubah);
       }
     });
 
@@ -1009,11 +1040,27 @@ class SyncEngine {
       'SELECT updated_at, sync_status FROM $tabel WHERE id = ?',
       variables: [Variable.withString(id)],
     ).getSingleOrNull();
+    return _keadaanDari(baris);
+  }
+
+  static ({int mikro, bool pending})? _keadaanDari(QueryRow? baris) {
     if (baris == null) return null;
     return (
       mikro: baris.read<int>('updated_at') * 1000000,
       pending: baris.read<String>('sync_status') == 'pending',
     );
+  }
+
+  /// Baris lokal [tabel] untuk sekumpulan [ids] sekaligus, per id. Lewat
+  /// `json_each`, bukan `IN (?, ?, ...)`: jumlah isian SQLite terbatas.
+  Future<Map<String, QueryRow>> _barisLokal(
+      String tabel, List<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final hasil = await _db.customSelect(
+      'SELECT * FROM $tabel WHERE id IN (SELECT value FROM json_each(?))',
+      variables: [Variable.withString(jsonEncode(ids))],
+    ).get();
+    return {for (final b in hasil) b.read<String>('id'): b};
   }
 
   /// Apakah versi server layak menimpa versi lokal.
@@ -1091,6 +1138,10 @@ class SyncEngine {
       'SELECT * FROM $tabel WHERE id = ?',
       variables: [Variable.withString(id)],
     ).getSingleOrNull();
+    return _mentahDari(b);
+  }
+
+  static String? _mentahDari(QueryRow? b) {
     if (b == null) return null;
     return jsonEncode({
       for (final e in b.data.entries)

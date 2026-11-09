@@ -589,4 +589,47 @@ void main() {
       expect((await ambil('p1')).name, 'Editan Kasir');
     });
   });
+
+  group('audit 6 Nov nomor 57: keadaan sehalaman dibaca sekaligus', () {
+    test('baris sama detik: hanya yang isinya berbeda dihitung berubah',
+        () async {
+      for (final id in ['a', 'b', 'c']) {
+        await pasangProdukLokal(
+          id: id,
+          nama: 'Produk $id',
+          updatedAt: detik('2026-09-04T10:00:00Z'),
+          syncStatus: 'synced',
+        );
+      }
+      final hasil = await mesin.gabungkanTabel('products', [
+        for (final id in ['a', 'b', 'c'])
+          barisServer(
+            id: id,
+            nama: id == 'b' ? 'Produk b baru' : 'Produk $id',
+            updatedAt: '2026-09-04T10:00:00.25+00:00',
+          ),
+      ]);
+      expect(hasil.$2, 1);
+      expect((await ambil('b')).name, 'Produk b baru');
+    });
+
+    test('id yang muncul dua kali di satu halaman: versi terakhir menang',
+        () async {
+      final hasil = await mesin.gabungkanTabel('products', [
+        barisServer(
+          id: 'x',
+          nama: 'Lama',
+          updatedAt: '2026-09-04T10:00:00+00:00',
+        ),
+        barisServer(
+          id: 'x',
+          nama: 'Baru',
+          updatedAt: '2026-09-04T10:05:00+00:00',
+        ),
+      ]);
+      expect((await ambil('x')).name, 'Baru');
+      expect(hasil.$2, 2);
+    });
+  });
 }
+
