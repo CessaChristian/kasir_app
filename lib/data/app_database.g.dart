@@ -3472,7 +3472,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   /// kueri laporan sudah menyaring `deletedAt`). Lihat [batalkanTransaksi].
   final DateTime? deletedAt;
 
-  /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
+  /// Siapa yang menekan "Batalkan" (v30). Tanpa PIN owner sejak keputusan
+  /// owner 2026-10-24 — cukup alasan.
   final String? cancelledByUserId;
 
   /// SALINAN nama yang membatalkan (v35).
@@ -5964,7 +5965,8 @@ class Expense extends DataClass implements Insertable<Expense> {
   /// berlabel, tidak dihitung di total. Lihat [batalkanPengeluaran].
   final DateTime? deletedAt;
 
-  /// Siapa yang membatalkan (v31). Kasir hanya bisa dengan PIN owner.
+  /// Siapa yang membatalkan (v31). Tanpa PIN owner sejak keputusan owner
+  /// 2026-10-24 — cukup alasan.
   final String? cancelledByUserId;
 
   /// SALINAN nama yang membatalkan (v35).

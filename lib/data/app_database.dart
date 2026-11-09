@@ -191,7 +191,8 @@ class Transactions extends Table {
   /// kueri laporan sudah menyaring `deletedAt`). Lihat [batalkanTransaksi].
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
-  /// Siapa yang menekan "Batalkan" (v30). Kasir hanya bisa dengan PIN owner.
+  /// Siapa yang menekan "Batalkan" (v30). Tanpa PIN owner sejak keputusan
+  /// owner 2026-10-24 — cukup alasan.
   TextColumn get cancelledByUserId =>
       text().nullable().references(Users, #id)();
 
@@ -494,7 +495,8 @@ class Expenses extends Table {
   /// berlabel, tidak dihitung di total. Lihat [batalkanPengeluaran].
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
-  /// Siapa yang membatalkan (v31). Kasir hanya bisa dengan PIN owner.
+  /// Siapa yang membatalkan (v31). Tanpa PIN owner sejak keputusan owner
+  /// 2026-10-24 — cukup alasan.
   @ReferenceName('cancelledExpensesRefs')
   TextColumn get cancelledByUserId =>
       text().nullable().references(Users, #id)();
@@ -2219,7 +2221,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Batalkan pengeluaran. Barisnya TIDAK dihapus — `deletedAt` diisi
   /// (supaya keluar dari semua total), dicatat siapa dan kenapa, dan disimpan
-  /// selamanya. Siapa yang boleh dan kapan PIN owner diperlukan diputuskan
+  /// selamanya. Siapa yang boleh membatalkan diputuskan
   /// `ExpenseRepository.batalkanPengeluaran`; pemanggil lain WAJIB lewat sana.
   Future<void> batalkanPengeluaran(
     String id, {
@@ -2246,8 +2248,8 @@ class AppDatabase extends _$AppDatabase {
   ///
   /// Barisnya TIDAK dihapus — `deletedAt` diisi (supaya keluar dari semua
   /// total), dicatat siapa dan kenapa, dan disimpan selamanya. Siapa yang
-  /// boleh membatalkan dan kapan PIN owner diperlukan diputuskan
-  /// `SalesRepository.batalkanTransaksi`; pemanggil lain WAJIB lewat sana.
+  /// boleh membatalkan diputuskan `SalesRepository.batalkanTransaksi`;
+  /// pemanggil lain WAJIB lewat sana.
   Future<void> batalkanTransaksi(
     String transactionId, {
     required String olehUserId,
