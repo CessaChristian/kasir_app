@@ -117,5 +117,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 51 | `versi_asli.sql` | VERSI ASLI KIRIMAN (audit 6 Nov 2026 nomor 11, 12, 13 & 19) |
 | 52 | `batal_shift_tutup.sql` | PEMBATALAN KASIR DI SHIFT YANG SUDAH DITUTUP DIABAIKAN (audit 6 Nov 2026 nomor 28) |
 | 53 | `izin_fungsi_bantu.sql` | IZIN FUNGSI BANTU UNTUK HP (perbaikan darurat 8 Nov 2026) |
-| 54 | `rls.sql` | SISA PENGETATAN AKSES |
-| 55 | `indeks_cepat.sql` | INDEKS & KUNCI YANG LEBIH RINGAN (audit 6 Nov 2026 nomor 60) |
+| 54 | `indeks_cepat.sql` | INDEKS & KUNCI YANG LEBIH RINGAN (audit 6 Nov 2026 nomor 60) |
+| 55 | `rls.sql` | SISA PENGETATAN AKSES |

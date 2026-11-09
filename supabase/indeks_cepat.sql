@@ -1,9 +1,10 @@
 -- =====================================================================
 --  INDEKS & KUNCI YANG LEBIH RINGAN (audit 6 Nov 2026 nomor 60)
 --
---  Jalankan SEKALI lewat SQL Editor di dashboard Supabase, SESUDAH
---  `rls.sql`. Aman dijalankan ulang: indeks `if not exists`, fungsi
---  `create or replace`.
+--  Jalankan SEKALI lewat SQL Editor di dashboard Supabase. Di server yang
+--  sudah berjalan cukup berkas ini saja; saat membangun dari nol, urutannya
+--  sebelum `rls.sql` (lihat URUTAN.md). Aman dijalankan ulang: indeks
+--  `if not exists`, fungsi `create or replace`.
 --
 --  1. Dua pencarian tanpa indeks:
 --     - `gabung_produk_kembar` (versi_asli.sql) mencari produk aktif
