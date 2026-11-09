@@ -49,7 +49,12 @@ enum KeadaanDatabase {
 ///
 /// Hanya kerusakan berkas yang disebut rusak. Galat lain, mis. memori penuh,
 /// bisa hilang sendiri dan tidak boleh berujung pada penggantian database.
-KeadaanDatabase periksaBerkasDatabase(String jalur) {
+///
+/// [penuh] = `integrity_check`, yang juga mencocokkan setiap indeks dengan
+/// tabelnya — makin lama seiring data menumpuk. Tanpanya `quick_check`:
+/// halaman dan baris yang rusak tetap ketahuan, kira-kira dua kali lebih
+/// cepat (audit 6 Nov nomor 58).
+KeadaanDatabase periksaBerkasDatabase(String jalur, {bool penuh = false}) {
   if (!File(jalur).existsSync()) return KeadaanDatabase.kosong;
   sql.Database? d;
   try {
@@ -61,7 +66,9 @@ KeadaanDatabase periksaBerkasDatabase(String jalur) {
     };
     if (tabel.isEmpty) return KeadaanDatabase.kosong;
     if (!_tabelInti.every(tabel.contains)) return KeadaanDatabase.rusak;
-    final hasil = d.select('PRAGMA integrity_check(1)');
+    final hasil = d.select(
+      penuh ? 'PRAGMA integrity_check(1)' : 'PRAGMA quick_check(1)',
+    );
     return hasil.first.values.first == 'ok'
         ? KeadaanDatabase.sehat
         : KeadaanDatabase.rusak;
@@ -190,17 +197,36 @@ class PemulihanData {
 
   static const kunciMenunggu = 'pemulihan_menunggu';
 
+  /// Kapan pemeriksaan penuh terakhir lolos (milidetik epoch).
+  static const kunciCekPenuh = 'pemulihan_cek_penuh';
+
+  /// Pemeriksaan penuh sekali seminggu; selebihnya pemeriksaan cepat.
+  static const jedaCekPenuh = Duration(days: 7);
+
   File get berkasDatabase => File(p.join(folder, namaBerkasDatabase));
   File get berkasCadangan => File(p.join(folder, 'belum_terkirim.json'));
   File get berkasRusak => File(p.join(folder, 'kasir_app.rusak.sqlite'));
   File get berkasSisa => File(p.join(folder, 'belum_terkirim.sisa.json'));
 
   /// Keadaan database untuk menentukan layar pertama.
-  Future<KeadaanDatabase> periksa() async {
+  Future<KeadaanDatabase> periksa({DateTime? sekarang}) async {
     final jalur = berkasDatabase.path;
+    final prefs = await SharedPreferences.getInstance();
+    final kini = sekarang ?? DateTime.now();
+    final terakhir = prefs.getInt(kunciCekPenuh);
+    // Jam yang mundur (terakhir di masa depan) juga dianggap sudah waktunya.
+    final penuh = terakhir == null ||
+        terakhir > kini.millisecondsSinceEpoch ||
+        kini.difference(DateTime.fromMillisecondsSinceEpoch(terakhir)) >=
+            jedaCekPenuh;
     final jam = Stopwatch()..start();
-    final keadaan = await Isolate.run(() => periksaBerkasDatabase(jalur));
-    debugPrint('[pemulihan] ${keadaan.name}, ${jam.elapsedMilliseconds} ms');
+    final keadaan =
+        await Isolate.run(() => periksaBerkasDatabase(jalur, penuh: penuh));
+    debugPrint('[pemulihan] ${keadaan.name}${penuh ? ' (penuh)' : ''}, '
+        '${jam.elapsedMilliseconds} ms');
+    if (penuh && keadaan == KeadaanDatabase.sehat) {
+      await prefs.setInt(kunciCekPenuh, kini.millisecondsSinceEpoch);
+    }
     if (keadaan != KeadaanDatabase.kosong || await menunggu()) return keadaan;
     // Database lenyap padahal masih ada data yang belum terkirim.
     final r = await ringkasan();

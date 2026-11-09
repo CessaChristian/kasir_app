@@ -153,6 +153,9 @@ void main() {
       'lib/data/supabase/supabase_service.dart':
           'membaca masa berlaku tiket login untuk dinilai dengan jam server '
           '— bukan ID',
+      'lib/data/pemulihan/pemulihan_data.dart':
+          'mencatat kapan pemeriksaan penuh database terakhir lolos (audit '
+          '6 Nov nomor 58) — bukan ID',
     };
 
     test('tidak ada pemakaian SinceEpoch di luar daftar yang diizinkan', () {

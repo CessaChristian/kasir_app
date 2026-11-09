@@ -87,12 +87,59 @@ void main() {
       b.setPositionSync(b.lengthSync() - 4096 * 8);
       b.writeFromSync(List.filled(4096 * 8, 7));
       b.closeSync();
-      // Tanpa integrity_check berkas ini lolos: kerusakannya baru ketahuan
-      // saat barisnya dibaca, jadi layar login tetap muncul seperti biasa.
+      // Tanpa pemeriksaan berkas ini lolos: kerusakannya baru ketahuan saat
+      // barisnya dibaca, jadi layar login tetap muncul seperti biasa. Yang
+      // cepat (quick_check) pun menemukannya.
       final d = buka();
       await d.customSelect('SELECT COUNT(*) FROM users').get();
       await d.close();
       expect(periksa(), KeadaanDatabase.rusak);
+    });
+
+    test('halaman rusak juga terdeteksi oleh pemeriksaan penuh', () async {
+      final db = buka();
+      await db.transaction(() async {
+        for (var i = 0; i < 3000; i++) {
+          await kategori(db, 'k$i', 'Kategori nomor $i');
+        }
+      });
+      await db.close();
+      final b = pemulihan.berkasDatabase.openSync(mode: FileMode.append);
+      b.setPositionSync(b.lengthSync() - 4096 * 8);
+      b.writeFromSync(List.filled(4096 * 8, 7));
+      b.closeSync();
+      expect(
+        periksaBerkasDatabase(pemulihan.berkasDatabase.path, penuh: true),
+        KeadaanDatabase.rusak,
+      );
+    });
+
+    test('audit 6 Nov nomor 58: pemeriksaan penuh seminggu sekali', () async {
+      await buatDatabaseSehat();
+      final senin = DateTime(2026, 11, 9, 8);
+      final prefs = await SharedPreferences.getInstance();
+
+      // Belum pernah: penuh, lalu dicatat.
+      expect(await pemulihan.periksa(sekarang: senin), KeadaanDatabase.sehat);
+      expect(prefs.getInt(PemulihanData.kunciCekPenuh),
+          senin.millisecondsSinceEpoch);
+
+      // Enam hari kemudian: cepat, catatan tidak bergeser.
+      final sabtu = senin.add(const Duration(days: 6));
+      await pemulihan.periksa(sekarang: sabtu);
+      expect(prefs.getInt(PemulihanData.kunciCekPenuh),
+          senin.millisecondsSinceEpoch);
+
+      // Seminggu: penuh lagi.
+      final seninDepan = senin.add(const Duration(days: 7));
+      await pemulihan.periksa(sekarang: seninDepan);
+      expect(prefs.getInt(PemulihanData.kunciCekPenuh),
+          seninDepan.millisecondsSinceEpoch);
+
+      // Jam mundur: catatan di masa depan → penuh lagi.
+      await pemulihan.periksa(sekarang: senin);
+      expect(prefs.getInt(PemulihanData.kunciCekPenuh),
+          senin.millisecondsSinceEpoch);
     });
 
     test('tabel inti hilang terdeteksi', () async {
