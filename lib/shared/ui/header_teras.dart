@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../widgets/business_logo.dart';
+import 'periode/pengawas_hari.dart';
 import 'warna_teras.dart';
 import 'teks_teras.dart';
 
@@ -29,7 +30,6 @@ class HeaderTeras extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sekarang = DateTime.now();
     return AnimatedContainer(
       duration: _durasiTepi,
       height: 52,
@@ -75,29 +75,74 @@ class HeaderTeras extends StatelessWidget {
           ),
           ...aksi,
           const SizedBox(width: 6),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                DateFormat('EEEE', 'id_ID').format(sekarang),
-                style: const TextStyle(
-                  fontSize: TeksTeras.kecil,
-                  fontWeight: FontWeight.w700,
-                  color: WarnaTeras.teks,
-                ),
-              ),
-              Text(
-                DateFormat('d MMM yyyy', 'id_ID').format(sekarang),
-                style: const TextStyle(
-                  fontSize: TeksTeras.kecil,
-                  color: WarnaTeras.teksSedang,
-                ),
-              ),
-            ],
-          ),
+          const TanggalHeader(),
         ],
       ),
+    );
+  }
+}
+
+/// Hari dan tanggal di kanan header.
+///
+/// Dulu dibaca sekali saat header digambar, jadi halaman yang dibiarkan
+/// terbuka lewat tengah malam tetap menulis tanggal kemarin sampai pindah
+/// halaman. [PengawasHari] menggambar ulang tepat sesudah tengah malam dan
+/// saat aplikasi kembali ke depan.
+class TanggalHeader extends StatefulWidget {
+  const TanggalHeader({super.key, this.jam});
+
+  /// Pengganti jam untuk test.
+  @visibleForTesting
+  final DateTime Function()? jam;
+
+  @override
+  State<TanggalHeader> createState() => _TanggalHeaderState();
+}
+
+class _TanggalHeaderState extends State<TanggalHeader> {
+  late final DateTime Function() _jam = widget.jam ?? DateTime.now;
+  late final _pengawas = PengawasHari(
+    jam: _jam,
+    onGanti: (_, _) {
+      if (mounted) setState(() {});
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _pengawas;
+  }
+
+  @override
+  void dispose() {
+    _pengawas.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sekarang = _jam();
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          DateFormat('EEEE', 'id_ID').format(sekarang),
+          style: const TextStyle(
+            fontSize: TeksTeras.kecil,
+            fontWeight: FontWeight.w700,
+            color: WarnaTeras.teks,
+          ),
+        ),
+        Text(
+          DateFormat('d MMM yyyy', 'id_ID').format(sekarang),
+          style: const TextStyle(
+            fontSize: TeksTeras.kecil,
+            color: WarnaTeras.teksSedang,
+          ),
+        ),
+      ],
     );
   }
 }
