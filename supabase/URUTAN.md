@@ -31,7 +31,7 @@ baris apa pun.
 | `open_bill_aman.sql` | `klaim_tanpa_waktu.sql`, `versi_asli.sql` |
 | `perangkat_gagal_kirim.sql` | `versi_asli.sql` |
 | `klaim_lima_menit.sql` | `klaim_tanpa_waktu.sql` |
-| `kredensial_owner.sql` | `kredensial_ketat.sql` |
+| `kredensial_owner.sql` | `kredensial_ketat.sql`, `indeks_cepat.sql` |
 | `produk_kembar.sql` | `versi_asli.sql` |
 | `perangkat_jam.sql` | `versi_asli.sql` |
 
@@ -118,3 +118,4 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 52 | `batal_shift_tutup.sql` | PEMBATALAN KASIR DI SHIFT YANG SUDAH DITUTUP DIABAIKAN (audit 6 Nov 2026 nomor 28) |
 | 53 | `izin_fungsi_bantu.sql` | IZIN FUNGSI BANTU UNTUK HP (perbaikan darurat 8 Nov 2026) |
 | 54 | `rls.sql` | SISA PENGETATAN AKSES |
+| 55 | `indeks_cepat.sql` | INDEKS & KUNCI YANG LEBIH RINGAN (audit 6 Nov 2026 nomor 60) |
