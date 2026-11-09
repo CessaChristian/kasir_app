@@ -4,6 +4,7 @@ import '../../../data/app_database.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../models/ringkasan_laporan.dart';
+import '../../../utils/muat_terbaru.dart';
 
 /// Data halaman Laporan (dan angka hari ini di Dashboard owner).
 class LaporanRepository {
@@ -23,16 +24,17 @@ class LaporanRepository {
     } catch (e) {
       return Stream.error(e);
     }
-    return _db
-        .pemicuTabel({
-          _db.transactions,
-          _db.transactionItems,
-          _db.expenses,
-          _db.shifts,
-          _db.products,
-          _db.categories,
-        })
-        .asyncMap((_) => muat(periode));
+    return muatTerbaru(
+      _db.pemicuTabel({
+        _db.transactions,
+        _db.transactionItems,
+        _db.expenses,
+        _db.shifts,
+        _db.products,
+        _db.categories,
+      }),
+      () => muat(periode),
+    );
   }
 
   /// Owner dan pemegang `view_report` saja — dulu cuma halamannya yang
@@ -78,8 +80,7 @@ class LaporanRepository {
     final item = ringkas
         ? const <TransactionItem>[]
         : await (_db.select(_db.transactionItems)..where(
-                (i) =>
-                    i.transactionId.isInQuery(idSah) & i.deletedAt.isNull(),
+                (i) => i.transactionId.isInQuery(idSah) & i.deletedAt.isNull(),
               ))
               .get();
     final itemPerTransaksi = <String, List<TransactionItem>>{};

@@ -9,6 +9,7 @@ import '../../../data/uuid_helper.dart';
 import '../../../utils/crypto_utils.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../models/ringkasan_kasir.dart';
+import '../../../utils/muat_terbaru.dart';
 
 /// Menjawab: apakah [nama] sudah dipakai akun LAIN (selain [kecualiId]) di
 /// server? [kecualiId] null untuk akun baru. Melempar [StateError] kalau
@@ -153,14 +154,15 @@ class CashierRepository {
   /// Daftar kartu Kelola Kasir: akun aktif dulu, lalu yang nonaktif;
   /// masing-masing terbaru dulu. Ikut berubah setiap kali akun, shift, atau
   /// izin berubah — termasuk yang datang dari sinkron.
-  Stream<List<RingkasanKasir>> watchDaftarKasir() => _db
-      .pemicuTabel({
-        _db.users,
-        _db.shifts,
-        _db.userPermissions,
-        _db.permissions,
-      })
-      .asyncMap((_) => _daftarKasir());
+  Stream<List<RingkasanKasir>> watchDaftarKasir() => muatTerbaru(
+        _db.pemicuTabel({
+          _db.users,
+          _db.shifts,
+          _db.userPermissions,
+          _db.permissions,
+        }),
+        _daftarKasir,
+      );
 
   Future<List<RingkasanKasir>> _daftarKasir() async {
     final kasir = await getAllCashiers();

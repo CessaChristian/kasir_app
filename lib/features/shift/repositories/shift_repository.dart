@@ -7,6 +7,7 @@ import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/periode/periode.dart';
 import '../models/produk_laris.dart';
 import '../models/ringkasan_shift.dart';
+import '../../../utils/muat_terbaru.dart';
 
 /// Satu-satunya pintu akses data shift untuk keperluan operasional:
 /// kartu shift aktif di dashboard, riwayat shift, dan ringkasan tutup shift.
@@ -64,9 +65,11 @@ class ShiftRepository {
 
   /// Muat ulang setiap kali shift, transaksi, pengeluaran, atau nama akun
   /// berubah.
-  Stream<T> _pantau<T>(Future<T> Function() muat) => _db
-      .pemicuTabel({_db.shifts, _db.transactions, _db.expenses, _db.users})
-      .asyncMap((_) => muat());
+  Stream<T> _pantau<T>(Future<T> Function() muat) => muatTerbaru(
+        _db.pemicuTabel(
+            {_db.shifts, _db.transactions, _db.expenses, _db.users}),
+        muat,
+      );
 
   Future<List<RingkasanShift>> _ringkas(
     Expression<bool> Function($ShiftsTable s) syarat,

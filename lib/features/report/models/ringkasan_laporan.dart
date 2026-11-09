@@ -252,8 +252,20 @@ RingkasanLaporan ringkasLaporan({
   List<Shift> shift,
   DateTime sekarang,
 ) {
-  int jumlahkan(Iterable<Transaction> l) => l.fold(0, (s, t) => s + t.total);
-  DateTime lokal(DateTime d) => d.toLocal();
+  // Dijumlahkan sekali jalan per jam/hari/bulan. Dulu setiap batang menyisir
+  // semua transaksi periode itu: setahun = 365 × semua transaksi (audit 6 Nov
+  // nomor 56).
+  final perJam = <int, int>{};
+  final perHari = <int, int>{};
+  final perBulan = <int, int>{};
+  for (final t in sah) {
+    final w = t.createdAt.toLocal();
+    perJam[w.hour] = (perJam[w.hour] ?? 0) + t.total;
+    final kh = _kunciHari(w);
+    perHari[kh] = (perHari[kh] ?? 0) + t.total;
+    final kb = _kunciBulan(w);
+    perBulan[kb] = (perBulan[kb] ?? 0) + t.total;
+  }
 
   if (hari.length == 1) {
     // Rentang jam mengikuti shift hari itu: dari shift pertama dibuka sampai
@@ -274,7 +286,7 @@ RingkasanLaporan ringkasLaporan({
         for (var h = awal; h <= akhir; h++)
           BatangGrafik(
             h.isOdd ? '' : h.toString().padLeft(2, '0'),
-            jumlahkan(sah.where((t) => lokal(t.createdAt).hour == h)),
+            perJam[h] ?? 0,
             nama: 'Jam ${h.toString().padLeft(2, '0')}:00',
           ),
       ],
@@ -296,7 +308,7 @@ RingkasanLaporan ringkasLaporan({
             hari.length <= 7
                 ? _namaHari[hari[i].weekday - 1]
                 : (i % langkah == 0 ? '${hari[i].day}' : ''),
-            jumlahkan(sah.where((t) => _samaHari(lokal(t.createdAt), hari[i]))),
+            perHari[_kunciHari(hari[i])] ?? 0,
             nama:
                 '${_namaHari[hari[i].weekday - 1]}, ${hari[i].day} '
                 '${DateFormat('MMM', 'id_ID').format(hari[i])}',
@@ -313,12 +325,7 @@ RingkasanLaporan ringkasLaporan({
       for (final b in bulan)
         BatangGrafik(
           DateFormat('MMM', 'id_ID').format(b),
-          jumlahkan(
-            sah.where((t) {
-              final w = lokal(t.createdAt);
-              return w.year == b.year && w.month == b.month;
-            }),
-          ),
+          perBulan[_kunciBulan(b)] ?? 0,
           nama: DateFormat('MMM yyyy', 'id_ID').format(b),
         ),
     ],
@@ -372,30 +379,43 @@ List<BarisWaktu> _perWaktu(
   List<Transaction> sah,
   List<Expense> pengeluaran,
 ) {
-  BarisWaktu baris(
-    String label,
-    bool Function(DateTime) cocok, {
-    bool totalBulan = false,
-  }) {
-    final t = sah.where((x) => cocok(x.createdAt.toLocal())).toList();
-    int jumlah(Iterable<Transaction> l) => l.fold(0, (s, x) => s + x.total);
-    return BarisWaktu(
-      label: label,
-      totalBulan: totalBulan,
-      transaksi: t.length,
-      pendapatan: jumlah(t),
-      tunai: jumlah(t.where((x) => x.paymentMethod != 'qris')),
-      qris: jumlah(t.where((x) => x.paymentMethod == 'qris')),
-      pengeluaran: pengeluaran
-          .where((e) => cocok(e.createdAt.toLocal()))
-          .fold(0, (s, e) => s + e.amount),
-    );
+  // Setiap transaksi dan pengeluaran dimasukkan sekali ke tumpukan jam/hari/
+  // bulannya. Dulu setiap baris menyisir semua transaksi periode itu
+  // (audit 6 Nov nomor 56).
+  final perJam = <int, _Tumpukan>{};
+  final perHari = <int, _Tumpukan>{};
+  final perBulan = <int, _Tumpukan>{};
+  Iterable<_Tumpukan> tempat(DateTime w) => [
+    perJam.putIfAbsent(w.hour, _Tumpukan.new),
+    perHari.putIfAbsent(_kunciHari(w), _Tumpukan.new),
+    perBulan.putIfAbsent(_kunciBulan(w), _Tumpukan.new),
+  ];
+  for (final t in sah) {
+    for (final k in tempat(t.createdAt.toLocal())) {
+      k.tambahTransaksi(t);
+    }
+  }
+  for (final e in pengeluaran) {
+    for (final k in tempat(e.createdAt.toLocal())) {
+      k.pengeluaran += e.amount;
+    }
   }
 
-  List<BarisWaktu> perHari(Iterable<DateTime> daftar) {
+  BarisWaktu baris(String label, _Tumpukan? k, {bool totalBulan = false}) =>
+      BarisWaktu(
+        label: label,
+        totalBulan: totalBulan,
+        transaksi: k?.transaksi ?? 0,
+        pendapatan: k?.pendapatan ?? 0,
+        tunai: k?.tunai ?? 0,
+        qris: k?.qris ?? 0,
+        pengeluaran: k?.pengeluaran ?? 0,
+      );
+
+  List<BarisWaktu> daftarHari(Iterable<DateTime> daftar) {
     final nama = DateFormat('EEEE, d MMM yyyy', 'id_ID');
     return [
-      for (final h in daftar) baris(nama.format(h), (w) => _samaHari(w, h)),
+      for (final h in daftar) baris(nama.format(h), perHari[_kunciHari(h)]),
     ].where((b) => !b.kosong).toList();
   }
 
@@ -403,10 +423,10 @@ List<BarisWaktu> _perWaktu(
     String jam(int h) => h.toString().padLeft(2, '0');
     return [
       for (var h = 0; h < 24; h++)
-        baris('${jam(h)}:00 – ${jam(h)}:59', (w) => w.hour == h),
+        baris('${jam(h)}:00 – ${jam(h)}:59', perJam[h]),
     ].where((b) => !b.kosong).toList();
   }
-  if (hari.length <= 31) return perHari(hari);
+  if (hari.length <= 31) return daftarHari(hari);
 
   final namaBulan = DateFormat('MMMM yyyy', 'id_ID');
   final bulan = <DateTime>{for (final h in hari) DateTime(h.year, h.month)};
@@ -415,20 +435,41 @@ List<BarisWaktu> _perWaktu(
       ...() {
         final total = baris(
           namaBulan.format(b),
-          (w) => w.year == b.year && w.month == b.month,
+          perBulan[_kunciBulan(b)],
           totalBulan: true,
         );
         if (total.kosong) return const <BarisWaktu>[];
         return [
           total,
-          ...perHari(hari.where((h) => h.year == b.year && h.month == b.month)),
+          ...daftarHari(
+            hari.where((h) => h.year == b.year && h.month == b.month),
+          ),
         ];
       }(),
   ];
 }
 
-bool _samaHari(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
+/// Jumlah sementara satu jam/hari/bulan selagi [_perWaktu] menghitung.
+class _Tumpukan {
+  int transaksi = 0;
+  int pendapatan = 0;
+  int tunai = 0;
+  int qris = 0;
+  int pengeluaran = 0;
+
+  void tambahTransaksi(Transaction t) {
+    transaksi++;
+    pendapatan += t.total;
+    if (t.paymentMethod == 'qris') {
+      qris += t.total;
+    } else {
+      tunai += t.total;
+    }
+  }
+}
+
+int _kunciHari(DateTime w) => w.year * 10000 + w.month * 100 + w.day;
+int _kunciBulan(DateTime w) => w.year * 100 + w.month;
 
 /// Semua produk yang belum dihapus (laku atau tidak), ditambah produk yang
 /// sudah dihapus tapi terjual di periode ini. Dikelompokkan per id produk;
