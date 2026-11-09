@@ -1980,14 +1980,19 @@ class AppDatabase extends _$AppDatabase {
   /// produk dari HP-nya, lalu kasir menekan produk yang sudah tidak ada itu.
   /// Tanpa pemeriksaan ini, item transaksi akan menunjuk produk yang tidak
   /// ada dan ditolak foreign key dengan pesan yang tidak bisa dipahami kasir.
+  ///
+  /// Satu kueri untuk seluruh keranjang, bukan satu per baris (audit 6 Nov
+  /// nomor 59). Yang dilaporkan tetap baris PERTAMA yang produknya hilang.
   Future<void> _validasiProdukMasihAda(List<SaleLine> lines) async {
+    final dicari = {for (final l in lines) l.productId}.toList();
+    final ada = {
+      for (final p in await (select(products)
+            ..where((t) => t.id.isIn(dicari) & t.deletedAt.isNull()))
+          .get())
+        p.id,
+    };
     for (final line in lines) {
-      final ada = await (select(products)
-            ..where((t) => t.id.equals(line.productId) & t.deletedAt.isNull())
-            ..limit(1))
-          .getSingleOrNull();
-
-      if (ada == null) {
+      if (!ada.contains(line.productId)) {
         throw StateError(
           '"${line.productName}" sudah tidak tersedia. '
           'Hapus produk ini dari keranjang sebelum melanjutkan.',

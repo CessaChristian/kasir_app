@@ -187,15 +187,51 @@ class FotoProduk extends StatelessWidget {
         width: lebar ?? ukuran,
         height: ukuran,
         child: ada
-            ? Image.file(
-                File(ImageStorageService.lokasiPenuhSync(path!)),
-                fit: BoxFit.cover,
-                errorBuilder: (context, _, _) => const _TanpaFoto(),
+            ? LayoutBuilder(
+                builder: (context, batas) => Image(
+                  image: gambarSeukuran(
+                    FileImage(
+                      File(ImageStorageService.lokasiPenuhSync(path!)),
+                    ),
+                    lebar: batas.maxWidth.isFinite ? batas.maxWidth : ukuran,
+                    tinggi: ukuran,
+                    rasioPiksel: MediaQuery.devicePixelRatioOf(context),
+                  ),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, _) => const _TanpaFoto(),
+                ),
               )
             : const _TanpaFoto(),
       ),
     );
   }
+}
+
+/// Foto dibuka seukuran tempat tampilnya, bukan ukuran aslinya.
+///
+/// Foto produk disimpan sampai 800 px — dibuka utuh, satu foto ±2,5 MB
+/// memori, padahal di daftar hanya tampil 40 px. Puluhan produk berfoto
+/// melewati batas simpanan gambar Flutter, lalu foto dibuka ulang terus
+/// selama digulir: scroll patah-patah (audit 6 Nov nomor 59).
+///
+/// Dilebihkan 1,5× dari sisi terpanjang kotaknya: rasio fotonya tidak
+/// diketahui sebelum dibuka, dan BoxFit.cover memotong sisi panjangnya —
+/// foto 4:3 di kotak persegi tetap tajam. Tidak pernah diperbesar melebihi
+/// aslinya.
+@visibleForTesting
+ImageProvider gambarSeukuran(
+  ImageProvider asli, {
+  required double lebar,
+  required double tinggi,
+  required double rasioPiksel,
+}) {
+  final sisi = ((lebar > tinggi ? lebar : tinggi) * rasioPiksel * 1.5).ceil();
+  return ResizeImage(
+    asli,
+    width: sisi,
+    height: sisi,
+    policy: ResizeImagePolicy.fit,
+  );
 }
 
 class _TanpaFoto extends StatelessWidget {

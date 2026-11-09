@@ -91,13 +91,31 @@ class ShiftRepository {
         .get();
     final nama = await _db.namaAkun();
 
+    // Dikelompokkan sekali jalan. Dulu tiap shift menyisir SEMUA transaksi:
+    // Riwayat Shift setahun = ±1.000 shift × 20.000 transaksi (audit 6 Nov
+    // nomor 59). Urutan terbaru-dulu tetap terjaga di tiap kelompok.
+    final transaksiPerShift = <String, List<Transaction>>{};
+    for (final t in transaksi) {
+      final idShift = t.shiftId;
+      if (idShift != null) {
+        transaksiPerShift.putIfAbsent(idShift, () => []).add(t);
+      }
+    }
+    final pengeluaranPerShift = <String, List<Expense>>{};
+    for (final e in pengeluaran) {
+      final idShift = e.shiftId;
+      if (idShift != null) {
+        pengeluaranPerShift.putIfAbsent(idShift, () => []).add(e);
+      }
+    }
+
     return [
       for (final s in shifts)
         RingkasanShift(
           shift: s,
           namaKasir: s.namaKasir(nama),
-          transaksi: transaksi.where((t) => t.shiftId == s.id).toList(),
-          pengeluaran: pengeluaran.where((e) => e.shiftId == s.id).toList(),
+          transaksi: transaksiPerShift[s.id] ?? [],
+          pengeluaran: pengeluaranPerShift[s.id] ?? [],
         ),
     ];
   }

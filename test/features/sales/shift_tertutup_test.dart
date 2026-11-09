@@ -128,4 +128,34 @@ void main() {
     );
     expect(await db.select(db.expenses).get(), hasLength(1));
   });
+
+  test('audit 6 Nov nomor 59: produk yang dihapus di keranjang ditolak, '
+      'yang disebut baris pertama yang hilang', () async {
+    for (final (id, nama) in [('kopi', 'Kopi'), ('roti', 'Roti')]) {
+      await db.into(db.products).insert(ProductsCompanion.insert(
+            id: Value(id),
+            name: nama,
+            price: 5000,
+            deletedAt: Value(DateTime(2026, 11, 9)),
+          ));
+    }
+    SaleLine baris(String id, String nama) =>
+        SaleLine(productId: id, productName: nama, qty: 1, priceAtSale: 5000);
+    await expectLater(
+      jual.createSale(
+        transactionId: 'tx-2',
+        lines: [baris('teh', 'Teh'), baris('kopi', 'Kopi'), baris('roti', 'Roti')],
+        paymentMethod: 'qris',
+        orderType: 'dine_in',
+        cashierUserId: 'k-1',
+        shiftId: 's-1',
+      ),
+      throwsA(isA<StateError>().having(
+          (e) => e.message, 'pesan', contains('"Kopi" sudah tidak tersedia'))),
+    );
+    expect(await db.select(db.transactions).get(), isEmpty);
+    // Keranjang yang semua produknya masih ada tetap lolos.
+    await jualTeh();
+  });
 }
+
