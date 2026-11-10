@@ -118,6 +118,59 @@ class Keranjang extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Isi dan open bill keranjang sebagai JSON — untuk disimpan di HP supaya
+  /// pesanan tidak hilang kalau aplikasinya dimatikan (simpanan_keranjang).
+  Map<String, Object?> keJson() => {
+    'baris': [
+      for (final b in _baris)
+        {
+          'id': b.productId,
+          'nama': b.productName,
+          'qty': b.qty,
+          'harga': b.priceAtSale,
+          'catatan': b.notes,
+        },
+    ],
+    'bill': _bill == null
+        ? null
+        : {'id': _bill!.id, 'nama': _bill!.nama, 'isiAwal': _bill!.isiAwal},
+  };
+
+  /// Kebalikan [keJson]. Hanya untuk keranjang yang masih kosong — pesanan
+  /// yang sudah mulai disusun tidak ditimpa simpanan lama. False kalau
+  /// isinya tidak terbaca atau keranjangnya sudah berisi.
+  bool pulihkanDari(Map<String, Object?> json) {
+    if (!isEmpty) return false;
+    try {
+      final baris = [
+        for (final b in json['baris'] as List)
+          SaleLine(
+            productId: (b as Map)['id'] as String,
+            productName: b['nama'] as String,
+            qty: b['qty'] as int,
+            priceAtSale: b['harga'] as int,
+            notes: b['catatan'] as String?,
+          ),
+      ];
+      final bill = json['bill'] as Map?;
+      if (baris.isEmpty) return false;
+      _baris.addAll(baris);
+      _bill = bill == null
+          ? null
+          : (
+              id: bill['id'] as String,
+              nama: bill['nama'] as String,
+              isiAwal: bill['isiAwal'] as String,
+            );
+    } catch (_) {
+      _baris.clear();
+      _bill = null;
+      return false;
+    }
+    notifyListeners();
+    return true;
+  }
+
   // Keranjang kosong tidak bisa "memperbarui" bill — bill-nya tetap utuh di
   // daftar Open Bill.
   void _lepasKalauKosong() {

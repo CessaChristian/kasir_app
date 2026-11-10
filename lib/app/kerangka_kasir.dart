@@ -8,6 +8,7 @@ import '../features/open_bill/sheets/lembar_open_bill.dart';
 import '../features/open_bill/widgets/tombol_open_bill.dart';
 import '../features/profil/pages/profil_kasir_page.dart';
 import '../features/sales/models/keranjang.dart';
+import '../features/sales/models/simpanan_keranjang.dart';
 import '../features/sales/sales_page.dart';
 import '../features/sales/widgets/tombol_keranjang.dart';
 import '../features/shift/widgets/perlu_buka_shift.dart';
@@ -69,6 +70,7 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
   void initState() {
     super.initState();
     _keranjang.addListener(_keranjangBerubah);
+    _pulihkanKeranjang();
     SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
     SessionManager.instance.shiftDitutupDariLuar.addListener(_shiftDitutup);
     SessionManager.instance.shiftDigabung.addListener(_shiftDigabung);
@@ -89,8 +91,36 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
     super.dispose();
   }
 
+  /// Pesanan yang tertinggal waktu aplikasinya dimatikan (tes alur 10 Nov).
+  Future<void> _pulihkanKeranjang() async {
+    final sesi = SessionManager.instance.currentSession;
+    if (sesi == null) {
+      _pemulihanSelesai = true;
+      return;
+    }
+    final ada = await SimpananKeranjang.pulihkan(
+      _keranjang,
+      userId: sesi.userId,
+      shiftId: sesi.shiftId,
+    );
+    _pemulihanSelesai = true;
+    if (ada && mounted) AppToast.info(context, 'Pesanan sebelumnya dipulihkan');
+  }
+
+  /// Simpanan tidak ditulis sebelum pemulihan selesai: keranjang kosong saat
+  /// halaman baru dibuka akan menghapus simpanan yang belum sempat dibaca.
+  var _pemulihanSelesai = false;
+
   /// Satu titik untuk SEMUA perubahan keranjang.
   void _keranjangBerubah() {
+    final sesi = SessionManager.instance.currentSession;
+    if (_pemulihanSelesai && sesi != null) {
+      SimpananKeranjang.simpan(
+        _keranjang,
+        userId: sesi.userId,
+        shiftId: sesi.shiftId,
+      );
+    }
     final berisi = !_keranjang.isEmpty;
     // Sinkron otomatis ditunda selama pesanan disusun.
     _perbaruiPenahan();

@@ -284,6 +284,10 @@ class SessionManager {
     await prefs.remove(_sessionKey);
     await prefs.remove(_kunciPin);
     await prefs.remove(_kunciGaram);
+    // Keranjang yang disimpan supaya tidak hilang saat aplikasi dimatikan
+    // (`SimpananKeranjang.kunci`). Keluar akun — termasuk otomatis sesudah
+    // diam dan akun dinonaktifkan — sengaja mengosongkannya.
+    await prefs.remove('keranjang_tersimpan');
   }
 
   /// "userId:hash PIN" akun yang sedang masuk — patokan
