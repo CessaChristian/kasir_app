@@ -120,14 +120,22 @@ class NavBawahTeras extends StatelessWidget {
               color: aktif ? WarnaTeras.oranye : WarnaTeras.ikonPasif,
             ),
             const SizedBox(height: 4),
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: TeksTeras.kecil,
-                fontWeight: aktif ? FontWeight.w700 : FontWeight.w400,
-                color: aktif ? WarnaTeras.teks : WarnaTeras.ikonPasif,
+            // Layar kecil dengan huruf besar: labelnya mengecil, bukan
+            // terpotong "Pengelua…" dan menempel ke label sebelahnya (tes
+            // alur 10 Nov). Jarak 2 px di kiri-kanan menjaga celahnya.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: TeksTeras.kecil,
+                    fontWeight: aktif ? FontWeight.w700 : FontWeight.w400,
+                    color: aktif ? WarnaTeras.teks : WarnaTeras.ikonPasif,
+                  ),
+                ),
               ),
             ),
           ],

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../data/perangkat/perangkat_repository.dart';
 import '../shared/auth/session_manager.dart';
-import '../shared/widgets/app_toast.dart';
 import 'kerangka_kasir.dart';
 import 'kerangka_owner.dart';
 import 'penjaga_perangkat.dart';
@@ -70,9 +69,8 @@ class AppShellState extends State<AppShell> {
   void _sesiDicabut() {
     final alasan = SessionManager.instance.sesiDicabut.value;
     if (alasan == null || !mounted) return;
-    SessionManager.instance.tandaiPencabutanSudahDitangani();
-
-    AppToast.warning(context, alasan);
+    // Alasannya dibiarkan di [SessionManager.sesiDicabut]: halaman login yang
+    // baru dibuka menuliskannya tetap di layar, bukan toast yang lewat.
     Navigator.of(context).pushAndRemoveUntil(ruteMasuk(), (route) => false);
   }
 

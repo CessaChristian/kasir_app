@@ -11,7 +11,6 @@ import 'package:kasir_app/features/history/widgets/baris_transaksi.dart';
 import 'package:kasir_app/shared/ui/periode/kartu_periode.dart';
 import 'package:kasir_app/shared/ui/periode/bagian_filter.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
-import 'package:kasir_app/utils/currency_formatter.dart';
 
 /// Riwayat owner (desain): saringan, kelompok per hari, baris batal.
 void main() {
@@ -96,8 +95,9 @@ void main() {
       final hari = await repo.watchHariRiwayat(saring()).first;
       expect(hari.map((h) => h.tanggal.day), [3, 1],
           reason: 'di luar periode tidak ikut');
-      expect((hari.last.jumlah, hari.last.total), (3, 30000),
-          reason: 'A3 dibatalkan: tetap dihitung tampil, tidak di total');
+      expect((hari.last.jumlah, hari.last.batal, hari.last.total),
+          (2, 1, 30000),
+          reason: 'A3 dibatalkan: dihitung terpisah, tidak di total');
       expect(await nota(saring()), ['B1', 'A3', 'A2', 'A1']);
     });
 
@@ -154,10 +154,6 @@ void main() {
     });
   });
 
-  test('format nominal baris riwayat mengikuti desain', () {
-    expect(formatRpRiwayat(12000), 'Rp. 12.000,00');
-  });
-
   testWidgets('baris transaksi yang dibatalkan', (t) async {
     await t.pumpWidget(
       MaterialApp(
@@ -182,7 +178,8 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Rp. 12.000,00'), findsOneWidget);
+    expect(find.text('Rp 12.000'), findsOneWidget,
+        reason: 'format uang sama dengan halaman lain');
     expect(find.textContaining('Dibatalkan'), findsOneWidget);
     expect(find.textContaining('owner, 13:39'), findsOneWidget);
     expect(find.text('Alasan: Pelanggan batal'), findsOneWidget);

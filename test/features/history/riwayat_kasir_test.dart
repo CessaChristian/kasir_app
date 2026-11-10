@@ -164,7 +164,8 @@ void main() {
   ) async {
     await isiData(t);
     await buka(t);
-    expect(find.text('3 Transaksi'), findsOneWidget);
+    // Tes alur 10 Nov: yang sah dihitung, yang batal disebut terpisah.
+    expect(find.text('2 Transaksi · 1 dibatalkan'), findsOneWidget);
     expect(find.text('Rp 30.000'), findsOneWidget, reason: 'tanpa yang batal');
     expect(find.text('TRX/L1'), findsNothing, reason: 'shift lama');
     expect(find.text('Transaksi QRIS'), findsOneWidget);

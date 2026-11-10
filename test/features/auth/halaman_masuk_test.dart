@@ -112,7 +112,7 @@ void main() {
 
     testWidgets('tampilan desain, tanpa tombol pilih akun', (t) async {
       await buka(t);
-      expect(find.text('Login to Access Your'), findsOneWidget);
+      expect(find.text('Masuk ke akun'), findsOneWidget);
       expect(find.text('Teras Inn'), findsOneWidget);
       expect(find.text('Lupa PIN Owner?'), findsOneWidget);
       expect(find.byIcon(Icons.expand_more_rounded), findsNothing);
@@ -268,10 +268,10 @@ void main() {
       await buka(t);
       await t.tap(find.text('Lupa PIN Owner?'));
       await t.pumpAndSettle();
-      expect(find.text('Reset PIN to Access Your'), findsOneWidget);
+      expect(find.text('Reset PIN akun'), findsOneWidget);
       await t.tap(find.bySemanticsLabel('Kembali'));
       await t.pumpAndSettle();
-      expect(find.text('Login to Access Your'), findsOneWidget);
+      expect(find.text('Masuk ke akun'), findsOneWidget);
       await lepas(t);
     });
   });

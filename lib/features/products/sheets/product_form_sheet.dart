@@ -49,7 +49,10 @@ class FormResult {
 String? galatFormProduk({required String nama, required String hargaTeks}) {
   if (nama.trim().isEmpty) return 'Nama produk wajib diisi';
   final harga = parseRupiah(hargaTeks);
-  if (harga == null || harga <= 0) return 'Harga wajib diisi';
+  if (harga == null) return 'Harga wajib diisi';
+  // Dulu harga 0 juga dijawab "wajib diisi" padahal kolomnya sudah terisi
+  // (tes alur 10 Nov).
+  if (harga <= 0) return 'Harga harus lebih dari 0';
   return null;
 }
 

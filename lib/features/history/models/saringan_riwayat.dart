@@ -41,8 +41,15 @@ class SaringanRiwayat {
 /// dibatalkan, yang tetap tampil) dan totalnya (tanpa yang dibatalkan).
 class RingkasanHari {
   final DateTime tanggal;
+
+  /// Transaksi SAH saja — sama dengan yang dihitung [total]. Dulu ikut
+  /// menghitung yang dibatalkan: "3 Transaksi" untuk dua nota sah (tes alur
+  /// 10 Nov).
   final int jumlah;
   final int total;
 
-  const RingkasanHari(this.tanggal, this.jumlah, this.total);
+  /// Yang dibatalkan, ditulis terpisah.
+  final int batal;
+
+  const RingkasanHari(this.tanggal, this.jumlah, this.total, {this.batal = 0});
 }

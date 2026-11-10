@@ -101,5 +101,3 @@ class RupiahInputFormatter extends TextInputFormatter {
 String formatRp(int value) =>
     value < 0 ? '-Rp ${formatRupiah(-value)}' : 'Rp ${formatRupiah(value)}';
 
-/// Format nominal di baris Riwayat (desain): 12000 -> "Rp. 12.000,00".
-String formatRpRiwayat(int value) => 'Rp. ${formatRupiah(value)},00';

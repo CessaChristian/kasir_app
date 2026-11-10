@@ -78,7 +78,9 @@ class BarisTransaksi extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      formatRpRiwayat(t.total),
+                      // Sama dengan halaman lain. Dulu "Rp. 12.000,00" (desain lama) —
+                      // beda sendiri (tes alur 10 Nov).
+                      formatRp(t.total),
                       style: TextStyle(
                         fontSize: TeksTeras.kecil,
                         fontWeight: FontWeight.w700,

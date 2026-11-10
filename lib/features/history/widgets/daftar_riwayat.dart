@@ -186,7 +186,9 @@ class _DaftarRiwayatState extends State<DaftarRiwayat> {
       for (final (i, h) in hari.indexed) ...[
         PitaHari(
           judul: DateFormat('EEEE, d MMM yyyy', 'id_ID').format(h.tanggal),
-          keterangan: '${h.jumlah} Transaksi',
+          keterangan: h.batal == 0
+              ? '${h.jumlah} Transaksi'
+              : '${h.jumlah} Transaksi · ${h.batal} dibatalkan',
           total: formatRp(h.total),
           terbuka: _terbuka(i, h.tanggal),
           onTap: () => setState(

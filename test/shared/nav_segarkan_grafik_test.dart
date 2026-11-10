@@ -43,6 +43,41 @@ void main() {
     expect(dipilih, [2]);
   });
 
+  testWidgets('tes alur 10 Nov: layar kecil + huruf besar, label tidak menempel',
+      (t) async {
+    t.view.physicalSize = const Size(320, 640);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    ItemNav nav(String label) => ItemNav(
+          ikon: Icons.circle_outlined,
+          ikonAktif: Icons.circle,
+          label: label,
+        );
+    await t.pumpWidget(MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: const TextScaler.linear(1.3)),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: const SizedBox.expand(),
+        bottomNavigationBar: NavBawahTeras(
+          kiri: [nav('Dashboard'), nav('Pengeluaran')],
+          tengah: nav('Kasir'),
+          kanan: [nav('Riwayat'), nav('Profil')],
+          terpilih: 0,
+          onPilih: (_) {},
+        ),
+      ),
+    ));
+    expect(t.takeException(), isNull);
+    final dasbor = t.getRect(find.text('Dashboard'));
+    final keluar = t.getRect(find.text('Pengeluaran'));
+    expect(dasbor.right, lessThanOrEqualTo(keluar.left - 2),
+        reason: 'ada celah di antara dua label');
+    expect(find.textContaining('…'), findsNothing);
+  });
+
   testWidgets('ikon segarkan tidak berputar tanpa sinkron', (t) async {
     final sinkron = Completer<HasilSync>();
     final p = PengendaliSegarkan(

@@ -100,8 +100,24 @@ class _SalesPageState extends State<SalesPage> {
   /// Keranjang berubah (dari sini, lembar Keranjang, atau Dashboard).
   /// Penundaan sinkron selama pesanan disusun diurus kerangka kasir.
   void _segarkan() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      // Pesanan selesai (dibayar, disimpan jadi bill, atau dikosongkan):
+      // kata cari pesanan tadi dibuang. Dulu tertinggal dan tersambung
+      // dengan ketikan untuk pesanan berikutnya (tes alur 10 Nov).
+      if (_keranjangTadinyaBerisi && _keranjang.isEmpty && _kata.isNotEmpty) {
+        _kata = '';
+        _generasiCari++;
+      }
+      _keranjangTadinyaBerisi = !_keranjang.isEmpty;
+    });
   }
+
+  late var _keranjangTadinyaBerisi = !_keranjang.isEmpty;
+
+  /// Kotak cari menyimpan isiannya sendiri; kunci baru membuatnya ulang
+  /// dalam keadaan kosong.
+  var _generasiCari = 0;
 
   Future<void> _tambah(Product p) async {
     // Kunci per produk: cegah ketuk ganda sebelum lembar varian terbuka.
@@ -155,6 +171,7 @@ class _SalesPageState extends State<SalesPage> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
               KotakCari(
+                key: ValueKey(_generasiCari),
                 nilai: _kata,
                 petunjuk: 'Cari produk...',
                 besar: true,

@@ -208,7 +208,7 @@ void main() {
       final panel = t.getRect(
         find
             .ancestor(
-              of: find.text('Login to Access Your'),
+              of: find.text('Masuk ke akun'),
               matching: find.byType(Container),
             )
             .first,

@@ -42,7 +42,7 @@ void main() {
       expect(galatFormProduk(nama: 'Kopi', hargaTeks: ''), 'Harga wajib diisi');
       expect(
         galatFormProduk(nama: 'Kopi', hargaTeks: '0'),
-        'Harga wajib diisi',
+        'Harga harus lebih dari 0',
       );
       expect(galatFormProduk(nama: 'Kopi', hargaTeks: '15.000'), isNull);
     });

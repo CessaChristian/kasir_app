@@ -148,7 +148,8 @@ class SalesRepository {
     return _db
         .customSelect(
           "SELECT date(created_at, 'unixepoch', 'localtime') AS hari, "
-          'COUNT(*) AS jumlah, '
+          'COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) AS jumlah, '
+          'COUNT(deleted_at) AS batal, '
           'COALESCE(SUM(CASE WHEN deleted_at IS NULL THEN total END), 0) '
           'AS total FROM transactions WHERE ${w.$1} '
           'GROUP BY hari ORDER BY hari DESC',
@@ -162,6 +163,7 @@ class SalesRepository {
                   DateTime.parse(b.read<String>('hari')),
                   b.read<int>('jumlah'),
                   b.read<int>('total'),
+                  batal: b.read<int>('batal'),
                 ),
             ]);
   }

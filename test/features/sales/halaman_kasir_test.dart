@@ -189,6 +189,25 @@ void main() {
       await lepas(t);
     });
 
+    testWidgets('tes alur 10 Nov: kata cari dibuang sesudah pesanan selesai', (
+      t,
+    ) async {
+      final k = await bukaKasir(t);
+      await t.enterText(find.byType(TextField), 'latte');
+      await t.pump();
+      await t.tap(find.text('Latte'));
+      await t.pump();
+      expect(find.text('Air Mineral'), findsNothing);
+
+      k.kosongkan(); // sama dengan sesudah dibayar
+      await t.pump();
+      expect(find.text('Air Mineral'), findsOneWidget,
+          reason: 'daftar tidak tersaring lagi');
+      final kotak = t.widget<TextField>(find.byType(TextField));
+      expect(kotak.controller!.text, isEmpty);
+      await lepas(t);
+    });
+
     testWidgets('ketuk produk: masuk keranjang, angka di foto', (t) async {
       final k = await bukaKasir(t);
       await t.tap(find.text('Latte'));

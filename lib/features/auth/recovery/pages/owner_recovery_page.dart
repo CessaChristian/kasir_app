@@ -156,7 +156,7 @@ class _OwnerRecoveryPageState extends State<OwnerRecoveryPage> {
       LengthLimitingTextInputFormatter(CryptoUtils.pinLength),
     ];
     return KerangkaMasuk(
-      judul: 'Reset PIN to Access Your',
+      judul: 'Reset PIN akun',
       onKembali: () => Navigator.pop(context),
       isi: [
         const LabelMasuk('Kode Recovery', atas: 30),

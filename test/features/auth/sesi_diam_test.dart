@@ -238,6 +238,13 @@ void main() {
       await t.pump();
       expect(find.text(SessionManager.pesanDiam), findsOneWidget);
       expect(sm.sesiDicabut.value, isNull, reason: 'cukup diumumkan sekali');
+      // Tes alur 10 Nov: tetap terbaca, bukan toast yang hilang sendiri.
+      await t.pump(const Duration(seconds: 10));
+      expect(find.text(SessionManager.pesanDiam), findsOneWidget);
+      await t.enterText(find.byType(TextField).first, 'sari');
+      await t.pump();
+      expect(find.text(SessionManager.pesanDiam), findsNothing,
+          reason: 'hilang begitu mulai mengetik');
       await t.pumpWidget(const SizedBox());
       await t.pump(const Duration(seconds: 3));
     });

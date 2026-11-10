@@ -9,7 +9,6 @@ import '../../../shared/auth/aturan_username.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/kerangka_masuk.dart';
 import '../../../shared/ui/warna_teras.dart';
-import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/sync_refresh.dart';
 import '../../../utils/crypto_utils.dart';
 import '../recovery/pages/owner_recovery_page.dart';
@@ -38,13 +37,15 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    // Sesi yang berakhir saat aplikasi dibuka (mis. 15 menit diam) belum
-    // punya layar yang mengumumkannya — AppShell belum pernah tampil.
+    // Alasan sesi berakhir (15 menit diam, akun dinonaktifkan, PIN diganti)
+    // ditulis TETAP di bawah kolom PIN sampai kasir mulai mengetik. Dulu
+    // cuma toast dua detik: kasir yang kembali ke HP melihat halaman login
+    // tanpa tahu kenapa (tes alur 10 Nov).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final alasan = SessionManager.instance.sesiDicabut.value;
       if (alasan == null || !mounted) return;
       SessionManager.instance.tandaiPencabutanSudahDitangani();
-      AppToast.warning(context, alasan);
+      setState(() => _galat = alasan);
     });
   }
 
@@ -125,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final galat = _galat != null;
     return KerangkaMasuk(
-      judul: 'Login to Access Your',
+      judul: 'Masuk ke akun',
       // Halaman login pun perlu bisa disegarkan.
       //
       // Kasir yang akunnya baru diaktifkan kembali pemilik tidak bisa masuk
