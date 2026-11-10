@@ -643,6 +643,10 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Tutup shift sekarang?'), findsOneWidget);
       expect(find.textContaining('1 transaksi · Rp 20.000.'), findsOneWidget);
+      // Tes alur 10 Nov: uang yang seharusnya diserahkan terlihat sebelum
+      // menutup — 150.000 + tunai 20.000 − pengeluaran 5.000.
+      expect(find.textContaining('Kas di laci seharusnya Rp 165.000.'),
+          findsOneWidget);
       await t.tap(find.text('Batal'));
       await t.pumpAndSettle();
       expect(SessionManager.instance.currentSession!.shiftId, 's-1');

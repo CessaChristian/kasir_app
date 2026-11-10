@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../data/db.dart';
 import '../../../shared/auth/penjaga_izin.dart';
@@ -13,6 +12,7 @@ import '../../products/pages/kategori_page.dart';
 import '../../products/pages/products_page.dart';
 import '../../report/pages/laporan_page.dart';
 import '../../shift/aksi_shift.dart';
+import '../../shift/models/format_shift.dart';
 import '../../shift/models/ringkasan_shift.dart';
 import '../../shift/pengelola_shift.dart';
 import '../../shift/pages/riwayat_shift_page.dart';
@@ -169,7 +169,8 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
         ? 'Buka shift untuk mulai berjualan'
         : r == null
         ? 'Memuat…'
-        : 'Mulai ${DateFormat('HH:mm').format(r.shift.startAt)} · '
+        // Shift dari hari lain ditulis dengan tanggalnya (tes alur 10 Nov).
+        : 'Mulai ${jamMulaiShift(r.shift.startAt.toLocal(), DateTime.now())} · '
               '${r.jumlahTransaksi} transaksi';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../data/db.dart';
 import '../../shared/auth/session_manager.dart';
@@ -10,6 +9,7 @@ import '../../shared/widgets/app_toast.dart';
 import '../../utils/currency_formatter.dart';
 import '../open_bill/repositories/open_bill_repository.dart';
 import 'pengelola_shift.dart';
+import 'models/format_shift.dart';
 import 'models/ringkasan_shift.dart';
 import 'repositories/shift_repository.dart';
 import 'widgets/dialog_buka_shift.dart';
@@ -121,19 +121,27 @@ Future<void> tutupShiftLewatDialog(
     return;
   }
 
+  // Shift yang dibuka KEMARIN ditulis dengan tanggalnya: dulu "08:30 –
+  // sekarang" terbaca seperti shift hari ini padahal sudah 26 jam (tes alur
+  // 10 Nov).
   final mulai = ringkasan == null
       ? ''
-      : '${DateFormat('HH:mm').format(ringkasan.shift.startAt)} – sekarang · ';
+      : '${jamMulaiShift(ringkasan.shift.startAt.toLocal(), DateTime.now())}'
+            ' – sekarang · ';
   final isi = ringkasan == null
       ? ''
       : '${ringkasan.jumlahTransaksi} transaksi · '
             '${formatRp(ringkasan.pendapatan)}. ';
+  // Uang yang seharusnya diserahkan — dulu baru terlihat di Riwayat Shift
+  // sesudah shift ditutup.
+  final kas = ringkasan?.kasAkhir;
+  final laci = kas == null ? '' : 'Kas di laci seharusnya ${formatRp(kas)}. ';
   final ya = await tampilkanDialogTengah(
     context,
     ikon: Icons.logout_rounded,
     judul: 'Tutup shift sekarang?',
     catatan:
-        'Shift $mulai$isi'
+        'Shift $mulai$isi$laci'
         'Setelah ditutup, kasir tidak bisa membuat transaksi sampai shift '
         'dibuka lagi.',
     labelAksi: 'Tutup Shift',
