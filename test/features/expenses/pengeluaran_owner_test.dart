@@ -246,7 +246,7 @@ void main() {
       );
       expect(
         galatFormPengeluaran(keterangan: 'Es', nominalTeks: ''),
-        'Nominal wajib diisi',
+        'Harga satuan wajib diisi',
       );
       expect(
         galatFormPengeluaran(keterangan: 'Es', nominalTeks: '5.000'),
@@ -320,8 +320,14 @@ void main() {
       await t.tap(find.text('Asset'));
       await t.enterText(find.byType(TextField).at(0), 'Beli Es Batu');
       await t.enterText(find.byType(TextField).at(1), '10000');
+      await t.pump();
+      expect(find.textContaining('Total:'), findsNothing,
+          reason: 'jumlah 1: tidak perlu keterangan total');
       await t.tap(find.bySemanticsLabel('Tambah jumlah'));
       await t.pump();
+      // Tes alur 10 Nov: harga yang diketik harga SATUAN — totalnya terlihat
+      // sebelum disimpan.
+      expect(find.text('Total: 2 × Rp 10.000 = Rp 20.000'), findsOneWidget);
       await t.tap(find.text('Simpan'));
       await t.pumpAndSettle();
 
@@ -350,14 +356,14 @@ void main() {
       expect(find.text('Rp '), findsNothing,
           reason: 'belum diklik: tidak ada ruang "Rp" yang menggeser petunjuk');
       final xKeterangan = t.getTopLeft(find.text('Keterangan pengeluaran')).dx;
-      final xNominal = t.getTopLeft(find.text('Nominal')).dx;
+      final xNominal = t.getTopLeft(find.text('Harga satuan')).dx;
       expect(xNominal, moreOrLessEquals(xKeterangan, epsilon: 1),
-          reason: 'petunjuk Nominal sejajar dengan Keterangan');
+          reason: 'petunjuk Harga satuan sejajar dengan Keterangan');
 
       await t.tap(find.byType(TextField).at(1));
       await t.pump();
       expect(find.text('Rp '), findsOneWidget);
-      expect(find.text('Nominal'), findsOneWidget,
+      expect(find.text('Harga satuan'), findsOneWidget,
           reason: 'petunjuk tidak hilang saat Rp muncul');
     });
 

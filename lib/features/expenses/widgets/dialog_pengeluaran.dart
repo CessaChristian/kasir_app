@@ -30,11 +30,15 @@ String? galatFormPengeluaran({
 }) {
   if (keterangan.trim().isEmpty) return 'Keterangan wajib diisi';
   final n = parseRupiah(nominalTeks);
-  if (n == null || n <= 0) return 'Nominal wajib diisi';
+  if (n == null || n <= 0) return 'Harga satuan wajib diisi';
   final q = int.tryParse(jumlahTeks.trim());
   if (q == null || q < 1) return 'Jumlah minimal 1';
   return null;
 }
+
+/// "Total: 2 × Rp 15.000 = Rp 30.000".
+String keteranganTotalPengeluaran({required int harga, required int qty}) =>
+    'Total: $qty × ${formatRp(harga)} = ${formatRp(harga * qty)}';
 
 /// Dialog "Pengeluaran" (desain): Kategori Biaya · Keterangan · Nominal ·
 /// Jumlah, lalu Batal / Simpan. Hanya mengumpulkan isian — penyimpanan
@@ -74,6 +78,16 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
     _jumlahC.text = '$baru';
     _galat = null;
   });
+
+  /// "Total: 2 × Rp 15.000 = Rp 30.000" — harga yang diketik adalah harga
+  /// SATUAN, jadi totalnya diperlihatkan sebelum disimpan. Dulu kasir bisa
+  /// mengetik total lalu jumlah 2, dan yang tercatat dua kali lipat (tes
+  /// alur 10 Nov). Null kalau jumlahnya 1 atau harganya belum diisi.
+  String? get _keteranganTotal {
+    final harga = parseRupiah(_nominalC.text);
+    if (harga == null || harga <= 0 || _qty < 2) return null;
+    return keteranganTotalPengeluaran(harga: harga, qty: _qty);
+  }
 
   static const _jumlahMaks = 9999;
   String? _galat;
@@ -202,7 +216,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                     // "Rp" dibuat sendiri, BUKAN prefixText: prefixText
                     // menyisakan ruang kosong saat belum diklik (petunjuk
                     // jadi tidak sejajar dengan isian di atasnya) dan
-                    // menyembunyikan petunjuk "Nominal" begitu diklik.
+                    // menyembunyikan petunjuk "Harga satuan" begitu diklik.
                     child: Row(
                       children: [
                         if (_nominalFokus.hasFocus || _nominalC.text.isNotEmpty)
@@ -215,7 +229,7 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                             inputFormatters: [RupiahInputFormatter()],
                             onChanged: (_) => setState(() => _galat = null),
                             style: _gayaIsian,
-                            decoration: _hias('Nominal'),
+                            decoration: _hias('Harga satuan'),
                           ),
                         ),
                       ],
@@ -268,10 +282,15 @@ class _DialogPengeluaranState extends State<_DialogPengeluaran> {
                     child: Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        _galat ?? '',
-                        style: const TextStyle(
+                        _galat ?? _keteranganTotal ?? '',
+                        style: TextStyle(
                           fontSize: TeksTeras.kecil,
-                          color: WarnaTeras.merah,
+                          color: _galat != null
+                              ? WarnaTeras.merah
+                              : WarnaTeras.teksSedang,
+                          fontWeight: _galat != null
+                              ? FontWeight.w400
+                              : FontWeight.w600,
                         ),
                       ),
                     ),
