@@ -167,4 +167,65 @@ void main() {
     expect(indeksBatang(const [jam8, jam9, jam10], 'Jam 10:00'), 2);
     expect(indeksBatang(const [jam8, jam9], 'Jam 10:00'), isNull);
   });
+
+  group('tes alur 10 Nov: pita sembulan tidak memotong halaman', () {
+    const item = ItemNav(
+      ikon: Icons.circle_outlined,
+      ikonAktif: Icons.circle,
+      label: 'x',
+    );
+    Future<List<String>> pasang(WidgetTester t) async {
+      t.view.physicalSize = const Size(1080, 2400);
+      t.view.devicePixelRatio = 2.75;
+      addTearDown(t.view.reset);
+      final ketuk = <String>[];
+      await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+          extendBody: true,
+          body: IsiDiAtasNav(
+            child: GestureDetector(
+              key: const Key('isi'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => ketuk.add('isi'),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          bottomNavigationBar: NavBawahTeras(
+            kiri: const [item, item],
+            tengah: const ItemNav(
+              ikon: Icons.point_of_sale_outlined,
+              ikonAktif: Icons.point_of_sale,
+              label: 'Kasir',
+            ),
+            kanan: const [item, item],
+            terpilih: 0,
+            onPilih: (i) => ketuk.add('nav$i'),
+          ),
+        ),
+      ));
+      return ketuk;
+    }
+
+    testWidgets('isi menerus sampai bagian putih nav', (t) async {
+      await pasang(t);
+      final isi = t.getRect(find.byKey(const Key('isi')));
+      final nav = t.getRect(find.byType(NavBawahTeras));
+      expect(isi.bottom, moreOrLessEquals(nav.top + NavBawahTeras.sembul),
+          reason: 'dulu isi berhenti di nav.top: pita latar memotong halaman');
+    });
+
+    testWidgets('ketuk pita di luar lingkaran → isi; lingkaran → nav',
+        (t) async {
+      final ketuk = await pasang(t);
+      final nav = t.getRect(find.byType(NavBawahTeras));
+      await t.tapAt(Offset(nav.left + 30, nav.top + 8));
+      await t.pump();
+      expect(ketuk, ['isi']);
+      final ikon = t.getCenter(find.byIcon(Icons.point_of_sale_outlined));
+      await t.tapAt(Offset(ikon.dx, ikon.dy - 25));
+      await t.pump();
+      expect(ketuk, ['isi', 'nav2']);
+    });
+  });
 }
+

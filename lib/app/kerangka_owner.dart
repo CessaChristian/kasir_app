@@ -82,9 +82,13 @@ class _KerangkaOwnerState extends State<KerangkaOwner> {
       },
       child: Scaffold(
         backgroundColor: WarnaTeras.latar,
-        body: SafeArea(
-          bottom: false,
-          child: BingkaiHalaman(judul: tab.judul, child: tab.halaman),
+        // Isi menerus di bawah ruang sembulan nav — lihat IsiDiAtasNav.
+        extendBody: true,
+        body: IsiDiAtasNav(
+          child: SafeArea(
+            bottom: false,
+            child: BingkaiHalaman(judul: tab.judul, child: tab.halaman),
+          ),
         ),
         bottomNavigationBar: NavBawahTeras(
           kiri: [_tabs[0].nav, _tabs[1].nav],

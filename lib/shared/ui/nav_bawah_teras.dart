@@ -184,6 +184,38 @@ class NavBawahTeras extends StatelessWidget {
   }
 }
 
+/// Isi halaman di atas [NavBawahTeras], untuk Scaffold dengan
+/// `extendBody: true`.
+///
+/// Nav ikut menghitung ruang sembulan lingkaran tengah ([NavBawahTeras.sembul])
+/// supaya bagian atas lingkaran bisa diketuk (audit 6 Nov nomor 53). Tanpa
+/// ini halaman berhenti di atas ruang itu, dan pita 22 px berwarna latar
+/// memotong isi halaman (tes alur 10 Nov). Di sini isinya menerus sampai
+/// bagian putih nav: pita itu memperlihatkan isi halaman, dan ketukan di
+/// luar lingkaran mengenai isi halaman.
+class IsiDiAtasNav extends StatelessWidget {
+  final Widget child;
+
+  const IsiDiAtasNav({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    // Dengan extendBody, padding bawah = tinggi seluruh nav (termasuk ruang
+    // sembulan dan area aman bawah HP).
+    final tinggiNav = MediaQuery.paddingOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: (tinggiNav - NavBawahTeras.sembul).clamp(0, double.infinity),
+      ),
+      child: MediaQuery.removePadding(
+        context: context,
+        removeBottom: true,
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Ukuran huruf SEMUA label nav: [TeksTeras.kecil], atau lebih kecil kalau
 /// label terpanjang tidak muat di kotaknya — semua label dikecilkan SAMA
 /// besar.

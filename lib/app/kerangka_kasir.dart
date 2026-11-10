@@ -214,22 +214,26 @@ class _KerangkaKasirState extends State<KerangkaKasir> {
       },
       child: Scaffold(
         backgroundColor: WarnaTeras.latar,
-        body: SafeArea(
-          bottom: false,
-          child: BingkaiHalaman(
-            judul: _nav[_tab].label,
-            aksi: [
-              if (_tab == _iKasir && shiftId != null && bolehJual)
-                TombolKeranjang(keranjang: _keranjang),
-              // Desain: ikon Open Bill di Dashboard dan Kasir.
-              if ((_tab == 0 || _tab == _iKasir) && bolehJual)
-                TombolOpenBill(keranjang: _keranjang, shiftId: shiftId),
-            ],
-            // Halaman dibuat ulang saat shift dibuka/ditutup: beberapa
-            // halaman lama membaca shift sekali saat dibuat.
-            child: KeyedSubtree(
-              key: ValueKey('$_tab|$shiftId'),
-              child: _halaman(_tab),
+        // Isi menerus di bawah ruang sembulan nav — lihat IsiDiAtasNav.
+        extendBody: true,
+        body: IsiDiAtasNav(
+          child: SafeArea(
+            bottom: false,
+            child: BingkaiHalaman(
+              judul: _nav[_tab].label,
+              aksi: [
+                if (_tab == _iKasir && shiftId != null && bolehJual)
+                  TombolKeranjang(keranjang: _keranjang),
+                // Desain: ikon Open Bill di Dashboard dan Kasir.
+                if ((_tab == 0 || _tab == _iKasir) && bolehJual)
+                  TombolOpenBill(keranjang: _keranjang, shiftId: shiftId),
+              ],
+              // Halaman dibuat ulang saat shift dibuka/ditutup: beberapa
+              // halaman lama membaca shift sekali saat dibuat.
+              child: KeyedSubtree(
+                key: ValueKey('$_tab|$shiftId'),
+                child: _halaman(_tab),
+              ),
             ),
           ),
         ),
