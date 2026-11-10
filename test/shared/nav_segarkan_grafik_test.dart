@@ -6,6 +6,7 @@ import 'package:kasir_app/data/sync/sync_engine.dart';
 import 'package:kasir_app/features/report/models/ringkasan_laporan.dart';
 import 'package:kasir_app/features/report/pages/laporan_page.dart';
 import 'package:kasir_app/shared/ui/nav_bawah_teras.dart';
+import 'package:kasir_app/shared/ui/teks_teras.dart';
 import 'package:kasir_app/shared/ui/segarkan/pengendali_segarkan.dart';
 import 'package:kasir_app/shared/ui/segarkan/tombol_segarkan.dart';
 
@@ -43,39 +44,85 @@ void main() {
     expect(dipilih, [2]);
   });
 
-  testWidgets('tes alur 10 Nov: layar kecil + huruf besar, label tidak menempel',
-      (t) async {
-    t.view.physicalSize = const Size(320, 640);
-    t.view.devicePixelRatio = 1;
-    addTearDown(t.view.reset);
+  group('tes alur 10 Nov: label nav seragam di layar mana pun', () {
     ItemNav nav(String label) => ItemNav(
           ikon: Icons.circle_outlined,
           ikonAktif: Icons.circle,
           label: label,
         );
-    await t.pumpWidget(MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(1.3)),
-        child: child!,
-      ),
-      home: Scaffold(
-        body: const SizedBox.expand(),
-        bottomNavigationBar: NavBawahTeras(
-          kiri: [nav('Dashboard'), nav('Pengeluaran')],
-          tengah: nav('Kasir'),
-          kanan: [nav('Riwayat'), nav('Profil')],
-          terpilih: 0,
-          onPilih: (_) {},
+    const label = ['Dashboard', 'Pengeluaran', 'Produk', 'Riwayat', 'Profil'];
+
+    Future<void> pasang(
+      WidgetTester t,
+      Size layar,
+      double rasio, {
+      double huruf = 1,
+    }) async {
+      t.view.physicalSize = layar;
+      t.view.devicePixelRatio = rasio;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(huruf)),
+          child: child!,
         ),
-      ),
-    ));
-    expect(t.takeException(), isNull);
-    final dasbor = t.getRect(find.text('Dashboard'));
-    final keluar = t.getRect(find.text('Pengeluaran'));
-    expect(dasbor.right, lessThanOrEqualTo(keluar.left - 2),
-        reason: 'ada celah di antara dua label');
-    expect(find.textContaining('…'), findsNothing);
+        home: Scaffold(
+          body: const SizedBox.expand(),
+          bottomNavigationBar: NavBawahTeras(
+            kiri: [nav(label[0]), nav(label[1])],
+            tengah: nav(label[2]),
+            kanan: [nav(label[3]), nav(label[4])],
+            terpilih: 0,
+            onPilih: (_) {},
+          ),
+        ),
+      ));
+      expect(t.takeException(), isNull);
+    }
+
+    void cekSeragam(WidgetTester t) {
+      final ukuran = {
+        for (final l in label)
+          t.widget<Text>(find.text(l)).style!.fontSize,
+      };
+      expect(ukuran, hasLength(1),
+          reason: 'semua label satu ukuran huruf — dulu label panjang '
+              'mengecil sendiri');
+      final tinggi = {
+        for (final l in label) t.getRect(find.text(l)).height,
+      };
+      expect(tinggi, hasLength(1));
+      final bawah = {
+        for (final l in label) t.getRect(find.text(l)).bottom,
+      };
+      expect(bawah, hasLength(1),
+          reason: 'semua label di garis bawah yang sama, termasuk label tengah');
+      for (var i = 0; i + 1 < label.length; i++) {
+        final kiri = t.getRect(find.text(label[i]));
+        final kanan = t.getRect(find.text(label[i + 1]));
+        expect(kiri.right, lessThanOrEqualTo(kanan.left - 2),
+            reason: '${label[i]} tidak menempel ke ${label[i + 1]}');
+      }
+    }
+
+    for (final (nama, layar, rasio, huruf) in [
+      ('HP 1080 px, kerapatan 420', const Size(1080, 2400), 420 / 160, 1.0),
+      ('HP 1080 px, kerapatan 440', const Size(1080, 2400), 440 / 160, 1.0),
+      ('HP 720 px, huruf 130%', const Size(720, 1440), 2.0, 1.3),
+      ('layar 320 px, huruf 130%', const Size(320, 640), 1.0, 1.3),
+    ]) {
+      testWidgets(nama, (t) async {
+        await pasang(t, layar, rasio, huruf: huruf);
+        cekSeragam(t);
+      });
+    }
+
+    testWidgets('layar lebar: ukuran desain, tidak dikecilkan', (t) async {
+      await pasang(t, const Size(1600, 2400), 2.0);
+      expect(t.widget<Text>(find.text('Pengeluaran')).style!.fontSize,
+          TeksTeras.kecil);
+    });
   });
 
   testWidgets('ikon segarkan tidak berputar tanpa sinkron', (t) async {

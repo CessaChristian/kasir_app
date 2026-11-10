@@ -40,6 +40,9 @@ class NavBawahTeras extends StatelessWidget {
   /// Seberapa tinggi lingkaran tengah menyembul di atas nav.
   static const sembul = 22.0;
 
+  /// Jarak label ke tepi bawah nav — sama untuk semua label.
+  static const _jarakBawahLabel = 11.0;
+
   @override
   Widget build(BuildContext context) {
     final iTengah = kiri.length;
@@ -62,13 +65,26 @@ class NavBawahTeras extends StatelessWidget {
               top: false,
               child: SizedBox(
                 height: 66,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < kiri.length; i++) _tombol(kiri[i], i),
-                    Expanded(child: _tombolTengah(iTengah)),
-                    for (var i = 0; i < kanan.length; i++)
-                      _tombol(kanan[i], iTengah + 1 + i),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, batas) {
+                    final huruf = ukuranLabel(
+                      lebarNav: batas.maxWidth,
+                      label: [
+                        for (final i in [...kiri, tengah, ...kanan]) i.label,
+                      ],
+                      skala: MediaQuery.textScalerOf(context),
+                      gaya: DefaultTextStyle.of(context).style,
+                    );
+                    return Row(
+                      children: [
+                        for (var i = 0; i < kiri.length; i++)
+                          _tombol(kiri[i], i, huruf),
+                        Expanded(child: _tombolTengah(iTengah, huruf)),
+                        for (var i = 0; i < kanan.length; i++)
+                          _tombol(kanan[i], iTengah + 1 + i, huruf),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -106,13 +122,17 @@ class NavBawahTeras extends StatelessWidget {
     );
   }
 
-  Widget _tombol(ItemNav item, int indeks) {
+  Widget _tombol(ItemNav item, int indeks, double huruf) {
     final aktif = indeks == terpilih;
     return Expanded(
       child: InkResponse(
         onTap: () => onPilih(indeks),
+        // Ditempel ke garis bawah yang SAMA dengan label tengah
+        // ([_jarakBawahLabel]), bukan di tengah kotak: begitu hurufnya
+        // dikecilkan ([ukuranLabel]) dua cara itu bergeser berbeda dan label
+        // tengah tampak lebih tinggi.
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
             Icon(
               aktif ? item.ikonAktif : item.ikon,
@@ -120,24 +140,18 @@ class NavBawahTeras extends StatelessWidget {
               color: aktif ? WarnaTeras.oranye : WarnaTeras.ikonPasif,
             ),
             const SizedBox(height: 4),
-            // Layar kecil dengan huruf besar: labelnya mengecil, bukan
-            // terpotong "Pengelua…" dan menempel ke label sebelahnya (tes
-            // alur 10 Nov). Jarak 2 px di kiri-kanan menjaga celahnya.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: TeksTeras.kecil,
-                    fontWeight: aktif ? FontWeight.w700 : FontWeight.w400,
-                    color: aktif ? WarnaTeras.teks : WarnaTeras.ikonPasif,
-                  ),
-                ),
+            Text(
+              item.label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontSize: huruf,
+                fontWeight: aktif ? FontWeight.w700 : FontWeight.w400,
+                color: aktif ? WarnaTeras.teks : WarnaTeras.ikonPasif,
               ),
             ),
+            const SizedBox(height: _jarakBawahLabel),
           ],
         ),
       ),
@@ -145,7 +159,7 @@ class NavBawahTeras extends StatelessWidget {
   }
 
   /// Label tombol tengah. Lingkarannya digambar di [build], di atas nav.
-  Widget _tombolTengah(int indeks) {
+  Widget _tombolTengah(int indeks, double huruf) {
     final aktif = indeks == terpilih;
     return GestureDetector(
       onTap: () => onPilih(indeks),
@@ -153,11 +167,13 @@ class NavBawahTeras extends StatelessWidget {
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 11),
+          padding: const EdgeInsets.only(bottom: _jarakBawahLabel),
           child: Text(
             tengah.label,
+            maxLines: 1,
+            softWrap: false,
             style: TextStyle(
-              fontSize: TeksTeras.kecil,
+              fontSize: huruf,
               fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
               color: WarnaTeras.teks,
             ),
@@ -166,4 +182,44 @@ class NavBawahTeras extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Ukuran huruf SEMUA label nav: [TeksTeras.kecil], atau lebih kecil kalau
+/// label terpanjang tidak muat di kotaknya — semua label dikecilkan SAMA
+/// besar.
+///
+/// Dulu tiap label mengecil sendiri (FittedBox): di HP yang "Pengeluaran"-nya
+/// tidak muat — layar sempit, kerapatan tinggi, atau huruf HP diperbesar —
+/// hanya label panjang yang mengecil, jadi ukuran huruf di nav tidak seragam
+/// dan posisinya naik-turun (tes alur 10 Nov). Diukur dalam huruf TEBAL,
+/// keadaan paling lebar (label yang sedang dipilih).
+@visibleForTesting
+double ukuranLabel({
+  required double lebarNav,
+  required List<String> label,
+  required TextScaler skala,
+  TextStyle gaya = const TextStyle(),
+}) {
+  if (label.isEmpty || lebarNav <= 0) return TeksTeras.kecil;
+  // Jarak 4 px di kiri-kanan tiap kotak supaya label tidak saling menempel.
+  final kotak = lebarNav / label.length - 8;
+  var terlebar = 0.0;
+  for (final l in label) {
+    final p = TextPainter(
+      text: TextSpan(
+        text: l,
+        style: gaya.copyWith(
+          fontSize: TeksTeras.kecil,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: skala,
+      maxLines: 1,
+    )..layout();
+    if (p.width > terlebar) terlebar = p.width;
+    p.dispose();
+  }
+  if (terlebar <= kotak || kotak <= 0) return TeksTeras.kecil;
+  return TeksTeras.kecil * kotak / terlebar;
 }
