@@ -120,4 +120,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 54 | `indeks_cepat.sql` | INDEKS & KUNCI YANG LEBIH RINGAN (audit 6 Nov 2026 nomor 60) |
 | 55 | `batal_item_ikut_nota.sql` | ITEM STRUK HANYA TERHAPUS BERSAMA NOTANYA (tes alur 10 Nov 2026) |
 | 56 | `info_toko.sql` | INFO OUTLET DI NOTA (permintaan owner, 11 Nov 2026) |
-| 57 | `rls.sql` | SISA PENGETATAN AKSES |
+| 57 | `catatan_error.sql` | CATATAN ERROR DARI HP (audit 6 Nov 2026 nomor 62, keputusan 11 Nov) |
+| 58 | `rls.sql` | SISA PENGETATAN AKSES |
