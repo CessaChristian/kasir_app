@@ -30,6 +30,27 @@ class PenjagaDatabase {
   bool _memeriksa = false;
   DateTime? _terakhir;
 
+  /// True = transaksi yang baru saja dibayar TIDAK tersimpan (kerusakannya
+  /// ketahuan sebelum atau saat menyimpan). Layar Data Rusak menampilkan
+  /// kalimatnya hanya kalau ini true: kerusakan yang ketahuan SESUDAH
+  /// transaksi tersimpan tidak boleh membuat kasir mengulang transaksinya.
+  bool transaksiTidakTersimpan = false;
+
+  /// transaksi yang sedang diperiksa[rusakSaatBayar].
+  String? _transaksiDiperiksa;
+
+  /// dipanggil tombol bayar untuk transaksi [idTransaksi]. True = berkas
+  /// database rusak: transaksi itu jangan disimpan, layar Data Rusak sudah muncul
+  Future<bool> rusakSaatBayar(String idTransaksi) async {
+    _transaksiDiperiksa = idTransaksi;
+    try {
+      await periksa(paksa: true);
+    } finally {
+      _transaksiDiperiksa = null;
+    }
+    return rusak.value;
+  }
+
   /// Pengganti pemeriksaan berkas, untuk test.
   @visibleForTesting
   Future<KeadaanDatabase> Function()? pemeriksaUntukTest;
@@ -45,13 +66,14 @@ class PenjagaDatabase {
     unawaited(periksa());
   }
 
-  /// Periksa berkasnya sekarang. Paling sering sekali semenit: galat yang
-  /// sama bisa datang beruntun, dan pemeriksaan penuh tidak murah.
-  Future<void> periksa() async {
+  /// Periksa berkasnya sekarang. Paling sering sekali semenit: galat yang sama bisa datang beruntun, dan pemeriksaan penuh tidak murah.
+  /// [paksa] (tombol bayar): selalu diperiksa, dengan pemeriksaan cepat karena kasir menunggu depan pelanggan
+  Future<void> periksa({bool paksa = false}) async {
     final kini = DateTime.now();
     final terakhir = _terakhir;
     if (_memeriksa ||
-        (terakhir != null &&
+        (!paksa &&
+            terakhir != null &&
             kini.difference(terakhir) < const Duration(minutes: 1))) {
       return;
     }
@@ -68,8 +90,9 @@ class PenjagaDatabase {
         // Pemeriksaan PENUH: layar ini menutup seluruh aplikasi, jadi hanya
         // muncul kalau berkasnya benar-benar rusak — bukan karena memori
         // penuh atau galat sesaat lain.
+        final penuh = !paksa;
         keadaan = await Isolate.run(
-          () => periksaBerkasDatabase(jalur, penuh: true),
+          () => periksaBerkasDatabase(jalur, penuh: penuh),
         );
       }
       debugPrint('[penjaga database] ${keadaan.name}');
@@ -78,6 +101,12 @@ class PenjagaDatabase {
       // Perbaiki data pasti muncul.
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(PemulihanData.kunciCekPenuh);
+      // dicatat sebelum layarnya muncul, supaya kalimat ikut tampil disesuaikan
+      final transaksi = _transaksiDiperiksa;
+      if (transaksi != null) {
+        await PemulihanData.catatTransaksiGagal(transaksi);
+        transaksiTidakTersimpan = true;
+      }
       rusak.value = true;
     } catch (e) {
       debugPrint('[penjaga database] pemeriksaan gagal: $e');

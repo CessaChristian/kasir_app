@@ -43,11 +43,15 @@ class LayarDataRusak extends StatefulWidget {
   /// berarti "tutup aplikasi".
   final bool perluTutup;
 
+  // true = transaksi yang baru saja dibayar tidak tersimpan dan kasir harus mengulang sesudah data diperbaiki
+  final bool transaksiTidakTersimpan;
+
   const LayarDataRusak({
     super.key,
     required this.ringkasan,
     required this.onPerbaiki,
     this.perluTutup = false,
+    this.transaksiTidakTersimpan = false,
   });
 
   /// Kalimat tentang data yang belum terkirim.
@@ -114,6 +118,26 @@ class _LayarDataRusakState extends State<LayarDataRusak> {
                     color: WarnaTeras.teks,
                   ),
                 ),
+                if (widget.transaksiTidakTersimpan) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: WarnaTeras.merahMuda,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Transaksi barusan TIDAK tersimpan. Ulangi transaksinya '
+                      'sesudah data diperbaiki.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: TeksTeras.biasa,
+                        fontWeight: FontWeight.w600,
+                        color: WarnaTeras.merah,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Text(
                   LayarDataRusak.kalimatCadangan(widget.ringkasan),

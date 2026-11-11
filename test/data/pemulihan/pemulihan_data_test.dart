@@ -219,6 +219,50 @@ void main() {
       await db.close();
     });
 
+    test('transaksi yang gagal disimpan (kasir sudah diberi tahu) tidak ikut '
+        'dipulihkan; transaksi lain tetap pulih', () async {
+      Future<void> nota(AppDatabase db, String id) async {
+        await db.customStatement(
+          "INSERT INTO transactions (id, invoice_no, total, payment_method, "
+          "sync_status) VALUES (?, ?, 5000, 'cash', 'pending')",
+          [id, 'INV-$id'],
+        );
+        await db.customStatement(
+          "INSERT INTO transaction_items (id, transaction_id, product_id, "
+          "product_name, qty, price_at_sale, subtotal, sync_status) "
+          "VALUES (?, ?, 'p', 'Teh', 1, 5000, 5000, 'pending')",
+          ['i-$id', id],
+        );
+      }
+
+      var db = buka();
+      await nota(db, 't-sah');
+      await nota(db, 't-gagal');
+      await salin(db);
+      await db.close();
+      await PemulihanData.catatTransaksiGagal('t-gagal');
+      await PemulihanData.catatTransaksiGagal('t-gagal');
+      expect(await PemulihanData.transaksiGagal(), ['t-gagal']);
+
+      await pemulihan.karantina();
+      db = buka();
+      final hasil = await pemulihan.masukkan(db);
+      expect((hasil.masuk, hasil.gagal), (2, 0));
+      final tx = await db.customSelect('SELECT id FROM transactions').get();
+      expect([for (final r in tx) r.read<String>('id')], ['t-sah']);
+      final item = await db
+          .customSelect('SELECT transaction_id FROM transaction_items')
+          .get();
+      expect([for (final r in item) r.read<String>('transaction_id')], [
+        't-sah',
+      ]);
+
+      // Sesudah pemulihan selesai catatannya dibuang.
+      await pemulihan.selesai();
+      expect(await PemulihanData.transaksiGagal(), isEmpty);
+      await db.close();
+    });
+
     test('diulang dua kali tidak dobel', () async {
       final db = buka();
       await kategori(db, 'k1', 'Minuman');

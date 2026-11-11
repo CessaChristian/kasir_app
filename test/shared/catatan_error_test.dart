@@ -203,6 +203,77 @@ void main() {
       expect((diperiksa, p.rusak.value), (1, false));
     });
 
+    test('tombol bayar: berkas sehat = boleh lanjut, tanpa catatan apa pun',
+        () async {
+      final p = PenjagaDatabase.untukTest()
+        ..pemeriksaUntukTest = () async => KeadaanDatabase.sehat;
+      expect(await p.rusakSaatBayar('t-1'), isFalse);
+      expect(p.transaksiTidakTersimpan, isFalse);
+      expect(await PemulihanData.transaksiGagal(), isEmpty);
+    });
+
+    test('tombol bayar: berkas rusak = transaksi dicatat gagal SEBELUM layar '
+        'muncul, dan selalu diperiksa walau baru saja diperiksa', () async {
+      var diperiksa = 0;
+      var keadaan = KeadaanDatabase.sehat;
+      final p = PenjagaDatabase.untukTest()
+        ..pemeriksaUntukTest = () async {
+          diperiksa++;
+          return keadaan;
+        };
+      // Pemeriksaan biasa baru saja jalan: tombol bayar tetap memeriksa.
+      await p.periksa();
+      expect(await p.rusakSaatBayar('t-1'), isFalse);
+      expect(diperiksa, 2);
+
+      keadaan = KeadaanDatabase.rusak;
+      bool? tandaSaatLayarMuncul;
+      List<String>? catatanSaatLayarMuncul;
+      p.rusak.addListener(() async {
+        tandaSaatLayarMuncul = p.transaksiTidakTersimpan;
+      });
+      expect(await p.rusakSaatBayar('t-2'), isTrue);
+      catatanSaatLayarMuncul = await PemulihanData.transaksiGagal();
+      expect(tandaSaatLayarMuncul, isTrue);
+      expect(catatanSaatLayarMuncul, ['t-2']);
+    });
+
+    test('rusak ketahuan lewat galat biasa (bukan saat bayar): transaksi '
+        'TIDAK dinyatakan gagal', () async {
+      final p = PenjagaDatabase.untukTest()
+        ..pemeriksaUntukTest = () async => KeadaanDatabase.rusak;
+      p.laporkan(rusak);
+      await pumpEventQueue();
+      expect(p.rusak.value, isTrue);
+      expect(p.transaksiTidakTersimpan, isFalse);
+      expect(await PemulihanData.transaksiGagal(), isEmpty);
+    });
+
+    testWidgets('kalimat "TIDAK tersimpan" hanya tampil kalau transaksinya '
+        'memang tidak tersimpan', (t) async {
+      for (final gagal in [true, false]) {
+        final p = PenjagaDatabase.untukTest()
+          ..transaksiTidakTersimpan = gagal
+          ..rusak.value = true;
+        await t.pumpWidget(
+          MaterialApp(
+            builder: (_, child) => PenutupDataRusak(
+              penjaga: p,
+              onTutup: () async {},
+              child: child!,
+            ),
+            home: const Scaffold(body: Text('Halaman Kasir')),
+          ),
+        );
+        await t.pumpAndSettle();
+        expect(
+          find.textContaining('Transaksi barusan TIDAK tersimpan'),
+          gagal ? findsOneWidget : findsNothing,
+        );
+        await t.pumpWidget(const SizedBox());
+      }
+    });
+
     testWidgets('layar Data Rusak menggantikan halaman yang terbuka; '
         'tombolnya menutup aplikasi', (t) async {
       final p = PenjagaDatabase.untukTest();

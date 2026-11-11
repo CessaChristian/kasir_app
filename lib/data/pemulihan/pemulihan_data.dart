@@ -60,8 +60,9 @@ KeadaanDatabase periksaBerkasDatabase(String jalur, {bool penuh = false}) {
   try {
     d = sql.sqlite3.open(jalur);
     final tabel = {
-      for (final r
-          in d.select("SELECT name FROM sqlite_master WHERE type = 'table'"))
+      for (final r in d.select(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      ))
         r['name'] as String,
     };
     if (tabel.isEmpty) return KeadaanDatabase.kosong;
@@ -215,15 +216,19 @@ class PemulihanData {
     final kini = sekarang ?? DateTime.now();
     final terakhir = prefs.getInt(kunciCekPenuh);
     // Jam yang mundur (terakhir di masa depan) juga dianggap sudah waktunya.
-    final penuh = terakhir == null ||
+    final penuh =
+        terakhir == null ||
         terakhir > kini.millisecondsSinceEpoch ||
         kini.difference(DateTime.fromMillisecondsSinceEpoch(terakhir)) >=
             jedaCekPenuh;
     final jam = Stopwatch()..start();
-    final keadaan =
-        await Isolate.run(() => periksaBerkasDatabase(jalur, penuh: penuh));
-    debugPrint('[pemulihan] ${keadaan.name}${penuh ? ' (penuh)' : ''}, '
-        '${jam.elapsedMilliseconds} ms');
+    final keadaan = await Isolate.run(
+      () => periksaBerkasDatabase(jalur, penuh: penuh),
+    );
+    debugPrint(
+      '[pemulihan] ${keadaan.name}${penuh ? ' (penuh)' : ''}, '
+      '${jam.elapsedMilliseconds} ms',
+    );
     if (penuh && keadaan == KeadaanDatabase.sehat) {
       await prefs.setInt(kunciCekPenuh, kini.millisecondsSinceEpoch);
     }
@@ -245,8 +250,9 @@ class PemulihanData {
 
   Future<Map<String, List<Map<String, Object?>>>?> _baca() async {
     try {
-      final data = jsonDecode(await berkasCadangan.readAsString())
-          as Map<String, dynamic>;
+      final data =
+          jsonDecode(await berkasCadangan.readAsString())
+              as Map<String, dynamic>;
       return {
         for (final e in data.entries)
           e.key: [
@@ -287,6 +293,7 @@ class PemulihanData {
   /// ia sudah sampai di server sebelum rusak atau sudah diubah HP lain.
   Future<HasilPemulihan> masukkan(AppDatabase db) async {
     final isi = await _baca() ?? const {};
+    final gagalSimpan = await transaksiGagal();
     var masuk = 0;
     final sisa = <String, List<Map<String, Object?>>>{};
     await db.transaction(() async {
@@ -294,13 +301,21 @@ class PemulihanData {
         final baris = isi[tabel];
         if (baris == null || baris.isEmpty) continue;
         final kolomAda = {
-          for (final k in await db
-              .customSelect('SELECT name FROM pragma_table_info(?)',
-                  variables: [Variable.withString(tabel)])
-              .get())
+          for (final k
+              in await db
+                  .customSelect(
+                    'SELECT name FROM pragma_table_info(?)',
+                    variables: [Variable.withString(tabel)],
+                  )
+                  .get())
             k.read<String>('name'),
         };
         for (final b in baris) {
+          if ((tabel == 'transactions' && gagalSimpan.contains(b['id'])) ||
+              (tabel == 'transaction_items' &&
+                  gagalSimpan.contains(b['transaction_id']))) {
+            continue;
+          }
           try {
             if (await _tulisBaris(db, tabel, b, kolomAda)) masuk++;
           } catch (e) {
@@ -311,7 +326,9 @@ class PemulihanData {
       }
     });
     final gagal = sisa.values.fold(0, (n, b) => n + b.length);
-    if (gagal > 0) await berkasSisa.writeAsString(jsonEncode(sisa), flush: true);
+    if (gagal > 0) {
+      await berkasSisa.writeAsString(jsonEncode(sisa), flush: true);
+    }
     return HasilPemulihan(masuk: masuk, gagal: gagal);
   }
 
@@ -327,8 +344,10 @@ class PemulihanData {
     };
     final id = isi['id'] as String;
     final ada = await db
-        .customSelect('SELECT updated_at FROM $tabel WHERE id = ?',
-            variables: [Variable.withString(id)])
+        .customSelect(
+          'SELECT updated_at FROM $tabel WHERE id = ?',
+          variables: [Variable.withString(id)],
+        )
         .getSingleOrNull();
     final kolom = isi.keys.toList();
     final nilai = [for (final k in kolom) Variable<Object>(isi[k])];
@@ -353,5 +372,25 @@ class PemulihanData {
   Future<void> selesai() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(kunciMenunggu);
+    await prefs.remove(kunciTransaksiGagal);
+  }
+
+  /// Id transaksi yang GAGAL disimpan karena data rusak, dan kasirnya sudah
+  /// diberi tahu "tidak tersimpan". Dicatat di luar database supaya saat
+  /// Perbaiki data transaksi itu pasti tidak ikut dipulihkan — kasir akan
+  /// mengulangnya, dan yang lama tidak boleh muncul lagi jadi dobel.
+  static const kunciTransaksiGagal = 'pemulihan_transaksi_gagal';
+
+  static Future<void> catatTransaksiGagal(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final daftar = prefs.getStringList(kunciTransaksiGagal) ?? const [];
+    if (!daftar.contains(id)) {
+      await prefs.setStringList(kunciTransaksiGagal, [...daftar, id]);
+    }
+  }
+
+  static Future<List<String>> transaksiGagal() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(kunciTransaksiGagal) ?? const [];
   }
 }

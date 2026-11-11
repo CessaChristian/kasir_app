@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kasir_app/data/pemulihan/pemulihan_data.dart';
+import 'package:kasir_app/data/pemulihan/penjaga_database.dart';
 import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/features/open_bill/models/isi_bill.dart';
@@ -902,6 +904,77 @@ void main() {
     await lepas(t);
   });
 
+  group('data rusak saat bayar', () {
+    tearDown(() {
+      PenjagaDatabase.instance
+        ..pemeriksaUntukTest = null
+        ..transaksiTidakTersimpan = false
+        ..rusak.value = false;
+    });
+
+    testWidgets('berkas rusak sebelum bayar: transaksi tidak dimulai, bill '
+        'tidak diklaim, keranjang utuh, dicatat gagal', (t) async {
+      await simpanMeja4(t);
+      PenjagaDatabase.instance.pemeriksaUntukTest =
+          () async => KeadaanDatabase.rusak;
+      final server = _ServerTiruan(db);
+      final k = await bayarBill(t, server);
+      await t.pumpAndSettle();
+      expect(server.catatan, isEmpty, reason: 'server tidak ditanya');
+      expect(await semuaTx(t), isEmpty);
+      expect(k.bill?.nama, 'Meja 4', reason: 'pesanan tidak hilang');
+      expect(PenjagaDatabase.instance.rusak.value, isTrue);
+      expect(PenjagaDatabase.instance.transaksiTidakTersimpan, isTrue);
+      expect(
+        await t.runAsync(PemulihanData.transaksiGagal),
+        hasLength(1),
+      );
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('berkas sehat: bayar seperti biasa, tidak ada yang dicatat '
+        'gagal', (t) async {
+      await simpanMeja4(t);
+      PenjagaDatabase.instance.pemeriksaUntukTest =
+          () async => KeadaanDatabase.sehat;
+      final server = _ServerTiruan(db);
+      await bayarBill(t, server);
+      await t.pumpAndSettle();
+      expect((await semuaTx(t)).single.total, 18000);
+      expect(PenjagaDatabase.instance.rusak.value, isFalse);
+      expect(await t.runAsync(PemulihanData.transaksiGagal), isEmpty);
+      await t.tap(find.text('Selesai'));
+      await t.pumpAndSettle();
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+
+    testWidgets('rusak tepat saat menyimpan: klaim dilepas, dicatat gagal',
+        (t) async {
+      await simpanMeja4(t);
+      // Pemeriksaan pertama (sebelum bayar) lolos, yang kedua menemukan rusak.
+      var ke = 0;
+      PenjagaDatabase.instance.pemeriksaUntukTest = () async =>
+          ++ke == 1 ? KeadaanDatabase.sehat : KeadaanDatabase.rusak;
+      final server = _ServerTiruan(db);
+      final k = Keranjang();
+      await pasang(t, k);
+      await bukaDaftar(t);
+      await t.tap(find.text('Meja 4'));
+      await t.pumpAndSettle();
+      Navigator.of(t.element(find.text('Keranjang'))).pop();
+      await t.pumpAndSettle();
+      await bayarDengan(t, k, _PenjualanRusak(db), server, 'Bayar Rp 18.000');
+      expect(server.catatan, ['klaim', 'lepas']);
+      expect(await semuaTx(t), isEmpty);
+      expect(k.isEmpty, isFalse);
+      expect(PenjagaDatabase.instance.transaksiTidakTersimpan, isTrue);
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+  });
+
   Future<void> hapusLewatDaftar(
     WidgetTester t,
     _ServerTiruan server, {
@@ -1441,6 +1514,29 @@ class _PenjualanTiruan extends SalesRepository {
     await sesudahDitanya?.call();
     return ditutup;
   }
+}
+
+/// Penyimpanan transaksi yang menabrak berkas database rusak.
+class _PenjualanRusak extends SalesRepository {
+  _PenjualanRusak(super.db);
+
+  @override
+  Future<bool> shiftSudahDitutup(String shiftId) async => false;
+
+  @override
+  Future<String> createSale({
+    required String transactionId,
+    required List<SaleLine> lines,
+    required String paymentMethod,
+    required String orderType,
+    int? cashReceived,
+    String? cashierUserId,
+    String? shiftId,
+    String? billId,
+  }) async => throw SqliteException(
+    extendedResultCode: 11,
+    message: 'database disk image is malformed',
+  );
 }
 
 /// Menahan penyimpanan bill sampai [tahan] selesai — meniru sinyal lemot.

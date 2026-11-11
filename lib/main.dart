@@ -48,6 +48,7 @@ void main() async {
   PenjagaDatabase.instance.siapkan(_pemulihan);
   if (await _pemulihan.periksa() == KeadaanDatabase.rusak) {
     final ringkasan = await _pemulihan.ringkasan();
+    final adaTransaksiGagal = (await PemulihanData.transaksiGagal()).isNotEmpty;
     runApp(
       MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -55,6 +56,7 @@ void main() async {
         builder: (context, child) => SkalaLayar(child: child!),
         home: LayarDataRusak(
           ringkasan: ringkasan,
+          transaksiTidakTersimpan: adaTransaksiGagal,
           onPerbaiki: () async {
             await _pemulihan.karantina();
             await _jalankanAplikasi();
@@ -120,7 +122,8 @@ Future<void> _jalankanAplikasi() async {
 }
 
 void _mulaiBukuCadangan() {
-  BukuCadangan.instance ??= BukuCadangan(db, _pemulihan.berkasCadangan)..ikuti();
+  BukuCadangan.instance ??= BukuCadangan(db, _pemulihan.berkasCadangan)
+    ..ikuti();
 }
 
 /// Sinkron saat aplikasi dibuka. Hasilnya dicatat ke log, bukan ditampilkan
@@ -137,31 +140,28 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-          title: 'Kasir App',
-          debugShowCheckedModeBanner: false,
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [
-            Locale('id', 'ID'),
-            Locale('en', 'US'),
-          ],
-          locale: const Locale('id', 'ID'),
-          theme: buildAppTheme(kSeedDineIn),
-          // Layar sempit (mis. 360 dp) menampilkan tata letak yang sama
-          // dengan layar acuan — lihat SkalaLayar.
-          // PenutupDataRusak: database yang rusak di tengah pemakaian
-          // menggantikan halaman mana pun dengan layar Data Rusak.
-          builder: (context, child) => PencatatSentuhan(
-            child: SkalaLayar(child: PenutupDataRusak(child: child!)),
-          ),
-          // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
-          // dipasang di atas Navigator — bukan di satu halaman. Layar mana
-          // pun yang sedang terbuka akan tergantikan.
-          home: const PenjagaPerangkat(child: AuthFlowHandler()),
-        );
+      title: 'Kasir App',
+      debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('id', 'ID'), Locale('en', 'US')],
+      locale: const Locale('id', 'ID'),
+      theme: buildAppTheme(kSeedDineIn),
+      // Layar sempit (mis. 360 dp) menampilkan tata letak yang sama
+      // dengan layar acuan — lihat SkalaLayar.
+      // PenutupDataRusak: database yang rusak di tengah pemakaian
+      // menggantikan halaman mana pun dengan layar Data Rusak.
+      builder: (context, child) => PencatatSentuhan(
+        child: SkalaLayar(child: PenutupDataRusak(child: child!)),
+      ),
+      // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
+      // dipasang di atas Navigator — bukan di satu halaman. Layar mana
+      // pun yang sedang terbuka akan tergantikan.
+      home: const PenjagaPerangkat(child: AuthFlowHandler()),
+    );
   }
 }
 
@@ -285,11 +285,7 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
     }
     final isLoggedIn = SessionManager.instance.isLoggedIn;
 
-    return AuthState(
-      hasUser: true,
-      hasOwner: hasOwner,
-      isLoggedIn: isLoggedIn,
-    );
+    return AuthState(hasUser: true, hasOwner: hasOwner, isLoggedIn: isLoggedIn);
   }
 
   /// Apakah server punya akun owner. Null kalau belum bisa dipastikan.
@@ -323,7 +319,11 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red.shade400,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     pesanGalat(
@@ -392,10 +392,9 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
             onComplete: () {
               // pushAndRemoveUntil — bersihkan OnboardingPage + SaveRecoveryCodePage
               // dari stack supaya back button tidak balik ke onboarding.
-              Navigator.of(context).pushAndRemoveUntil(
-                ruteMasuk(),
-                (route) => false,
-              );
+              Navigator.of(
+                context,
+              ).pushAndRemoveUntil(ruteMasuk(), (route) => false);
             },
           );
         }
@@ -416,7 +415,6 @@ class _AuthFlowHandlerState extends State<AuthFlowHandler> {
     );
   }
 }
-
 
 /// Ditampilkan saat aplikasi baru dipasang tapi server tidak bisa dihubungi.
 ///
@@ -461,28 +459,28 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
                 '\n\nPastikan aplikasi sudah versi terbaru, lalu coba lagi.',
           )
         : switch (widget.sebab) {
-      SebabTerputus.ditolak => (
-        Icons.phonelink_lock_rounded,
-        'Perangkat Tidak Dikenali',
-        'Server menolak perangkat ini, jadi data akun belum bisa diambil.'
-            '\n\nIni bukan masalah internet — mengganti jaringan tidak akan '
-            'membantu. Akses perangkat ini mungkin sudah dicabut, atau '
-            'aplikasinya dipasang dengan pengaturan yang salah.',
-      ),
-      SebabTerputus.belumDisiapkan => (
-        Icons.app_settings_alt_rounded,
-        'Belum Disiapkan',
-        'Aplikasi ini belum disiapkan untuk tersambung ke server, jadi data '
-            'akun belum bisa diambil.',
-      ),
-      SebabTerputus.jaringan || null => (
-        Icons.wifi_off_rounded,
-        'Perlu Internet',
-        'Penyiapan pertama butuh koneksi internet untuk mengambil '
-            'data akun dari server.\n\nSetelah ini, aplikasi bisa '
-            'dipakai tanpa internet.',
-      ),
-    };
+            SebabTerputus.ditolak => (
+              Icons.phonelink_lock_rounded,
+              'Perangkat Tidak Dikenali',
+              'Server menolak perangkat ini, jadi data akun belum bisa diambil.'
+                  '\n\nIni bukan masalah internet — mengganti jaringan tidak akan '
+                  'membantu. Akses perangkat ini mungkin sudah dicabut, atau '
+                  'aplikasinya dipasang dengan pengaturan yang salah.',
+            ),
+            SebabTerputus.belumDisiapkan => (
+              Icons.app_settings_alt_rounded,
+              'Belum Disiapkan',
+              'Aplikasi ini belum disiapkan untuk tersambung ke server, jadi data '
+                  'akun belum bisa diambil.',
+            ),
+            SebabTerputus.jaringan || null => (
+              Icons.wifi_off_rounded,
+              'Perlu Internet',
+              'Penyiapan pertama butuh koneksi internet untuk mengambil '
+                  'data akun dari server.\n\nSetelah ini, aplikasi bisa '
+                  'dipakai tanpa internet.',
+            ),
+          };
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -558,8 +556,8 @@ class _LayarPerluInternetState extends State<_LayarPerluInternet> {
                           !_sedangMencoba
                               ? 'Coba Lagi'
                               : k == null
-                                  ? 'Menghubungi server…'
-                                  : 'Mengambil data… ${(k.rasio * 100).round()}%',
+                              ? 'Menghubungi server…'
+                              : 'Mengambil data… ${(k.rasio * 100).round()}%',
                         ),
                       ),
                     ),

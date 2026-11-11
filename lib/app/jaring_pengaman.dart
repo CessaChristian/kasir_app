@@ -103,6 +103,7 @@ class PenutupDataRusak extends StatelessWidget {
           builder: (context, snap) => LayarDataRusak(
             ringkasan: snap.data,
             perluTutup: true,
+            transaksiTidakTersimpan: p.transaksiTidakTersimpan,
             onPerbaiki: onTutup ?? _tutupAplikasi,
           ),
         );

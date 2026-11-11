@@ -6,6 +6,7 @@ import '../../../data/app_database.dart'
     show BillTidakTerbuka, ShiftSudahDitutup;
 import '../../../data/db.dart';
 import '../../../data/models/sale_line.dart';
+import '../../../data/pemulihan/penjaga_database.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/lembar_konfirmasi.dart';
@@ -229,6 +230,12 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
         // Lama dari Konfirmasi ditekan sampai transaksinya tersimpan —
         // untuk menelusuri keluhan "bayar terasa lama".
         final jam = Stopwatch()..start();
+        // Berkas database diperiksa SEBELUM apa pun: kalau rusak, transaksi
+        // tidak dimulai sama sekali, bill tidak diklaim, dan layar Data
+        // Rusak memberi tahu kasir bahwa transaksinya tidak tersimpan.
+        if (await PenjagaDatabase.instance.rusakSaatBayar(id)) {
+          throw const PembayaranDitolak();
+        }
         final bill = _k.bill;
         // Jualan biasa: tanya server dulu apakah shift-nya sudah ditutup HP
         // lain. Bayar dari open bill tidak: satu-satunya pertanyaan ke
@@ -284,6 +291,13 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
         } catch (e) {
           // Klaimnya dilepas supaya bill tidak terkunci tanpa transaksi.
           if (bill != null) unawaited(widget.repoBill.lepasKlaim(bill.id, id));
+          // Rusak tepat di sela pemeriksaan dan penyimpanan: transaksinya
+          // sudah dibatalkan database, dan kasir diberi tahu lewat layar
+          // Data Rusak.
+          if (galatDatabase(e) &&
+              await PenjagaDatabase.instance.rusakSaatBayar(id)) {
+            throw const PembayaranDitolak();
+          }
           // HP ini sendiri sudah tahu bill-nya tidak terbuka (mis. offline,
           // tapi sudah menarik kabarnya lebih dulu).
           if (bill != null && e is BillTidakTerbuka) {
