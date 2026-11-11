@@ -13,6 +13,7 @@ import 'shared/ui/skala_layar.dart';
 import 'shared/services/image_storage_service.dart';
 import 'app/app_theme.dart';
 import 'data/db.dart';
+import 'shared/constants/info_nota.dart';
 import 'data/pemulihan/pemulihan_data.dart';
 import 'features/pemulihan/layar_data_rusak.dart';
 import 'features/auth/repositories/auth_repository.dart';
@@ -81,6 +82,9 @@ Future<void> _jalankanAplikasi() async {
   // Dibaca sebelum runApp supaya label kesegaran data di halaman kasir tidak
   // sempat berkedip "belum pernah disinkronkan" padahal sudah pernah.
   await SyncService.instance.muatTerakhirBerhasil();
+
+  // Alamat, nomor HP, dan WiFi di nota mengikuti database (Info Outlet).
+  InfoNota.pantau(db);
 
   // Try to restore session from SharedPreferences.
   //

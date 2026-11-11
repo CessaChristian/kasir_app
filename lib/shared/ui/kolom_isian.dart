@@ -15,6 +15,7 @@ class KolomIsian extends StatelessWidget {
   final TextInputAction? textInputAction;
   final String? prefixText;
   final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
 
   const KolomIsian({
     super.key,
@@ -26,6 +27,7 @@ class KolomIsian extends StatelessWidget {
     this.textInputAction,
     this.prefixText,
     this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -47,6 +49,7 @@ class KolomIsian extends StatelessWidget {
               keyboardType: keyboardType,
               inputFormatters: inputFormatters,
               textInputAction: textInputAction,
+              textCapitalization: textCapitalization,
               onChanged: onChanged,
               style: const TextStyle(
                 fontSize: TeksTeras.biasa,

@@ -4,12 +4,12 @@
 /// Tanpa laporan seperti ini, layar diam total dan pengguna menyimpulkan
 /// aplikasinya menggantung — lalu menekan tombol berulang kali.
 class KemajuanSync {
-  /// Jumlah tahap satu putaran sinkronisasi penuh: 9 tabel + 1 tahap gambar.
+  /// Jumlah tahap satu putaran sinkronisasi penuh: 10 tabel + 1 tahap gambar.
   ///
   /// Dijadikan satu tetapan supaya `SyncEngine` dan `SyncGambar` tidak pernah
   /// melaporkan total yang berbeda — kalau berbeda, bilah kemajuan akan
   /// melompat mundur saat berpindah dari tabel ke gambar.
-  static const int totalTahap = 10;
+  static const int totalTahap = 11;
 
   /// 'menarik', 'mengirim', atau 'gambar'.
   final String tahap;
@@ -61,6 +61,7 @@ class KemajuanSync {
         'transaction_items': 'Rincian transaksi',
         'expenses': 'Pengeluaran',
         'open_bills': 'Open bill',
+        'info_toko': 'Info outlet',
         'gambar': 'Gambar produk',
       }[entitas] ??
       entitas;

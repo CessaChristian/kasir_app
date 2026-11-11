@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'info_outlet_page.dart';
+
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/baris_menu.dart';
@@ -118,6 +120,13 @@ class _ProfilOwnerPageState extends State<ProfilOwnerPage> {
                 child: PrinterPage(),
               ),
             ),
+          ),
+          BarisMenu(
+            ikon: Icons.storefront_rounded,
+            judul: 'Info Outlet',
+            keterangan: 'Alamat, nomor HP & WiFi di nota',
+            latarIkon: WarnaTeras.oranyeMuda,
+            onTap: () => _buka(const InfoOutletPage()),
           ),
           BarisMenu(
             ikon: Icons.devices_rounded,

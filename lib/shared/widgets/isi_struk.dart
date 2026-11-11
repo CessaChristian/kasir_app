@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../data/app_database.dart';
 import '../../utils/currency_formatter.dart';
 import '../constants/app_constants.dart';
+import '../constants/info_nota.dart';
 import '../ui/teks_teras.dart';
 import '../ui/warna_teras.dart';
 import 'business_logo.dart';
@@ -61,13 +62,17 @@ class IsiStruk extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            '${AppConstants.storeName} ${AppConstants.storeAddress}\n'
-            '${AppConstants.storePhone}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: TeksTeras.kecil,
-              color: Color(0xFFB5ADA6),
+          // Mengikuti Info Outlet: berubah begitu owner menyimpan atau
+          // sinkron membawa perubahan dari HP lain.
+          ValueListenableBuilder<InfoNota>(
+            valueListenable: InfoNota.kini,
+            builder: (_, info, _) => Text(
+              '${info.alamat}\n${info.noHp}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: TeksTeras.kecil,
+                color: Color(0xFFB5ADA6),
+              ),
             ),
           ),
           const GarisPutus(),

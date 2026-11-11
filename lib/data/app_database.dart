@@ -564,6 +564,32 @@ class OpenBills extends Table {
 const panjangMaksNamaProduk = 40;
 const hargaMaksProduk = 999999999; // 9 digit
 
+/// Id satu-satunya baris [InfoToko] — sama di semua HP dan di server.
+const idInfoToko = '00000000-0000-0000-0000-000000000001';
+
+/// v43 — info outlet yang tercetak di nota: alamat, nomor HP, WiFi. Tepat
+/// SATU baris ([idInfoToko]), diubah owner dari Profil → Info Outlet dan
+/// ikut sinkron (`supabase/info_toko.sql`). Belum ada barisnya = nota
+/// memakai bawaan aplikasi (lihat `InfoNota`).
+@DataClassName('InfoTokoBaris')
+class InfoToko extends Table {
+  TextColumn get id => text().withDefault(const Constant(idInfoToko))();
+  TextColumn get alamat => text()();
+  TextColumn get noHp => text()();
+
+  /// Kosong = baris WiFi tidak dicetak.
+  TextColumn get wifiNama => text().withDefault(const Constant(''))();
+  TextColumn get wifiSandi => text().withDefault(const Constant(''))();
+
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  TextColumn get syncStatus =>
+      text().withDefault(const Constant('pending'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(tables: [
   Products,
   Categories,
@@ -577,6 +603,7 @@ const hargaMaksProduk = 999999999; // 9 digit
   SyncState,          // v16 — penanda waktu sinkron, murni lokal
   OpenBills,          // v38
   BarisTertahan,      // v40 — baris server yang ditolak di sini, murni lokal
+  InfoToko,           // v43
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -584,7 +611,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1421,6 +1448,15 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
+          if (from < 43 && to >= 43) {
+            // v43 — info outlet di nota (lihat InfoToko). Tabel baru, kosong:
+            // isinya ditarik dari server.
+            final ada = await customSelect(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+              "AND name = 'info_toko'",
+            ).get();
+            if (ada.isEmpty) await m.createTable(infoToko);
+          }
           // ⚠️ Migrasi yang MENAMBAH KOLOM ke tabel yang disinkronkan wajib
           // ikut mengosongkan penanda tarik (lihat v41), supaya kolom barunya
           // terisi dari server untuk baris lama.
@@ -1699,10 +1735,38 @@ class AppDatabase extends _$AppDatabase {
       'user_permissions',
       'expenses',
       'open_bills',
+      'info_toko',
     ].map((t) => "(SELECT COUNT(*) FROM $t WHERE sync_status = 'pending')");
     final r = await customSelect('SELECT ${hitung.join(' + ')} AS n')
         .getSingle();
     return r.read<int>('n');
+  }
+
+  // ---- INFO OUTLET ----
+
+  /// Info outlet yang tersimpan; null kalau belum pernah diisi/ditarik.
+  Stream<InfoTokoBaris?> pantauInfoToko() => (select(infoToko)
+        ..where((t) => t.id.equals(idInfoToko)))
+      .watchSingleOrNull();
+
+  /// Simpan info outlet di nota. Hanya owner. Tersimpan di HP dan terkirim
+  /// saat sinkron.
+  Future<void> simpanInfoToko({
+    required String alamat,
+    required String noHp,
+    required String wifiNama,
+    required String wifiSandi,
+  }) async {
+    SessionManager.instance.requireOwner();
+    await into(infoToko).insertOnConflictUpdate(InfoTokoCompanion.insert(
+      id: const Value(idInfoToko),
+      alamat: alamat,
+      noHp: noHp,
+      wifiNama: Value(wifiNama),
+      wifiSandi: Value(wifiSandi),
+      updatedAt: Value(DateTime.now()),
+      syncStatus: const Value('pending'),
+    ));
   }
 
   /// Jumlah baris server yang tertahan di HP ini (lihat [BarisTertahan]).

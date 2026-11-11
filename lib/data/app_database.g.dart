@@ -7624,6 +7624,453 @@ class BarisTertahanCompanion extends UpdateCompanion<BarisTertahanEntry> {
   }
 }
 
+class $InfoTokoTable extends InfoToko
+    with TableInfo<$InfoTokoTable, InfoTokoBaris> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InfoTokoTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(idInfoToko),
+  );
+  static const VerificationMeta _alamatMeta = const VerificationMeta('alamat');
+  @override
+  late final GeneratedColumn<String> alamat = GeneratedColumn<String>(
+    'alamat',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noHpMeta = const VerificationMeta('noHp');
+  @override
+  late final GeneratedColumn<String> noHp = GeneratedColumn<String>(
+    'no_hp',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wifiNamaMeta = const VerificationMeta(
+    'wifiNama',
+  );
+  @override
+  late final GeneratedColumn<String> wifiNama = GeneratedColumn<String>(
+    'wifi_nama',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _wifiSandiMeta = const VerificationMeta(
+    'wifiSandi',
+  );
+  @override
+  late final GeneratedColumn<String> wifiSandi = GeneratedColumn<String>(
+    'wifi_sandi',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _syncStatusMeta = const VerificationMeta(
+    'syncStatus',
+  );
+  @override
+  late final GeneratedColumn<String> syncStatus = GeneratedColumn<String>(
+    'sync_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    alamat,
+    noHp,
+    wifiNama,
+    wifiSandi,
+    updatedAt,
+    syncStatus,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'info_toko';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InfoTokoBaris> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('alamat')) {
+      context.handle(
+        _alamatMeta,
+        alamat.isAcceptableOrUnknown(data['alamat']!, _alamatMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_alamatMeta);
+    }
+    if (data.containsKey('no_hp')) {
+      context.handle(
+        _noHpMeta,
+        noHp.isAcceptableOrUnknown(data['no_hp']!, _noHpMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noHpMeta);
+    }
+    if (data.containsKey('wifi_nama')) {
+      context.handle(
+        _wifiNamaMeta,
+        wifiNama.isAcceptableOrUnknown(data['wifi_nama']!, _wifiNamaMeta),
+      );
+    }
+    if (data.containsKey('wifi_sandi')) {
+      context.handle(
+        _wifiSandiMeta,
+        wifiSandi.isAcceptableOrUnknown(data['wifi_sandi']!, _wifiSandiMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('sync_status')) {
+      context.handle(
+        _syncStatusMeta,
+        syncStatus.isAcceptableOrUnknown(data['sync_status']!, _syncStatusMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  InfoTokoBaris map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InfoTokoBaris(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      alamat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}alamat'],
+      )!,
+      noHp: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}no_hp'],
+      )!,
+      wifiNama: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wifi_nama'],
+      )!,
+      wifiSandi: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wifi_sandi'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      syncStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_status'],
+      )!,
+    );
+  }
+
+  @override
+  $InfoTokoTable createAlias(String alias) {
+    return $InfoTokoTable(attachedDatabase, alias);
+  }
+}
+
+class InfoTokoBaris extends DataClass implements Insertable<InfoTokoBaris> {
+  final String id;
+  final String alamat;
+  final String noHp;
+
+  /// Kosong = baris WiFi tidak dicetak.
+  final String wifiNama;
+  final String wifiSandi;
+  final DateTime updatedAt;
+  final String syncStatus;
+  const InfoTokoBaris({
+    required this.id,
+    required this.alamat,
+    required this.noHp,
+    required this.wifiNama,
+    required this.wifiSandi,
+    required this.updatedAt,
+    required this.syncStatus,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['alamat'] = Variable<String>(alamat);
+    map['no_hp'] = Variable<String>(noHp);
+    map['wifi_nama'] = Variable<String>(wifiNama);
+    map['wifi_sandi'] = Variable<String>(wifiSandi);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['sync_status'] = Variable<String>(syncStatus);
+    return map;
+  }
+
+  InfoTokoCompanion toCompanion(bool nullToAbsent) {
+    return InfoTokoCompanion(
+      id: Value(id),
+      alamat: Value(alamat),
+      noHp: Value(noHp),
+      wifiNama: Value(wifiNama),
+      wifiSandi: Value(wifiSandi),
+      updatedAt: Value(updatedAt),
+      syncStatus: Value(syncStatus),
+    );
+  }
+
+  factory InfoTokoBaris.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InfoTokoBaris(
+      id: serializer.fromJson<String>(json['id']),
+      alamat: serializer.fromJson<String>(json['alamat']),
+      noHp: serializer.fromJson<String>(json['noHp']),
+      wifiNama: serializer.fromJson<String>(json['wifiNama']),
+      wifiSandi: serializer.fromJson<String>(json['wifiSandi']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      syncStatus: serializer.fromJson<String>(json['syncStatus']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'alamat': serializer.toJson<String>(alamat),
+      'noHp': serializer.toJson<String>(noHp),
+      'wifiNama': serializer.toJson<String>(wifiNama),
+      'wifiSandi': serializer.toJson<String>(wifiSandi),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'syncStatus': serializer.toJson<String>(syncStatus),
+    };
+  }
+
+  InfoTokoBaris copyWith({
+    String? id,
+    String? alamat,
+    String? noHp,
+    String? wifiNama,
+    String? wifiSandi,
+    DateTime? updatedAt,
+    String? syncStatus,
+  }) => InfoTokoBaris(
+    id: id ?? this.id,
+    alamat: alamat ?? this.alamat,
+    noHp: noHp ?? this.noHp,
+    wifiNama: wifiNama ?? this.wifiNama,
+    wifiSandi: wifiSandi ?? this.wifiSandi,
+    updatedAt: updatedAt ?? this.updatedAt,
+    syncStatus: syncStatus ?? this.syncStatus,
+  );
+  InfoTokoBaris copyWithCompanion(InfoTokoCompanion data) {
+    return InfoTokoBaris(
+      id: data.id.present ? data.id.value : this.id,
+      alamat: data.alamat.present ? data.alamat.value : this.alamat,
+      noHp: data.noHp.present ? data.noHp.value : this.noHp,
+      wifiNama: data.wifiNama.present ? data.wifiNama.value : this.wifiNama,
+      wifiSandi: data.wifiSandi.present ? data.wifiSandi.value : this.wifiSandi,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      syncStatus: data.syncStatus.present
+          ? data.syncStatus.value
+          : this.syncStatus,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InfoTokoBaris(')
+          ..write('id: $id, ')
+          ..write('alamat: $alamat, ')
+          ..write('noHp: $noHp, ')
+          ..write('wifiNama: $wifiNama, ')
+          ..write('wifiSandi: $wifiSandi, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('syncStatus: $syncStatus')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, alamat, noHp, wifiNama, wifiSandi, updatedAt, syncStatus);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InfoTokoBaris &&
+          other.id == this.id &&
+          other.alamat == this.alamat &&
+          other.noHp == this.noHp &&
+          other.wifiNama == this.wifiNama &&
+          other.wifiSandi == this.wifiSandi &&
+          other.updatedAt == this.updatedAt &&
+          other.syncStatus == this.syncStatus);
+}
+
+class InfoTokoCompanion extends UpdateCompanion<InfoTokoBaris> {
+  final Value<String> id;
+  final Value<String> alamat;
+  final Value<String> noHp;
+  final Value<String> wifiNama;
+  final Value<String> wifiSandi;
+  final Value<DateTime> updatedAt;
+  final Value<String> syncStatus;
+  final Value<int> rowid;
+  const InfoTokoCompanion({
+    this.id = const Value.absent(),
+    this.alamat = const Value.absent(),
+    this.noHp = const Value.absent(),
+    this.wifiNama = const Value.absent(),
+    this.wifiSandi = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  InfoTokoCompanion.insert({
+    this.id = const Value.absent(),
+    required String alamat,
+    required String noHp,
+    this.wifiNama = const Value.absent(),
+    this.wifiSandi = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.syncStatus = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : alamat = Value(alamat),
+       noHp = Value(noHp);
+  static Insertable<InfoTokoBaris> custom({
+    Expression<String>? id,
+    Expression<String>? alamat,
+    Expression<String>? noHp,
+    Expression<String>? wifiNama,
+    Expression<String>? wifiSandi,
+    Expression<DateTime>? updatedAt,
+    Expression<String>? syncStatus,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (alamat != null) 'alamat': alamat,
+      if (noHp != null) 'no_hp': noHp,
+      if (wifiNama != null) 'wifi_nama': wifiNama,
+      if (wifiSandi != null) 'wifi_sandi': wifiSandi,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (syncStatus != null) 'sync_status': syncStatus,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  InfoTokoCompanion copyWith({
+    Value<String>? id,
+    Value<String>? alamat,
+    Value<String>? noHp,
+    Value<String>? wifiNama,
+    Value<String>? wifiSandi,
+    Value<DateTime>? updatedAt,
+    Value<String>? syncStatus,
+    Value<int>? rowid,
+  }) {
+    return InfoTokoCompanion(
+      id: id ?? this.id,
+      alamat: alamat ?? this.alamat,
+      noHp: noHp ?? this.noHp,
+      wifiNama: wifiNama ?? this.wifiNama,
+      wifiSandi: wifiSandi ?? this.wifiSandi,
+      updatedAt: updatedAt ?? this.updatedAt,
+      syncStatus: syncStatus ?? this.syncStatus,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (alamat.present) {
+      map['alamat'] = Variable<String>(alamat.value);
+    }
+    if (noHp.present) {
+      map['no_hp'] = Variable<String>(noHp.value);
+    }
+    if (wifiNama.present) {
+      map['wifi_nama'] = Variable<String>(wifiNama.value);
+    }
+    if (wifiSandi.present) {
+      map['wifi_sandi'] = Variable<String>(wifiSandi.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (syncStatus.present) {
+      map['sync_status'] = Variable<String>(syncStatus.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InfoTokoCompanion(')
+          ..write('id: $id, ')
+          ..write('alamat: $alamat, ')
+          ..write('noHp: $noHp, ')
+          ..write('wifiNama: $wifiNama, ')
+          ..write('wifiSandi: $wifiSandi, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('syncStatus: $syncStatus, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7643,6 +8090,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SyncStateTable syncState = $SyncStateTable(this);
   late final $OpenBillsTable openBills = $OpenBillsTable(this);
   late final $BarisTertahanTable barisTertahan = $BarisTertahanTable(this);
+  late final $InfoTokoTable infoToko = $InfoTokoTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7660,6 +8108,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncState,
     openBills,
     barisTertahan,
+    infoToko,
   ];
 }
 
@@ -13362,6 +13811,255 @@ typedef $$BarisTertahanTableProcessedTableManager =
       BarisTertahanEntry,
       PrefetchHooks Function()
     >;
+typedef $$InfoTokoTableCreateCompanionBuilder =
+    InfoTokoCompanion Function({
+      Value<String> id,
+      required String alamat,
+      required String noHp,
+      Value<String> wifiNama,
+      Value<String> wifiSandi,
+      Value<DateTime> updatedAt,
+      Value<String> syncStatus,
+      Value<int> rowid,
+    });
+typedef $$InfoTokoTableUpdateCompanionBuilder =
+    InfoTokoCompanion Function({
+      Value<String> id,
+      Value<String> alamat,
+      Value<String> noHp,
+      Value<String> wifiNama,
+      Value<String> wifiSandi,
+      Value<DateTime> updatedAt,
+      Value<String> syncStatus,
+      Value<int> rowid,
+    });
+
+class $$InfoTokoTableFilterComposer
+    extends Composer<_$AppDatabase, $InfoTokoTable> {
+  $$InfoTokoTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get alamat => $composableBuilder(
+    column: $table.alamat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noHp => $composableBuilder(
+    column: $table.noHp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get wifiNama => $composableBuilder(
+    column: $table.wifiNama,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get wifiSandi => $composableBuilder(
+    column: $table.wifiSandi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$InfoTokoTableOrderingComposer
+    extends Composer<_$AppDatabase, $InfoTokoTable> {
+  $$InfoTokoTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get alamat => $composableBuilder(
+    column: $table.alamat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noHp => $composableBuilder(
+    column: $table.noHp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get wifiNama => $composableBuilder(
+    column: $table.wifiNama,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get wifiSandi => $composableBuilder(
+    column: $table.wifiSandi,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$InfoTokoTableAnnotationComposer
+    extends Composer<_$AppDatabase, $InfoTokoTable> {
+  $$InfoTokoTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get alamat =>
+      $composableBuilder(column: $table.alamat, builder: (column) => column);
+
+  GeneratedColumn<String> get noHp =>
+      $composableBuilder(column: $table.noHp, builder: (column) => column);
+
+  GeneratedColumn<String> get wifiNama =>
+      $composableBuilder(column: $table.wifiNama, builder: (column) => column);
+
+  GeneratedColumn<String> get wifiSandi =>
+      $composableBuilder(column: $table.wifiSandi, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncStatus => $composableBuilder(
+    column: $table.syncStatus,
+    builder: (column) => column,
+  );
+}
+
+class $$InfoTokoTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $InfoTokoTable,
+          InfoTokoBaris,
+          $$InfoTokoTableFilterComposer,
+          $$InfoTokoTableOrderingComposer,
+          $$InfoTokoTableAnnotationComposer,
+          $$InfoTokoTableCreateCompanionBuilder,
+          $$InfoTokoTableUpdateCompanionBuilder,
+          (
+            InfoTokoBaris,
+            BaseReferences<_$AppDatabase, $InfoTokoTable, InfoTokoBaris>,
+          ),
+          InfoTokoBaris,
+          PrefetchHooks Function()
+        > {
+  $$InfoTokoTableTableManager(_$AppDatabase db, $InfoTokoTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InfoTokoTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InfoTokoTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$InfoTokoTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> alamat = const Value.absent(),
+                Value<String> noHp = const Value.absent(),
+                Value<String> wifiNama = const Value.absent(),
+                Value<String> wifiSandi = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InfoTokoCompanion(
+                id: id,
+                alamat: alamat,
+                noHp: noHp,
+                wifiNama: wifiNama,
+                wifiSandi: wifiSandi,
+                updatedAt: updatedAt,
+                syncStatus: syncStatus,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String alamat,
+                required String noHp,
+                Value<String> wifiNama = const Value.absent(),
+                Value<String> wifiSandi = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> syncStatus = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InfoTokoCompanion.insert(
+                id: id,
+                alamat: alamat,
+                noHp: noHp,
+                wifiNama: wifiNama,
+                wifiSandi: wifiSandi,
+                updatedAt: updatedAt,
+                syncStatus: syncStatus,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$InfoTokoTable, InfoTokoBaris>(table),
+                  BaseReferences<_$AppDatabase, $InfoTokoTable, InfoTokoBaris>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$InfoTokoTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $InfoTokoTable,
+      InfoTokoBaris,
+      $$InfoTokoTableFilterComposer,
+      $$InfoTokoTableOrderingComposer,
+      $$InfoTokoTableAnnotationComposer,
+      $$InfoTokoTableCreateCompanionBuilder,
+      $$InfoTokoTableUpdateCompanionBuilder,
+      (
+        InfoTokoBaris,
+        BaseReferences<_$AppDatabase, $InfoTokoTable, InfoTokoBaris>,
+      ),
+      InfoTokoBaris,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -13390,4 +14088,6 @@ class $AppDatabaseManager {
       $$OpenBillsTableTableManager(_db, _db.openBills);
   $$BarisTertahanTableTableManager get barisTertahan =>
       $$BarisTertahanTableTableManager(_db, _db.barisTertahan);
+  $$InfoTokoTableTableManager get infoToko =>
+      $$InfoTokoTableTableManager(_db, _db.infoToko);
 }

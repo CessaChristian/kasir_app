@@ -215,11 +215,17 @@ class _Entitas {
   /// Tandai baris-baris ini sudah terkirim.
   final Future<void> Function(List<String>) tandaiTerkirim;
 
+  /// True = server boleh belum punya tabelnya (SQL-nya belum dijalankan):
+  /// tabel ini dilewati, sinkron tabel lain jalan terus dan tidak dihitung
+  /// gagal. Hanya untuk tabel yang aplikasinya punya nilai bawaan.
+  final bool bolehBelumAda;
+
   const _Entitas({
     required this.nama,
     required this.ambilTertunda,
     required this.tulis,
     required this.tandaiTerkirim,
+    this.bolehBelumAda = false,
   });
 }
 
@@ -278,8 +284,10 @@ class SyncEngine {
     _transactions(),
     _transactionItems(),
     _expenses(),
-    // Paling akhir: menunjuk shift, akun, dan transaksi.
+    // Menunjuk shift, akun, dan transaksi.
     _openBills(),
+    // Berdiri sendiri; paling akhir supaya urutan tabel lama tidak bergeser.
+    _infoToko(),
   ];
 
   /// Diminta berhenti lewat tombol Batalkan (QA kedua S11).
@@ -465,7 +473,23 @@ class SyncEngine {
     int batas,
   )? penarikUntukTest;
 
+  /// Server belum mengenal tabelnya: PostgREST `PGRST205`, PostgreSQL
+  /// `42P01`.
+  static bool _tabelBelumAda(Object galat) =>
+      galat is PostgrestException &&
+      const {'PGRST205', '42P01'}.contains(galat.code);
+
   Future<(int, int)> _tarik(_Entitas e, int urutan) async {
+    if (e.bolehBelumAda) {
+      try {
+        return await _tarikTabelIni(e, urutan);
+      } on PostgrestException catch (err) {
+        if (!_tabelBelumAda(err)) rethrow;
+        debugPrint('[sync] ${e.nama}: tabel belum ada di server, dilewati. '
+            'Jalankan supabase/${e.nama}.sql.');
+        return (0, 0);
+      }
+    }
     final hasil = await _tarikTabelIni(e, urutan);
     final ulang = await _cobaLagiTertahan(e, urutan);
     return (hasil.$1 + ulang.$1, hasil.$2 + ulang.$2);
@@ -1221,6 +1245,13 @@ class SyncEngine {
         await _kirim(e, potongan);
         sampai.addAll(potongan);
       } catch (galat) {
+        // Tabelnya belum ada di server: barisnya tetap `pending` dan terkirim
+        // sesudah SQL-nya dijalankan. Bukan penolakan.
+        if (e.bolehBelumAda && _tabelBelumAda(galat)) {
+          debugPrint('[sync] ${e.nama}: tabel belum ada di server, '
+              'kiriman ditunda.');
+          return sampai.length;
+        }
         // Koneksi putus atau server tidak menjawab: mencoba satu per satu
         // cuma menunggu batas waktu yang sama untuk setiap baris — 100 baris
         // ±25 menit (QA kedua S11). Berhenti; putaran berikutnya mencoba lagi.
@@ -1838,6 +1869,41 @@ class SyncEngine {
               );
         },
         tandaiTerkirim: (ids) => _tandai('open_bills', ids),
+      );
+
+  _Entitas _infoToko() => _Entitas(
+        nama: 'info_toko',
+        bolehBelumAda: true,
+        ambilTertunda: () async {
+          final r = await (_db.select(_db.infoToko)
+                ..where((t) => t.syncStatus.equals('pending')))
+              .get();
+          return [
+            for (final b in r)
+              {
+                'id': b.id,
+                'alamat': b.alamat,
+                'no_hp': b.noHp,
+                'wifi_nama': b.wifiNama,
+                'wifi_sandi': b.wifiSandi,
+                'updated_at': _iso(b.updatedAt),
+              }
+          ];
+        },
+        tulis: (r) async {
+          await _db
+              .into(_db.infoToko)
+              .insertOnConflictUpdate(InfoTokoCompanion.insert(
+                id: Value(r['id'] as String),
+                alamat: r['alamat'] as String,
+                noHp: r['no_hp'] as String,
+                wifiNama: Value(r['wifi_nama'] as String? ?? ''),
+                wifiSandi: Value(r['wifi_sandi'] as String? ?? ''),
+                updatedAt: Value(_dt(r['updated_at'])!),
+                syncStatus: const Value('synced'),
+              ));
+        },
+        tandaiTerkirim: (ids) => _tandai('info_toko', ids),
       );
 
   // ------------------------------------------------------------------

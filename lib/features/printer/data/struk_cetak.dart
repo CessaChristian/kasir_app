@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 
 import '../../../data/app_database.dart';
-import '../../../shared/constants/app_constants.dart';
+import '../../../shared/constants/info_nota.dart';
 import '../../../shared/widgets/isi_struk.dart';
 import '../../../utils/currency_formatter.dart';
 
@@ -50,14 +50,18 @@ List<BarisCetak> susunStruk({
   required Transaction tx,
   required List<TransactionItem> items,
   required String? namaKasir,
+  InfoNota? info,
 }) {
+  // Info outlet yang berlaku SAAT DICETAK — cetak ulang nota lama ikut
+  // memakai alamat baru (keputusan owner 11 Nov 2026).
+  info ??= InfoNota.kini.value;
   const kolom = kolomNota;
   final tunai = tx.paymentMethod == 'cash';
   final dibayar = tunai ? (tx.cashReceived ?? tx.total) : tx.total;
   final garis = BarisCetak('-' * kolom);
   final jumlahItem = items.fold(0, (n, i) => n + i.qty);
   return [
-    ..._kepala(),
+    ..._kepala(info),
     const BarisCetak(''),
     ..._label('Kasir', namaKasir ?? '-', kolom),
     ..._label('No. Nota', tx.invoiceNo, kolom),
@@ -108,10 +112,7 @@ List<BarisCetak> susunStruk({
     const BarisCetak(''),
     // Huruf biasa: huruf kecil (Font B) terlalu kecil di kertas (tes
     // owner 2026-11-01).
-    for (final b in bungkus('WiFi : ${AppConstants.wifiNama}', kolom))
-      BarisCetak(b, tengah: true),
-    for (final b in bungkus('Password : ${AppConstants.wifiSandi}', kolom))
-      BarisCetak(b, tengah: true),
+    ..._wifi(info),
   ];
 }
 
@@ -121,10 +122,11 @@ List<BarisCetak> susunStruk({
 List<BarisCetak> susunTestPrint({
   required String namaPrinter,
   required DateTime waktu,
+  InfoNota? info,
 }) {
   const kolom = kolomNota;
   return [
-    ..._kepala(),
+    ..._kepala(info ?? InfoNota.kini.value),
     BarisCetak('-' * kolom),
     ..._kiriKanan('Printer', namaPrinter, kolom),
     ..._kiriKanan('Waktu', DateFormat('yyyy-MM-dd HH:mm').format(waktu), kolom),
@@ -132,9 +134,32 @@ List<BarisCetak> susunTestPrint({
   ];
 }
 
-List<BarisCetak> _kepala() => const [
-  BarisCetak(AppConstants.alamatNota, tengah: true),
-  BarisCetak(AppConstants.storePhone, tengah: true),
+/// Bagian nota yang diatur di Info Outlet — kepala dan baris WiFi — untuk
+/// pratinjau di halaman itu. Disusun fungsi yang sama dengan nota asli.
+List<BarisCetak> susunPratinjauInfo(InfoNota info) => [
+  ..._kepala(info),
+  const BarisCetak(''),
+  const BarisCetak('. . .', tengah: true),
+  const BarisCetak(''),
+  const BarisCetak('Terima Kasih!', tengah: true, tebal: true),
+  const BarisCetak('Selamat Menikmati', tengah: true),
+  const BarisCetak(''),
+  ..._wifi(info),
+];
+
+List<BarisCetak> _wifi(InfoNota info) => [
+  // WiFi dikosongkan owner di Info Outlet = tidak dicetak.
+  if (info.wifiNama.isNotEmpty)
+    for (final b in bungkus('WiFi : ${info.wifiNama}', kolomNota))
+      BarisCetak(b, tengah: true),
+  if (info.wifiNama.isNotEmpty && info.wifiSandi.isNotEmpty)
+    for (final b in bungkus('Password : ${info.wifiSandi}', kolomNota))
+      BarisCetak(b, tengah: true),
+];
+
+List<BarisCetak> _kepala(InfoNota info) => [
+  for (final b in bungkus(info.alamat, kolomNota)) BarisCetak(b, tengah: true),
+  BarisCetak(info.noHp, tengah: true),
 ];
 
 /// "Kasir    : sari" — labelnya disejajarkan. Isi yang terlalu panjang
