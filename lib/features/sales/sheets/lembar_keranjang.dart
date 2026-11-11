@@ -237,15 +237,15 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           throw const PembayaranDitolak();
         }
         final bill = _k.bill;
-        // Jualan biasa: tanya server dulu apakah shift-nya sudah ditutup HP
-        // lain. Bayar dari open bill tidak: satu-satunya pertanyaan ke
-        // server di sini adalah klaim, supaya Konfirmasi tidak terasa lama
-        // (keputusan owner 12 Nov 2026). Shift tetap diperiksa dari data HP
-        // saat transaksinya disimpan.
-        if (bill == null &&
-            await widget.repo.shiftSudahDitutup(sesi!.shiftId!)) {
-          await tolakShift();
-        }
+        // Server TIDAK ditanya soal shift di sini (keputusan owner 12 Nov
+        // 2026). Dulu jualan biasa bertanya dulu, dan sesaat setelah
+        // internet putus tiap Konfirmasi tertahan penuh 3 detik. Yang
+        // dijaganya sudah dijaga di tempat lain: shift hanya bisa ditutup
+        // HP lain kalau HP itu online DAN HP ini sudah 15 menit tidak
+        // memberi kabar ke server (PengelolaShift.halanganMenutup) — dan
+        // HP yang selama itu tak tersambung juga tidak akan mendapat
+        // jawaban di sini. Shift tetap diperiksa dari data HP saat
+        // transaksinya disimpan (ShiftSudahDitutup di bawah).
         // Klaim di server dulu: dari dua HP yang membayar bill yang sama
         // bersamaan hanya satu yang boleh. Tak terjawab (offline/lambat):
         // tetap jalan.
@@ -303,8 +303,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           if (bill != null && e is BillTidakTerbuka) {
             tolakBill(bill.nama, 'dibayar atau dihapus');
           }
-          // Shift ditutup tepat sesudah pemeriksaan di atas, atau server
-          // tak terjawab tapi HP ini sudah menarik kabarnya.
+          // HP ini sudah menarik kabar bahwa shift-nya ditutup HP lain.
           if (e is ShiftSudahDitutup) await tolakShift();
           rethrow;
         }

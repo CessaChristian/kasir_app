@@ -3,8 +3,6 @@ import 'package:drift/drift.dart' show Variable;
 import '../../../data/app_database.dart';
 import '../../../data/models/sale_line.dart';
 import '../../../data/perangkat/kode_nota.dart';
-import '../../../data/supabase/supabase_service.dart';
-import '../../../data/sync/sync_engine.dart';
 import '../../../shared/auth/cakupan_riwayat.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../history/models/saringan_riwayat.dart';
@@ -58,38 +56,6 @@ class SalesRepository {
       kodePerangkat: kode,
       billId: billId,
     );
-  }
-
-  /// Lama menunggu server saat memeriksa shift sebelum bayar.
-  static const batasTungguShift = Duration(seconds: 3);
-
-  /// Apakah shift [shiftId] sudah ditutup — menurut server kalau bisa
-  /// ditanya, kalau tidak menurut HP ini.
-  ///
-  /// Dipanggil tepat sebelum transaksi disimpan. Selama keranjang berisi,
-  /// sinkron otomatis ditahan, jadi HP ini bisa belum tahu shift-nya sudah
-  /// ditutup HP lain yang memegang shift yang sama. Offline, galat, atau
-  /// lebih dari [batasTungguShift]: dipakai keadaan di HP ini saja —
-  /// kasir tidak boleh macet menunggu sinyal.
-  Future<bool> shiftSudahDitutup(String shiftId) async {
-    try {
-      if (SupabaseService.instance.online) {
-        await SyncEngine(_db).tarikTabel('shifts').timeout(batasTungguShift);
-      }
-    } catch (_) {
-      // Sengaja dibisukan — lihat catatan di atas.
-    }
-    // Lewat aturan bersama: shift yang DIGABUNG server bukan "ditutup" —
-    // penjualannya masuk ke shift tujuan (audit 6 Nov nomor 29).
-    try {
-      await _db.shiftBerjalan(shiftId);
-      return false;
-    } on ShiftSudahDitutup {
-      return true;
-    } on ShiftBelumAda {
-      // Penyimpanan sendiri yang memberi pesan yang jelas.
-      return false;
-    }
   }
 
   // ---- PEMBATALAN ----

@@ -844,15 +844,19 @@ void main() {
         reason: 'sesi dilepas dari shift yang sudah ditutup');
   }
 
-  testWidgets('shift sudah ditutup HP lain (kata server): tidak tersimpan, '
-      'pesanan tetap di keranjang', (t) async {
+  testWidgets('jualan biasa di shift yang sudah ditutup HP lain: server '
+      'tidak ditanya, database menolak, pesanan tetap di keranjang',
+      (t) async {
     final server = _ServerTiruan(db);
-    final jual = _PenjualanTiruan(db, ditutup: true);
     final k = Keranjang()
       ..tambah(idProduk: 'latte', nama: 'Latte', harga: 18000);
     await pasang(t, k);
-    await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
-    expect(jual.ditanya, 1);
+    // HP ini sudah tahu shift-nya ditutup (lewat sinkron).
+    await t.runAsync(() =>
+        (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
+            .write(ShiftsCompanion(endAt: Value(DateTime.now()))));
+    await bayarDengan(t, k, SalesRepository(db), server, 'Bayar Rp 18.000');
+    expect(server.catatan, isEmpty, reason: 'server tidak ditanya');
     cekShiftDitolak(k);
     expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
@@ -867,7 +871,7 @@ void main() {
       ..sebelumKlaim = () =>
           (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
               .write(ShiftsCompanion(endAt: Value(DateTime.now())));
-    final jual = _PenjualanTiruan(db, ditutup: true);
+    final jual = SalesRepository(db);
     final k = Keranjang();
     await pasang(t, k);
     await bukaDaftar(t);
@@ -876,29 +880,9 @@ void main() {
     Navigator.of(t.element(find.text('Keranjang'))).pop();
     await t.pumpAndSettle();
     await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
-    expect(jual.ditanya, 0, reason: 'bayar bill hanya bertanya klaim');
     expect(server.catatan, ['klaim', 'lepas'], reason: 'bill tidak terkunci');
     cekShiftDitolak(k);
     expect(k.bill?.nama, 'Meja 4');
-    expect(await semuaTx(t), isEmpty);
-    await t.pump(const Duration(seconds: 3));
-    await lepas(t);
-  });
-
-  testWidgets('shift ditutup tepat sesudah diperiksa: database menolak, '
-      'ditangani sama', (t) async {
-    final server = _ServerTiruan(db);
-    // Server bilang masih berjalan, tapi saat disimpan HP ini sudah tahu
-    // shift-nya tertutup.
-    final jual = _PenjualanTiruan(db, ditutup: false)
-      ..sesudahDitanya = () =>
-          (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
-              .write(ShiftsCompanion(endAt: Value(DateTime.now())));
-    final k = Keranjang()
-      ..tambah(idProduk: 'latte', nama: 'Latte', harga: 18000);
-    await pasang(t, k);
-    await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
-    cekShiftDitolak(k);
     expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
     await lepas(t);
@@ -1500,28 +1484,9 @@ class _BillGalat extends OpenBillRepository {
       throw StateError('database sibuk');
 }
 
-/// Penjualan dengan jawaban "shift sudah ditutup?" yang diatur test.
-class _PenjualanTiruan extends SalesRepository {
-  final bool ditutup;
-  var ditanya = 0;
-  Future<void> Function()? sesudahDitanya;
-
-  _PenjualanTiruan(super.db, {required this.ditutup});
-
-  @override
-  Future<bool> shiftSudahDitutup(String shiftId) async {
-    ditanya++;
-    await sesudahDitanya?.call();
-    return ditutup;
-  }
-}
-
 /// Penyimpanan transaksi yang menabrak berkas database rusak.
 class _PenjualanRusak extends SalesRepository {
   _PenjualanRusak(super.db);
-
-  @override
-  Future<bool> shiftSudahDitutup(String shiftId) async => false;
 
   @override
   Future<String> createSale({

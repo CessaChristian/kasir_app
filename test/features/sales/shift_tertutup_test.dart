@@ -104,14 +104,6 @@ void main() {
     );
   });
 
-  test('shiftSudahDitutup: tanpa server memakai keadaan di HP ini', () async {
-    expect(await jual.shiftSudahDitutup('s-1'), isFalse);
-    expect(await jual.shiftSudahDitutup('belum-sampai'), isFalse,
-        reason: 'baris shift yang belum tersinkron belum tentu ditutup');
-    await tutupShiftDariHpLain();
-    expect(await jual.shiftSudahDitutup('s-1'), isTrue);
-  });
-
   test('owner mencatat pengeluaran tanpa shift tetap boleh', () async {
     await SessionManager.instance.setSession(AuthSession.create(
       userId: 'k-1',

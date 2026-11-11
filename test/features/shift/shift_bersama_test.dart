@@ -5,7 +5,6 @@ import 'package:kasir_app/data/app_database.dart';
 import 'package:kasir_app/data/models/sale_line.dart';
 import 'package:kasir_app/features/auth/models/auth_session.dart';
 import 'package:kasir_app/features/open_bill/repositories/open_bill_repository.dart';
-import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,9 +82,10 @@ void main() {
       () async {
     await shift('s-a');
     await shift('s-b', keShift: 's-a');
-    expect(await SalesRepository(db).shiftSudahDitutup('s-b'), isFalse);
+    expect(await db.shiftBerjalan('s-b'), 's-a');
     await shift('s-c', tutup: DateTime.now());
-    expect(await SalesRepository(db).shiftSudahDitutup('s-c'), isTrue);
+    await expectLater(
+        db.shiftBerjalan('s-c'), throwsA(isA<ShiftSudahDitutup>()));
   });
 
   test('nomor 29: tutup shift menutup shift tujuan penggabungan', () async {
