@@ -5,6 +5,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:path_provider/path_provider.dart';
 import 'app/app_shell.dart';
+import 'app/jaring_pengaman.dart';
+import 'data/pemulihan/penjaga_database.dart';
+import 'shared/services/catatan_error.dart';
 import 'data/supabase/supabase_config.dart';
 import 'data/supabase/supabase_service.dart';
 import 'data/sync/sync_otomatis.dart';
@@ -31,6 +34,9 @@ import 'utils/pesan_galat.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Paling awal: error sesudah baris ini tercatat dan dikirim ke server.
+  pasangJaringPengaman();
+
   // Initialize date formatting
   await initializeDateFormatting('id_ID', null);
 
@@ -38,6 +44,8 @@ void main() async {
   // tidak bisa diganti tanpa menutup aplikasi.
   final folder = await getApplicationDocumentsDirectory();
   _pemulihan = PemulihanData(folder.path);
+  await CatatanError.instance.siapkan(folder.path);
+  PenjagaDatabase.instance.siapkan(_pemulihan);
   if (await _pemulihan.periksa() == KeadaanDatabase.rusak) {
     final ringkasan = await _pemulihan.ringkasan();
     runApp(
@@ -144,8 +152,11 @@ class MyApp extends StatelessWidget {
           theme: buildAppTheme(kSeedDineIn),
           // Layar sempit (mis. 360 dp) menampilkan tata letak yang sama
           // dengan layar acuan — lihat SkalaLayar.
-          builder: (context, child) =>
-              PencatatSentuhan(child: SkalaLayar(child: child!)),
+          // PenutupDataRusak: database yang rusak di tengah pemakaian
+          // menggantikan halaman mana pun dengan layar Data Rusak.
+          builder: (context, child) => PencatatSentuhan(
+            child: SkalaLayar(child: PenutupDataRusak(child: child!)),
+          ),
           // Pencabutan perangkat menutup SELURUH aplikasi, jadi penjaganya
           // dipasang di atas Navigator — bukan di satu halaman. Layar mana
           // pun yang sedang terbuka akan tergantikan.

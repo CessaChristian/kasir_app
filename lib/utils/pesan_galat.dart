@@ -9,6 +9,8 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import 'package:supabase_flutter/supabase_flutter.dart'
     show AuthRetryableFetchException, PostgrestException;
 
+import '../shared/services/catatan_error.dart';
+
 /// Pesan untuk galat jaringan, dipakai di mana pun koneksinya putus.
 const pesanTakTersambung =
     'Tidak tersambung ke server. Periksa internet lalu coba lagi.';
@@ -51,7 +53,14 @@ const pesanMemoriPenuh = 'Memori HP penuh. Kosongkan dulu lalu coba lagi.';
 String pesanGalat(Object e, {String awalan = 'Terjadi kesalahan'}) {
   if (galatTakTersambung(e)) return pesanTakTersambung;
   final database = _pesanDatabase(e);
-  if (database != null) return database;
+  if (database != null) {
+    // Memori penuh bukan kesalahan aplikasi; sisanya dicatat, dan memicu
+    // pemeriksaan berkas database (PenjagaDatabase).
+    if (database != pesanMemoriPenuh) {
+      CatatanError.instance.catat(e, StackTrace.current, sumber: 'tertangkap');
+    }
+    return database;
+  }
   switch (e) {
     case StateError(:final message) when !_galatDart.contains(message):
       return message;
@@ -64,6 +73,12 @@ String pesanGalat(Object e, {String awalan = 'Terjadi kesalahan'}) {
           : _kalimat(message);
   }
   debugPrint('[galat] $awalan: $e');
+  // Galat yang tidak dikenali = kemungkinan bug: dilaporkan ke server.
+  CatatanError.instance.catat(
+    e,
+    e is Error ? e.stackTrace : StackTrace.current,
+    sumber: 'tertangkap',
+  );
   return '$awalan. Coba lagi.';
 }
 
@@ -97,6 +112,13 @@ String? _pesanDatabase(Object e) {
     'unable to open database',
   ];
   return gagalBaca.any(isi.contains) ? pesanDatabaseGagalBaca : null;
+}
+
+/// Galat dari database HP ini yang menandakan berkasnya mungkin rusak atau
+/// tidak terbaca — pemicu pemeriksaan berkas di tengah pemakaian.
+bool galatDatabase(Object e) {
+  final pesan = _pesanDatabase(e);
+  return pesan == pesanDatabaseRusak || pesan == pesanDatabaseGagalBaca;
 }
 
 /// Putus koneksi atau server tidak menjawab — bukan penolakan dari server.

@@ -37,10 +37,17 @@ class LayarDataRusak extends StatefulWidget {
   final RingkasanCadangan? ringkasan;
   final Future<void> Function() onPerbaiki;
 
+  /// True = kerusakannya ketahuan DI TENGAH pemakaian (PenjagaDatabase).
+  /// Database sedang terbuka dan tidak bisa diganti, jadi tombolnya menutup
+  /// aplikasi; Perbaiki data muncul saat dibuka lagi. [onPerbaiki] lalu
+  /// berarti "tutup aplikasi".
+  final bool perluTutup;
+
   const LayarDataRusak({
     super.key,
     required this.ringkasan,
     required this.onPerbaiki,
+    this.perluTutup = false,
   });
 
   /// Kalimat tentang data yang belum terkirim.
@@ -117,11 +124,14 @@ class _LayarDataRusakState extends State<LayarDataRusak> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Tidak perlu install ulang. Ketuk Perbaiki data, lalu HP ini '
-                  'mengambil lagi datanya dari server. Pastikan ada internet.',
+                Text(
+                  widget.perluTutup
+                      ? 'Tidak perlu install ulang. Tutup aplikasi ini, lalu '
+                            'buka lagi dan ketuk Perbaiki data.'
+                      : 'Tidak perlu install ulang. Ketuk Perbaiki data, lalu HP ini '
+                            'mengambil lagi datanya dari server. Pastikan ada internet.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: TeksTeras.biasa,
                     color: WarnaTeras.teksPudar,
                   ),
@@ -146,7 +156,13 @@ class _LayarDataRusakState extends State<LayarDataRusak> {
                     style: FilledButton.styleFrom(
                       backgroundColor: WarnaTeras.oranye,
                     ),
-                    child: Text(_memperbaiki ? 'Memperbaiki…' : 'Perbaiki data'),
+                    child: Text(
+                      widget.perluTutup
+                          ? 'Tutup aplikasi'
+                          : _memperbaiki
+                          ? 'Memperbaiki…'
+                          : 'Perbaiki data',
+                    ),
                   ),
                 ),
               ],

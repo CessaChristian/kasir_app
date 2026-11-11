@@ -1,3 +1,4 @@
+import '../../shared/services/catatan_error.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -390,6 +391,14 @@ class SyncService {
   }
 
   Future<HasilSync> _mulai() async {
+    final hasil = await _putaran();
+    // Catatan error HP ini ikut naik tiap putaran, berhasil atau tidak —
+    // justru sinkron yang gagal yang paling perlu dilaporkan. Tidak ditunggu.
+    unawaited(CatatanError.instance.kirim());
+    return hasil;
+  }
+
+  Future<HasilSync> _putaran() async {
     try {
       // Pastikan sesinya hidup DULU. Perangkat yang dipasang saat jaringan
       // mati belum pernah punya sesi, dan tanpa percobaan ulang di sini ia

@@ -52,8 +52,13 @@ void main() {
   test('terpasang di akar aplikasi, dan laporan aktif ikut detak tiap menit',
       () {
     // Tanpa dua sambungan ini, perilaku di atas tidak pernah jalan di HP.
-    expect(File('lib/main.dart').readAsStringSync(),
-        contains('PencatatSentuhan(child: SkalaLayar(child: child!))'));
+    // Spasi dan baris baru diabaikan: yang dijaga susunannya, bukan formatnya.
+    expect(
+      File('lib/main.dart').readAsStringSync().replaceAll(RegExp(r'\s+'), ''),
+      contains(
+        'PencatatSentuhan(child:SkalaLayar(child:PenutupDataRusak(child:child!))',
+      ),
+    );
     final otomatis =
         File('lib/data/sync/sync_otomatis.dart').readAsStringSync();
     expect(otomatis, contains('await laporAktifKalauPerlu();'));
