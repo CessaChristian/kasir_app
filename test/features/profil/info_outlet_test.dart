@@ -345,6 +345,44 @@ void main() {
       expect(find.text('Simpan info outlet?'), findsNothing);
     });
 
+    testWidgets('sinkron membawa info baru selagi halaman terbuka: kolom '
+        'langsung mengikuti', (t) async {
+      await buka(t);
+      InfoNota.kini.value = baru;
+      await t.pumpAndSettle();
+      expect(
+        t.widget<TextField>(kolom('alamat')).controller!.text,
+        'Jl. Diponegoro 12',
+      );
+      expect(
+        t.widget<TextField>(kolom('wifi_nama')).controller!.text,
+        'TERAS BARU',
+      );
+      expect(tombol, findsNothing, reason: 'bukan perubahan owner di HP ini');
+      expect(find.byKey(const ValueKey('catatan_hp_lain')), findsNothing);
+    });
+
+    testWidgets('sinkron tidak menimpa isian yang belum disimpan', (t) async {
+      await buka(t);
+      await t.enterText(kolom('no_hp'), '0899');
+      await t.pumpAndSettle();
+      InfoNota.kini.value = baru;
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(kolom('no_hp')).controller!.text, '0899');
+      expect(
+        t.widget<TextField>(kolom('alamat')).controller!.text,
+        'Jl. Diponegoro 12',
+        reason: 'kolom yang tidak disentuh mengikuti data terbaru',
+      );
+      expect(find.byKey(const ValueKey('catatan_hp_lain')), findsOneWidget);
+      expect(tombol, findsOneWidget);
+
+      // Ringkasan memakai data terbaru sebagai "sebelum".
+      await t.tap(tombol);
+      await t.pumpAndSettle();
+      expect(find.textContaining('No. HP: 0812-3456 → 0899'), findsOneWidget);
+    });
+
     testWidgets('simpan: ringkasan sebelum → sesudah, lalu tersimpan dan '
         'tombol hilang', (t) async {
       await buka(t);

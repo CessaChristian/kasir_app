@@ -44,6 +44,43 @@ class _InfoOutletPageState extends State<InfoOutletPage> {
 
   bool _menyimpan = false;
 
+  /// Info outlet berubah dari HP lain selagi ada isian yang belum disimpan.
+  bool _diubahHpLain = false;
+
+  @override
+  void initState() {
+    super.initState();
+    InfoNota.kini.addListener(_dataBerubah);
+  }
+
+  /// Sinkron (Segarkan atau otomatis) membawa info outlet baru selagi
+  /// halaman ini terbuka. Kolom yang BELUM diubah owner langsung mengikuti;
+  /// kolom yang sedang diubah TIDAK ditimpa — ketikannya tetap, dan owner
+  /// diberi tahu.
+  void _dataBerubah() {
+    final terbaru = InfoNota.kini.value;
+    if (!mounted || terbaru == _awal) return;
+    final isian = _isian;
+    final lama = _awal;
+    setState(() {
+      void ikut(
+        TextEditingController c,
+        String kini,
+        String dulu,
+        String baru,
+      ) {
+        if (kini == dulu && c.text != baru) c.text = baru;
+      }
+
+      ikut(_alamat, isian.alamat, lama.alamat, terbaru.alamat);
+      ikut(_noHp, isian.noHp, lama.noHp, terbaru.noHp);
+      ikut(_wifiNama, isian.wifiNama, lama.wifiNama, terbaru.wifiNama);
+      ikut(_wifiSandi, isian.wifiSandi, lama.wifiSandi, terbaru.wifiSandi);
+      _awal = terbaru;
+      _diubahHpLain = _isian != terbaru;
+    });
+  }
+
   InfoNota get _isian => InfoNota.rapikan(
     alamat: _alamat.text,
     noHp: _noHp.text,
@@ -53,6 +90,7 @@ class _InfoOutletPageState extends State<InfoOutletPage> {
 
   @override
   void dispose() {
+    InfoNota.kini.removeListener(_dataBerubah);
     _alamat.dispose();
     _noHp.dispose();
     _wifiNama.dispose();
@@ -106,7 +144,10 @@ class _InfoOutletPageState extends State<InfoOutletPage> {
     if (!mounted) return;
     setState(() {
       _menyimpan = false;
-      if (tersimpan) _awal = baru;
+      if (tersimpan) {
+        _awal = baru;
+        _diubahHpLain = false;
+      }
     });
   }
 
@@ -137,6 +178,25 @@ class _InfoOutletPageState extends State<InfoOutletPage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                   children: [
+                    if (_diubahHpLain && berubah)
+                      Container(
+                        key: const ValueKey('catatan_hp_lain'),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: WarnaTeras.oranyeMuda,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Info outlet baru saja diubah dari HP lain. Isian '
+                          'di bawah belum disimpan — periksa lagi sebelum '
+                          'menyimpan.',
+                          style: TextStyle(
+                            fontSize: TeksTeras.kecil,
+                            color: WarnaTeras.teks,
+                          ),
+                        ),
+                      ),
                     _kartu(
                       judul: 'Tercetak di kepala nota',
                       children: [
