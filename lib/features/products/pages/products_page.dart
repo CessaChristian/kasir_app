@@ -131,7 +131,7 @@ class _ProductsPageState extends State<ProductsPage> {
   // Dibuat sekali. Dulu dibuat di build: setiap huruf di kotak cari dan
   // setiap ganti chip memasang ulang dua pengamatan database dan menjalankan
   // ulang kuerinya (review E4).
-  late final _aliranKategori = _productRepo.watchCategories();
+  late var _aliranKategori = _productRepo.watchCategories();
   late var _aliranProduk = _productRepo.watchProducts();
 
   @override
@@ -195,23 +195,34 @@ class _ProductsPageState extends State<ProductsPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    DeretanKategori(
-                      terpilih: idSaring,
-                      onPilih: (id) => setState(() => _selectedCategoryId = id),
-                      isi: [
-                        const ChipKategori(
-                          id: null,
-                          label: 'Semua',
-                          ikon: Icons.apps_rounded,
+                    if (catSnap.hasError)
+                      // Dulu deretan kategorinya hilang tanpa pesan.
+                      GalatMuat(
+                        galat: catSnap.error!,
+                        awalan: 'Kategori gagal dimuat',
+                        onCobaLagi: () => setState(
+                          () => _aliranKategori =
+                              _productRepo.watchCategories(),
                         ),
-                        for (final c in kategori)
-                          ChipKategori(
-                            id: c.id,
-                            label: c.name,
-                            ikon: categoryIconFromCodepoint(c.iconCodepoint),
+                      )
+                    else
+                      DeretanKategori(
+                        terpilih: idSaring,
+                        onPilih: (id) => setState(() => _selectedCategoryId = id),
+                        isi: [
+                          const ChipKategori(
+                            id: null,
+                            label: 'Semua',
+                            ikon: Icons.apps_rounded,
                           ),
-                      ],
-                    ),
+                          for (final c in kategori)
+                            ChipKategori(
+                              id: c.id,
+                              label: c.name,
+                              ikon: categoryIconFromCodepoint(c.iconCodepoint),
+                            ),
+                        ],
+                      ),
                     const SizedBox(height: 10),
                     if (tampil == null)
                       const Padding(

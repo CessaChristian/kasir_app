@@ -167,9 +167,12 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
               _terlarisShiftTerakhir(r, sekarang),
             StreamBuilder<List<ProdukLaris>>(
               stream: _laris(sekarang),
-              builder: (context, snap) => snap.hasData
-                  ? KisiProdukLaris(daftar: snap.data!, onPilih: _pilihProduk)
-                  : const SizedBox.shrink(),
+              builder: (context, snap) {
+                catatGalatAliran(snap, 'dasbor kasir: produk laris');
+                return snap.hasData
+                    ? KisiProdukLaris(daftar: snap.data!, onPilih: _pilihProduk)
+                    : const SizedBox.shrink();
+              },
             ),
           ],
         );
@@ -324,6 +327,7 @@ class _DasborKasirPageState extends State<DasborKasirPage> {
     return StreamBuilder<List<ProdukLaris>>(
       stream: _terlaris(r.shift.id),
       builder: (context, snap) {
+        catatGalatAliran(snap, 'dasbor kasir: terlaris shift terakhir');
         final daftar = snap.data ?? const <ProdukLaris>[];
         if (daftar.isEmpty) return const SizedBox.shrink();
         return Column(

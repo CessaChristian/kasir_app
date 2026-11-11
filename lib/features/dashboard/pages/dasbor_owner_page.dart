@@ -122,9 +122,12 @@ class _DasborOwnerPageState extends State<DasborOwnerPage> {
           // Hanya dilihat: owner tidak menjual.
           StreamBuilder<List<ProdukLaris>>(
             stream: _laris(),
-            builder: (context, snap) => snap.hasData
-                ? KisiProdukLaris(daftar: snap.data!)
-                : const SizedBox.shrink(),
+            builder: (context, snap) {
+              catatGalatAliran(snap, 'dasbor owner: produk laris');
+              return snap.hasData
+                  ? KisiProdukLaris(daftar: snap.data!)
+                  : const SizedBox.shrink();
+            },
           ),
         ],
       ],

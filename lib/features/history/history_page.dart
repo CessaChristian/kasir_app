@@ -5,6 +5,7 @@ import '../../shared/auth/cakupan_riwayat.dart';
 import '../../shared/auth/session_manager.dart';
 import '../../shared/ui/kartu_teras.dart';
 import '../../shared/ui/kotak_cari.dart';
+import '../../shared/ui/galat_muat.dart';
 import '../../shared/ui/warna_teras.dart';
 import '../sales/repositories/sales_repository.dart';
 import '../shift/models/ringkasan_shift.dart';
@@ -146,7 +147,9 @@ class _HistoryPageState extends State<HistoryPage> {
     final berjalan = SessionManager.instance.currentSession?.shiftId != null;
     return StreamBuilder<RingkasanShift?>(
       stream: _aliranRekap,
-      builder: (context, snap) => KartuTeras(
+      builder: (context, snap) {
+        catatGalatAliran(snap, 'riwayat: kartu belum ada transaksi');
+        return KartuTeras(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
         child: Column(
           children: [
@@ -222,7 +225,8 @@ class _HistoryPageState extends State<HistoryPage> {
             ],
           ],
         ),
-      ),
+      );
+      },
     );
   }
 }

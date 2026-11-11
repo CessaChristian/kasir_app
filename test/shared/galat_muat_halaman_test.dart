@@ -20,7 +20,9 @@ import 'package:kasir_app/features/owner/pages/kelola_kasir_page.dart';
 import 'package:kasir_app/features/owner/repositories/cashier_repository.dart';
 import 'package:kasir_app/features/owner/models/ringkasan_kasir.dart';
 import 'package:kasir_app/features/products/pages/kategori_page.dart';
+import 'package:kasir_app/features/products/pages/products_page.dart';
 import 'package:kasir_app/features/products/repositories/product_repository.dart';
+import 'package:kasir_app/features/products/sheets/product_form_sheet.dart';
 import 'package:kasir_app/features/sales/models/keranjang.dart';
 import 'package:kasir_app/features/sales/repositories/sales_repository.dart';
 import 'package:kasir_app/features/sales/sales_page.dart';
@@ -30,6 +32,8 @@ import 'package:kasir_app/features/shift/pages/riwayat_shift_page.dart';
 import 'package:kasir_app/features/shift/repositories/shift_repository.dart';
 import 'package:kasir_app/shared/auth/cakupan_riwayat.dart';
 import 'package:kasir_app/shared/auth/session_manager.dart';
+import 'package:kasir_app/shared/services/catatan_error.dart';
+import 'package:kasir_app/shared/ui/galat_muat.dart';
 import 'package:kasir_app/shared/ui/periode/periode.dart';
 import 'package:kasir_app/shared/widgets/transaction_detail_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -388,5 +392,68 @@ void main() {
       pesan: 'Hak akses gagal dimuat',
       pulih: () => repo.gagal = false,
     );
+  });
+
+  testWidgets('halaman Produk: kategori gagal dimuat → pesan dan Coba lagi, '
+      'bukan deretan kategori yang hilang diam-diam', (t) async {
+    final repo = _KategoriGagal(db);
+    await uji(
+      t,
+      ProductsPage(repo: repo),
+      pesan: 'Kategori gagal dimuat',
+      pulih: () => repo.gagal = false,
+    );
+  });
+
+  testWidgets('form produk: kategori gagal dimuat → tertulis di kolomnya, '
+      'ketuk untuk mencoba lagi', (t) async {
+    t.view.physicalSize = const Size(1000, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final repo = _KategoriGagal(db);
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProductFormSheet(simpan: (_) async {}, repo: repo),
+        ),
+      ),
+    );
+    await jalan(t);
+    const tulisan = 'Gagal dimuat — ketuk untuk coba lagi';
+    expect(find.text(tulisan), findsOneWidget);
+    expect(find.text('Pilih Kategori'), findsNothing);
+    repo.gagal = false;
+    await t.tap(find.text(tulisan));
+    await jalan(t);
+    expect(find.text(tulisan), findsNothing);
+    expect(find.text('Pilih Kategori'), findsOneWidget);
+    await t.pump(const Duration(seconds: 4));
+    await t.pumpWidget(const SizedBox());
+    await t.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('bagian pelengkap: galat aliran dicatat sekali, tidak ditelan',
+      (t) async {
+    final galat = Exception('aliran pelengkap gagal');
+    final aliran = Stream<int>.error(galat);
+    final sebelum = CatatanError.instance.isi.length;
+    Widget layar() => MaterialApp(
+          home: StreamBuilder<int>(
+            stream: aliran.asBroadcastStream(),
+            builder: (context, snap) {
+              catatGalatAliran(snap, 'uji pelengkap');
+              return const SizedBox.shrink();
+            },
+          ),
+        );
+    await t.pumpWidget(layar());
+    await t.pump();
+    // Dibangun ulang: galat yang sama tidak dicatat dua kali.
+    await t.pump();
+    await t.pump();
+    final isi = CatatanError.instance.isi;
+    expect(isi.length, sebelum + 1);
+    expect(isi.last['sumber'], 'uji pelengkap');
+    await t.pumpWidget(const SizedBox());
   });
 }

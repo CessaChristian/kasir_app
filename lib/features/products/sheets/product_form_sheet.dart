@@ -89,6 +89,10 @@ class ProductFormSheet extends StatefulWidget {
 class _ProductFormSheetState extends State<ProductFormSheet> {
   late final _productRepo = widget.repo ?? ProductRepository(db);
 
+  /// Disimpan di state supaya bisa diganti saat "coba lagi" — dan supaya
+  /// tidak dibuat ulang di setiap build.
+  late var _aliranKategori = _productRepo.watchCategories();
+
   /// Galat isian, tampil di atas tombol simpan (desain).
   String? _galat;
 
@@ -601,8 +605,27 @@ class _ProductFormSheetState extends State<ProductFormSheet> {
 
   Widget _pilihKategori() {
     return StreamBuilder<List<Category>>(
-      stream: _productRepo.watchCategories(),
+      stream: _aliranKategori,
       builder: (context, snapshot) {
+        // Dulu galatnya ditelan: daftar kategori kosong tanpa penjelasan,
+        // owner tidak bisa memilih kategori dan tidak tahu kenapa.
+        if (snapshot.hasError) {
+          return KolomPilihan(
+            ikon: Icons.error_outline_rounded,
+            label: 'Kategori',
+            nilai: 'Gagal dimuat — ketuk untuk coba lagi',
+            kosong: true,
+            onTap: () {
+              AppToast.error(
+                context,
+                pesanGalat(snapshot.error!, awalan: 'Kategori gagal dimuat'),
+              );
+              setState(
+                () => _aliranKategori = _productRepo.watchCategories(),
+              );
+            },
+          );
+        }
         final categories = snapshot.data ?? [];
 
         // Kategori dimuat asinkron: pada mode Edit, pilihan awal baru bisa

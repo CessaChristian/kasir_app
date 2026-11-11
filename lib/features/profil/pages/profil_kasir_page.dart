@@ -6,6 +6,7 @@ import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/baris_menu.dart';
 import '../../../shared/ui/halaman_turunan.dart';
 import '../../../shared/ui/teks_teras.dart';
+import '../../../shared/ui/galat_muat.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../open_bill/repositories/open_bill_repository.dart';
 import '../../products/pages/kategori_page.dart';
@@ -91,8 +92,10 @@ class _ProfilKasirPageState extends State<ProfilKasirPage> {
         const SizedBox(height: 10),
         StreamBuilder<RingkasanShift?>(
           stream: _shift(sesi?.shiftId),
-          builder: (context, snap) =>
-              _kartuShift(sesi?.shiftId != null, snap.data),
+          builder: (context, snap) {
+            catatGalatAliran(snap, 'profil kasir: kartu shift');
+            return _kartuShift(sesi?.shiftId != null, snap.data);
+          },
         ),
         const JudulBagianProfil('MENU LAINNYA'),
         KelompokMenuProfil([

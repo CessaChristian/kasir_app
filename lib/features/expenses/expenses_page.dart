@@ -267,7 +267,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
           children: [
             StreamBuilder<RingkasanShift?>(
               stream: _aliranShift,
-              builder: (context, s) => _kartuTotal(r, s.data?.shift.startAt),
+              builder: (context, s) {
+                catatGalatAliran(s, 'pengeluaran: kartu total');
+                return _kartuTotal(r, s.data?.shift.startAt);
+              },
             ),
             const SizedBox(height: 22),
             const JudulBagian('Rincian Pengeluaran', ukuran: 18),
@@ -402,7 +405,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
   Widget _belumAda() {
     return StreamBuilder<RingkasanShift?>(
       stream: _aliranShift,
-      builder: (context, snap) => KartuTeras(
+      builder: (context, snap) {
+        catatGalatAliran(snap, 'pengeluaran: kartu belum ada shift');
+        return KartuTeras(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
         child: Column(
           children: [
@@ -448,7 +453,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
             ],
           ],
         ),
-      ),
+      );
+      },
     );
   }
 
