@@ -247,8 +247,8 @@ class OpenBillRepository {
   }
 
   /// Lama menunggu jawaban server sebelum bayar/hapus jalan tanpa kunci
-  /// (keputusan owner 2026-10-15).
-  static const batasTungguServer = Duration(seconds: 5);
+  /// (keputusan owner 2026-10-15; dari 5 jadi 3 detik 12 Nov 2026).
+  static const batasTungguServer = Duration(seconds: 3);
 
   /// Tandai bill [billId] di server sebagai sedang dibayar [transaksiId],
   /// SEBELUM transaksinya disimpan. Server mengerjakan "cek lalu tandai"

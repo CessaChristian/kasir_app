@@ -6,7 +6,6 @@ import '../../../data/app_database.dart'
     show BillTidakTerbuka, ShiftSudahDitutup;
 import '../../../data/db.dart';
 import '../../../data/models/sale_line.dart';
-import '../../../data/sync/sync_service.dart';
 import '../../../data/uuid_helper.dart';
 import '../../../shared/auth/session_manager.dart';
 import '../../../shared/ui/lembar_konfirmasi.dart';
@@ -15,7 +14,6 @@ import '../../../shared/ui/tombol_lembar.dart';
 import '../../../shared/ui/warna_teras.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../utils/currency_formatter.dart';
-import '../../open_bill/models/isi_bill.dart';
 import '../../open_bill/repositories/open_bill_repository.dart';
 import '../../open_bill/widgets/dialog_simpan_bill.dart';
 import '../models/keranjang.dart';
@@ -228,73 +226,33 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
       total: total,
       metode: _metode,
       bayar: (uang) async {
-        if (await widget.repo.shiftSudahDitutup(sesi!.shiftId!)) {
+        // Lama dari Konfirmasi ditekan sampai transaksinya tersimpan —
+        // untuk menelusuri keluhan "bayar terasa lama".
+        final jam = Stopwatch()..start();
+        final bill = _k.bill;
+        // Jualan biasa: tanya server dulu apakah shift-nya sudah ditutup HP
+        // lain. Bayar dari open bill tidak: satu-satunya pertanyaan ke
+        // server di sini adalah klaim, supaya Konfirmasi tidak terasa lama
+        // (keputusan owner 12 Nov 2026). Shift tetap diperiksa dari data HP
+        // saat transaksinya disimpan.
+        if (bill == null &&
+            await widget.repo.shiftSudahDitutup(sesi!.shiftId!)) {
           await tolakShift();
         }
-        final bill = _k.bill;
-        // Klaim di server dulu. Selama keranjang berisi, sinkron otomatis
-        // ditahan, jadi HP ini tidak tahu kalau bill-nya sudah dibayar atau
-        // dihapus HP lain — dan dua HP yang membayar bersamaan baru bisa
-        // dipisahkan oleh server. Tak terjawab (offline/lambat): tetap jalan.
+        // Klaim di server dulu: dari dua HP yang membayar bill yang sama
+        // bersamaan hanya satu yang boleh. Tak terjawab (offline/lambat):
+        // tetap jalan.
+        //
+        // Isi bill TIDAK dicocokkan lagi di sini — sudah dicocokkan dengan
+        // server saat bill dimuat ke keranjang (lembar_open_bill). Dulu
+        // dicocokkan di sini juga, dan Konfirmasi menunggu sampai tiga
+        // pertanyaan ke server.
         if (bill != null) {
-          // Klaim hanya memeriksa status bill, bukan isinya. Pesanan yang
-          // ditambahkan HP lain sesudah bill dimuat ke sini tidak akan ikut
-          // tertagih — jadi isinya dicocokkan dulu.
-          // Bill yang diperbarui HP ini tapi belum terkirim: kirim dulu.
-          // Kalau tetap belum sampai, isi server yang lama tidak dianggap
-          // perubahan HP lain (audit 6 Nov nomor 24).
-          final sudahSampai = await widget.repoBill.kirimKalauTertunda(bill.id);
-          final cek = await widget.repoBill.cekDiServer(bill.id);
-          final isiServer = cek.isi;
-          if (sudahSampai &&
-              cek.keputusan == KeputusanServer.boleh &&
-              isiServer != null &&
-              !isiBillSama(isiServer, bill.isiAwal)) {
-            final gabungan = await widget.repoBill.gabungDenganServer(
-              isiAwal: bill.isiAwal,
-              milikku: baris,
-              isiServer: isiServer,
-            );
-            // Pesanan dari HP lain memakai produk yang belum ada di HP ini.
-            // Dulu dibuang diam-diam lalu tidak tertagih: keranjang tidak
-            // diganti, kasir diminta menyegarkan dulu.
-            if (gabungan.produkHilang > 0) {
-              unawaited(SyncService.instance.jalankan());
-              if (mounted) {
-                AppToast.warning(
-                  context,
-                  'Bill ${bill.nama} punya pesanan dari HP lain yang produknya '
-                  'belum ada di HP ini. Tunggu sebentar lalu bayar lagi.',
-                );
-              }
-              throw const PembayaranDitolak();
-            }
-            _k.muatBill((
-              id: bill.id,
-              nama: bill.nama,
-              isiAwal: isiServer,
-            ), gabungan.baris);
-            if (mounted) {
-              AppToast.warning(
-                context,
-                'Bill ${bill.nama} sudah diubah di perangkat lain. '
-                'Keranjang diperbarui — periksa totalnya lalu bayar lagi.',
-              );
-            }
-            throw const PembayaranDitolak();
-          }
-          // Sudah pasti tertutup atau sedang dibayar menurut pengecekan
-          // tadi: tidak perlu klaim.
-          // "Sedang dibayar" tetap diklaim: bisa jadi klaim itu milik HP ini
-          // sendiri dari percobaan tadi yang gagal di tengah, dan server
-          // mengizinkan pemilik klaim mengulang dengan transaksi yang sama.
-          // Dulu dilewati, dan HP ini terkunci klaimnya sendiri sampai lima
-          // menit (audit 6 Nov nomor 31).
-          final jawaban =
-              cek.keputusan == KeputusanServer.sudahDibayar ||
-                  cek.keputusan == KeputusanServer.sudahDihapus
-              ? cek
-              : await widget.repoBill.klaimDiServer(bill.id, id);
+          // Klaim yang masih berlaku bisa milik HP ini sendiri dari
+          // percobaan tadi yang gagal di tengah; server mengizinkan pemilik
+          // klaim mengulang dengan transaksi yang sama (audit 6 Nov
+          // nomor 31).
+          final jawaban = await widget.repoBill.klaimDiServer(bill.id, id);
           final keputusan = jawaban.keputusan;
           if (keputusan == KeputusanServer.sedangDibayar) {
             tolakSedangDibayar(bill.nama, jawaban.sisaKlaim);
@@ -311,6 +269,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
             );
           }
         }
+        final tungguServer = jam.elapsedMilliseconds;
         try {
           await widget.repo.createSale(
             transactionId: id,
@@ -318,7 +277,7 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
             paymentMethod: _metode.kode,
             orderType: _tipe.kode,
             cashReceived: _metode == MetodeBayar.tunai ? uang : null,
-            cashierUserId: sesi.userId,
+            cashierUserId: sesi!.userId,
             shiftId: sesi.shiftId,
             billId: bill?.id,
           );
@@ -335,6 +294,10 @@ class _LembarKeranjangState extends State<_LembarKeranjang> {
           if (e is ShiftSudahDitutup) await tolakShift();
           rethrow;
         }
+        debugPrint(
+          '[bayar] ${bill == null ? 'biasa' : 'open bill'}: server '
+          '$tungguServer ms, total ${jam.elapsedMilliseconds} ms',
+        );
         _k.kosongkan();
       },
     );

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import 'jam_server.dart';
 
@@ -14,6 +16,21 @@ import 'jam_server.dart';
 /// berikutnya (termasuk yang otomatis) ikut menunggu putaran yang sama,
 /// HP berhenti sinkron sampai aplikasinya ditutup.
 const batasPermintaan = Duration(seconds: 15);
+
+/// Berapa lama sambungan ke server dibiarkan terbuka saat tidak dipakai.
+///
+/// Bawaan Dart 15 detik. Kasir biasanya butuh lebih lama dari itu antara
+/// membuka keranjang dan menekan Konfirmasi pembayaran, jadi pertanyaan ke
+/// server saat bayar selalu harus membuka sambungan baru dulu — diukur di
+/// emulator 12 Nov 2026: 0,8–1 detik, padahal pertanyaannya sendiri ±60 ms.
+/// Dengan 2 menit, 8 kali bayar open bill berturut-turut: nilai tengah
+/// ±0,1 detik. Laporan "HP ini masih aktif" tiap menit ikut menjaga
+/// sambungannya tetap hangat selama aplikasi dipakai.
+const umurSambunganDiam = Duration(minutes: 2);
+
+/// Klien HTTP dasar untuk Supabase — lihat [umurSambunganDiam].
+http.Client klienDasar() =>
+    IOClient(HttpClient()..idleTimeout = umurSambunganDiam);
 
 /// Kecepatan kirim paling lambat yang masih ditunggu, dalam bita per detik.
 /// Sedikit di bawah jaringan GSM (sekitar 1,8 KB/s).

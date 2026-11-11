@@ -1,3 +1,5 @@
+import '../../../data/sync/sync_service.dart';
+import '../../../shared/ui/dialog_memuat.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -124,8 +126,27 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
         !isiBillSama(kodekanIsiBill(_k.baris), aktif.isiAwal)) {
       if (!await _tanganiPerubahan(aktif) || !mounted) return;
     }
-    _k.muatBill((id: b.id, nama: b.name, isiAwal: b.items), isi.baris);
-    if (isi.produkHilang > 0) {
+    // Dicocokkan dengan server SEBELUM masuk keranjang (keputusan owner
+    // 12 Nov 2026): bill yang sudah dibayar/dihapus HP lain tidak pernah
+    // masuk, dan isinya dijamin yang terbaru. Dulu baru dicocokkan saat
+    // Konfirmasi pembayaran — saat pelanggan sudah menyodorkan uang.
+    final jam = Stopwatch()..start();
+    final cocok = await jalankanDenganMemuat(
+      context,
+      () => _cocokkanServer(b, isi),
+      pesan: 'Memeriksa bill…',
+    );
+    debugPrint('[bill] dicocokkan dengan server: ${jam.elapsedMilliseconds} ms');
+    if (cocok == null || !mounted) return;
+    final isiAwal = cocok.isiAwal;
+    isi = cocok.isi;
+    _k.muatBill((id: b.id, nama: b.name, isiAwal: isiAwal), isi.baris);
+    if (cocok.diperbarui) {
+      AppToast.info(
+        context,
+        'Bill ${b.name} sudah diubah di perangkat lain — isinya diperbarui',
+      );
+    } else if (isi.produkHilang > 0) {
       AppToast.warning(
         context,
         '${isi.produkHilang} produk sudah tidak dijual dan dihapus dari bill',
@@ -134,6 +155,70 @@ class _LembarOpenBillState extends State<_LembarOpenBill> {
       AppToast.success(context, 'Keranjang diganti dengan bill ${b.name}');
     }
     Navigator.pop(context, true);
+  }
+
+  /// Cocokkan bill [b] dengan server. Null = bill tidak boleh dimuat
+  /// (pesannya sudah ditampilkan). Server tak terjawab (offline/lambat):
+  /// dimuat dari data HP ini.
+  Future<({String isiAwal, BillTermuat isi, bool diperbarui})?> _cocokkanServer(
+    OpenBill b,
+    BillTermuat isi,
+  ) async {
+    final lokal = (isiAwal: b.items, isi: isi, diperbarui: false);
+    // Perubahan bill dari HP ini yang belum terkirim: kirim dulu. Kalau
+    // tetap belum sampai, isi server yang lama bukan perubahan HP lain
+    // (audit 6 Nov nomor 24).
+    final sudahSampai = await widget.repo.kirimKalauTertunda(b.id);
+    final cek = await widget.repo.cekDiServer(b.id);
+    switch (cek.keputusan) {
+      case KeputusanServer.sudahDibayar || KeputusanServer.sudahDihapus:
+        // Jawaban server sudah pasti: sembunyikan sekarang, rapikan datanya
+        // di belakang layar.
+        await widget.repo.tandaiTertutup(b.id);
+        unawaited(widget.repo.segarkanDariServer());
+        if (mounted) {
+          final apa = cek.keputusan == KeputusanServer.sudahDibayar
+              ? 'dibayar'
+              : 'dihapus';
+          AppToast.error(
+            context,
+            'Bill ${b.name} sudah $apa di perangkat lain',
+          );
+        }
+        return null;
+      case KeputusanServer.sedangDibayar:
+        if (mounted) {
+          AppToast.warning(context, pesanSedangDibayar(b.name, cek.sisaKlaim));
+        }
+        return null;
+      default:
+    }
+    final isiServer = cek.isi;
+    if (!sudahSampai ||
+        cek.keputusan != KeputusanServer.boleh ||
+        isiServer == null ||
+        isiBillSama(isiServer, b.items)) {
+      return lokal;
+    }
+    final terbaru = await widget.repo.gabungDenganServer(
+      isiAwal: b.items,
+      milikku: isi.baris,
+      isiServer: isiServer,
+    );
+    // Pesanan dari HP lain memakai produk yang belum ada di HP ini: kalau
+    // dimuat, pesanan itu tidak tertagih.
+    if (terbaru.produkHilang > 0) {
+      unawaited(SyncService.instance.jalankan());
+      if (mounted) {
+        AppToast.warning(
+          context,
+          'Bill ${b.name} punya pesanan dari HP lain yang produknya belum '
+          'ada di HP ini. Tunggu sebentar lalu buka lagi.',
+        );
+      }
+      return null;
+    }
+    return (isiAwal: isiServer, isi: terbaru, diperbarui: true);
   }
 
   /// True kalau boleh lanjut membuka bill lain.

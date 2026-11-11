@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'jam_server.dart';
@@ -210,7 +209,7 @@ class SupabaseService {
         publishableKey: SupabaseConfig.anonKey,
         // Setiap permintaan menyerah setelah 15 detik — lihat
         // KlienBerbatasWaktu. Tanpa ini sinkron bisa menggantung lama.
-        httpClient: KlienBerbatasWaktu(http.Client()),
+        httpClient: KlienBerbatasWaktu(klienDasar()),
         authOptions: FlutterAuthClientOptions(
           autoRefreshToken: true,
           // Tiket masuk HP ini di penyimpanan terenkripsi — lihat

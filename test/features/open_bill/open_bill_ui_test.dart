@@ -97,7 +97,14 @@ void main() {
       (await t.runAsync(() => db.select(db.openBills).get()))!;
 
   /// Layar dengan tombol pembuka keranjang dan daftar Open Bill.
-  Future<void> pasang(WidgetTester t, Keranjang k) async {
+  ///
+  /// [daftar]: repositori yang dipakai daftar Open Bill — server tiruan untuk
+  /// menguji pencocokan saat bill dimuat ke keranjang.
+  Future<void> pasang(
+    WidgetTester t,
+    Keranjang k, {
+    OpenBillRepository? daftar,
+  }) async {
     t.view.physicalSize = const Size(1080, 3600);
     t.view.devicePixelRatio = 3;
     addTearDown(t.view.reset);
@@ -123,7 +130,7 @@ void main() {
                   onPressed: () => bukaDaftarOpenBill(
                     c,
                     k,
-                    repo: repo,
+                    repo: daftar ?? repo,
                     repoProduk: ProductRepository(db),
                     repoJual: SalesRepository(db),
                   ),
@@ -535,7 +542,7 @@ void main() {
       final server = _ServerTiruan(db, klaim: keputusan);
       final k = await bayarBill(t, server);
 
-      expect(server.catatan, ['cek', 'klaim', 'segarkan']);
+      expect(server.catatan, ['klaim', 'segarkan']);
       cekDitolak(k, kata);
       final bill = (await semuaBill(t)).singleWhere((b) => b.id == id);
       expect(bill.deletedAt, isNotNull, reason: 'langsung tertutup di HP');
@@ -550,7 +557,7 @@ void main() {
     final server = _ServerTiruan(db, klaim: KeputusanServer.takTerjawab);
     await bayarBill(t, server);
     await t.pumpAndSettle();
-    expect(server.catatan, ['cek', 'klaim']);
+    expect(server.catatan, ['klaim']);
     expect((await semuaTx(t)).single.billName, 'Meja 4');
     await lepas(t);
   });
@@ -567,7 +574,7 @@ void main() {
             OpenBillsCompanion(deletedAt: Value(DateTime.now())),
           );
     final k = await bayarBill(t, server);
-    expect(server.catatan, ['cek', 'klaim', 'lepas']);
+    expect(server.catatan, ['klaim', 'lepas']);
     cekDitolak(k, 'dibayar atau dihapus');
     expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
@@ -583,7 +590,7 @@ void main() {
             ProductsCompanion(deletedAt: Value(DateTime.now())),
           );
     final k = await bayarBill(t, server);
-    expect(server.catatan, ['cek', 'klaim', 'lepas']);
+    expect(server.catatan, ['klaim', 'lepas']);
     expect(k.isEmpty, isFalse);
     expect(k.bill?.nama, 'Meja 4');
     expect(find.text('Sudah Bayar'), findsOneWidget);
@@ -621,44 +628,130 @@ void main() {
     await lepas(t);
   });
 
-  testWidgets('bayar bill yang sudah ditambah HP lain: keranjang diperbarui, '
-      'tidak ada pesanan yang lolos tertagih', (t) async {
+  // ── Pencocokan dengan server saat bill DIMUAT ke keranjang ──
+  //
+  // Dulu dicocokkan saat Konfirmasi pembayaran; sejak 12 Nov 2026 saat bill
+  // diketuk di daftar, supaya Konfirmasi hanya menunggu satu pertanyaan
+  // (klaim).
+
+  /// Buka daftar dengan [server] sebagai repositori, lalu ketuk Meja 4.
+  Future<Keranjang> muatMeja4(WidgetTester t, _ServerTiruan server) async {
+    final k = Keranjang();
+    await pasang(t, k, daftar: server);
+    await bukaDaftar(t);
+    await t.tap(find.text('Meja 4'));
+    await tunggu(t);
+    await t.pumpAndSettle();
+    return k;
+  }
+
+  /// Bayar QRIS dari lembar keranjang yang sedang terbuka.
+  Future<void> bayarQris(WidgetTester t, String tombol) async {
+    await t.tap(find.text('QRIS'));
+    await t.pump();
+    await t.tap(find.text(tombol));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Sudah Bayar'));
+    await tunggu(t, 300);
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('muat bill yang sudah ditambah HP lain: keranjang berisi versi '
+      'server, lalu lunas penuh', (t) async {
     final id = await simpanMeja4(t);
-    // HP lain menambah Teh ke Meja 4 sesudah HP ini memuatnya (Latte×1).
+    // HP lain menambah Teh ke Meja 4; HP ini masih menyimpan Latte×1.
     final isiBaru = kodekanBarisBill([
       (idProduk: 'latte', jumlah: 1, catatan: null),
       (idProduk: 'teh', jumlah: 1, catatan: null),
     ]);
     final server = _ServerTiruan(db)..isiServer = isiBaru;
-    final k = await bayarBill(t, server);
-    await t.pumpAndSettle();
+    final k = await muatMeja4(t, server);
 
-    expect(server.catatan, ['cek'], reason: 'belum diklaim');
-    expect(await semuaTx(t), isEmpty, reason: 'Rp18.000 tidak boleh tercatat');
+    expect(server.catatan, ['cek']);
+    expect(k.baris.map((b) => (b.productId, b.qty)), [('latte', 1), ('teh', 1)]);
+    expect(k.bill, (id: id, nama: 'Meja 4', isiAwal: isiBaru));
     expect(
       find.text(
-        'Bill Meja 4 sudah diubah di perangkat lain. '
-        'Keranjang diperbarui — periksa totalnya lalu bayar lagi.',
+        'Bill Meja 4 sudah diubah di perangkat lain — isinya diperbarui',
       ),
       findsOneWidget,
     );
-    expect(find.text('Sudah Bayar'), findsNothing, reason: 'lembar bayar');
-    expect(find.text('Keranjang'), findsOneWidget, reason: 'tetap terbuka');
-    expect(k.baris.map((b) => (b.productId, b.qty)), [('latte', 1), ('teh', 1)]);
-    expect(k.bill, (id: id, nama: 'Meja 4', isiAwal: isiBaru));
 
-    // Dibayar lagi dengan isi yang sudah sama dengan server: lunas penuh.
-    await t.tap(find.text('Bayar Rp 26.000'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Sudah Bayar'));
-    await tunggu(t, 300);
-    await t.pumpAndSettle();
-    expect(server.catatan, ['cek', 'cek', 'klaim']);
+    await bayarQris(t, 'Bayar Rp 26.000');
+    expect(server.catatan, ['cek', 'klaim'], reason: 'saat bayar hanya klaim');
     final tx = await semuaTx(t);
     expect((tx.single.total, tx.single.billName), (26000, 'Meja 4'));
     await t.tap(find.text('Selesai'));
     await t.pumpAndSettle();
     await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('muat bill, isi server sama atau server tak terjawab: dimuat '
+      'dari HP ini tanpa pesan', (t) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db, cek: KeputusanServer.takTerjawab);
+    final k = await muatMeja4(t, server);
+    expect(server.catatan, ['cek']);
+    expect(k.baris.map((b) => (b.productId, b.qty)), [('latte', 1)]);
+    expect(find.textContaining('diubah di perangkat lain'), findsNothing);
+    expect(find.text('Keranjang'), findsOneWidget, reason: 'keranjang terbuka');
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  for (final (keputusan, kata) in const [
+    (KeputusanServer.sudahDibayar, 'dibayar'),
+    (KeputusanServer.sudahDihapus, 'dihapus'),
+  ]) {
+    testWidgets('muat bill yang sudah $kata HP lain: tidak masuk keranjang', (
+      t,
+    ) async {
+      final id = await simpanMeja4(t);
+      final server = _ServerTiruan(db, cek: keputusan);
+      final k = await muatMeja4(t, server);
+      expect(server.catatan, ['cek', 'segarkan']);
+      expect((k.isEmpty, k.bill), (true, null));
+      expect(find.text('Keranjang'), findsNothing, reason: 'tidak dibuka');
+      expect(
+        find.text('Bill Meja 4 sudah $kata di perangkat lain'),
+        findsOneWidget,
+      );
+      final bill = (await semuaBill(t)).singleWhere((b) => b.id == id);
+      expect(bill.deletedAt, isNotNull, reason: 'langsung tertutup di HP');
+      await t.pump(const Duration(seconds: 3));
+      await lepas(t);
+    });
+  }
+
+  testWidgets('muat bill yang sedang dibayar HP lain: tidak masuk keranjang, '
+      'bill tetap di daftar', (t) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db, cek: KeputusanServer.sedangDibayar)
+      ..sisaKlaim = const Duration(minutes: 3, seconds: 30);
+    final k = await muatMeja4(t, server);
+    expect((k.isEmpty, k.bill), (true, null));
+    expect(find.textContaining('lagi dibayar di perangkat lain'), findsOneWidget);
+    expect((await semuaBill(t)).single.deletedAt, isNull);
+    await t.pump(const Duration(seconds: 3));
+    await lepas(t);
+  });
+
+  testWidgets('muat bill berisi produk dari HP lain yang belum ada di HP ini: '
+      'tidak masuk keranjang', (t) async {
+    await simpanMeja4(t);
+    final server = _ServerTiruan(db)
+      ..isiServer = kodekanBarisBill([
+        (idProduk: 'latte', jumlah: 1, catatan: null),
+        (idProduk: 'produk-baru', jumlah: 2, catatan: null),
+      ]);
+    final k = await muatMeja4(t, server);
+    expect((k.isEmpty, k.bill), (true, null), reason: 'pesanan tidak tertagih');
+    expect(
+      find.textContaining('produknya belum ada di HP ini'),
+      findsOneWidget,
+    );
+    await t.pump(const Duration(seconds: 6));
     await lepas(t);
   });
 
@@ -676,26 +769,10 @@ void main() {
     final server = _ServerTiruan(db)
       ..isiServer = kodekanBarisBill([(idProduk: 'latte', jumlah: 1, catatan: null)])
       ..kirimUntukTest = () async {}; // pengiriman gagal (offline)
-    final k = Keranjang();
-    await pasang(t, k);
-    await bukaDaftar(t);
-    await t.tap(find.text('Meja 4'));
-    await t.pumpAndSettle();
+    final k = await muatMeja4(t, server);
     expect(k.baris.map((b) => b.productId), ['latte', 'teh']);
-    Navigator.of(t.element(find.text('Keranjang'))).pop();
-    await t.pumpAndSettle();
-    // ignore: unawaited_futures
-    bukaKeranjang(t.element(find.text('keranjang')), k,
-        repo: SalesRepository(db), repoBill: server);
-    await t.pumpAndSettle();
-    await t.tap(find.text('QRIS'));
-    await t.pump();
-    await t.tap(find.text('Bayar Rp 26.000'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Sudah Bayar'));
-    await tunggu(t, 300);
-    await t.pumpAndSettle();
     expect(find.textContaining('diubah di perangkat lain'), findsNothing);
+    await bayarQris(t, 'Bayar Rp 26.000');
     final tx = await semuaTx(t);
     expect(tx.single.total, 26000, reason: 'Teh ikut tertagih');
     await t.tap(find.text('Selesai'));
@@ -704,59 +781,23 @@ void main() {
     await lepas(t);
   });
 
-  testWidgets('tambahan kasir di HP ini ikut digabung dengan tambahan HP lain', (
+  testWidgets('saat bayar isi bill tidak dicocokkan lagi: hanya klaim', (
     t,
   ) async {
+    // Risiko yang diterima owner 12 Nov 2026: pesanan yang ditambahkan HP
+    // lain SESUDAH bill dimuat ke keranjang tidak ikut tertagih.
     await simpanMeja4(t);
     final server = _ServerTiruan(db)
       ..isiServer = kodekanBarisBill([
         (idProduk: 'latte', jumlah: 1, catatan: null),
         (idProduk: 'teh', jumlah: 1, catatan: null),
       ]);
-    final k = Keranjang();
-    await pasang(t, k);
-    await bukaDaftar(t);
-    await t.tap(find.text('Meja 4'));
+    await bayarBill(t, server);
     await t.pumpAndSettle();
-    k.tambah(idProduk: 'roti', nama: 'Roti', harga: 12000);
-    Navigator.of(t.element(find.text('Keranjang'))).pop();
+    expect(server.catatan, ['klaim']);
+    expect((await semuaTx(t)).single.total, 18000);
+    await t.tap(find.text('Selesai'));
     await t.pumpAndSettle();
-    // ignore: unawaited_futures
-    bukaKeranjang(
-      t.element(find.text('keranjang')),
-      k,
-      repo: SalesRepository(db),
-      repoBill: server,
-    );
-    await t.pumpAndSettle();
-    await t.tap(find.text('QRIS'));
-    await t.pump();
-    await t.tap(find.text('Bayar Rp 30.000'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Sudah Bayar'));
-    await tunggu(t, 300);
-    await t.pumpAndSettle();
-
-    expect(k.baris.map((b) => (b.productId, b.qty)), [
-      ('latte', 1),
-      ('teh', 1),
-      ('roti', 1),
-    ]);
-    expect(find.text('Bayar Rp 38.000'), findsOneWidget);
-    expect(await semuaTx(t), isEmpty);
-    await t.pump(const Duration(seconds: 3));
-    await lepas(t);
-  });
-
-  testWidgets('pengecekan isi bilang bill sudah dibayar: ditolak tanpa klaim', (
-    t,
-  ) async {
-    await simpanMeja4(t);
-    final server = _ServerTiruan(db, cek: KeputusanServer.sudahDibayar);
-    final k = await bayarBill(t, server);
-    expect(server.catatan, ['cek', 'segarkan']);
-    cekDitolak(k, 'dibayar');
-    expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
     await lepas(t);
   });
@@ -816,9 +857,15 @@ void main() {
     await lepas(t);
   });
 
-  testWidgets('shift sudah ditutup: bill tidak diklaim', (t) async {
+  testWidgets('bayar bill di shift yang sudah ditutup: server tidak ditanya '
+      'soal shift, database menolak, klaim dilepas', (t) async {
     await simpanMeja4(t);
-    final server = _ServerTiruan(db);
+    // HP ini sudah tahu shift-nya ditutup (lewat sinkron).
+    final server = _ServerTiruan(db)
+      ..sebelumKlaim = () =>
+          (db.update(db.shifts)..where((s) => s.id.equals('s-1')))
+              .write(ShiftsCompanion(endAt: Value(DateTime.now())));
+    final jual = _PenjualanTiruan(db, ditutup: true);
     final k = Keranjang();
     await pasang(t, k);
     await bukaDaftar(t);
@@ -826,11 +873,12 @@ void main() {
     await t.pumpAndSettle();
     Navigator.of(t.element(find.text('Keranjang'))).pop();
     await t.pumpAndSettle();
-    await bayarDengan(
-        t, k, _PenjualanTiruan(db, ditutup: true), server, 'Bayar Rp 18.000');
-    expect(server.catatan, isEmpty, reason: 'bill tidak dikunci');
+    await bayarDengan(t, k, jual, server, 'Bayar Rp 18.000');
+    expect(jual.ditanya, 0, reason: 'bayar bill hanya bertanya klaim');
+    expect(server.catatan, ['klaim', 'lepas'], reason: 'bill tidak terkunci');
     cekShiftDitolak(k);
     expect(k.bill?.nama, 'Meja 4');
+    expect(await semuaTx(t), isEmpty);
     await t.pump(const Duration(seconds: 3));
     await lepas(t);
   });
@@ -1240,7 +1288,7 @@ void main() {
       final server = _ServerTiruan(db, klaim: KeputusanServer.sedangDibayar)
         ..sisaKlaim = const Duration(minutes: 3, seconds: 30);
       final k = await bayarBill(t, server);
-      expect(server.catatan, ['cek', 'klaim']);
+      expect(server.catatan, ['klaim']);
       expect(k.bill?.id, id, reason: 'keranjang tidak dikosongkan');
       expect(k.isEmpty, isFalse);
       expect(find.text(pesan), findsOneWidget);
@@ -1254,13 +1302,13 @@ void main() {
     testWidgets('audit nomor 31: klaim yang ternyata milik HP ini sendiri '
         'diklaim ulang, lalu lunas', (t) async {
       await simpanMeja4(t);
-      // Cek menjawab "sedang dibayar" — klaim itu milik percobaan bayar HP
-      // ini yang gagal di tengah. Klaim ulang dengan transaksi yang sama
-      // diterima server.
+      // Bill masih bertanda "sedang dibayar" — klaim itu milik percobaan
+      // bayar HP ini yang gagal di tengah. Saat bayar tidak ada pengecekan
+      // status lagi: langsung klaim ulang, dan server menerimanya.
       final server = _ServerTiruan(db, cek: KeputusanServer.sedangDibayar)
         ..sisaKlaim = const Duration(minutes: 3);
       await bayarBill(t, server);
-      expect(server.catatan, ['cek', 'klaim']);
+      expect(server.catatan, ['klaim']);
       expect(find.text(pesan), findsNothing);
       expect((await semuaTx(t)).single.total, 18000);
       await t.tap(find.text('Selesai'));
