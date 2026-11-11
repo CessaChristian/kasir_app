@@ -87,7 +87,7 @@ begin
   foreach t in array array[
     'users','permissions','user_permissions','categories','products',
     'shifts','transactions','transaction_items','expenses','open_bills',
-    'perangkat'
+    'perangkat','info_toko'
   ] loop
     -- TRUNCATE, TRIGGER, REFERENCES juga tidak pernah dipakai aplikasi.
     -- TRUNCATE malah melewati RLS sama sekali (revisi QA C10: masih
