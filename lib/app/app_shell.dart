@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/perangkat/perangkat_repository.dart';
 import '../shared/auth/session_manager.dart';
+import '../shared/widgets/app_toast.dart';
 import 'kerangka_kasir.dart';
 import 'kerangka_owner.dart';
 import 'penjaga_perangkat.dart';
@@ -25,6 +26,7 @@ class AppShellState extends State<AppShell> {
     // ulang tanpa harus keluar dan masuk lagi.
     SessionManager.instance.sesiBerubah.addListener(_sesiBerubah);
     SessionManager.instance.sesiDicabut.addListener(_sesiDicabut);
+    SessionManager.instance.akanDikeluarkan.addListener(_akanDikeluarkan);
     for (final n in _penandaPerangkat) {
       n.addListener(_perangkatBerubah);
     }
@@ -74,6 +76,17 @@ class AppShellState extends State<AppShell> {
     Navigator.of(context).pushAndRemoveUntil(ruteMasuk(), (route) => false);
   }
 
+  /// Akun ini dipegang HP lain atau dilepas owner, tapi keranjang masih
+  /// berisi: kasir diberi tahu sekali, lalu HP keluar sendiri begitu
+  /// pesanannya selesai (SyncOtomatis.tanganiPutusanAkun).
+  String? _pesanTerakhir;
+  void _akanDikeluarkan() {
+    final pesan = SessionManager.instance.akanDikeluarkan.value;
+    if (pesan == null || pesan == _pesanTerakhir || !mounted) return;
+    _pesanTerakhir = pesan;
+    AppToast.warning(context, pesan);
+  }
+
   void _sesiBerubah() {
     if (mounted) setState(() {});
   }
@@ -82,6 +95,7 @@ class AppShellState extends State<AppShell> {
   void dispose() {
     SessionManager.instance.sesiBerubah.removeListener(_sesiBerubah);
     SessionManager.instance.sesiDicabut.removeListener(_sesiDicabut);
+    SessionManager.instance.akanDikeluarkan.removeListener(_akanDikeluarkan);
     for (final n in _penandaPerangkat) {
       n.removeListener(_perangkatBerubah);
     }

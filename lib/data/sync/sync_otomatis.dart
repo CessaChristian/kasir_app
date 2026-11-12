@@ -66,10 +66,9 @@ class SyncOtomatis with WidgetsBindingObserver {
 
   Timer? _timer;
 
-  /// Pemeriksa sesi diam (SessionManager.akhiriKalauDiam) selagi aplikasi
-  /// di depan. Tiap menit, bukan ikut [jarakBerkala], supaya keranjang yang
-  /// dibiarkan berisi berakhir tepat di menit ke-15, bukan sampai menit
-  /// ke-20. Murah: tidak menyentuh jaringan maupun database.
+  /// Pemeriksa tiap menit selagi aplikasi di depan: lapor aktif selama
+  /// sinkron ditahan, status perangkat ini, dan putusan akun
+  /// ([tanganiPutusanAkun]).
   Timer? _timerDiam;
   static const jarakPeriksaDiam = Duration(minutes: 1);
 
@@ -220,9 +219,9 @@ class SyncOtomatis with WidgetsBindingObserver {
     _timer = Timer.periodic(jarakBerkala, (_) => picu('berkala'));
     _timerDiam?.cancel();
     _timerDiam = Timer.periodic(jarakPeriksaDiam, (_) async {
-      if (await SessionManager.instance.akhiriKalauDiam()) return;
       await laporAktifKalauPerlu();
       await periksaPerangkatIni();
+      await tanganiPutusanAkun();
     });
   }
 
@@ -248,9 +247,6 @@ class SyncOtomatis with WidgetsBindingObserver {
   @visibleForTesting
   Future<void> kembaliAktif() async {
     _nyalakanTimer();
-    // Diperiksa SEBELUM sinkron: putaran sinkron mencatat kabar baru, dan
-    // sesudahnya HP yang diam sejam pun akan terlihat baru saja aktif.
-    await SessionManager.instance.akhiriKalauDiam();
     // Sengaja mengabaikan jeda minimum: jendela basi setelah HP tidur bisa
     // berjam-jam, dan inilah satu-satunya kesempatan menutupnya sebelum
     // kasir melayani pelanggan berikutnya.
@@ -262,9 +258,58 @@ class SyncOtomatis with WidgetsBindingObserver {
   /// dikosongkan, atau form produk ditutup — untuk melunasi sinkron yang tadi
   /// ditunda.
   void lanjutkanYangTertunda() {
+    unawaited(tanganiPutusanAkun());
     if (!_tertunda) return;
     _tertunda = false;
     picu('pekerjaan rawan selesai', abaikanJeda: true);
+  }
+
+  bool _menanganiPutusan = false;
+
+  /// HP ini kalah memegang akun kasirnya, atau akunnya dilepas owner
+  /// (supabase/akun_satu_hp.sql) — HP ini harus keluar.
+  ///
+  /// Tidak langsung (keputusan owner 12 Nov 2026):
+  /// - selama keranjang berisi atau form produk terbuka, kasir cukup diberi
+  ///   tahu ([SessionManager.akanDikeluarkan]) — pesanan yang sedang
+  ///   dilayani tidak boleh hilang;
+  /// - data yang belum terkirim dikirim DULU. Masih ada yang tertahan
+  ///   (internet putus lagi) = dicoba lagi menit berikutnya.
+  Future<void> tanganiPutusanAkun({
+    Future<int> Function()? hitungTertunda,
+    Future<void> Function()? kirim,
+  }) async {
+    final perangkat = PerangkatRepository.instance;
+    final sm = SessionManager.instance;
+    final putusan = perangkat.putusanAkun.value;
+    if (putusan == null || !sm.isLoggedIn || _menanganiPutusan) return;
+    if (_adaPekerjaanRawan) {
+      sm.akanDikeluarkan.value = putusan == PutusanAkun.dilepas
+          ? 'Owner melepas akun ini dari HP ini. HP ini akan keluar sesudah '
+                'pesanan ini selesai.'
+          : 'Akun ini dipakai di HP lain. HP ini akan keluar sesudah pesanan '
+                'ini selesai.';
+      return;
+    }
+    _menanganiPutusan = true;
+    try {
+      final hitung = hitungTertunda ?? db.jumlahTertunda;
+      if (await hitung() > 0) {
+        await (kirim ?? () => picu('sebelum keluar', abaikanJeda: true))();
+        if (await hitung() > 0) return;
+      }
+      // Putaran tadi melapor lagi ke server — jawabannya bisa berubah.
+      final akhir = perangkat.putusanAkun.value;
+      if (akhir == null || _adaPekerjaanRawan || !sm.isLoggedIn) return;
+      perangkat.putusanAkun.value = null;
+      await sm.keluarkanKarenaAkun(akhir == PutusanAkun.dilepas
+          ? SessionManager.pesanDilepas
+          : SessionManager.pesanKalah);
+    } catch (e) {
+      debugPrint('[sync] keluar karena akun gagal: $e');
+    } finally {
+      _menanganiPutusan = false;
+    }
   }
 
   /// Alasan kenapa sinkron kali ini dilewati, atau null kalau boleh jalan.
@@ -366,5 +411,6 @@ class SyncOtomatis with WidgetsBindingObserver {
     _penggabung?.cancel();
     _penggabung = null;
     penggantiPicuUntukTest = null;
+    _menanganiPutusan = false;
   }
 }

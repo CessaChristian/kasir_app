@@ -32,14 +32,26 @@ class AuthRepository {
   /// Diisi test. Bawaan: [_ubahKredensialDiServer].
   final Future<String?> Function(Map<String, dynamic> param)? _kirimKredensial;
 
+  /// Diisi test untuk [login]. Bawaan: [PerangkatRepository.pegangAkun].
+  final Future<HasilPegangAkun> Function(String userId, DateTime sejak)?
+  _pegangAkun;
+
   AuthRepository(
     this._db, {
     Future<void> Function()? tungguSinkron,
     Future<void> Function(String? shiftId)? lapor,
     Future<String?> Function(Map<String, dynamic> param)? kirimKredensial,
+    Future<HasilPegangAkun> Function(String userId, DateTime sejak)?
+    pegangAkun,
   }) : _tungguSinkron = tungguSinkron,
        _lapor = lapor,
-       _kirimKredensial = kirimKredensial;
+       _kirimKredensial = kirimKredensial,
+       _pegangAkun = pegangAkun;
+
+  /// Pesan saat akun kasir ditolak karena dipegang HP [nama].
+  static String pesanAkunDipegang(String nama) =>
+      'Akun ini sedang dipakai di $nama. Keluar dulu dari HP itu, atau minta '
+      'owner melepasnya di Daftar Perangkat.';
 
   /// PIN, garam, dan kode recovery OWNER hanya berubah lewat server, yang
   /// memeriksa sendiri [bukti] — PIN saat ini ([jenis] 'pin') atau kode
@@ -281,14 +293,26 @@ class AuthRepository {
     final permissions =
         await SessionManager.bacaIzin(_db, user.id, user.role);
 
-    // 6. Create and return session (default expire: 12 jam)
-    return AuthSession.create(
+    // 6. Sesi baru. Tidak kedaluwarsa sendiri (keputusan owner 12 Nov 2026).
+    final sesi = AuthSession.create(
       userId: user.id,
       username: user.username,
       role: user.role,
       shiftId: shiftId,
       permissions: permissions,
     );
+
+    // 7. Satu akun kasir = satu HP (supabase/akun_satu_hp.sql). Hanya
+    // ditolak kalau server MENJAWAB akunnya dipegang HP lain; offline tetap
+    // boleh masuk.
+    if (user.role != 'owner') {
+      final hasil = await (_pegangAkun ??
+          PerangkatRepository.instance.pegangAkun)(user.id, sesi.createdAt);
+      if (!hasil.boleh) {
+        throw AkunDitolak(pesanAkunDipegang(hasil.nama ?? 'HP lain'));
+      }
+    }
+    return sesi;
   }
 
   /// Keluar dari akun. Shift yang sedang berjalan SENGAJA tidak ditutup:

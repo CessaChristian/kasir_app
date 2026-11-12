@@ -65,6 +65,12 @@ class _RepoPalsu extends PerangkatRepository {
   }
 
   @override
+  Future<void> lepasAkun(String id, {required String pin}) async {
+    if (pin != pinOwner) throw PinOwnerSalah();
+    panggilan.add('lepas $id');
+  }
+
+  @override
   Future<void> lupakan(String id, {required String pin}) async {
     if (pin != pinOwner) throw PinOwnerSalah();
     panggilan.add('lupakan $id');
@@ -396,7 +402,7 @@ void main() {
       layarHp(t);
       await t.pumpWidget(
         MaterialApp(
-          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => online),
+          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => online, namaAkun: () async => const {}),
         ),
       );
       await tunggu(t);
@@ -438,7 +444,7 @@ void main() {
       addTearDown(t.view.reset);
       await t.pumpWidget(
         MaterialApp(
-          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => online),
+          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => online, namaAkun: () async => const {}),
         ),
       );
       await tunggu(t);
@@ -501,6 +507,45 @@ void main() {
       await isiPin(t, pinOwner, 'Cabut');
       expect(repo.panggilan, ['status tab false']);
       expect(find.text('Dicabut'), findsNWidgets(2));
+      await lepas(t);
+    });
+
+    testWidgets('akun kasir: "Dipakai akun", peringatan 2 HP, Lepas Akun '
+        'minta PIN owner (akun_satu_hp.sql)', (t) async {
+      final sejak = DateTime(2026, 11, 12, 8);
+      Perangkat pegang(String id, String nama) => Perangkat(
+        id: id,
+        nama: nama,
+        aktif: true,
+        terakhirAktif: DateTime.now(),
+        didaftarkan: DateTime(2026, 10, 1),
+        akunId: 'u-1',
+        akunSejak: sejak,
+      );
+      repo.daftar = [pegang('k1', 'HP Kasir 1'), pegang('k2', 'HP Kasir 2')];
+      layarHp(t);
+      await t.pumpWidget(
+        MaterialApp(
+          home: DaftarPerangkatPage(
+            repo: repo,
+            cekKoneksi: () async => true,
+            namaAkun: () async => const {'u-1': 'shift1'},
+          ),
+        ),
+      );
+      await tunggu(t);
+      expect(find.text('Dipakai akun'), findsNWidgets(2));
+      expect(find.text('shift1 · sejak 12 Nov 08:00'), findsNWidgets(2));
+      expect(find.text('Akun shift1 dipakai di 2 HP'), findsNWidgets(2));
+
+      await t.tap(find.text('Lepas Akun').first);
+      await t.pumpAndSettle();
+      expect(find.text('Lepas akun?'), findsOneWidget);
+      await isiPin(t, pinOwner, 'Lepas');
+      expect(repo.panggilan, hasLength(1));
+      expect(repo.panggilan.single, startsWith('lepas k'));
+      expect(find.textContaining('Akun shift1 dilepas dari HP Kasir'),
+          findsOneWidget);
       await lepas(t);
     });
 
@@ -611,7 +656,7 @@ void main() {
         );
       await t.pumpWidget(
         MaterialApp(
-          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => true),
+          home: DaftarPerangkatPage(repo: repo, cekKoneksi: () async => true, namaAkun: () async => const {}),
         ),
       );
       await t.pump();

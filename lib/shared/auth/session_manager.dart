@@ -17,8 +17,10 @@ import '../../utils/crypto_utils.dart';
 /// SessionManager re-validate ke DB saat `restoreSession()` untuk
 /// mencegah privilege escalation via tamper SharedPreferences (S6).
 ///
-/// Session expire setelah 12 jam (S7), atau lebih cepat untuk owner dan
-/// kasir yang memegang shift kalau [batasDiam] layarnya tidak disentuh.
+/// Sesi TIDAK berakhir sendiri (keputusan owner 12 Nov 2026): dulu habis
+/// sesudah 12 jam atau 15 menit layar tidak disentuh. Sekarang sesi hanya
+/// berakhir kalau penggunanya keluar, akunnya dicabut, atau akun kasirnya
+/// dipegang HP lain / dilepas owner ([keluarkanKarenaAkun]).
 class SessionManager {
   static final SessionManager instance = SessionManager._();
   SessionManager._();
@@ -73,25 +75,16 @@ class SessionManager {
     return true;
   }
 
-  /// Kasir yang memegang shift dan selama ini tidak memberi kabar ke server
-  /// harus login ulang (keputusan owner 2026-10-20).
-  ///
-  /// ── KENAPA ──
-  ///
-  /// Server menolak "Tutup shift" selama ada perangkat lain yang memegang
-  /// shift itu, dan perangkat yang mati atau aplikasinya digeser dari
-  /// riwayat tidak sempat melepasnya. Maka server berhenti menghitung
-  /// perangkat yang [batasDiam] tidak memberi kabar
-  /// (supabase/shift_pemegang_basi.sql — angkanya HARUS sama). HP itu
-  /// sendiri juga harus menganggap sesinya berakhir; kalau tidak, ia terus
-  /// berjualan di shift yang menurut server sudah tidak dipegangnya.
-  ///
-  /// Shift-nya TIDAK ditutup — login lagi melanjutkannya. Owner tidak
-  /// terkena: ia tidak memegang shift.
-  static const batasDiam = Duration(minutes: 15);
+  /// Akun kasir ini sudah dipegang HP lain yang lebih dulu memegangnya
+  /// (supabase/akun_satu_hp.sql).
+  static const pesanKalah =
+      'Akun ini sedang dipakai di HP lain. HP ini dikeluarkan supaya satu '
+      'akun hanya dipakai di satu HP. Datanya sudah terkirim.';
 
-  static const pesanDiam =
-      'Sesi berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';
+  /// Owner melepas akun ini dari HP ini lewat Daftar Perangkat.
+  static const pesanDilepas =
+      'Owner melepas akun ini dari HP ini. Silakan masuk lagi kalau masih '
+      'perlu memakainya.';
 
   static const String _kunciKabar = 'kabar_terakhir';
 
@@ -101,12 +94,7 @@ class SessionManager {
   /// Catat bahwa HP ini masih hidup dan dipakai.
   ///
   /// Dipanggil setiap putaran sinkron selesai — BERHASIL ATAU TIDAK — dan
-  /// saat layar disentuh ([catatSentuhan]). Sejak QA kedua S4 kabar tidak
-  /// lagi menentukan sesi diam (yang menentukan sentuhan, lihat
-  /// [akhiriKalauDiam]); ia cadangan untuk HP yang belum mencatat sentuhan.
-  ///
-  /// Disimpan juga ke storage supaya aplikasi yang digeser dari riwayat lalu
-  /// dibuka lagi tahu sudah berapa lama ia diam.
+  /// saat layar disentuh ([catatSentuhan]).
   Future<void> catatKabar([DateTime? waktu]) async {
     _kabarTerakhir = waktu ?? DateTime.now();
     final prefs = await SharedPreferences.getInstance();
@@ -118,12 +106,10 @@ class SessionManager {
   DateTime? get sentuhanTerakhir => _sentuhanTerakhir;
   DateTime? _sentuhanTerakhir;
 
-  /// Sentuhan di layar dihitung kabar juga (keputusan owner 2026-10-23).
-  ///
-  /// Dulu kabar hanya dicatat sinkron, padahal sinkron ditahan selama
-  /// keranjang berisi: kasir yang sedang melayani pesanan dikeluarkan paksa
-  /// setelah 15 menit dan pesanannya hilang — terbukti di HP. HP yang
-  /// benar-benar ditinggal tetap dikeluarkan.
+  /// Sentuhan di layar dihitung kabar juga (keputusan owner 2026-10-23):
+  /// selama keranjang berisi sinkron ditahan, dan HP yang sedang dipakai
+  /// tetap harus melapor "masih aktif" ke server
+  /// (SyncOtomatis.laporAktifKalauPerlu).
   ///
   /// Dipanggil di setiap sentuhan, jadi harus murah: jamnya dicatat di
   /// memori, dan baru ditulis ke penyimpanan kalau kabar terakhir sudah
@@ -131,9 +117,6 @@ class SessionManager {
   void catatSentuhan([DateTime? waktu]) {
     final kini = waktu ?? DateTime.now();
     _sentuhanTerakhir = kini;
-    _sejakSentuhan
-      ..reset()
-      ..start();
     final tersimpan = _sentuhanTersimpan;
     // Selisih mutlak: jam HP yang dimundurkan tidak boleh membuat sentuhan
     // berhenti tersimpan.
@@ -150,8 +133,6 @@ class SessionManager {
   DateTime? _sentuhanTersimpan;
   static const String _kunciSentuhan = 'sentuhan_terakhir';
 
-  /// Disimpan supaya HP owner yang ditinggal lalu aplikasinya digeser dari
-  /// riwayat tetap ketahuan sudah lama tidak disentuh saat dibuka lagi.
   Future<void> _simpanSentuhan(DateTime waktu) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kunciSentuhan, waktu.toIso8601String());
@@ -159,93 +140,34 @@ class SessionManager {
 
   static const jedaSimpanSentuhan = Duration(minutes: 1);
 
-  /// Akhiri sesi kalau akun ini sudah [batasDiam] tidak disentuh, sudah
-  /// lewat 12 jam, atau jam HP dimundurkan. True kalau sesinya diakhiri; [sesiDicabut] membawa
-  /// [pesanDiam] ke layar.
-  ///
-  /// Dipanggil saat aplikasi dibuka, saat kembali dari latar belakang
-  /// (SEBELUM sinkron, yang akan mencatat kabar baru), dan tiap menit selama
-  /// aplikasi di depan — untuk keranjang yang dibiarkan berisi.
-  ///
-  /// Kasir diukur dari SENTUHAN, sama seperti owner (keputusan owner
-  /// 2026-10-30, QA kedua S4). Dulu sinkron tiap 5 menit ikut dihitung: HP
-  /// kasir yang ditinggal dengan aplikasi terbuka tidak pernah keluar dan
-  /// terus terlihat memegang shift, jadi HP lain tidak bisa menutupnya.
-  /// Internet mati tetap tidak dihitung diam — yang dihitung sentuhannya.
-  Future<bool> akhiriKalauDiam({DateTime? sekarang}) async {
+  /// Keluarkan akun dari HP ini karena dipegang HP lain ([pesanKalah]) atau
+  /// dilepas owner ([pesanDilepas]). Dipanggil SyncOtomatis sesudah datanya
+  /// terkirim dan pesanan yang sedang disusun selesai.
+  Future<void> keluarkanKarenaAkun(String pesan) async {
     final sesi = _currentSession;
-    if (sesi == null) return false;
-    final kini = sekarang ?? DateTime.now();
-    if (_sesiTidakSah(sesi, kini)) {
-      await _akhiri(sesi, pesanSesiHabis);
-      return true;
-    }
-    if (sesi.isOwner) return _akhiriOwnerKalauDitinggal(kini);
-    // Semua kasir, juga yang belum membuka shift (keputusan owner
-    // 2026-11-07): HP kasir yang ditinggal terbuka tetap bisa dipakai orang
-    // lain atas nama kasir itu.
-    // Kabar hanya cadangan untuk HP yang belum pernah mencatat sentuhan.
-    final patokan = _sentuhanTerakhir ?? _kabarTerakhir;
-    if (!_diamMenurutStopwatch &&
-        (patokan == null || kini.difference(patokan) < batasDiam)) {
-      return false;
-    }
-    await _akhiri(sesi, pesanDiam);
-    return true;
-  }
-
-  /// Toleransi jam HP yang sedikit mundur sendiri (diperbaiki jaringan).
-  static const toleransiJamMundur = Duration(minutes: 1);
-
-  static const pesanSesiHabis =
-      'Sesi berakhir. Silakan masuk lagi.';
-
-  /// Lamanya diam selama aplikasi hidup, TIDAK ikut jam HP. Dulu hanya jam
-  /// yang dipakai: jam yang dimundurkan membuat selisihnya negatif, selalu di
-  /// bawah 15 menit, jadi HP owner yang ditinggal bisa dibuka tanpa PIN.
-  final Stopwatch _sejakSentuhan = Stopwatch();
-
-  bool get _diamMenurutStopwatch =>
-      _sejakSentuhan.isRunning && _sejakSentuhan.elapsed >= batasDiam;
-
-  /// Sesi lewat 12 jam (dulu hanya diperiksa saat aplikasi dibuka), atau jam
-  /// HP mundur ke sebelum sentuhan terakhir. Mundur seperti itu tidak
-  /// dipercaya: sesi diakhiri, bukan dianggap baru saja disentuh.
-  bool _sesiTidakSah(AuthSession sesi, DateTime kini) {
-    final sentuh = _sentuhanTerakhir;
-    return !kini.isBefore(sesi.expiresAt) ||
-        (sentuh != null && sentuh.isAfter(kini.add(toleransiJamMundur)));
-  }
-
-  Future<void> _akhiri(AuthSession sesi, String pesan) async {
-    final pegangShift = sesi.isCashier && sesi.shiftId != null;
-    _sejakSentuhan
-      ..stop()
-      ..reset();
+    if (sesi == null) return;
+    akanDikeluarkan.value = null;
     await clearSession();
     sesiDicabut.value = pesan;
-    if (!pegangShift) return;
-    // Server diberi tahu sekarang, tidak menunggu sinkron berikutnya —
-    // HP lain langsung bisa menutup shift-nya. Sinkron yang sedang jalan
-    // ditunggu DULU, sama seperti keluar biasa (AuthRepository.laporShift):
-    // ia ikut melapor di akhir putarannya dengan shift yang dibacanya
-    // sebelum sesi dihapus, dan kalau tiba belakangan, shift-nya terpasang
-    // lagi di server (review R2).
-    //
-    // Ditunggu sampai SELESAI, bukan 15 detik seperti keluar biasa: ini
-    // berjalan di latar, tidak ada yang menunggu di layar, dan laporan yang
-    // tiba sebelum putaran lama selesai mengembalikan masalahnya (review
-    // C6). Kalau selama menunggu sudah ada yang masuk dan memegang shift,
-    // laporannya dilewati — login itu sudah melaporkan shift-nya sendiri,
-    // dan "dilepas" akan menghapusnya di server.
+    // Server diberi tahu "tanpa akun" sekarang juga: jawaban 'dilepas'
+    // cukup sekali, dan HP pemegang yang sah tidak perlu menunggu.
+    // Sinkron yang sedang jalan ditunggu DULU: ia ikut melapor di akhir
+    // putarannya membawa sesi lama (review R2). Kalau selama menunggu sudah
+    // ada yang masuk lagi, laporannya dilewati — login itu melapor sendiri
+    // (review C6).
     unawaited(() async {
       await (tungguSinkronUntukTest ??
           () => SyncService.instance.tungguSelesai(batas: null))();
-      if (_currentSession?.shiftId != null) return;
+      if (_currentSession != null) return;
       await (laporLepasShiftUntukTest ??
           () => PerangkatRepository.instance.hadir(null))();
     }());
   }
+
+  /// Berisi pesan selagi HP ini MENUNGGU dikeluarkan (keranjang masih
+  /// berisi). Layar kasir menampilkannya supaya kasir tahu kenapa nanti
+  /// keluar sendiri.
+  final ValueNotifier<String?> akanDikeluarkan = ValueNotifier(null);
 
   /// Pengganti laporan "shift dilepas" ke server, untuk test.
   @visibleForTesting
@@ -257,25 +179,6 @@ class SessionManager {
 
   static const pesanPinDiganti =
       'PIN akun ini diganti owner. Silakan masuk lagi dengan PIN baru.';
-
-  static const pesanDiamOwner =
-      'Sesi owner berakhir karena 15 menit tidak disentuh. Silakan masuk lagi.';
-
-  /// Owner: HANYA sentuhan yang dihitung (keputusan owner 2026-10-24).
-  ///
-  /// Tujuannya berbeda dari aturan kasir: mencegah orang lain memakai HP
-  /// owner yang ditinggal dalam keadaan terbuka — membuka Kelola Kasir atau
-  /// mengubah harga. Sinkron sengaja tidak dihitung: ia berjalan tiap lima
-  /// menit selama aplikasi terbuka, jadi aturannya tidak akan pernah berlaku.
-  Future<bool> _akhiriOwnerKalauDitinggal(DateTime sekarang) async {
-    final sentuh = _sentuhanTerakhir;
-    if (!_diamMenurutStopwatch &&
-        (sentuh == null || sekarang.difference(sentuh) < batasDiam)) {
-      return false;
-    }
-    await _akhiri(_currentSession!, pesanDiamOwner);
-    return true;
-  }
 
   /// Clear current session.
   Future<void> clearSession() async {
@@ -326,9 +229,8 @@ class SessionManager {
   ///
   /// Flow validasi:
   /// 1. Baca JSON dari SharedPreferences
-  /// 2. Cek expiration (S7) — kalau expired → clear
-  /// 3. Re-query user dari DB (S6) — kalau hilang/nonaktif → clear
-  /// 4. Overwrite `role` dan `permissions` dari DB — TIDAK percaya nilai di storage
+  /// 2. Re-query user dari DB (S6) — kalau hilang/nonaktif → clear
+  /// 3. Overwrite `role` dan `permissions` dari DB — TIDAK percaya nilai di storage
   Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     final sessionJson = prefs.getString(_sessionKey);
@@ -344,12 +246,6 @@ class SessionManager {
       final sessionMap = json.decode(sessionJson) as Map<String, dynamic>;
       session = AuthSession.fromJson(sessionMap);
     } catch (_) {
-      await clearSession();
-      return;
-    }
-
-    // S7: cek expiration
-    if (session.isExpired) {
       await clearSession();
       return;
     }
@@ -381,10 +277,6 @@ class SessionManager {
       // Sinkronkan storage agar konsisten dengan DB
       await prefs.setString(_sessionKey, json.encode(_currentSession!.toJson()));
 
-      // Belum pernah tercatat = baru dipasang APK yang mengenal aturan ini;
-      // hitungannya dimulai sekarang, bukan langsung mengeluarkan kasirnya.
-      if (_kabarTerakhir == null) await catatKabar();
-      await akhiriKalauDiam();
     } catch (_) {
       // DB error saat restore → clear session, user perlu login ulang
       await clearSession();
@@ -424,8 +316,8 @@ class SessionManager {
       // Gagal membaca bukan alasan untuk mencabut izin yang sedang berlaku.
       return;
     }
-    // Sesinya berakhir atau berganti selagi membaca (mis. 15 menit tidak
-    // disentuh): menulisnya di bawah menghidupkan sesi yang sudah diakhiri
+    // Sesinya berakhir atau berganti selagi membaca (mis. dikeluarkan karena
+    // akunnya dipegang HP lain): menulisnya di bawah menghidupkan sesi yang sudah diakhiri
     // (QA kedua K3).
     if (!identical(_currentSession, sesi)) return;
 

@@ -3,6 +3,7 @@ import '../../../data/supabase/jam_server.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../../data/db.dart';
 import '../../../data/perangkat/perangkat_repository.dart';
 import '../../../data/supabase/server_terjangkau.dart';
 import '../../../data/sync/sync_service.dart';
@@ -101,7 +102,15 @@ class DaftarPerangkatPage extends StatefulWidget {
   /// Pemeriksa koneksi. Bawaan: [serverTerjangkau].
   final Future<bool> Function()? cekKoneksi;
 
-  const DaftarPerangkatPage({super.key, this.repo, this.cekKoneksi});
+  /// Nama akun per id, untuk "Dipakai akun". Bawaan: database HP ini.
+  final Future<Map<String, String>> Function()? namaAkun;
+
+  const DaftarPerangkatPage({
+    super.key,
+    this.repo,
+    this.cekKoneksi,
+    this.namaAkun,
+  });
 
   @override
   State<DaftarPerangkatPage> createState() => _DaftarPerangkatPageState();
@@ -116,6 +125,7 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
   var _keadaan = _Keadaan.memuat;
   var _memeriksa = false;
   List<Perangkat> _daftar = const [];
+  Map<String, String> _namaAkun = const {};
 
   /// Penyebab keadaan [_Keadaan.gagal].
   Object? _galatMuat;
@@ -160,6 +170,11 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
       try {
         daftar = await _repo.semua();
         keadaan = _Keadaan.siap;
+        try {
+          _namaAkun = await (widget.namaAkun ?? db.namaAkun)();
+        } catch (_) {
+          // Nama hanya pelengkap: tanpa itu kartu menulis "akun lain".
+        }
       } catch (e) {
         // Koneksi ternyata sehat, jadi galat selain putus koneksi tidak boleh
         // terbaca "butuh online" (audit nomor 5).
@@ -260,6 +275,19 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     pesan: '${p.nama} dipulihkan',
   );
 
+  Future<void> _lepasAkun(Perangkat p, String akun) => _denganPin(
+    p,
+    ikon: Icons.logout_rounded,
+    judul: 'Lepas akun?',
+    catatan:
+        'Akun $akun dilepas dari ${p.nama}. HP itu keluar sendiri begitu '
+        'tersambung internet — data yang sudah tersimpan di sana tetap '
+        'terkirim. Sesudah itu akun $akun bisa dipakai di HP lain.',
+    labelAksi: 'Lepas',
+    aksi: (pin) => _repo.lepasAkun(p.id, pin: pin),
+    pesan: 'Akun $akun dilepas dari ${p.nama}',
+  );
+
   Future<void> _lupakan(Perangkat p) => _denganPin(
     p,
     ikon: Icons.delete_rounded,
@@ -334,10 +362,23 @@ class _DaftarPerangkatPageState extends State<DaftarPerangkatPage> {
     // Jam server, bukan jam HP owner: jam yang maju sehari membuat semua HP
     // tampil "tidak aktif 1 hari" (audit 6 Nov nomor 46).
     final sekarang = JamServer.instance.sekarang();
+    // Akun yang tercatat di lebih dari satu HP aktif: lolos karena salah
+    // satunya masuk saat offline. Server memilih pemenangnya begitu keduanya
+    // melapor; sampai itu owner perlu tahu.
+    final jumlahPemegang = <String, int>{};
+    for (final p in aktif) {
+      if (p.akunId case final id?) {
+        jumlahPemegang[id] = (jumlahPemegang[id] ?? 0) + 1;
+      }
+    }
     Widget kartu(Perangkat p) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: _KartuPerangkat(
         perangkat: p,
+        akun: p.akunId == null ? null : (_namaAkun[p.akunId] ?? 'akun lain'),
+        akunGanda: (jumlahPemegang[p.akunId] ?? 0) > 1,
+        onLepasAkun: () =>
+            _lepasAkun(p, _namaAkun[p.akunId] ?? 'akun lain'),
         iniSaya: p.id == idSaya,
         sekarang: sekarang,
         perluDicek: p.perluDicek(sekarang: sekarang, idSaya: idSaya),
@@ -397,6 +438,13 @@ IconData _ikonPerangkat(Perangkat p) =>
 
 class _KartuPerangkat extends StatelessWidget {
   final Perangkat perangkat;
+
+  /// Nama akun kasir yang sedang dipegang HP ini, atau null.
+  final String? akun;
+
+  /// Akun yang sama tercatat di HP aktif lain juga.
+  final bool akunGanda;
+  final VoidCallback onLepasAkun;
   final bool iniSaya;
   final bool perluDicek;
   final ({String judul, String catatan})? masalahData;
@@ -408,6 +456,9 @@ class _KartuPerangkat extends StatelessWidget {
 
   const _KartuPerangkat({
     required this.perangkat,
+    required this.akun,
+    required this.akunGanda,
+    required this.onLepasAkun,
     required this.iniSaya,
     required this.perluDicek,
     required this.masalahData,
@@ -464,6 +515,13 @@ class _KartuPerangkat extends StatelessWidget {
                     ),
             ],
           ),
+          if (akunGanda && akun != null)
+            _peringatan(
+              'Akun $akun dipakai di 2 HP',
+              'Biasanya karena salah satunya masuk saat offline. HP yang '
+                  'lebih dulu memegangnya tetap dipakai, yang lain keluar '
+                  'sendiri begitu tersambung.',
+            ),
           if (perluDicek)
             _peringatan(
               'Tidak sinkron ${p.hariDiam(sekarang: sekarang)} hari',
@@ -474,6 +532,15 @@ class _KartuPerangkat extends StatelessWidget {
           const SizedBox(height: 12),
           const Divider(height: 1, thickness: 1, color: WarnaTeras.garis),
           const SizedBox(height: 12),
+          if (p.aktif && akun != null) ...[
+            _barisInfo(
+              'Dipakai akun',
+              p.akunSejak == null
+                  ? akun!
+                  : '$akun · sejak ${DateFormat('d MMM HH:mm', 'id_ID').format(p.akunSejak!)}',
+            ),
+            const SizedBox(height: 4),
+          ],
           _barisInfo(
             'Terakhir aktif',
             labelTerakhirAktif(p, iniSaya: iniSaya, sekarang: sekarang),
@@ -662,6 +729,13 @@ class _KartuPerangkat extends StatelessWidget {
         // Perangkat ini sendiri sengaja tidak bisa dicabut dari sini: server
         // pun menolaknya. Kalau boleh, pemilik bisa mengunci dirinya keluar
         // hanya dengan satu kali salah pencet.
+        if (!iniSaya && perangkat.aktif && akun != null)
+          tombol(
+            'Lepas Akun',
+            onLepasAkun,
+            latar: WarnaTeras.oranyeMuda,
+            warna: WarnaTeras.oranye,
+          ),
         if (!iniSaya && perangkat.aktif)
           tombol(
             'Cabut',

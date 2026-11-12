@@ -97,10 +97,6 @@ Future<void> _jalankanAplikasi() async {
   InfoNota.pantau(db);
 
   // Try to restore session from SharedPreferences.
-  //
-  // SEBELUM sinkron pertama: sinkron mencatat kabar baru, dan kasir yang
-  // aplikasinya digeser dari riwayat sejam lalu harus tetap ketahuan sudah
-  // diam lebih dari 15 menit (SessionManager.akhiriKalauDiam).
   await SessionManager.instance.restoreSession();
 
   // Tanda "dicabut" yang tersimpan dibaca SEBELUM layar pertama: HP yang

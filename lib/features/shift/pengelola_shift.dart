@@ -81,26 +81,17 @@ class PengelolaShift {
   /// Pesan penolakan yang menyebut perangkat pemegangnya — tanpa nama, kasir
   /// tidak tahu harus mencari HP yang mana.
   ///
-  /// Perangkat yang sudah [SessionManager.batasDiam] tidak memberi kabar
-  /// tidak dihitung server lagi, jadi pesannya juga menyebut kapan shift
-  /// bisa ditutup kalau perangkat itu ternyata sudah mati.
+  /// Sejak supabase/akun_satu_hp.sql perangkat yang lama diam tetap memegang
+  /// shift-nya, jadi jalan keluarnya: tutup dari HP itu, atau owner melepas
+  /// akunnya di Daftar Perangkat (misalnya HP-nya rusak).
   static String pesanDipegang(List<PemegangShift> pemegang) {
-    String aktif(Duration d) => d.inMinutes < 1
-        ? 'aktif baru saja'
-        : 'aktif ${d.inMinutes} menit lalu';
-    final nama = [for (final p in pemegang) '${p.nama} (${aktif(p.diam)})'];
+    final nama = [for (final p in pemegang) p.nama];
     final daftar = nama.length == 1
         ? nama.single
         : '${nama.sublist(0, nama.length - 1).join(', ')} dan ${nama.last}';
-    final tersegar = pemegang
-        .map((p) => p.diam)
-        .reduce((a, b) => a < b ? a : b);
-    final sisa = SessionManager.batasDiam - tersegar;
-    final menit = (sisa.inSeconds / 60).ceil().clamp(1, 1 << 20);
-    final itu = pemegang.length == 1 ? 'perangkat itu' : 'perangkat-perangkat itu';
-    return 'Shift ini masih dipakai di $daftar. Tutup shift dari $itu. '
-        'Kalau $itu sudah tidak dipakai, shift bisa ditutup sekitar '
-        '$menit menit lagi.';
+    final itu = pemegang.length == 1 ? 'HP itu' : 'HP-HP itu';
+    return 'Shift ini masih dipakai di $daftar. Tutup shift dari $itu, atau '
+        'minta owner melepas akunnya di Daftar Perangkat.';
   }
 
   /// Tutup shift berjalan. Kasir tetap masuk dan bisa membuka shift baru.

@@ -219,9 +219,8 @@ void main() {
             (nama: 'Emulator 2', diam: const Duration(minutes: 3)),
           ],
         ).halanganMenutup('s-1'),
-        'Shift ini masih dipakai di Emulator 2 (aktif 3 menit lalu). Tutup '
-        'shift dari perangkat itu. Kalau perangkat itu sudah tidak dipakai, '
-        'shift bisa ditutup sekitar 12 menit lagi.',
+        'Shift ini masih dipakai di Emulator 2. Tutup shift dari HP itu, atau '
+        'minta owner melepas akunnya di Daftar Perangkat.',
       );
       expect(
         await PengelolaShift(
@@ -242,24 +241,16 @@ void main() {
       );
     });
 
-    test('pesan pemegang: beberapa perangkat, baru saja aktif', () {
+    test('pesan pemegang: beberapa perangkat — tanpa hitungan mundur, '
+        'karena HP yang lama diam tetap memegang shift (akun_satu_hp.sql)', () {
       expect(
         PengelolaShift.pesanDipegang([
           (nama: 'HP A', diam: const Duration(seconds: 20)),
           (nama: 'HP B', diam: const Duration(minutes: 7, seconds: 30)),
-          (nama: 'HP C', diam: const Duration(minutes: 14, seconds: 50)),
+          (nama: 'HP C', diam: const Duration(hours: 3)),
         ]),
-        'Shift ini masih dipakai di HP A (aktif baru saja), HP B (aktif 7 '
-        'menit lalu) dan HP C (aktif 14 menit lalu). Tutup shift dari '
-        'perangkat-perangkat itu. Kalau perangkat-perangkat itu sudah tidak '
-        'dipakai, shift bisa ditutup sekitar 15 menit lagi.',
-        reason: 'sisa waktu mengikuti perangkat yang PALING BARU aktif',
-      );
-      expect(
-        PengelolaShift.pesanDipegang([
-          (nama: 'HP A', diam: const Duration(minutes: 14, seconds: 50)),
-        ]),
-        endsWith('sekitar 1 menit lagi.'),
+        'Shift ini masih dipakai di HP A, HP B dan HP C. Tutup shift dari '
+        'HP-HP itu, atau minta owner melepas akunnya di Daftar Perangkat.',
       );
     });
 

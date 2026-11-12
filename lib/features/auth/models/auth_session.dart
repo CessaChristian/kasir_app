@@ -4,7 +4,10 @@
 /// dipercaya — SessionManager akan re-validate dari DB pada restore untuk
 /// mencegah privilege escalation via tamper SharedPreferences (S6).
 ///
-/// `expiresAt` = session kadaluarsa setelah 12 jam (typical shift length).
+/// `expiresAt` hanya catatan lama: sejak 12 Nov 2026 sesi tidak kedaluwarsa
+/// sendiri (keputusan owner). Tetap disimpan supaya sesi dari APK lama dan
+/// baru bisa saling membaca. `createdAt` = jam mulai memegang akun, dipakai
+/// server untuk menentukan HP mana yang menang (supabase/akun_satu_hp.sql).
 class AuthSession {
   final String userId;
   final String username;
@@ -28,7 +31,7 @@ class AuthSession {
     required this.expiresAt,
   });
 
-  /// Default session: kadaluarsa 12 jam dari sekarang.
+  /// Sesi baru mulai sekarang.
   factory AuthSession.create({
     required String userId,
     required String username,
@@ -50,8 +53,6 @@ class AuthSession {
 
   bool get isOwner => role == 'owner';
   bool get isCashier => role == 'cashier';
-
-  bool get isExpired => DateTime.now().isAfter(expiresAt);
 
   /// Copy dengan field baru — dipakai SessionManager saat re-validate dari DB.
   AuthSession copyWith({

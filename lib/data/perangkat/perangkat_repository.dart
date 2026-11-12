@@ -17,6 +17,15 @@ import '../../utils/pesan_galat.dart';
 /// ia tidak memberi kabar ke server.
 typedef PemegangShift = ({String nama, Duration diam});
 
+/// Jawaban server tentang akun kasir yang dipegang HP ini
+/// (supabase/akun_satu_hp.sql): ada HP lain yang lebih dulu memegangnya,
+/// atau owner melepasnya dari HP ini. Keduanya berarti HP ini harus keluar.
+enum PutusanAkun { kalah, dilepas }
+
+/// Hasil memegang akun saat masuk: boleh, atau ditolak karena dipegang
+/// perangkat [nama].
+typedef HasilPegangAkun = ({bool boleh, String? nama});
+
 /// Satu perangkat yang terdaftar boleh menyentuh data toko.
 class Perangkat {
   final String id;
@@ -49,6 +58,12 @@ class Perangkat {
   /// positif berarti jam HP lebih cepat. Null kalau belum pernah melapor.
   final Duration? selisihJam;
 
+  /// Akun kasir yang sedang dipegang HP ini dan sejak kapan, atau null
+  /// (supabase/akun_satu_hp.sql belum dijalankan, owner, atau tidak ada
+  /// yang masuk).
+  final String? akunId;
+  final DateTime? akunSejak;
+
   const Perangkat({
     required this.id,
     required this.nama,
@@ -61,6 +76,8 @@ class Perangkat {
     this.jumlahTertahan = 0,
     this.jumlahGagalKirim = 0,
     this.selisihJam,
+    this.akunId,
+    this.akunSejak,
   });
 
   factory Perangkat.dariBaris(Map<String, dynamic> b) {
@@ -82,6 +99,11 @@ class Perangkat {
       jumlahGagalKirim: (b['jumlah_gagal_kirim'] as num?)?.toInt() ?? 0,
       selisihJam: switch (b['selisih_jam_detik']) {
         final num detik => Duration(seconds: detik.toInt()),
+        _ => null,
+      },
+      akunId: b['akun_id'] as String?,
+      akunSejak: switch (b['akun_sejak']) {
+        final String t => DateTime.parse(t).toLocal(),
         _ => null,
       },
     );
@@ -460,6 +482,10 @@ class PerangkatRepository {
   /// tertahan — hanya itu yang memajukan `terakhir_tarik`, patokan buang
   /// sampah dan "Data terakhir diterima" di halaman Perangkat. Kabar dari
   /// sentuhan layar tidak mengirimnya. [tertahan] null = tidak dilaporkan.
+  ///
+  /// Akun kasir yang sedang masuk ikut dilaporkan bersama jam mulai
+  /// memegangnya; jawaban server 'kalah' / 'dilepas' disimpan di
+  /// [putusanAkun] (supabase/akun_satu_hp.sql).
   Future<void> hadir(
     String? shiftId, {
     bool tarikBersih = false,
@@ -474,7 +500,18 @@ class PerangkatRepository {
     // perangkat_tarik.sql) belum menerima parameter barunya — kabar "masih
     // dipakai" tetap harus sampai: pemegang shift dan sesi diam bergantung
     // padanya.
+    final akun = akunUntukLaporan();
     final pilihan = <Map<String, dynamic>>[
+      {
+        'p_shift_id': shiftId,
+        if (tarikBersih) 'p_tarik_bersih': true,
+        'p_tertahan': ?tertahan,
+        'p_gagal_kirim': ?gagalKirim,
+        if (selisihJam != null)
+          'p_selisih_jam': selisihDetikTerkirim(selisihJam),
+        'p_akun': akun?.id,
+        'p_akun_sejak': akun?.sejak.toUtc().toIso8601String(),
+      },
       if (selisihJam != null)
         {
           'p_shift_id': shiftId,
@@ -504,7 +541,10 @@ class PerangkatRepository {
     try {
       for (var i = 0; ; i++) {
         try {
-          await k.rpc('perangkat_hadir', params: pilihan[i]);
+          final jawaban = await k.rpc('perangkat_hadir', params: pilihan[i]);
+          // Laporan tanpa akun (keluar) tidak mengubah putusan yang sedang
+          // ditangani; APK/server lama menjawab null.
+          if (akun != null) putusanAkun.value = bacaPutusan(jawaban);
           break;
         } catch (e) {
           if (!belumDisiapkan(e) || i == pilihan.length - 1) rethrow;
@@ -517,6 +557,71 @@ class PerangkatRepository {
     hadirTerakhir = DateTime.now();
     await _catatModel(k);
     if (!_kodeTerambil) await _ambilKodeNota(k);
+  }
+
+  /// Jawaban terakhir server tentang akun kasir di HP ini; null = aman.
+  /// Ditangani SyncOtomatis.tanganiPutusanAkun.
+  final ValueNotifier<PutusanAkun?> putusanAkun = ValueNotifier(null);
+
+  @visibleForTesting
+  static PutusanAkun? bacaPutusan(Object? jawaban) => switch (jawaban) {
+    'kalah' => PutusanAkun.kalah,
+    'dilepas' => PutusanAkun.dilepas,
+    _ => null,
+  };
+
+  /// Akun kasir yang sedang masuk dan jam mulai memegangnya MENURUT JAM
+  /// SERVER (jam HP dikoreksi selisih yang diketahui), atau null untuk owner
+  /// dan HP tanpa akun masuk. Owner boleh masuk di beberapa HP.
+  ({String id, DateTime sejak})? akunUntukLaporan() {
+    final sesi = SessionManager.instance.currentSession;
+    if (sesi == null || !sesi.isCashier) return null;
+    final selisih = JamServer.instance.selisih.value ?? Duration.zero;
+    return (id: sesi.userId, sejak: sesi.createdAt.subtract(selisih));
+  }
+
+  /// Pegang akun kasir [userId] di HP ini — dipanggil saat masuk.
+  ///
+  /// Hanya menolak kalau server MENJAWAB akunnya dipegang HP lain. Offline,
+  /// server lama (supabase/akun_satu_hp.sql belum dijalankan), atau galat
+  /// apa pun = boleh: kasir tetap harus bisa berjualan saat internet mati.
+  /// Kalau ternyata dua HP memegang akun yang sama, yang lebih dulu memegang
+  /// menang begitu keduanya melapor ([hadir]).
+  Future<HasilPegangAkun> pegangAkun(String userId, DateTime sejak) async {
+    final k = _klien;
+    if (k == null || !SupabaseService.instance.online) {
+      return (boleh: true, nama: null);
+    }
+    try {
+      final selisih = JamServer.instance.selisih.value ?? Duration.zero;
+      final jawaban = await k
+          .rpc('pegang_akun', params: {
+            'p_akun': userId,
+            'p_sejak': sejak.subtract(selisih).toUtc().toIso8601String(),
+          })
+          .timeout(batasTanyaPegang);
+      putusanAkun.value = null;
+      if (jawaban is Map && jawaban['status'] == 'dipegang') {
+        return (boleh: false, nama: (jawaban['nama'] as String?) ?? 'HP lain');
+      }
+    } catch (e) {
+      if (!belumDisiapkan(e)) debugPrint('[perangkat] pegang akun gagal: $e');
+    }
+    return (boleh: true, nama: null);
+  }
+
+  /// Masuk tidak boleh tertahan lama karena sinyal lemot — lewat dari ini
+  /// dianggap offline (boleh masuk).
+  static const batasTanyaPegang = Duration(seconds: 5);
+
+  /// Lepas akun yang dipegang HP [id] (owner, dengan PIN owner). HP itu
+  /// keluar sendiri begitu melapor ke server.
+  Future<void> lepasAkun(String id, {required String pin}) async {
+    SessionManager.instance.requireOwner();
+    _periksaJawaban(await _klienWajib.rpc(
+      'lepas_akun',
+      params: {'p_id': id, 'p_pin': pin},
+    ));
   }
 
   /// Kapan [hadir] terakhir sampai ke server, atau null.
@@ -591,8 +696,9 @@ class PerangkatRepository {
   }
 
   /// Perangkat AKTIF selain perangkat ini yang masih memegang shift ini —
-  /// kosong kalau tidak ada. Perangkat yang 15 menit tidak memberi kabar
-  /// tidak dihitung (supabase/shift_pemegang_basi.sql).
+  /// kosong kalau tidak ada. Sejak supabase/akun_satu_hp.sql perangkat yang
+  /// lama diam TETAP dihitung: ia baru lepas kalau kasirnya keluar atau
+  /// owner melepasnya.
   ///
   /// Dijawab server, bukan dihitung di sini, supaya jawabannya sama untuk
   /// siapa pun yang bertanya. MELEMPAR kalau tidak bisa bertanya — pemanggil
