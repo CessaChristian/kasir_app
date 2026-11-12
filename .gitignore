@@ -61,3 +61,8 @@ devtools_options.yaml
 
 # Kunci tanda tangan rilis — JANGAN PERNAH masuk git (cadangan di iCloud owner)
 /teras-inn-kunci/
+
+# Konfigurasi alat lokal (tidak ikut repo)
+.mcp.json
+.claude/
+skills-lock.json
