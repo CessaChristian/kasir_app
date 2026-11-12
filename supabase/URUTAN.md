@@ -121,4 +121,5 @@ sebelum `buang_sampah_jadwal.sql`, dan bucket Storage dibuat oleh
 | 55 | `batal_item_ikut_nota.sql` | ITEM STRUK HANYA TERHAPUS BERSAMA NOTANYA (tes alur 10 Nov 2026) |
 | 56 | `info_toko.sql` | INFO OUTLET DI NOTA (permintaan owner, 11 Nov 2026) |
 | 57 | `catatan_error.sql` | CATATAN ERROR DARI HP (audit 6 Nov 2026 nomor 62, keputusan 11 Nov) |
-| 58 | `rls.sql` | SISA PENGETATAN AKSES |
+| 58 | `akun_satu_hp.sql` | SATU AKUN KASIR = SATU HP — logout 15 menit dihapus, owner bisa Lepas akun (keputusan owner, 12 Nov 2026) |
+| 59 | `rls.sql` | SISA PENGETATAN AKSES |
